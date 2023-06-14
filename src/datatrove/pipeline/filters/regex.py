@@ -1,7 +1,7 @@
 import re
 
 from datatrove import Document
-from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.pipeline.filters.base import BaseFilter, FilterResult
 
 
 class RegexFilter(BaseFilter):
@@ -9,6 +9,7 @@ class RegexFilter(BaseFilter):
     def __init__(
             self,
             regex_exp: str,
+            exclusion_reason: str | None = None,
             *args,
             **kwargs
     ):
@@ -18,12 +19,13 @@ class RegexFilter(BaseFilter):
           @param regex_exp: regex expression
           """
         super(RegexFilter, self).__init__(*args, **kwargs)
-        self.regex_exp = regex_exp
+        self.regex = re.compile(regex_exp)
+        self.exclusion_reason = exclusion_reason
 
-    def filter(self, doc: Document) -> bool:
+    def filter(self, doc: Document) -> FilterResult:
         """
 
         :param doc: document
         :return: is_filter
         """
-        return True if len(re.findall(self.regex_exp, doc)) > 0 else False
+        return FilterResult(not len(re.findall(self.regex, doc)) > 0, self.exclusion_reason)
