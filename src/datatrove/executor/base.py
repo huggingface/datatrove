@@ -25,4 +25,5 @@ class PipelineExecutor(ABC):
         pipelined_data = None
         for pipeline_step in self.pipeline:
             pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
-        deque(pipelined_data, maxlen=0)
+        if pipelined_data:
+            deque(pipelined_data, maxlen=0)
