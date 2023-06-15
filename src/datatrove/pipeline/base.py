@@ -9,6 +9,6 @@ class PipelineStep(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, rank: int, world_size: int, data: DocumentsPipeline) -> DocumentsPipeline:
+    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data

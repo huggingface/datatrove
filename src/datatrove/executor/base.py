@@ -24,5 +24,5 @@ class PipelineExecutor(ABC):
     def _run_for_rank(self, rank: int):
         pipelined_data = None
         for pipeline_step in self.pipeline:
-            pipelined_data = pipeline_step(rank, self.world_size, pipelined_data)
+            pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
         deque(pipelined_data, maxlen=0)

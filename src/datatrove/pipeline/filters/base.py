@@ -1,22 +1,13 @@
 from abc import ABC, abstractmethod
 
-from datatrove import DocumentsPipeline, Document
-from datatrove.pipeline import PipelineStep
-
-from dataclasses import dataclass
-
-
-@dataclass
-class FilterResult:
-    is_kept: bool
-    drop_reason: None | str
+from datatrove.data import DocumentsPipeline, Document
+from datatrove.pipeline.base import PipelineStep
 
 
 class BaseFilter(PipelineStep, ABC):
     @abstractmethod
     def __init__(
             self,
-            *args,
             **kwargs
     ):
         """
@@ -26,10 +17,10 @@ class BaseFilter(PipelineStep, ABC):
         @param args:
         @param kwargs:
         """
-        super(BaseFilter, self).__init__(*args, **kwargs)
+        super().__init__(**kwargs)
 
     @abstractmethod
-    def filter(self, doc: Document) -> FilterResult:
+    def filter(self, doc: Document) -> bool:
         """
         Filter modules' main method.
         Returns true if a sample should be filtered.
@@ -37,9 +28,9 @@ class BaseFilter(PipelineStep, ABC):
         @param doc: sample to (maybe) filter
         @return: bool - whether the doc should be filtered
         """
-        return FilterResult(True, None)
+        return True
 
-    def step(self, docpipe: DocumentsPipeline) -> DocumentsPipeline:
+    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
         step method for Filters.
         Drops documents that if .filter() is False
@@ -48,8 +39,6 @@ class BaseFilter(PipelineStep, ABC):
         @return: DocumentsPipeline
         """
 
-        for doc in docpipe:
-            filter_result = self.filter(doc)
-            if not filter_result.is_kept:
-                continue
-            yield doc
+        for doc in data:
+            if self.filter(doc):
+                yield doc

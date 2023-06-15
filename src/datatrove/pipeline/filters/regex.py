@@ -10,7 +10,6 @@ class RegexFilter(BaseFilter):
             self,
             regex_exp: str,
             exclusion_reason: str | None = None,
-            *args,
             **kwargs
     ):
         """
@@ -18,14 +17,14 @@ class RegexFilter(BaseFilter):
 
           @param regex_exp: regex expression
           """
-        super(RegexFilter, self).__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.regex = re.compile(regex_exp)
         self.exclusion_reason = exclusion_reason
 
-    def filter(self, doc: Document) -> FilterResult:
+    def filter(self, doc: Document) -> bool:
         """
 
         :param doc: document
         :return: is_filter
         """
-        return FilterResult(not len(re.findall(self.regex, doc)) > 0, self.exclusion_reason)
+        return not len(self.regex.findall(doc)) > 0
