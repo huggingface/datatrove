@@ -30,6 +30,9 @@ class BaseFilter(PipelineStep, ABC):
         """
         return True
 
+    def __repr__(self):
+        return "🔻 - FILTER"
+
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
         step method for Filters.

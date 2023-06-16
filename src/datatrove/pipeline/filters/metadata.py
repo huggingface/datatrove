@@ -1,28 +1,29 @@
-import re
-
 from datatrove.data import Document
 from datatrove.pipeline.filters.base import BaseFilter
+from typing import Callable
 
 
-class RegexFilter(BaseFilter):
+class MetaData(BaseFilter):
 
     def __init__(
             self,
-            regex_exp: str,
+            filter_function: Callable[[str], bool],
+            metadata_key: str,
             exclusion_reason: str | None = None,
             **kwargs
     ):
         """
-          filters if regex find at least one match
+          filters documents triggering the given filter_function with respect to a specific metadata key.
 
           @param regex_exp: regex expression
           """
         super().__init__(**kwargs)
-        self.regex = re.compile(regex_exp)
+        self.filter_function = filter_function
+        self.metadata_key = metadata_key
         self.exclusion_reason = exclusion_reason
 
     def __repr__(self):
-        return " ".join([super().__repr__(), "regex"])
+        return " ".join([super().__repr__(), "metadata"])
 
     def filter(self, doc: Document) -> bool:
         """
@@ -30,4 +31,4 @@ class RegexFilter(BaseFilter):
         :param doc: document
         :return: is_filter
         """
-        return not len(self.regex.findall(doc)) > 0
+        return self.filter_function(doc.metadata[self.metadata_key])
