@@ -63,7 +63,7 @@ class GopherQuality(BaseFilter):
         :return: False if sample.content does not pass any of the the heuristic tests
         """
         text = doc.content
-        words = word_tokenize(text)
+        words = word_tokenize(text)  # TODO we should use language id filter
 
         # words < min_doc_words or words > max_doc_words
         n_words = len(words)
@@ -87,7 +87,7 @@ class GopherQuality(BaseFilter):
 
         # any document with more than 90 % of lines starting with a bullet point,
         # or more than 30 % ending with an ellipsis.
-        sentences = text.splitlines()  # TODO we can add language to sentence tokenizer
+        sentences = text.splitlines()
         if sum(s.startswith("•") for s in
                sentences) / n_words > self.max_bullet_lines_ratio and self.max_bullet_lines_ratio:
             return False, "gopher_too_many_bullets"
