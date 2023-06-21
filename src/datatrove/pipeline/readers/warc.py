@@ -23,13 +23,11 @@ class WarcReader(BaseReader):
 
     def read_file(self, datafile: InputDataFile):
         with datafile.open(lambda x: gzip.open(x, 'rb') if self.gzip_mode else open(x, 'rb')) as f:
-            for i, record in enumerate(ArchiveIterator(f)):
+            for record in ArchiveIterator(f):
                 document = process_record(record)
                 if document:
                     document.metadata['file_path'] = datafile.path
                     yield document
-                if i == 100:
-                    break
 
 
 def process_record(record: ArcWarcRecord):
