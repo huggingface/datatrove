@@ -3,10 +3,11 @@ import os
 from fasttext.FastText import _FastText
 
 import urllib.request
+from loguru import logger
 
-from datatrove.data import Document
+from datatrove.data import Document, DocumentsPipeline
 from datatrove.pipeline.filters.base import BaseFilter
-from datatrove.utils.typeshelper import Languages
+from datatrove.utils.typeshelper import Languages, LocalPaths, NiceRepr
 
 LANGUAGE_ID_MODEL_URL = 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin'
 
@@ -16,7 +17,7 @@ class LanguageID(BaseFilter):
     def __init__(
             self,
             language_threshold: float = 0.65,
-            model_local_path: str = "/somewhere/language_id",
+            model_local_path: str = "".join([LocalPaths.download, "/language_id/lid.176.bin"]),
             languages: tuple = (
                     Languages.english,
                     Languages.italian,
@@ -38,12 +39,21 @@ class LanguageID(BaseFilter):
         super().__init__(**kwargs)
         self.language_threshold = language_threshold
         self.languages = languages
-        if not os.path.isfile(model_local_path):
-            urllib.request.urlretrieve(LANGUAGE_ID_MODEL_URL, model_local_path)
-        self.model = _FastText(model_local_path)
+        self.model_local_path = model_local_path
+        self._model = None
 
     def __repr__(self):
-        return " ".join([super().__repr__(), "🌍 langauge id"])
+        return " ".join([super().__repr__(), NiceRepr("🌍", "Language ID").get_name()])
+
+    @property
+    def model(self):
+        if not self._model:
+            if not os.path.isfile(self.model_local_path):
+                os.makedirs(os.path.dirname(self.model_local_path), exist_ok=True)
+                logger.info("⬇️ Downloading fast-text langauge identifier model ...")
+                urllib.request.urlretrieve(LANGUAGE_ID_MODEL_URL, self.model_local_path)
+            self._model = _FastText(self.model_local_path)
+        return self._model
 
     def filter(self, doc: Document) -> bool:
         """
@@ -52,9 +62,9 @@ class LanguageID(BaseFilter):
         :return: is_filter
         """
 
-        language, score = self.model.predict(doc.content)
+        language, score = self.model.predict(doc.content.replace("\n", ""))
         doc.metadata["language_id"] = language
-        doc.metadata["score"] = language
+        doc.metadata["score"] = score
         if score > self.language_threshold and language in self.languages:
             return True
         return False

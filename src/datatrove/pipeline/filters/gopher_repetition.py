@@ -1,12 +1,11 @@
-import re
 from collections import Counter
-from functools import reduce
 
 from nltk.tokenize import word_tokenize
 import re
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.utils.typeshelper import NiceRepr
 
 """
 Table A1 from https://arxiv.org/pdf/2112.11446.pdf
@@ -36,7 +35,7 @@ def find_duplicates(x: list[str]) -> tuple[int, int]:
     unique_x = set()
     duplicate_chars = 0
     for element in x:
-        if x in unique_x:
+        if element in unique_x:
             duplicate_chars += len(element)
         else:
             unique_x.add(element)
@@ -92,6 +91,9 @@ class GopherRepetition(BaseFilter):
         self.top_n_grams = top_n_grams
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
+
+    def __repr__(self):
+        return " ".join([super().__repr__(), NiceRepr("👯", "Gopher Repetition").get_name()])
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """

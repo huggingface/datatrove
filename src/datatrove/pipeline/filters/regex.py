@@ -3,6 +3,8 @@ import re
 from datatrove.data import Document
 from datatrove.pipeline.filters.base import BaseFilter
 
+from datatrove.utils.typeshelper import NiceRepr
+
 
 class RegexFilter(BaseFilter):
 
@@ -22,7 +24,7 @@ class RegexFilter(BaseFilter):
         self.exclusion_reason = exclusion_reason
 
     def __repr__(self):
-        return " ".join([super().__repr__(), "regex"])
+        return " ".join([super().__repr__(), NiceRepr("🕵️", "Regex").get_name()])
 
     def filter(self, doc: Document) -> bool:
         """

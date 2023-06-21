@@ -2,6 +2,8 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base import BaseFilter
 from typing import Callable
 
+from datatrove.utils.typeshelper import NiceRepr
+
 
 class MetaData(BaseFilter):
 
@@ -23,7 +25,7 @@ class MetaData(BaseFilter):
         self.exclusion_reason = exclusion_reason
 
     def __repr__(self):
-        return " ".join([super().__repr__(), "metadata"])
+        return " ".join([super().__repr__(), NiceRepr("👤", "metadata").get_name()])
 
     def filter(self, doc: Document) -> bool:
         """
@@ -31,4 +33,6 @@ class MetaData(BaseFilter):
         :param doc: document
         :return: is_filter
         """
-        return self.filter_function(doc.metadata[self.metadata_key])
+        if doc.metadata.get(self.metadata_key):
+            return self.filter_function(doc.metadata.get(self.metadata_key))
+        return True
