@@ -22,6 +22,7 @@ class PipelineExecutor(ABC):
         return 0
 
     def _run_for_rank(self, rank: int):
+        # pipe data from one step to the next
         pipelined_data = None
         for pipeline_step in self.pipeline:
             pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)

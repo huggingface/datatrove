@@ -4,8 +4,8 @@ from datatrove.data import DocumentsPipeline
 
 
 class PipelineStep(ABC):
-    @abstractmethod
-    def __init__(self):
+
+    def set_up_dl_locks(self, dl_lock, up_lock):
         pass
 
     @abstractmethod
