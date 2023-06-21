@@ -10,7 +10,7 @@ from datatrove.utils.typeshelper import NiceRepr
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
 
-class GopherQuality(BaseFilter):
+class GopherQualityFilter(BaseFilter):
 
     def __init__(
             self,

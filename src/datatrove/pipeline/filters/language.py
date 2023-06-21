@@ -12,7 +12,7 @@ from datatrove.utils.typeshelper import Languages, LocalPaths, NiceRepr
 LANGUAGE_ID_MODEL_URL = 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin'
 
 
-class LanguageID(BaseFilter):
+class LanguageFilter(BaseFilter):
 
     def __init__(
             self,

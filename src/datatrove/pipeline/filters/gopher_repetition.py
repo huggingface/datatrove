@@ -65,7 +65,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
     return repeated_chars
 
 
-class GopherRepetition(BaseFilter):
+class GopherRepetitionFilter(BaseFilter):
     def __init__(
             self,
             dup_line_frac: float | None = 0.3,

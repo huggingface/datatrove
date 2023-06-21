@@ -5,7 +5,7 @@ from typing import Callable
 from datatrove.utils.typeshelper import NiceRepr
 
 
-class MetaData(BaseFilter):
+class LambdaFilter(BaseFilter):
 
     def __init__(
             self,
