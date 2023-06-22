@@ -1,10 +1,10 @@
 from collections import deque
-from copy import deepcopy
 
 import multiprocess.pool
 from multiprocess import Semaphore
 
 from datatrove.executor.base import PipelineExecutor
+from datatrove.pipeline.base import PipelineStep
 
 download_semaphore, upload_semaphore = None, None
 
@@ -31,12 +31,10 @@ class LocalPipelineExecutor(PipelineExecutor):
         self.max_concurrent_downloads = max_concurrent_downloads
 
     def _run_for_rank(self, rank: int):
-        if self.workers == 1:
-            # make a deepcopy of the pipeline steps
-            self.pipeline = deepcopy(self.pipeline)
-        else:
+        if self.workers > 1:
             for pipeline_step in self.pipeline:
-                pipeline_step.set_up_dl_locks(download_semaphore, upload_semaphore)
+                if isinstance(pipeline_step, PipelineStep):
+                    pipeline_step.set_up_dl_locks(download_semaphore, upload_semaphore)
         super()._run_for_rank(rank)
 
     def run(self):

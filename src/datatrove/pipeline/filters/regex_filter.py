@@ -11,7 +11,6 @@ class RegexFilter(BaseFilter):
     def __init__(
             self,
             regex_exp: str,
-            exclusion_reason: str | None = None,
             **kwargs
     ):
         """
@@ -21,7 +20,6 @@ class RegexFilter(BaseFilter):
           """
         super().__init__(**kwargs)
         self.regex = re.compile(regex_exp)
-        self.exclusion_reason = exclusion_reason
 
     def __repr__(self):
         return " ".join([super().__repr__(), NiceRepr("🕵️", "Regex").get_name()])

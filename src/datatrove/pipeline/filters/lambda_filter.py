@@ -9,9 +9,7 @@ class LambdaFilter(BaseFilter):
 
     def __init__(
             self,
-            filter_function: Callable[[str], bool],
-            metadata_key: str,
-            exclusion_reason: str | None = None,
+            filter_function: Callable[[Document], bool],
             **kwargs
     ):
         """
@@ -21,8 +19,6 @@ class LambdaFilter(BaseFilter):
           """
         super().__init__(**kwargs)
         self.filter_function = filter_function
-        self.metadata_key = metadata_key
-        self.exclusion_reason = exclusion_reason
 
     def __repr__(self):
         return " ".join([super().__repr__(), NiceRepr("👤", "metadata").get_name()])
@@ -33,6 +29,4 @@ class LambdaFilter(BaseFilter):
         :param doc: document
         :return: is_filter
         """
-        if doc.metadata.get(self.metadata_key):
-            return self.filter_function(doc.metadata.get(self.metadata_key))
-        return True
+        return self.filter_function(doc)
