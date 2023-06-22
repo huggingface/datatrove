@@ -4,7 +4,8 @@ from setuptools import find_packages, setup
 REQUIRED_PKGS = [
     "warcio==1.7.4",
     "cchardet==2.1.7",
-    "python-magic==0.4.27"
+    "python-magic==0.4.27",
+    "multiprocess==0.70.14"
 ]
 
 setup(
