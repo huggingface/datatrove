@@ -4,7 +4,7 @@ from nltk.tokenize import word_tokenize
 import re
 
 from datatrove.data import Document
-from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.utils.typeshelper import NiceRepr
 
 """

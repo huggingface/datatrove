@@ -1,5 +1,5 @@
 from datatrove.data import Document
-from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.pipeline.filters.base_filter import BaseFilter
 from typing import Callable
 
 from datatrove.utils.typeshelper import NiceRepr

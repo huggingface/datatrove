@@ -1,7 +1,7 @@
 import re
 
 from datatrove.data import Document
-from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.pipeline.filters.base_filter import BaseFilter
 
 from datatrove.utils.typeshelper import NiceRepr
 
@@ -32,4 +32,4 @@ class RegexFilter(BaseFilter):
         :param doc: document
         :return: is_filter
         """
-        return not len(self.regex.findall(doc)) > 0
+        return not len(self.regex.findall(doc.content)) > 0

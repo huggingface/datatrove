@@ -6,7 +6,7 @@ import urllib.request
 from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.utils.typeshelper import Languages, LocalPaths, NiceRepr
 
 LANGUAGE_ID_MODEL_URL = 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin'
@@ -25,7 +25,7 @@ class LanguageFilter(BaseFilter):
                     Languages.portuguese,
                     Languages.french,
                     Languages.german,
-                    Languages.romanian
+                    Languages.romanian,
             ),
             **kwargs
     ):
@@ -63,8 +63,10 @@ class LanguageFilter(BaseFilter):
         """
 
         language, score = self.model.predict(doc.content.replace("\n", ""))
+        # language label is given in the form __label__<language_id>
+        language = language[0].split("__")[2]
         doc.metadata["language_id"] = language
-        doc.metadata["score"] = score
+        doc.metadata["score"] = score[0]
         if score > self.language_threshold and language in self.languages:
             return True
         return False

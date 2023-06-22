@@ -22,6 +22,7 @@ class Languages:
     swedish = "sv"
     romanian = "ro"
     german = "de"
+    latin = "la"
 
 
 class LocalPaths:

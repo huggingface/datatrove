@@ -3,7 +3,7 @@ import numpy as np
 from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
-from datatrove.pipeline.filters.base import BaseFilter
+from datatrove.pipeline.filters.base_filter import BaseFilter
 
 from datatrove.utils.typeshelper import NiceRepr
 
@@ -41,7 +41,7 @@ class GopherQualityFilter(BaseFilter):
         @param min_stop_words:
         @param stop_words:
         """
-        super(GopherQuality, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.min_doc_words = min_doc_words
         self.max_doc_words = max_doc_words
         self.min_avg_word_length = min_avg_word_length
