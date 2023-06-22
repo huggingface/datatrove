@@ -5,19 +5,6 @@ from datatrove.pipeline.base import PipelineStep
 
 
 class BaseFilter(PipelineStep, ABC):
-    @abstractmethod
-    def __init__(
-            self,
-            **kwargs
-    ):
-        """
-        Abstract Filter pipeline step.
-        A Filter drops samples
-
-        @param args:
-        @param kwargs:
-        """
-        super().__init__(**kwargs)
 
     @abstractmethod
     def filter(self, doc: Document) -> bool:
@@ -28,7 +15,10 @@ class BaseFilter(PipelineStep, ABC):
         @param doc: sample to (maybe) filter
         @return: bool - whether the doc should be filtered
         """
-        return True
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "🔻 - FILTER"
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
