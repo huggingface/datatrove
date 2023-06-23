@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import Callable
 
 from datatrove.pipeline.base import PipelineStep
+from collections import Counter
 
 
 class PipelineExecutor(ABC):
@@ -13,6 +14,7 @@ class PipelineExecutor(ABC):
             pipeline: list[PipelineStep | Callable]
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
+        print(f"--- 🛠️PIPELINE 🛠\n{self.pipeline}")
 
     @abstractmethod
     def run(self):
@@ -35,3 +37,5 @@ class PipelineExecutor(ABC):
                 raise ValueError
         if pipelined_data:
             deque(pipelined_data, maxlen=0)
+        stats = [pipeline_step.stats() for pipeline_step in self.pipeline]
+        return stats
