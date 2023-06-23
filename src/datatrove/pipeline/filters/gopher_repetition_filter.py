@@ -91,9 +91,7 @@ class GopherRepetitionFilter(BaseFilter):
         self.top_n_grams = top_n_grams
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
-
-    def __repr__(self):
-        return " ".join([super().__repr__(), NiceRepr("👯", "Gopher Repetition").get_name()])
+        self.name = "👯 Gopher Repetition"
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """

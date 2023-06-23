@@ -6,8 +6,18 @@ from datatrove.data import DocumentsPipeline, Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
+from datatrove.utils.typeshelper import StatHints
+
+
+def get_filter_result(res):
+    result, reason = res, None
+    if isinstance(result, tuple):
+        result, reason = res
+    return result, reason
+
 
 class BaseFilter(PipelineStep, ABC):
+
     def __init__(
             self,
             exclusion_writer: DiskWriter = None,
@@ -15,6 +25,7 @@ class BaseFilter(PipelineStep, ABC):
     ):
         super().__init__(**kwargs)
         self.exclusion_writer = exclusion_writer
+        self.type = "🔻 - FILTER"
 
     @abstractmethod
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
@@ -27,9 +38,6 @@ class BaseFilter(PipelineStep, ABC):
         """
         raise NotImplementedError
 
-    def __repr__(self):
-        return "🔻 - FILTER"
-
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
         step method for Filters.
@@ -41,17 +49,14 @@ class BaseFilter(PipelineStep, ABC):
 
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc in data:
+                self.stat_update(StatHints.total)
                 filter_result, reason = get_filter_result(self.filter(doc))
                 if filter_result is True:
+                    self.stat_update(StatHints.forwarded)
                     yield doc
-                elif self.exclusion_writer:
-                    if reason:
-                        doc.metadata["filter_reason"] = reason
-                    writer.write(doc, rank)
-
-
-def get_filter_result(res):
-    result, reason = res, None
-    if isinstance(result, tuple):
-        result, reason = res
-    return result, reason
+                else:
+                    self.stat_update(StatHints.dropped)
+                    if self.exclusion_writer:
+                        if reason:
+                            doc.metadata["filter_reason"] = reason
+                        writer.write(doc, rank)

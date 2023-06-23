@@ -12,8 +12,9 @@ class BaseReader(PipelineStep):
             data_folder: InputDataFolder,
             **kwargs
     ):
-        self.data_folder = data_folder
         super().__init__(**kwargs)
+        self.data_folder = data_folder
+        self.type = "📖 - READER"
 
     @abstractmethod
     def read_file(self, datafile: InputDataFile):

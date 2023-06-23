@@ -52,9 +52,7 @@ class GopherQualityFilter(BaseFilter):
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = STOP_WORDS if stop_words is None else stop_words
-
-    def __repr__(self):
-        return " ".join([super().__repr__(), NiceRepr("🥇", "Gopher Quality").get_name()])
+        self.name = "🥇 Gopher Quality"
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """

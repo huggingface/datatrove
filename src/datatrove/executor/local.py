@@ -1,3 +1,4 @@
+from collections import deque, Counter
 from collections import deque
 from copy import deepcopy
 
@@ -9,6 +10,13 @@ from datatrove.pipeline.base import PipelineStep
 
 download_semaphore, upload_semaphore = None, None
 
+
+def ugly_merge(stats: list[list[tuple[str, Counter]]]) -> list[(str, Counter)]:
+    final_stats = []
+    for i in range(len(stats[0])):
+        final_stats.append((stats[0][i][0],
+                            sum([stats[j][i][1] for j in range(len(stats))], Counter())))
+    return final_stats
 
 def init_pool_processes(dl_sem, up_sem):
     global download_semaphore, upload_semaphore
@@ -52,7 +60,7 @@ class LocalPipelineExecutor(PipelineExecutor):
                                    initargs=(dl_sem, up_sem)) as pool:
                 stats = list(pool.map(self._run_for_rank, range(self.tasks)))
 
-        return stats
+        return ugly_merge(stats)
 
     @property
     def world_size(self):

@@ -14,7 +14,8 @@ class PipelineExecutor(ABC):
             pipeline: list[PipelineStep | Callable]
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
-        print(f"--- 🛠️PIPELINE 🛠\n{self.pipeline}")
+        pipeline = "\n".join([pipe.__repr__() for pipe in self.pipeline])
+        print(f"--- 🛠️PIPELINE 🛠\n{pipeline}")
 
     @abstractmethod
     def run(self):

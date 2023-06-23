@@ -7,6 +7,7 @@ from datatrove.io import InputDataFile
 
 
 class JsonlReader(BaseReader):
+    name = "🐿 Jsonl reader"
     def read_file(self, datafile: InputDataFile):
         with datafile.open(lambda x: gzip.open(x, 'rt')) as f:
             for line in f:

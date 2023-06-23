@@ -37,9 +37,7 @@ class LanguageFilter(BaseFilter):
         self.languages = languages
         self.model_local_path = model_local_path
         self._model = None
-
-    def __repr__(self):
-        return " ".join([super().__repr__(), NiceRepr("🌍", "Language ID").get_name()])
+        self.name = "🌍 Language ID"
 
     @property
     def model(self):

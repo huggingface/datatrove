@@ -6,6 +6,8 @@ from collections import Counter
 
 
 class PipelineStep(ABC):
+    name: str = None
+    type: str = None
 
     def __init__(self, **kwargs):
         self._stats = Counter()
@@ -16,8 +18,11 @@ class PipelineStep(ABC):
     def set_up_dl_locks(self, dl_lock, up_lock):
         pass
 
+    def __repr__(self):
+        return "---> ".join([self.type, self.name])
+
     def stats(self) -> tuple[str, Counter]:
-        return f"{str(type(self))}", self._stats  # SUPER UGLY, to change
+        return f"{self.__repr__()}", self._stats
 
     @abstractmethod
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
