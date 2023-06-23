@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import deque
-from copy import deepcopy
+from collections.abc import Sequence
 from typing import Callable
 
 from datatrove.pipeline.base import PipelineStep
@@ -24,10 +24,14 @@ class PipelineExecutor(ABC):
         return 0
 
     def _run_for_rank(self, rank: int):
-        pipeline = deepcopy(self.pipeline)
         # pipe data from one step to the next
         pipelined_data = None
-        for pipeline_step in pipeline:
-            pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
+        for pipeline_step in self.pipeline:
+            if callable(pipeline_step):
+                pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
+            elif isinstance(pipeline_step, Sequence) and not isinstance(pipeline_step, str):
+                pipelined_data = pipeline_step
+            else:
+                raise ValueError
         if pipelined_data:
             deque(pipelined_data, maxlen=0)

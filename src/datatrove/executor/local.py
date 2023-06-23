@@ -1,4 +1,5 @@
 from collections import deque
+from copy import deepcopy
 
 import multiprocess.pool
 from multiprocess import Semaphore
@@ -39,7 +40,9 @@ class LocalPipelineExecutor(PipelineExecutor):
 
     def run(self):
         if self.workers == 1:
+            pipeline = self.pipeline
             for rank in range(self.tasks):
+                self.pipeline = deepcopy(pipeline)
                 self._run_for_rank(rank)
         else:
             dl_sem = Semaphore(self.max_concurrent_downloads)
