@@ -71,10 +71,10 @@ class TokenizedFile:
         if self.save_loss_metadata:
             self.loss_file.file_handler.write(l_bytes)
 
-    def write(self, tokens: list[int], loss_values: list[int]):
+    def write(self, tokens: list[int], loss_values: np.ndarray | None):
         # get the bytes for uint16 (H)
         self.write_bytes(struct.pack('<%sH' % len(tokens), *tokens))
-        if loss_values:
+        if loss_values is not None:
             self.write_loss_bytes(struct.pack('<%s?' % len(loss_values), *loss_values))
 
     def copy(self, destination: str, ordering: np.ndarray = None):
@@ -159,7 +159,7 @@ class DocumentTokenizer(PipelineStep):
                 tokens = encoded.ids
                 # loss values
                 loss_values = self.get_loss_values(document, encoded)
-                if loss_values and len(loss_values) < len(tokens):
+                if loss_values is not None and len(loss_values) < len(tokens):
                     tokens = tokens[:len(loss_values)]
                 # write bytes to disk
                 unshuff.write(tokens, loss_values)
