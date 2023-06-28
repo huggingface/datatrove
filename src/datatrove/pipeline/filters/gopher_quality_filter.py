@@ -5,8 +5,6 @@ from nltk.tokenize import word_tokenize
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 
-from datatrove.utils.typeshelper import NiceRepr
-
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
 

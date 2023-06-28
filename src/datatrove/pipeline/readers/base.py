@@ -27,4 +27,5 @@ class BaseReader(PipelineStep):
         if data:
             yield from data
         for datafile in self.data_folder.get_files_shard(rank, world_size):
-            yield from self.read_file(datafile)
+            with self.time_stats_manager:
+                yield from self.read_file(datafile)
