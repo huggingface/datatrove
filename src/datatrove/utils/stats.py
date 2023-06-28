@@ -1,8 +1,3 @@
-"""
-    Implements Welford's online algorithm to compute mean and standard deviation of execution time.
-    https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford%27s_online_algorithm
-"""
-
 import math
 import time
 from collections import Counter
@@ -19,54 +14,32 @@ class Stats:
 
 class RunningStats:
     def __init__(self):
-        self.n = 0
-        self.total = 0
-        self._running_mean = 0
-        self._running_variance = 0
-        self._time_0 = None
-
-        self.max = None
-        self.min = None
-
-    @property
-    def mean(self) -> float:
-        return self._running_mean if self.n else 0.0
-
-    @property
-    def variance(self) -> float:
-        return self._running_variance / (self.n - 1) if self.n > 1 else 0.0
-
-    @property
-    def standard_deviation(self) -> float:
-        return math.sqrt(self.variance)
+        self.total, self.n = 0, 0
+        self._running_mean, self._running_variance = 0, 0
+        self.max_value, self.min_value = 0, float('inf')
 
     def update(self, x: float):
         self.n += 1
         self.total += x
 
-        if self.min is None or x < self.min:
-            self.min = x
-
-        if self.max is None or x > self.max:
-            self.max = x
-
+        self.min_value = min(self.min_value, x)
+        self.max_value = max(self.max_value, x)
+        previous_running_mean = self._running_mean
+        self._running_mean = previous_running_mean + (x - previous_running_mean) / self.n
         if self.n == 1:
-            self._running_mean = x
             self._running_variance = 0
         else:
-            previous_rmean = self._running_mean
-            self._running_mean = previous_rmean + (x - previous_rmean) / self.n
-            self._running_variance = self._running_variance + (x - previous_rmean) * (x - self._running_mean)
+            self._running_variance = self._running_variance + (x - previous_running_mean) * (x - self._running_mean) / (
+                        self.n - 1)
 
     def get_stats(self) -> dict:
-        return {"mean": self.mean,
-                "variance": self.variance,
-                "standard_deviation": self.standard_deviation,
+        return {"mean": self._running_mean,
+                "variance": self._running_variance,
+                "standard_deviation": math.sqrt(self._running_variance),
                 "total_time": self.total,
                 "count": self.n,
-                "max": self.max,
-                "min": self.min,
-
+                "max": self.max_value,
+                "min": self.min_value,
                 }
 
 
@@ -75,15 +48,14 @@ class TimeStatsManager(RunningStats):
         super().__init__()
 
     def __enter__(self):
-        self._time_0 = time.perf_counter()
+        self._entry_time = time.perf_counter()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        assert self._time_0 is not None
-        x = time.perf_counter() - self._time_0
-        self.update(x)
+        assert self._entry_time is not None
+        self.update(time.perf_counter() - self._entry_time)
 
 
-def merge_time_stats_couple(stat_1, stat_2) -> dict:
+def merge_time_stats_couple(stat_1: dict, stat_2: dict) -> dict:
     n = stat_1["count"] + stat_2["count"]
     merge_mean = (stat_1["count"] * stat_1["mean"] + stat_2["count"] * stat_2["mean"]) / n
     delta = stat_1["mean"] - stat_2["mean"]

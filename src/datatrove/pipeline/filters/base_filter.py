@@ -54,11 +54,12 @@ class BaseFilter(PipelineStep, ABC):
                     filter_result, reason = get_filter_result(self.filter(doc))
                     if filter_result is True:
                         self.stat_update(StatHints.forwarded)
-                        yield doc
                     else:
                         self.stat_update(StatHints.dropped)
-                        print(reason)
                         if self.exclusion_writer:
                             if reason:
                                 doc.metadata["filter_reason"] = reason
                             writer.write(doc, rank)
+                        continue
+                yield doc
+

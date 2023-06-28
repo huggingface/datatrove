@@ -57,6 +57,6 @@ class DiskWriter(PipelineStep, ABC):
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         with self:
-            with self.time_stats_manager:
-                for document in data:
+            for document in data:
+                with self.time_stats_manager:
                     self.write(document, rank)
