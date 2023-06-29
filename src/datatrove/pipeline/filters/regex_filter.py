@@ -7,7 +7,7 @@ from datatrove.utils.typeshelper import NiceRepr
 
 
 class RegexFilter(BaseFilter):
-    name = "🕵️Regex"
+    name = "🕵️ Regex"
 
     def __init__(
             self,

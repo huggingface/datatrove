@@ -6,7 +6,7 @@ from datatrove.utils.typeshelper import NiceRepr
 
 
 class LambdaFilter(BaseFilter):
-    name = "👤 metadata"
+    name = "👤 Lambda"
 
     def __init__(
             self,
