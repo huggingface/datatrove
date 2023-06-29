@@ -12,38 +12,39 @@ class Stats:
     counter: Counter
 
 
-class RunningStats:
+class OnlineStats:
     def __init__(self):
-        self.total, self.n = 0, 0
+        self.counter = Counter()
         self._running_mean, self._running_variance = 0, 0
-        self.max_value, self.min_value = 0, float('inf')
+        self.max_value, self.min_value = 0.0, float('inf')
 
     def update(self, x: float):
-        self.n += 1
-        self.total += x
+
+        self.counter["total"] += x
+        self.counter["n"] += 1
 
         self.min_value = min(self.min_value, x)
         self.max_value = max(self.max_value, x)
         previous_running_mean = self._running_mean
-        self._running_mean = previous_running_mean + (x - previous_running_mean) / self.n
-        if self.n == 1:
+        self._running_mean = previous_running_mean + (x - previous_running_mean) / self.counter["n"]
+        if self.counter["n"] == 1:
             self._running_variance = 0
         else:
             self._running_variance = self._running_variance + (x - previous_running_mean) * (x - self._running_mean) / (
-                        self.n - 1)
+                    self.counter["n"] - 1)
 
     def get_stats(self) -> dict:
         return {"mean": self._running_mean,
                 "variance": self._running_variance,
                 "standard_deviation": math.sqrt(self._running_variance),
-                "total_time": self.total,
-                "count": self.n,
+                "total_time": self.counter["total"],
+                "count": self.counter["n"],
                 "max": self.max_value,
                 "min": self.min_value,
                 }
 
 
-class TimeStatsManager(RunningStats):
+class TimeStatsManager(OnlineStats):
     def __init__(self):
         super().__init__()
 
@@ -70,18 +71,24 @@ def merge_time_stats_couple(stat_1: dict, stat_2: dict) -> dict:
             }
 
 
-def merge_time_stats(stats: list[dict]):
+def merge_time_stats(stats: list[dict]) -> dict:
     stats_0 = stats[0]
     for stat in stats[1:]:
         stats_0 = merge_time_stats_couple(stats_0, stat)
     return stats_0
 
 
-def merge_all(stats: list[list[Stats]]) -> list[(str, Counter)]:
+def merge_all(stats: list[list[Stats]], save: bool = True) -> list[(str, dict)]:
     # first list -> workers, second list -> blocks within pipeline
     final_stats = []
     for i in range(len(stats[0])):
-        final_stats.append((stats[0][i].name,
-                            merge_time_stats([stats[j][i].time for j in range(len(stats))]),
-                            sum([stats[j][i].counter for j in range(len(stats))], Counter())))
+        final_stats.append(
+            (stats[0][i].name,
+             {"time": merge_time_stats([stats[j][i].time for j in range(len(stats))]),
+              "counter": dict(sum([stats[j][i].counter for j in range(len(stats))], Counter()))
+              }
+             )
+        )
+    if save:
+        raise NotImplementedError
     return final_stats
