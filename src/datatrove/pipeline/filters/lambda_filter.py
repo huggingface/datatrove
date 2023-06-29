@@ -6,6 +6,7 @@ from datatrove.utils.typeshelper import NiceRepr
 
 
 class LambdaFilter(BaseFilter):
+    name = "👤 Lambda"
 
     def __init__(
             self,
@@ -19,9 +20,6 @@ class LambdaFilter(BaseFilter):
           """
         super().__init__(**kwargs)
         self.filter_function = filter_function
-
-    def __repr__(self):
-        return " ".join([super().__repr__(), NiceRepr("👤", "metadata").get_name()])
 
     def filter(self, doc: Document) -> bool:
         """

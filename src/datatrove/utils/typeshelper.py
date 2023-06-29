@@ -27,3 +27,9 @@ class Languages:
 
 class LocalPaths:
     download = "download/"
+
+
+class StatHints:
+    total = "total"
+    dropped = "dropped"
+    forwarded = "forwarded"

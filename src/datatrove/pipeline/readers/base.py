@@ -6,14 +6,15 @@ from datatrove.io import InputDataFolder, InputDataFile
 
 
 class BaseReader(PipelineStep):
+    type = "📖 - READER"
 
     def __init__(
             self,
             data_folder: InputDataFolder,
             **kwargs
     ):
-        self.data_folder = data_folder
         super().__init__(**kwargs)
+        self.data_folder = data_folder
 
     @abstractmethod
     def read_file(self, datafile: InputDataFile):

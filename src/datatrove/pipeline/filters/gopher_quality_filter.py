@@ -5,12 +5,11 @@ from nltk.tokenize import word_tokenize
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 
-from datatrove.utils.typeshelper import NiceRepr
-
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
 
 class GopherQualityFilter(BaseFilter):
+    name = "🥇 Gopher Quality"
 
     def __init__(
             self,
@@ -52,9 +51,6 @@ class GopherQualityFilter(BaseFilter):
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = STOP_WORDS if stop_words is None else stop_words
-
-    def __repr__(self):
-        return " ".join([super().__repr__(), NiceRepr("🥇", "Gopher Quality").get_name()])
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """

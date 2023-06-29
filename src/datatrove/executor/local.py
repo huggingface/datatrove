@@ -1,4 +1,3 @@
-from collections import deque
 from copy import deepcopy
 
 import multiprocess.pool
@@ -6,6 +5,7 @@ from multiprocess import Semaphore
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.stats import merge_all
 
 download_semaphore, upload_semaphore = None, None
 
@@ -36,20 +36,23 @@ class LocalPipelineExecutor(PipelineExecutor):
             for pipeline_step in self.pipeline:
                 if isinstance(pipeline_step, PipelineStep):
                     pipeline_step.set_up_dl_locks(download_semaphore, upload_semaphore)
-        super()._run_for_rank(rank)
+        return super()._run_for_rank(rank)
 
     def run(self):
         if self.workers == 1:
             pipeline = self.pipeline
+            stats = []
             for rank in range(self.tasks):
                 self.pipeline = deepcopy(pipeline)
-                self._run_for_rank(rank)
+                stats.append(self._run_for_rank(rank))
         else:
             dl_sem = Semaphore(self.max_concurrent_downloads)
             up_sem = Semaphore(self.max_concurrent_uploads)
             with multiprocess.Pool(self.workers, initializer=init_pool_processes,
                                    initargs=(dl_sem, up_sem)) as pool:
-                deque(pool.map(self._run_for_rank, range(self.tasks)), maxlen=0)
+                stats = list(pool.map(self._run_for_rank, range(self.tasks)))
+
+        return merge_all(stats, save=self.save_stats)
 
     @property
     def world_size(self):

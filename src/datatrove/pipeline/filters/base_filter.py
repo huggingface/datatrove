@@ -6,8 +6,19 @@ from datatrove.data import DocumentsPipeline, Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
+from datatrove.utils.typeshelper import StatHints
+
+
+def get_filter_result(res):
+    result, reason = res, None
+    if isinstance(result, tuple):
+        result, reason = res
+    return result, reason
+
 
 class BaseFilter(PipelineStep, ABC):
+    type = "🔻 - FILTER"
+
     def __init__(
             self,
             exclusion_writer: DiskWriter = None,
@@ -27,9 +38,6 @@ class BaseFilter(PipelineStep, ABC):
         """
         raise NotImplementedError
 
-    def __repr__(self):
-        return "🔻 - FILTER"
-
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
         step method for Filters.
@@ -41,17 +49,17 @@ class BaseFilter(PipelineStep, ABC):
 
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc in data:
-                filter_result, reason = get_filter_result(self.filter(doc))
-                if filter_result is True:
-                    yield doc
-                elif self.exclusion_writer:
-                    if reason:
-                        doc.metadata["filter_reason"] = reason
-                    writer.write(doc, rank)
+                self.stat_update(StatHints.total)
+                with self.time_stats_manager:
+                    filter_result, reason = get_filter_result(self.filter(doc))
+                    if filter_result is True:
+                        self.stat_update(StatHints.forwarded)
+                    else:
+                        self.stat_update(StatHints.dropped)
+                        if self.exclusion_writer:
+                            if reason:
+                                doc.metadata["filter_reason"] = reason
+                            writer.write(doc, rank)
+                        continue
+                yield doc
 
-
-def get_filter_result(res):
-    result, reason = res, None
-    if isinstance(result, tuple):
-        result, reason = res
-    return result, reason

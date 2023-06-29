@@ -5,7 +5,6 @@ import re
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.typeshelper import NiceRepr
 
 """
 Table A1 from https://arxiv.org/pdf/2112.11446.pdf
@@ -66,6 +65,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
 
 
 class GopherRepetitionFilter(BaseFilter):
+    name = "👯 Gopher Repetition"
     def __init__(
             self,
             dup_line_frac: float | None = 0.3,
@@ -92,9 +92,6 @@ class GopherRepetitionFilter(BaseFilter):
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
 
-    def __repr__(self):
-        return " ".join([super().__repr__(), NiceRepr("👯", "Gopher Repetition").get_name()])
-
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
 
@@ -102,14 +99,14 @@ class GopherRepetitionFilter(BaseFilter):
         text = doc.content
         lines = text.splitlines()
         line_duplicates, char_duplicates = find_duplicates(lines)
-        if line_duplicates / len(lines) > self.dup_line_frac:
+        if self.dup_line_frac and line_duplicates / len(lines) > self.dup_line_frac:
             return False, "dup_line_frac"
-        if char_duplicates / len(text) > self.dup_line_char_frac:
+        if self.dup_line_char_frac and char_duplicates / len(text) > self.dup_line_char_frac:
             return False, "dup_line_char_frac"
 
         paragraphs = self.paragraph_exp.split(text)
         paragraphs_duplicates, char_duplicates = find_duplicates(paragraphs)
-        if paragraphs_duplicates / len(paragraphs) > self.dup_para_frac:
+        if self.dup_para_frac and paragraphs_duplicates / len(paragraphs) > self.dup_para_frac:
             return False, "dup_para_frac"
         if char_duplicates / len(text) > self.dup_para_char_frac:
             return False, "dup_para_char_frac"

@@ -12,6 +12,8 @@ from datatrove.io import InputDataFile
 
 
 class WarcReader(BaseReader):
+    name = "🕷️ Warc"
+
     def __init__(
             self,
             *args,
