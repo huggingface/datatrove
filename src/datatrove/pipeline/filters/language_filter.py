@@ -17,6 +17,7 @@ except ImportError:
 
 
 class LanguageFilter(BaseFilter):
+    name = "🌍 Language ID"
 
     def __init__(
             self,
@@ -37,7 +38,6 @@ class LanguageFilter(BaseFilter):
         self.languages = languages
         self.model_local_path = model_local_path
         self._model = None
-        self.name = "🌍 Language ID"
 
     @property
     def model(self):

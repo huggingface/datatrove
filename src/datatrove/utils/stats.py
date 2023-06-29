@@ -6,9 +6,20 @@ from dataclasses import dataclass
 
 
 @dataclass
+class TimeStats:
+    mean: float
+    variance: float
+    standard_deviation: float
+    total_time: float
+    count: int
+    max: float
+    min: float
+
+
+@dataclass
 class Stats:
     name: str
-    time: dict
+    time: TimeStats
     counter: Counter
 
 
@@ -33,15 +44,15 @@ class OnlineStats:
             self._running_variance = self._running_variance + (x - previous_running_mean) * (x - self._running_mean) / (
                     self.counter["n"] - 1)
 
-    def get_stats(self) -> dict:
-        return {"mean": self._running_mean,
-                "variance": self._running_variance,
-                "standard_deviation": math.sqrt(self._running_variance),
-                "total_time": self.counter["total"],
-                "count": self.counter["n"],
-                "max": self.max_value,
-                "min": self.min_value,
-                }
+    def get_stats(self) -> TimeStats:
+        return TimeStats(mean=self._running_mean,
+                         variance=self._running_variance,
+                         standard_deviation=math.sqrt(self._running_variance),
+                         total_time=self.counter["total"],
+                         count=self.counter["n"],
+                         max=self.max_value,
+                         min=self.min_value,
+                         )
 
 
 class TimeStatsManager(OnlineStats):
@@ -56,22 +67,22 @@ class TimeStatsManager(OnlineStats):
         self.update(time.perf_counter() - self._entry_time)
 
 
-def merge_time_stats_couple(stat_1: dict, stat_2: dict) -> dict:
-    n = stat_1["count"] + stat_2["count"]
-    merge_mean = (stat_1["count"] * stat_1["mean"] + stat_2["count"] * stat_2["mean"]) / n
-    delta = stat_1["mean"] - stat_2["mean"]
-    merge_variance = stat_1["variance"] + stat_2["variance"] + stat_1["count"] * stat_2["count"] * delta ** 2 / n
-    return {"mean": merge_mean,
-            "variance": merge_variance,
-            "standard_deviation": math.sqrt(merge_variance),
-            "total_time": stat_1["total_time"] + stat_2["total_time"],
-            "count": n,
-            "max": max([stat_1["max"], stat_2["max"]]),
-            "min": min([stat_1["max"], stat_2["max"]]),
-            }
+def merge_time_stats_couple(stat_1: TimeStats, stat_2: TimeStats) -> TimeStats:
+    n = stat_1.count + stat_2.count
+    merge_mean = (stat_1.count * stat_1.count + stat_2.count * stat_2.mean) / n
+    delta = stat_1.mean - stat_2.mean
+    merge_variance = stat_1.variance + stat_2.variance + stat_1.count * stat_2.count * delta ** 2 / n
+    return TimeStats(mean=merge_mean,
+                     variance=merge_variance,
+                     standard_deviation=math.sqrt(merge_variance),
+                     total_time=stat_1.total_time + stat_2.total_time,
+                     count=n,
+                     max=max([stat_1.max, stat_2.max]),
+                     min=min([stat_1.min, stat_2.min]),
+                     )
 
 
-def merge_time_stats(stats: list[dict]) -> dict:
+def merge_time_stats(stats: list[TimeStats]) -> TimeStats:
     stats_0 = stats[0]
     for stat in stats[1:]:
         stats_0 = merge_time_stats_couple(stats_0, stat)

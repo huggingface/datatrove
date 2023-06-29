@@ -65,6 +65,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
 
 
 class GopherRepetitionFilter(BaseFilter):
+    name = "👯 Gopher Repetition"
     def __init__(
             self,
             dup_line_frac: float | None = 0.3,
@@ -90,7 +91,6 @@ class GopherRepetitionFilter(BaseFilter):
         self.top_n_grams = top_n_grams
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
-        self.name = "👯 Gopher Repetition"
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """

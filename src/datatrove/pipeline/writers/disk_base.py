@@ -11,6 +11,7 @@ class DiskWriter(PipelineStep, ABC):
     open_fn: Callable = None
     close_fn: Callable = None
     default_output_filename: str = None
+    type = "💽 - WRITER"
 
     def __init__(
             self,
@@ -21,7 +22,6 @@ class DiskWriter(PipelineStep, ABC):
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.output_filename = Template(output_filename or self.default_output_filename)
-        self.type = "💽 - WRITER"
 
     def __enter__(self):
         return self

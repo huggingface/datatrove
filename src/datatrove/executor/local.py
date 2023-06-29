@@ -23,7 +23,6 @@ class LocalPipelineExecutor(PipelineExecutor):
             workers: int = -1,
             max_concurrent_uploads: int = 20,
             max_concurrent_downloads: int = 50,
-            save_stats: bool = False,
             **kwargs
     ):
         super().__init__(**kwargs)
@@ -31,7 +30,6 @@ class LocalPipelineExecutor(PipelineExecutor):
         self.workers = workers if workers != -1 else tasks
         self.max_concurrent_uploads = max_concurrent_uploads
         self.max_concurrent_downloads = max_concurrent_downloads
-        self.save_stats = save_stats
 
     def _run_for_rank(self, rank: int):
         if self.workers > 1:

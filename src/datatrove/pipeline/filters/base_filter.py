@@ -17,6 +17,7 @@ def get_filter_result(res):
 
 
 class BaseFilter(PipelineStep, ABC):
+    type = "🔻 - FILTER"
 
     def __init__(
             self,
@@ -25,7 +26,6 @@ class BaseFilter(PipelineStep, ABC):
     ):
         super().__init__(**kwargs)
         self.exclusion_writer = exclusion_writer
-        self.type = "🔻 - FILTER"
 
     @abstractmethod
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:

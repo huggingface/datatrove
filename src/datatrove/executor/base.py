@@ -11,9 +11,12 @@ class PipelineExecutor(ABC):
     @abstractmethod
     def __init__(
             self,
-            pipeline: list[PipelineStep | Callable]
+            pipeline: list[PipelineStep | Callable],
+            save_stats: bool = False
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
+        self.save_stats = save_stats
+
         pipeline = "\n".join([pipe.__repr__() for pipe in self.pipeline])
         print(f"--- 🛠️PIPELINE 🛠\n{pipeline}")
 

@@ -7,6 +7,7 @@ from datatrove.utils.typeshelper import NiceRepr
 
 
 class RegexFilter(BaseFilter):
+    name = "🕵️Regex"
 
     def __init__(
             self,
@@ -20,7 +21,6 @@ class RegexFilter(BaseFilter):
           """
         super().__init__(**kwargs)
         self.regex = re.compile(regex_exp)
-        self.name = "🕵️Regex"
 
     def filter(self, doc: Document) -> bool:
         """

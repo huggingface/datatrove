@@ -21,7 +21,7 @@ class PipelineStep(ABC):
         pass
 
     def __repr__(self):
-        return " --> ".join([self.type, self.name])
+        return f"{self.type} --> {self.name}"
 
     def stats(self) -> Stats:
         return Stats(f"{self.__repr__()}", self.time_stats_manager.get_stats(), self._stats)
