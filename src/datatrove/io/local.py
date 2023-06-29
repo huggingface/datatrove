@@ -21,10 +21,10 @@ class LocalOutputDataFolder(OutputDataFolder):
 
 @dataclass
 class LocalInputDataFolder(InputDataFolder):
-    def list_files(self) -> list[InputDataFile]:
+    def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
         return [
             InputDataFile(path, path) for path in get_local_file_list(self.path, self.recursive)
-            if self._match_file(path)
+            if self._match_file(path, extension)
         ]
 
 

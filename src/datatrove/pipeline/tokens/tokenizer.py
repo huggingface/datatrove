@@ -34,13 +34,19 @@ class TokenizedFile:
         self.write_idx = 0
         self.doc_ends = []
 
-    def __enter__(self):
+    def __len__(self):
+        return self.doc_ends[-1] if self.doc_ends else 0
+
+    def open(self):
         self.tokens_file = self.output_folder.get_file(self.filename, lambda x: open(x, "wb"))
         if self.save_loss_metadata:
             self.loss_file = self.output_folder.get_file(f"{self.filename}.loss", lambda x: open(x, "wb"))
+
+    def __enter__(self):
+        self.open()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def close(self):
         if self.tokens_file:
             self.tokens_file.close()
         if self.loss_file:
@@ -53,6 +59,9 @@ class TokenizedFile:
             # save document boundaries
             index_file.file_handler.write(struct.pack('<%sI' % len(self.doc_ends), *self.doc_ends))
             index_file.close()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def cleanup(self):
         self.doc_ends = []
