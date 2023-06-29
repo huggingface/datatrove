@@ -28,9 +28,6 @@ class DiskWriter(PipelineStep, ABC):
     def close(self):
         self.output_folder.close(self.close_fn)
 
-    def __close__(self):
-        self.close()
-
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 

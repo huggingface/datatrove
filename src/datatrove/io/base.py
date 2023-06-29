@@ -77,7 +77,7 @@ class OutputDataFolder(ABC):
             file.close(close_fn=close_fn)
 
     @abstractmethod
-    def create_new_file(self, relative_path: str):
+    def create_new_file(self, relative_path: str) -> OutputDataFile:
         raise NotImplementedError
 
     def __post_init__(self):
@@ -86,8 +86,14 @@ class OutputDataFolder(ABC):
     def set_lock(self, lock):
         self._lock = lock
 
-    def get_file(self, relative_path: str, open_fn: Callable = None):
-        if relative_path not in self._output_files:
+    def delete_file(self, relative_path: str):
+        if relative_path in self._output_files:
+            output_file = self._output_files.pop(relative_path)
+            output_file.close()
+            os.remove(output_file.local_path)
+
+    def get_file(self, relative_path: str, open_fn: Callable = None, overwrite: bool = False):
+        if relative_path not in self._output_files or overwrite:
             new_output_file = self.create_new_file(relative_path)
             new_output_file.open(open_fn)
             self._output_files[relative_path] = new_output_file
