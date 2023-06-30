@@ -6,9 +6,11 @@ from datatrove.data import DocumentsPipeline, Document
 from datatrove.pipeline.base import PipelineStep
 
 
-class BaseExtractor(PipelineStep, ABC):
+class BaseExtractor(PipelineStep):
+    type = "🛢️ - EXTRACTOR"
+
     @abstractmethod
-    def __init__(self, timeout: float, **kwargs):
+    def __init__(self, timeout: float = 0.1, **kwargs):
         """
         Base Extractor module, it convert html to text.
         """
@@ -28,6 +30,7 @@ class BaseExtractor(PipelineStep, ABC):
         :param doc: Documnet
         :return:
         """
+
         def signal_handler(signum, frame):
             raise TimeoutError
 
@@ -44,9 +47,6 @@ class BaseExtractor(PipelineStep, ABC):
 
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
-
-    def __repr__(self):
-        return "🛢️ - EXTRACTOR"
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
