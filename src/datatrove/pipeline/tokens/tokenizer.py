@@ -124,7 +124,8 @@ class DocumentTokenizer(PipelineStep):
             tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
             eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
             save_loss_metadata: bool = True,  # save the loss information
-            shuffle: bool = True,  # whether to shuffle documents in the dataset
+            shuffle: bool = True,  # whether to shuffle documents in the dataset,
+            seed: int = None,
             *args,
             **kwargs
     ):
@@ -136,12 +137,12 @@ class DocumentTokenizer(PipelineStep):
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle
         self._tokenizer = None
-        self.rand = default_rng()
+        self.rand = default_rng(seed)
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def get_loss_values(self, document: Document, encoded: Encoding):
+    def get_loss_values(self, document: Document, encoded):
         loss_values = None
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
@@ -190,7 +191,7 @@ class DocumentTokenizer(PipelineStep):
     def tokenizer(self):
         if not self._tokenizer:
             if not TOKENIZERS_INSTALLED:
-                logger.error("FastText is required to run LanguageFilter")
+                logger.error("`tokenizers` is required to run DocumentTokenizer")
                 raise ImportError
             self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
             if self.eos_token:

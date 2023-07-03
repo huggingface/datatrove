@@ -54,7 +54,7 @@ def get_extension(filepath):
     while ext:
         exts.append(ext)
         stem, ext = os.path.splitext(stem)
-    return "".join(exts)
+    return "".join(reversed(exts))
 
 
 @dataclass
