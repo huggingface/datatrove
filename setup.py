@@ -7,7 +7,8 @@ REQUIRED_PKGS = [
     "python-magic==0.4.27",
     "multiprocess==0.70.14",
     "numpy==1.25.0",
-    "nltk==3.8.1"
+    "nltk==3.8.1",
+    "loguru==0.7.0"
 ]
 
 setup(

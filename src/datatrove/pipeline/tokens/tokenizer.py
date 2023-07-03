@@ -34,13 +34,19 @@ class TokenizedFile:
         self.write_idx = 0
         self.doc_ends = []
 
-    def __enter__(self):
+    def __len__(self):
+        return self.doc_ends[-1] if self.doc_ends else 0
+
+    def open(self):
         self.tokens_file = self.output_folder.get_file(self.filename, lambda x: open(x, "wb"))
         if self.save_loss_metadata:
             self.loss_file = self.output_folder.get_file(f"{self.filename}.loss", lambda x: open(x, "wb"))
+
+    def __enter__(self):
+        self.open()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def close(self):
         if self.tokens_file:
             self.tokens_file.close()
         if self.loss_file:
@@ -53,6 +59,9 @@ class TokenizedFile:
             # save document boundaries
             index_file.file_handler.write(struct.pack('<%sI' % len(self.doc_ends), *self.doc_ends))
             index_file.close()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def cleanup(self):
         self.doc_ends = []
@@ -115,7 +124,8 @@ class DocumentTokenizer(PipelineStep):
             tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
             eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
             save_loss_metadata: bool = True,  # save the loss information
-            shuffle: bool = True,  # whether to shuffle documents in the dataset
+            shuffle: bool = True,  # whether to shuffle documents in the dataset,
+            seed: int = None,
             *args,
             **kwargs
     ):
@@ -127,12 +137,12 @@ class DocumentTokenizer(PipelineStep):
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle
         self._tokenizer = None
-        self.rand = default_rng()
+        self.rand = default_rng(seed)
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def get_loss_values(self, document: Document, encoded: Encoding):
+    def get_loss_values(self, document: Document, encoded):
         loss_values = None
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
@@ -181,7 +191,7 @@ class DocumentTokenizer(PipelineStep):
     def tokenizer(self):
         if not self._tokenizer:
             if not TOKENIZERS_INSTALLED:
-                logger.error("FastText is required to run LanguageFilter")
+                logger.error("`tokenizers` is required to run DocumentTokenizer")
                 raise ImportError
             self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
             if self.eos_token:
