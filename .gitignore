@@ -155,3 +155,5 @@ cython_debug/
 # PyCharm
 .idea/
 
+# ruff code style
+.ruff_cache/
