@@ -8,3 +8,8 @@ pip install --upgrade --ignore-installed git+https://github.com/huggingface/pyth
 
 pip install -e ".[dev]"
 ```
+
+To run pre-commit code style hooks:
+```bash
+pre-commit install
+```
