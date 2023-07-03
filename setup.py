@@ -9,7 +9,7 @@ REQUIRED_PKGS = [
     "nltk==3.8.1",
     "numpy==1.25.0",
     "python-magic==0.4.27",
-    "readability-lxml==0.8.3.dev0",
+    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "trafilatura==1.6.1",
     "warcio==1.7.4",
 ]
