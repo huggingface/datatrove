@@ -1,13 +1,14 @@
 import os
-
 import urllib.request
+
 from loguru import logger
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.typeshelper import Languages, LocalPaths, NiceRepr
+from datatrove.utils.typeshelper import Languages, LocalPaths
 
-LANGUAGE_ID_MODEL_URL = 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin'
+
+LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
 
 FASTTEXT_INSTALLED = True
 try:
@@ -20,19 +21,19 @@ class LanguageFilter(BaseFilter):
     name = "🌍 Language ID"
 
     def __init__(
-            self,
-            languages: tuple = (Languages.english,),
-            language_threshold: float = 0.65,
-            model_local_path: str = os.path.join(LocalPaths.download, "language_id/lid.176.bin"),
-            **kwargs
+        self,
+        languages: tuple = (Languages.english,),
+        language_threshold: float = 0.65,
+        model_local_path: str = os.path.join(LocalPaths.download, "language_id/lid.176.bin"),
+        **kwargs,
     ):
         """
-          filters if the predicted language is not among given language or if the language score is below language
-          language_threshold
+        filters if the predicted language is not among given language or if the language score is below language
+        language_threshold
 
-          @param regex_exp: language_threshold minimum score to accept a document.
-          @param languages: list of languages to not filter out.
-          """
+        @param regex_exp: language_threshold minimum score to accept a document.
+        @param languages: list of languages to not filter out.
+        """
         super().__init__(**kwargs)
         self.language_threshold = language_threshold
         self.languages = languages

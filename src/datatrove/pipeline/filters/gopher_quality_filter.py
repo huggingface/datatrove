@@ -1,9 +1,9 @@
 import numpy as np
-
 from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
@@ -12,18 +12,18 @@ class GopherQualityFilter(BaseFilter):
     name = "🥇 Gopher Quality"
 
     def __init__(
-            self,
-            min_doc_words: int | None = 50,
-            max_doc_words: int | None = 100000,
-            min_avg_word_length: int | None = 3,
-            max_avg_word_length: int | None = 10,
-            max_symbol_word_ratio: float | None = 0.1,
-            max_bullet_lines_ratio: float | None = 0.9,
-            max_ellipsis_lines_ratio: float | None = 0.3,
-            max_non_alpha_words_ratio: float | None = 0.8,
-            min_stop_words: int | None = 2,
-            stop_words: list[str] | None = None,
-            **kwargs
+        self,
+        min_doc_words: int | None = 50,
+        max_doc_words: int | None = 100000,
+        min_avg_word_length: int | None = 3,
+        max_avg_word_length: int | None = 10,
+        max_symbol_word_ratio: float | None = 0.1,
+        max_bullet_lines_ratio: float | None = 0.9,
+        max_ellipsis_lines_ratio: float | None = 0.3,
+        max_non_alpha_words_ratio: float | None = 0.8,
+        min_stop_words: int | None = 2,
+        stop_words: list[str] | None = None,
+        **kwargs,
     ):
         """
         Filter to apply Gopher's quality heuristic rules.
@@ -86,16 +86,22 @@ class GopherQualityFilter(BaseFilter):
         # any document with more than 90 % of lines starting with a bullet point,
         # or more than 30 % ending with an ellipsis.
         sentences = text.splitlines()
-        if sum(s.startswith("•") for s in
-               sentences) / n_words > self.max_bullet_lines_ratio and self.max_bullet_lines_ratio:
+        if (
+            sum(s.startswith("•") for s in sentences) / n_words > self.max_bullet_lines_ratio
+            and self.max_bullet_lines_ratio
+        ):
             return False, "gopher_too_many_bullets"
-        if sum(s.endswith("...") for s in
-               sentences) / n_words > self.max_ellipsis_lines_ratio and self.max_symbol_word_ratio:
+        if (
+            sum(s.endswith("...") for s in sentences) / n_words > self.max_ellipsis_lines_ratio
+            and self.max_symbol_word_ratio
+        ):
             return False, "gopher_too_many_end_ellipsis"
 
         # that 80 % of words in a document contain at least one alphabetic character
-        if sum([any([c.isalpha() for c in w]) for w in
-                words]) / n_words < self.max_non_alpha_words_ratio and self.max_non_alpha_words_ratio:
+        if (
+            sum([any([c.isalpha() for c in w]) for w in words]) / n_words < self.max_non_alpha_words_ratio
+            and self.max_non_alpha_words_ratio
+        ):
             return False, "gopher_below_alpha_threshold"
 
         # stop word filter

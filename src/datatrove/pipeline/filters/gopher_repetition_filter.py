@@ -1,33 +1,34 @@
+import re
 from collections import Counter
 
 from nltk.tokenize import word_tokenize
-import re
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 
+
 """
 Table A1 from https://arxiv.org/pdf/2112.11446.pdf
-    duplicate line fraction                 0.30 
-    duplicate paragraph fraction            0.30 
-    duplicate line character fraction       0.20 
+    duplicate line fraction                 0.30
+    duplicate paragraph fraction            0.30
+    duplicate line character fraction       0.20
     duplicate paragraph character fraction  0.20
-    
-    top 2-gram character fraction           0.20 
-    top 3-gram character fraction           0.18 
-    top 4-gram character fraction           0.16 
-    
-    duplicate 5-gram character fraction     0.15 
+
+    top 2-gram character fraction           0.20
+    top 3-gram character fraction           0.18
+    top 4-gram character fraction           0.16
+
+    duplicate 5-gram character fraction     0.15
     duplicate 6-gram character fraction     0.14
     duplicate 7-gram character fraction     0.13
-    duplicate 8-gram character fraction     0.12 
+    duplicate 8-gram character fraction     0.12
     duplicate 9-gram character fraction     0.11
-    duplicate 10-gram character fraction    0.10  
+    duplicate 10-gram character fraction    0.10
 """
 
 
 def get_n_grams(words: list[str], n: int) -> list[str]:
-    return [" ".join(words[i:i + n]) for i in range(len(words) - n + 1)]
+    return [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
 
 
 def find_duplicates(x: list[str]) -> tuple[int, int]:
@@ -54,7 +55,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
     unique = set()
     repeated_chars, idx = 0, 0
     while idx < n_words - n + 1:
-        n_gram = " ".join(words[idx:idx + n])
+        n_gram = " ".join(words[idx : idx + n])
         if n_gram in unique:
             repeated_chars += len(n_gram)  # TODO check
             idx += n
@@ -66,17 +67,16 @@ def find_all_duplicate(words: list[str], n: int) -> int:
 
 class GopherRepetitionFilter(BaseFilter):
     name = "👯 Gopher Repetition"
-    def __init__(
-            self,
-            dup_line_frac: float | None = 0.3,
-            dup_para_frac: float | None = 0.3,
-            dup_line_char_frac: float | None = 0.2,
-            dup_para_char_frac: float | None = 0.2,
-            top_n_grams: tuple[tuple[int, float]] = ((2, 0.2), (3, 0.18), (4, 0.16)),
-            dup_n_grams: tuple[tuple[int, float]] = ((5, 0.15), (6, 0.14), (7, 0.13),
-                                                     (8, 0.12), (9, 0.11), (10, 0.10)),
 
-            **kwargs
+    def __init__(
+        self,
+        dup_line_frac: float | None = 0.3,
+        dup_para_frac: float | None = 0.3,
+        dup_line_char_frac: float | None = 0.2,
+        dup_para_char_frac: float | None = 0.2,
+        top_n_grams: tuple[tuple[int, float]] = ((2, 0.2), (3, 0.18), (4, 0.16)),
+        dup_n_grams: tuple[tuple[int, float]] = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10)),
+        **kwargs,
     ):
         """
 
@@ -93,9 +93,7 @@ class GopherRepetitionFilter(BaseFilter):
         self.paragraph_exp = re.compile(r"\n{2,}")
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        """
-
-        """
+        """ """
         text = doc.content
         lines = text.splitlines()
         line_duplicates, char_duplicates = find_duplicates(lines)

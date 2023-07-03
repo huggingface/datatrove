@@ -3,22 +3,16 @@ import re
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 
-from datatrove.utils.typeshelper import NiceRepr
-
 
 class RegexFilter(BaseFilter):
     name = "🕵️ Regex"
 
-    def __init__(
-            self,
-            regex_exp: str,
-            **kwargs
-    ):
+    def __init__(self, regex_exp: str, **kwargs):
         """
-          filters if regex find at least one match
+        filters if regex find at least one match
 
-          @param regex_exp: regex expression
-          """
+        @param regex_exp: regex expression
+        """
         super().__init__(**kwargs)
         self.regex = re.compile(regex_exp)
 

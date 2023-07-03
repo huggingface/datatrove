@@ -1,34 +1,28 @@
 import gzip
 
 import cchardet
-from warcio.recordloader import ArcWarcRecord
-from warcio.archiveiterator import ArchiveIterator
-
 import magic
+from warcio.archiveiterator import ArchiveIterator
+from warcio.recordloader import ArcWarcRecord
 
 from datatrove.data import Document
-from datatrove.pipeline.readers.base import BaseReader
 from datatrove.io import InputDataFile
+from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
     name = "🕷️ Warc"
 
-    def __init__(
-            self,
-            *args,
-            gzip_mode: bool = False,
-            **kwargs
-    ):
+    def __init__(self, *args, gzip_mode: bool = False, **kwargs):
         self.gzip_mode = gzip_mode
         super().__init__(*args, **kwargs)
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(lambda x: gzip.open(x, 'rb') if self.gzip_mode else open(x, 'rb')) as f:
+        with datafile.open(lambda x: gzip.open(x, "rb") if self.gzip_mode else open(x, "rb")) as f:
             for record in ArchiveIterator(f):
                 document = process_record(record)
                 if document:
-                    document.metadata['file_path'] = datafile.path
+                    document.metadata["file_path"] = datafile.path
                     yield document
 
 
@@ -65,19 +59,16 @@ def process_record(record: ArcWarcRecord):
             return
 
     data_id = record.rec_headers["WARC-Record-ID"]
-    url = record.rec_headers.get('WARC-Target-URI', None)
-    date = record.rec_headers.get('WARC-Date', None)
+    url = record.rec_headers.get("WARC-Target-URI", None)
+    date = record.rec_headers.get("WARC-Date", None)
     # handle older formats
     if not url:
-        url = dict(record.rec_headers.headers)['uri']
+        url = dict(record.rec_headers.headers)["uri"]
     if not date:
-        date = dict(record.rec_headers.headers)['archive-date']
+        date = dict(record.rec_headers.headers)["archive-date"]
 
     return Document(
         content=html,
         data_id=data_id,
-        metadata={
-            'url': url,
-            'date': date
-        },
+        metadata={"url": url, "date": date},
     )

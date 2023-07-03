@@ -1,18 +1,14 @@
 from abc import abstractmethod
 
 from datatrove.data import DocumentsPipeline
+from datatrove.io import InputDataFile, InputDataFolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.io import InputDataFolder, InputDataFile
 
 
 class BaseReader(PipelineStep):
     type = "📖 - READER"
 
-    def __init__(
-            self,
-            data_folder: InputDataFolder,
-            **kwargs
-    ):
+    def __init__(self, data_folder: InputDataFolder, **kwargs):
         super().__init__(**kwargs)
         self.data_folder = data_folder
 

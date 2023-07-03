@@ -1,6 +1,6 @@
 import contextlib
 import os
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -39,12 +39,13 @@ class InputDataFolder(ABC):
         return self.list_files()[rank::world_size]
 
     def _match_file(self, file_path, extension=None):
-        extensions = ([self.extension] if type(self.extension) == str else self.extension) if not extension else \
-            ([extension] if type(extension) == str else extension)
-        return (  # check extension
-                not extensions or get_extension(file_path) in extensions
-        ) and (  # check pattern
-                not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
+        extensions = (
+            ([self.extension] if type(self.extension) == str else self.extension)
+            if not extension
+            else ([extension] if type(extension) == str else extension)
+        )
+        return (not extensions or get_extension(file_path) in extensions) and (  # check extension  # check pattern
+            not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
         )
 
 

@@ -2,10 +2,9 @@ import contextlib
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from datatrove.data import DocumentsPipeline, Document
+from datatrove.data import Document, DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
-
 from datatrove.utils.typeshelper import StatHints
 
 
@@ -19,11 +18,7 @@ def get_filter_result(res):
 class BaseFilter(PipelineStep, ABC):
     type = "🔻 - FILTER"
 
-    def __init__(
-            self,
-            exclusion_writer: DiskWriter = None,
-            **kwargs
-    ):
+    def __init__(self, exclusion_writer: DiskWriter = None, **kwargs):
         super().__init__(**kwargs)
         self.exclusion_writer = exclusion_writer
 
@@ -62,4 +57,3 @@ class BaseFilter(PipelineStep, ABC):
                             writer.write(doc, rank)
                         continue
                 yield doc
-

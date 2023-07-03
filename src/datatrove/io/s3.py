@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from datatrove.io import InputDataFile, LocalOutputDataFolder
 from datatrove.io.base import InputDataFolder
-from datatrove.io.cloud.s3 import s3_upload_file, s3_get_file_list, s3_download_file
+from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_upload_file
 
 
 @dataclass
@@ -15,7 +15,7 @@ class S3OutputDataFolder(LocalOutputDataFolder):
 
     def __post_init__(self):
         if not self.path.startswith("s3://"):
-            raise ValueError(f"S3OutputDataFolder path must start with s3://")
+            raise ValueError("S3OutputDataFolder path must start with s3://")
         self._tmpdir = None
 
     def close(self, close_fn: Callable = None):
@@ -53,7 +53,7 @@ class S3InputDataFolder(InputDataFolder):
 
     def __post_init__(self):
         if not self.path.startswith("s3://"):
-            raise ValueError(f"S3InputDataFolder path must start with s3://")
+            raise ValueError("S3InputDataFolder path must start with s3://")
         self._tmpdir = None
 
     def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
@@ -62,10 +62,8 @@ class S3InputDataFolder(InputDataFolder):
             self.local_path = self._tmpdir.name
         return [
             S3InputDataFile(
-                path=os.path.join(self.path, path),
-                local_path=os.path.join(self.local_path, path),
-                folder=self
-            ) for path in s3_get_file_list(self.path, match_pattern=self.match_pattern,
-                                           recursive=self.recursive)
+                path=os.path.join(self.path, path), local_path=os.path.join(self.local_path, path), folder=self
+            )
+            for path in s3_get_file_list(self.path, match_pattern=self.match_pattern, recursive=self.recursive)
             if self._match_file(path, extension)
         ]

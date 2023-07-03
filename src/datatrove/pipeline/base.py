@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
+from collections import Counter
 
 from datatrove.data import DocumentsPipeline
-from datatrove.utils.stats import TimeStatsManager, Stats
-
-from collections import Counter
+from datatrove.utils.stats import Stats, TimeStatsManager
 
 
 class PipelineStep(ABC):

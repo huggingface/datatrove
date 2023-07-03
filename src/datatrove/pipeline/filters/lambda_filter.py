@@ -1,23 +1,18 @@
-from datatrove.data import Document
-from datatrove.pipeline.filters.base_filter import BaseFilter
 from typing import Callable
 
-from datatrove.utils.typeshelper import NiceRepr
+from datatrove.data import Document
+from datatrove.pipeline.filters.base_filter import BaseFilter
 
 
 class LambdaFilter(BaseFilter):
     name = "👤 Lambda"
 
-    def __init__(
-            self,
-            filter_function: Callable[[Document], bool],
-            **kwargs
-    ):
+    def __init__(self, filter_function: Callable[[Document], bool], **kwargs):
         """
-          filters documents triggering the given filter_function with respect to a specific metadata key.
+        filters documents triggering the given filter_function with respect to a specific metadata key.
 
-          @param regex_exp: regex expression
-          """
+        @param regex_exp: regex expression
+        """
         super().__init__(**kwargs)
         self.filter_function = filter_function
 
