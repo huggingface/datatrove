@@ -56,7 +56,7 @@ class S3InputDataFolder(InputDataFolder):
             raise ValueError("S3InputDataFolder path must start with s3://")
         self._tmpdir = None
 
-    def list_files(self) -> list[InputDataFile]:
+    def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
         if not self.local_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.local_path = self._tmpdir.name
@@ -65,5 +65,5 @@ class S3InputDataFolder(InputDataFolder):
                 path=os.path.join(self.path, path), local_path=os.path.join(self.local_path, path), folder=self
             )
             for path in s3_get_file_list(self.path, match_pattern=self.match_pattern, recursive=self.recursive)
-            if self._match_file(path)
+            if self._match_file(path, extension)
         ]

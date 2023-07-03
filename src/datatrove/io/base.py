@@ -26,7 +26,7 @@ class InputDataFolder(ABC):
     match_pattern: str = None
 
     @abstractmethod
-    def list_files(self) -> list[InputDataFile]:
+    def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
         raise NotImplementedError
 
     def __post_init__(self):
@@ -38,13 +38,24 @@ class InputDataFolder(ABC):
     def get_files_shard(self, rank: int, world_size: int) -> list[InputDataFile]:
         return self.list_files()[rank::world_size]
 
-    def _match_file(self, file_path):
-        extensions = [self.extension] if type(self.extension) == str else self.extension
-        return (  # check extension
-            not extensions or os.path.splitext(file_path)[1] in extensions
-        ) and (  # check pattern
+    def _match_file(self, file_path, extension=None):
+        extensions = (
+            ([self.extension] if type(self.extension) == str else self.extension)
+            if not extension
+            else ([extension] if type(extension) == str else extension)
+        )
+        return (not extensions or get_extension(file_path) in extensions) and (  # check extension  # check pattern
             not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
         )
+
+
+def get_extension(filepath):
+    exts = []
+    stem, ext = os.path.splitext(filepath)
+    while ext:
+        exts.append(ext)
+        stem, ext = os.path.splitext(stem)
+    return "".join(reversed(exts))
 
 
 @dataclass
