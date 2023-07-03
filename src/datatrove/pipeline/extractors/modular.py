@@ -1,27 +1,22 @@
 import re
-from datatrove.data import Document
-from .base import BaseExtractor
 
-from readability import Document as ReadDocument
 from inscriptis import get_text
-
 from inscriptis.css_profiles import CSS_PROFILES
 from inscriptis.model.config import ParserConfig
+from readability import Document as ReadDocument
+
+from datatrove.data import Document
+
+from .base import BaseExtractor
+
 
 INSCRIPTIS_CONFIG = ParserConfig(css=CSS_PROFILES["strict"])
 
 
 class ReadabilityInscriptis(BaseExtractor):
-    """
+    """ """
 
-    """
-
-    def __init__(
-            self,
-
-            timeout: float = 0.1,
-            **kwargs
-    ):
+    def __init__(self, timeout: float = 0.1, **kwargs):
         super().__init__(**kwargs)
         self.timeout = timeout
         self.regex_excessive_lines = re.compile(r"\n\s*\n")

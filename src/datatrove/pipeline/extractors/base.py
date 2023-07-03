@@ -1,8 +1,9 @@
-from abc import ABC, abstractmethod
 import signal
+from abc import abstractmethod
+
 from loguru import logger
 
-from datatrove.data import DocumentsPipeline, Document
+from datatrove.data import Document, DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -37,21 +38,18 @@ class BaseExtractor(PipelineStep):
         signal.signal(signal.SIGALRM, signal_handler)
         signal.setitimer(signal.ITIMER_REAL, self.timeout)
         try:
-
             return self.extract(doc)
 
         except TimeoutError:
-            logger.warning(f"⏰ Timeout while cleaning record content. Skipping record.")
+            logger.warning("⏰ Timeout while cleaning record content. Skipping record.")
         except Exception as e:
-            logger.warning(f"❌ Error \"{e}\" while cleaning record content. Skipping record.")
+            logger.warning(f'❌ Error "{e}" while cleaning record content. Skipping record.')
 
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        """
-
-        """
+        """ """
         for doc in data:
             is_extracted = self.timeout_extract(doc)
             if is_extracted:

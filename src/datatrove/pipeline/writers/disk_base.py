@@ -1,10 +1,10 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from string import Template
 
-from datatrove.data import DocumentsPipeline, Document
+from datatrove.data import Document, DocumentsPipeline
+from datatrove.io import OutputDataFile, OutputDataFolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.io import OutputDataFolder, OutputDataFile
 
 
 class DiskWriter(PipelineStep, ABC):
@@ -13,12 +13,7 @@ class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
 
-    def __init__(
-            self,
-            output_folder: OutputDataFolder,
-            output_filename: str = None,
-            **kwargs
-    ):
+    def __init__(self, output_folder: OutputDataFolder, output_filename: str = None, **kwargs):
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.output_filename = Template(output_filename or self.default_output_filename)
@@ -33,11 +28,9 @@ class DiskWriter(PipelineStep, ABC):
         self.close()
 
     def _get_output_filename(self, document: Document, rank: int = 0):
-        return self.output_filename.substitute({
-            'rank': str(rank).zfill(5),
-            'data_id': document.data_id,
-            **document.metadata
-        })
+        return self.output_filename.substitute(
+            {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata}
+        )
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)

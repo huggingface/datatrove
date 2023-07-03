@@ -1,6 +1,6 @@
 import contextlib
 import os
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -41,9 +41,9 @@ class InputDataFolder(ABC):
     def _match_file(self, file_path):
         extensions = [self.extension] if type(self.extension) == str else self.extension
         return (  # check extension
-                not extensions or os.path.splitext(file_path)[1] in extensions
+            not extensions or os.path.splitext(file_path)[1] in extensions
         ) and (  # check pattern
-                not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
+            not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
         )
 
 

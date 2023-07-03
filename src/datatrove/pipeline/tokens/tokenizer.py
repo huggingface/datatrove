@@ -5,13 +5,14 @@ import numpy as np
 from loguru import logger
 from numpy.random import default_rng
 
-from datatrove.data import DocumentsPipeline, Document
-from datatrove.io import OutputDataFolder, OutputDataFile
+from datatrove.data import Document, DocumentsPipeline
+from datatrove.io import OutputDataFile, OutputDataFolder
 from datatrove.pipeline.base import PipelineStep
+
 
 TOKENIZERS_INSTALLED = True
 try:
-    from tokenizers import Tokenizer, Encoding
+    from tokenizers import Encoding, Tokenizer
     from tokenizers.processors import TemplateProcessing
 except ImportError:
     TOKENIZERS_INSTALLED = False
@@ -19,11 +20,7 @@ except ImportError:
 
 class TokenizedFile:
     def __init__(
-            self,
-            output_folder: OutputDataFolder,
-            filename: str,
-            save_index: bool = True,
-            save_loss_metadata: bool = True
+        self, output_folder: OutputDataFolder, filename: str, save_index: bool = True, save_loss_metadata: bool = True
     ):
         self.output_folder = output_folder
         self.filename = filename
@@ -51,7 +48,7 @@ class TokenizedFile:
             # save total number of documents
             # index_file.file_handler.write(struct.pack('<I', len(self.doc_ends)))
             # save document boundaries
-            index_file.file_handler.write(struct.pack('<%sI' % len(self.doc_ends), *self.doc_ends))
+            index_file.file_handler.write(struct.pack("<%sI" % len(self.doc_ends), *self.doc_ends))
             index_file.close()
 
     def cleanup(self):
@@ -73,20 +70,19 @@ class TokenizedFile:
 
     def write(self, tokens: list[int], loss_values: np.ndarray | None):
         # get the bytes for uint16 (H)
-        self.write_bytes(struct.pack('<%sH' % len(tokens), *tokens))
+        self.write_bytes(struct.pack("<%sH" % len(tokens), *tokens))
         if loss_values is not None:
-            self.write_loss_bytes(struct.pack('<%s?' % len(loss_values), *loss_values))
+            self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
     def copy(self, destination: str, ordering: np.ndarray = None):
         # open original file in read mode
         tokens_file = self.output_folder.get_file(self.filename, lambda x: open(x, "r+b"), overwrite=True)
-        loss_file = None if not self.loss_file else \
-            self.output_folder.get_file(f"{self.filename}.loss", lambda x: open(x, "r+b"), overwrite=True)
-        with TokenizedFile(
-                self.output_folder,
-                destination,
-                save_loss_metadata=self.save_loss_metadata
-        ) as new_file:
+        loss_file = (
+            None
+            if not self.loss_file
+            else self.output_folder.get_file(f"{self.filename}.loss", lambda x: open(x, "r+b"), overwrite=True)
+        )
+        with TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata) as new_file:
             # mmap the original file
             orig_tokens = mmap.mmap(tokens_file.file_handler.fileno(), 0)
             orig_loss = mmap.mmap(loss_file.file_handler.fileno(), 0) if loss_file else None
@@ -95,9 +91,9 @@ class TokenizedFile:
                 # get start and end from the boundaries
                 start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
                 # copy the bytes. each token is 2 bytes
-                new_file.write_bytes(orig_tokens[start * 2: end * 2])
+                new_file.write_bytes(orig_tokens[start * 2 : end * 2])
                 # copy loss values (1 byte per token)
-                new_file.write_loss_bytes(orig_loss[start: end])
+                new_file.write_loss_bytes(orig_loss[start:end])
             # close mmaps
             orig_tokens.close()
             orig_loss.close()
@@ -109,15 +105,15 @@ class TokenizedFile:
 
 class DocumentTokenizer(PipelineStep):
     def __init__(
-            self,
-            output_folder: OutputDataFolder,
-            save_filename: str = None,  # if defined, the final output filename will be this
-            tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
-            eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
-            save_loss_metadata: bool = True,  # save the loss information
-            shuffle: bool = True,  # whether to shuffle documents in the dataset
-            *args,
-            **kwargs
+        self,
+        output_folder: OutputDataFolder,
+        save_filename: str = None,  # if defined, the final output filename will be this
+        tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
+        eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
+        save_loss_metadata: bool = True,  # save the loss information
+        shuffle: bool = True,  # whether to shuffle documents in the dataset
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.output_folder = output_folder
@@ -136,7 +132,7 @@ class DocumentTokenizer(PipelineStep):
         loss_values = None
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
-            if no_loss := document.metadata.get('no_loss_ranges', None):
+            if no_loss := document.metadata.get("no_loss_ranges", None):
                 for start, end in no_loss:
                     t_start, t_end = encoded.char_to_token(start), encoded.char_to_token(end)
                     # set loss to 0
@@ -148,10 +144,7 @@ class DocumentTokenizer(PipelineStep):
 
     def write_unshuffled(self, data, filename):
         with TokenizedFile(
-                self.output_folder,
-                filename,
-                save_index=not self.shuffle,
-                save_loss_metadata=self.save_loss_metadata
+            self.output_folder, filename, save_index=not self.shuffle, save_loss_metadata=self.save_loss_metadata
         ) as unshuff:
             # tokenize each document's text and write its tokens sequentially to the output .ds
             for document in data:
@@ -160,7 +153,7 @@ class DocumentTokenizer(PipelineStep):
                 # loss values
                 loss_values = self.get_loss_values(document, encoded)
                 if loss_values is not None and len(loss_values) < len(tokens):
-                    tokens = tokens[:len(loss_values)]
+                    tokens = tokens[: len(loss_values)]
                 # write bytes to disk
                 unshuff.write(tokens, loss_values)
         return unshuff
@@ -188,6 +181,6 @@ class DocumentTokenizer(PipelineStep):
                 self._tokenizer.post_processor = TemplateProcessing(
                     single="$A <EOS>",
                     special_tokens=[("<EOS>", self.tokenizer.token_to_id(self.eos_token))],
-                    pair=None
+                    pair=None,
                 )
         return self._tokenizer

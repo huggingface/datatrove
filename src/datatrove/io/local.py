@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
-from datatrove.io.base import OutputDataFolder, OutputDataFile, InputDataFolder, InputDataFile
+from datatrove.io.base import InputDataFile, InputDataFolder, OutputDataFile, OutputDataFolder
 
 
 @dataclass
@@ -15,7 +15,7 @@ class LocalOutputDataFolder(OutputDataFolder):
         return OutputDataFile(
             local_path=os.path.join(self.local_path, relative_path),
             path=os.path.join(self.path, relative_path),
-            relative_path=relative_path
+            relative_path=relative_path,
         )
 
 
@@ -23,7 +23,8 @@ class LocalOutputDataFolder(OutputDataFolder):
 class LocalInputDataFolder(InputDataFolder):
     def list_files(self) -> list[InputDataFile]:
         return [
-            InputDataFile(path, path) for path in get_local_file_list(self.path, self.recursive)
+            InputDataFile(path, path)
+            for path in get_local_file_list(self.path, self.recursive)
             if self._match_file(path)
         ]
 

@@ -7,6 +7,7 @@ from datatrove.executor.base import PipelineExecutor
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.stats import merge_all
 
+
 download_semaphore, upload_semaphore = None, None
 
 
@@ -18,12 +19,12 @@ def init_pool_processes(dl_sem, up_sem):
 
 class LocalPipelineExecutor(PipelineExecutor):
     def __init__(
-            self,
-            tasks: int,
-            workers: int = -1,
-            max_concurrent_uploads: int = 20,
-            max_concurrent_downloads: int = 50,
-            **kwargs
+        self,
+        tasks: int,
+        workers: int = -1,
+        max_concurrent_uploads: int = 20,
+        max_concurrent_downloads: int = 50,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.tasks = tasks
@@ -48,8 +49,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         else:
             dl_sem = Semaphore(self.max_concurrent_downloads)
             up_sem = Semaphore(self.max_concurrent_uploads)
-            with multiprocess.Pool(self.workers, initializer=init_pool_processes,
-                                   initargs=(dl_sem, up_sem)) as pool:
+            with multiprocess.Pool(self.workers, initializer=init_pool_processes, initargs=(dl_sem, up_sem)) as pool:
                 stats = list(pool.map(self._run_for_rank, range(self.tasks)))
 
         return merge_all(stats, save=self.save_stats)

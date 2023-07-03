@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import NewType, Generator
+from typing import Generator, NewType
 
 
 class MediaType:
@@ -24,4 +24,4 @@ class Document:
     metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
 
 
-DocumentsPipeline = NewType('DocumentsPipeline', Generator[Document, None, None] | None)
+DocumentsPipeline = NewType("DocumentsPipeline", Generator[Document, None, None] | None)

@@ -2,16 +2,15 @@ import os
 from collections import deque
 from fnmatch import fnmatch
 
+
 try:
     import boto3
-    from boto3.exceptions import S3UploadFailedError
-    from botocore.exceptions import ClientError
 except ImportError:
     pass
 
 
 def _get_s3_path_components(s3_path):
-    bucket_name, _, prefix = s3_path[len("s3://"):].replace('//', '/').partition(os.sep)
+    bucket_name, _, prefix = s3_path[len("s3://") :].replace("//", "/").partition(os.sep)
     return bucket_name, prefix
 
 
@@ -25,7 +24,7 @@ def s3_upload_file(local_path, cloud_path):
     bucket_name, prefix = _get_s3_path_components(cloud_path)
 
     # Upload the file
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client("s3")
     s3_client.upload_file(local_path, bucket_name, prefix)
 
 
@@ -35,7 +34,7 @@ def s3_download_file(cloud_path, local_path):
     @param local_path:
     """
     bucket_name, prefix = _get_s3_path_components(cloud_path)
-    s3_resource = boto3.resource('s3')
+    s3_resource = boto3.resource("s3")
     bucket = s3_resource.Bucket(bucket_name)
 
     local_folder = os.path.dirname(local_path)
@@ -60,10 +59,10 @@ def s3_get_file_list(cloud_path, match_pattern=None, recursive=True):
     @param recursive:
     @return:
     """
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client("s3")
     bucket, main_prefix = _get_s3_path_components(cloud_path)
 
-    paginator = s3_client.get_paginator('list_objects_v2')
+    paginator = s3_client.get_paginator("list_objects_v2")
     objects = []
     prefixes = deque()
 
@@ -72,8 +71,14 @@ def s3_get_file_list(cloud_path, match_pattern=None, recursive=True):
         prefix = prefixes.popleft()
         for resp in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
             if recursive:
-                prefixes.extend([next_prefix['Prefix'] for next_prefix in resp.get("CommonPrefixes", [])
-                                 if _match_prefix(main_prefix, next_prefix['Prefix'], match_pattern)])
-            objects.extend([os.path.relpath(x['Key'], main_prefix) for x in resp.get("Contents", [])
-                            if x['Key'] != prefix])
+                prefixes.extend(
+                    [
+                        next_prefix["Prefix"]
+                        for next_prefix in resp.get("CommonPrefixes", [])
+                        if _match_prefix(main_prefix, next_prefix["Prefix"], match_pattern)
+                    ]
+                )
+            objects.extend(
+                [os.path.relpath(x["Key"], main_prefix) for x in resp.get("Contents", []) if x["Key"] != prefix]
+            )
     return sorted(objects)
