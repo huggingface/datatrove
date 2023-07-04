@@ -3,6 +3,8 @@ from collections import deque
 from collections.abc import Sequence
 from typing import Callable
 
+from loguru import logger
+
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -25,6 +27,7 @@ class PipelineExecutor(ABC):
         return 0
 
     def _run_for_rank(self, rank: int):
+        logger.info(f"Launching pipeline for {rank=}")
         # pipe data from one step to the next
         pipelined_data = None
         for pipeline_step in self.pipeline:
