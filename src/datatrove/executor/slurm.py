@@ -40,7 +40,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
-        os.makedirs(launch_script_path, exist_ok=True)
+        os.makedirs(self.logging_dir, exist_ok=True)
         with open(launch_script_path, "w") as f:
             f.write(self.launch_file)
 
