@@ -1,6 +1,6 @@
 from datatrove.data import Document
 from datatrove.executor.base import PipelineExecutor
-from datatrove.executor.local import LocalPipelineExecutor
+from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.io import LocalOutputDataFolder
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 
@@ -30,7 +30,9 @@ Aenean eget volutpat metus. Integer vitae sollicitudin sapien. Phasellus finibus
 #     for doc in samples:
 #         writer.write(doc)
 #
-pipeline = [samples, DocumentTokenizer(LocalOutputDataFolder(path="/home/gui/hf_dev/datatrove/tokenized_test"))]
+pipeline = [samples, DocumentTokenizer(LocalOutputDataFolder(path="/fsx/guilherme/tokenized"))]
 
-executor: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline, tasks=1)
+executor: PipelineExecutor = SlurmPipelineExecutor(
+    pipeline=pipeline, tasks=2, time="30", logging_dir="/fsx/guilherme/logs/test_slurm"
+)
 executor.run()
