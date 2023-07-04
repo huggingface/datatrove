@@ -9,6 +9,11 @@ from datatrove.executor.base import PipelineExecutor
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
+    """
+    Executor to run pipelines on Slurm.
+    Creates and calls a sbatch launch script.
+    """
+
     def __init__(
         self,
         tasks: int,
@@ -21,6 +26,17 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         **kwargs,
     ):
+        """
+        :param tasks: total number of tasks to run
+        :param time: time limit, passed to slurm
+        :param logging_dir: directory where log files and the launch script should be saved
+        :param cpus_per_task: how many cpus per task
+        :param job_name: slurm job name
+        :param condaenv: name of a conda environment to activate before starting the job
+        :param venv_path: path to a virtual environment to activate, if not using conda
+        :param sbatch_args: a dictionary of other SBATCH arguments for the launch script
+        :param kwargs:
+        """
         super().__init__(**kwargs)
         self.tasks = tasks
         self.cpus_per_task = cpus_per_task
