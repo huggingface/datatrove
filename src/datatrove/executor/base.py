@@ -39,5 +39,6 @@ class PipelineExecutor(ABC):
                 raise ValueError
         if pipelined_data:
             deque(pipelined_data, maxlen=0)
+        logger.info(f"Processing done for {rank=}")
         stats = [pipeline_step.stats() for pipeline_step in self.pipeline if isinstance(pipeline_step, PipelineStep)]
         return stats
