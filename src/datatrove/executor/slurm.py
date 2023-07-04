@@ -10,16 +10,16 @@ from datatrove.executor.base import PipelineExecutor
 
 class SlurmPipelineExecutor(PipelineExecutor):
     def __init__(
-            self,
-            tasks: int,
-            time: str,
-            logging_dir: str,
-            cpus_per_task: int = 1,
-            job_name: str = "data_processing",
-            condaenv: str = None,
-            venv_path: str = None,
-            sbatch_args: dict | None = None,
-            **kwargs
+        self,
+        tasks: int,
+        time: str,
+        logging_dir: str,
+        cpus_per_task: int = 1,
+        job_name: str = "data_processing",
+        condaenv: str = None,
+        venv_path: str = None,
+        sbatch_args: dict | None = None,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.tasks = tasks
@@ -43,7 +43,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         with open(launch_script_path, "w") as f:
             f.write(self.launch_file)
 
-        logger.info(f"Launching Slurm job {self.job_name} with launch script \"{launch_script_path}\"")
+        logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
         output = subprocess.check_output(["sbatch", self.launch_file]).decode("utf-8")
         job_id = int(output.split()[-1])
         logger.info(f"Slurm job launched successfully with id={job_id}.")
@@ -55,24 +55,30 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "ntasks": self.tasks,
             "job-name": self.job_name,
             "time": self.time,
-            **self._sbatch_args
+            **self._sbatch_args,
         }
 
     @property
     def launch_file(self):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in self.sbatch_args.items()])
 
-        env_command = f"""conda init bash
-        conda activate {self.condaenv}""" if self.condaenv else f"source {self.venv_path}"
+        env_command = (
+            f"""conda init bash
+        conda activate {self.condaenv}"""
+            if self.condaenv
+            else f"source {self.venv_path}"
+        )
 
-        return textwrap.dedent(f"""
+        return textwrap.dedent(
+            f"""
         #!/bin/bash
         {args}
         echo "Starting data processing job {self.job_name}"
         {env_command}
         set -xe
         srun -l python -u {os.path.abspath(sys.argv[0])}
-        """)
+        """
+        )
 
     @property
     def world_size(self):
