@@ -14,7 +14,7 @@ class PipelineExecutor(ABC):
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.save_stats = save_stats
 
-        pipeline = "\n".join([pipe.__repr__() for pipe in self.pipeline])
+        pipeline = "\n".join([pipe.__repr__() if callable(pipe) else "Sequence..." for pipe in self.pipeline])
         print(f"--- 🛠️PIPELINE 🛠\n{pipeline}")
 
     @abstractmethod
