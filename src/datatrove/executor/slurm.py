@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import textwrap
 
 from loguru import logger
 
@@ -63,7 +64,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def launch_file(self):
-        args = "        \n".join([f"#SBATCH --{k}={v}" for k, v in self.sbatch_args.items()])
+        args = "\n".join([f"#SBATCH --{k}={v}" for k, v in self.sbatch_args.items()])
 
         env_command = (
             f"""conda init bash
@@ -72,15 +73,19 @@ class SlurmPipelineExecutor(PipelineExecutor):
             else f"source {self.venv_path}"
         )
 
-        return f"""
-        #!/bin/bash
-        {args}
+        return (
+            "#!/bin/bash"
+            + args
+            + textwrap.dedent(
+                f"""
         echo "Starting data processing job {self.job_name}"
         source ~/.bashrc
         {env_command}
         set -xe
         srun -l python -u {os.path.abspath(sys.argv[0])}
         """
+            )
+        )
 
     @property
     def world_size(self):
