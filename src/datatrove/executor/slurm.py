@@ -45,7 +45,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             f.write(self.launch_file)
 
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
-        output = subprocess.check_output(["sbatch", self.launch_file]).decode("utf-8")
+        output = subprocess.check_output(["sbatch", launch_script_path]).decode("utf-8")
         job_id = int(output.split()[-1])
         logger.info(f"Slurm job launched successfully with id={job_id}.")
 
