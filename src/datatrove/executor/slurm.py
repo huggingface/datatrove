@@ -40,6 +40,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
+        os.makedirs(launch_script_path, exist_ok=True)
         with open(launch_script_path, "w") as f:
             f.write(self.launch_file)
 
@@ -50,11 +51,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def sbatch_args(self) -> dict:
+        slurm_logfile = os.path.join(self.logging_dir, "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "ntasks": self.tasks,
             "job-name": self.job_name,
             "time": self.time,
+            "output": slurm_logfile,
+            "error": slurm_logfile,
             **self._sbatch_args,
         }
 
