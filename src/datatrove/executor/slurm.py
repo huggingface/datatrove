@@ -74,6 +74,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         #!/bin/bash
         {args}
         echo "Starting data processing job {self.job_name}"
+        source ~/.bashrc
         {env_command}
         set -xe
         srun -l python -u {os.path.abspath(sys.argv[0])}
