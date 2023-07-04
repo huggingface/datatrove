@@ -74,7 +74,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         )
 
         return (
-            "#!/bin/bash"
+            "#!/bin/bash\n"
             + args
             + textwrap.dedent(
                 f"""
