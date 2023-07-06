@@ -3,14 +3,14 @@ from abc import abstractmethod
 from loguru import logger
 
 from datatrove.data import DocumentsPipeline
-from datatrove.io import InputDataFile, InputDataFolder
+from datatrove.io import BaseInputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 
 
 class BaseReader(PipelineStep):
     type = "📖 - READER"
 
-    def __init__(self, data_folder: InputDataFolder, **kwargs):
+    def __init__(self, data_folder: BaseInputDataFolder, **kwargs):
         super().__init__(**kwargs)
         self.data_folder = data_folder
 

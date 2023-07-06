@@ -1,11 +1,11 @@
 import os
 from dataclasses import dataclass, field
 
-from datatrove.io.base import InputDataFile, InputDataFolder, OutputDataFile, OutputDataFolder
+from datatrove.io.base import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile, OutputDataFile
 
 
 @dataclass
-class LocalOutputDataFolder(OutputDataFolder):
+class LocalOutputDataFolder(BaseOutputDataFolder):
     local_path: str = field(init=False)
 
     def __post_init__(self):
@@ -20,7 +20,7 @@ class LocalOutputDataFolder(OutputDataFolder):
 
 
 @dataclass
-class LocalInputDataFolder(InputDataFolder):
+class LocalInputDataFolder(BaseInputDataFolder):
     def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
         return [
             InputDataFile(path, path)

@@ -1,5 +1,3 @@
-import gzip
-
 import cchardet
 import magic
 from warcio.archiveiterator import ArchiveIterator
@@ -18,7 +16,7 @@ class WarcReader(BaseReader):
         super().__init__(*args, **kwargs)
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(lambda x: gzip.open(x, "rb") if self.gzip_mode else open(x, "rb")) as f:
+        with datafile.open(gzip=self.gzip_mode, binary=True) as f:
             for record in ArchiveIterator(f):
                 document = process_record(record)
                 if document:

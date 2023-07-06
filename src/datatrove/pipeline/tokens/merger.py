@@ -4,7 +4,7 @@ import numpy as np
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
-from datatrove.io import InputDataFile, InputDataFolder, OutputDataFolder
+from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 
@@ -12,8 +12,8 @@ from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 class DocumentTokenizerMerger(PipelineStep):
     def __init__(
         self,
-        input_folder: InputDataFolder,
-        output_folder: OutputDataFolder,
+        input_folder: BaseInputDataFolder,
+        output_folder: BaseOutputDataFolder,
         save_filename: str,  # if defined, the final output filename will be this
         max_tokens: int = 100e9,  # max number of tokens per file. default: 100GT
         shuffle: bool = True,  # whether to shuffle documents in the dataset
@@ -90,10 +90,10 @@ class DocumentTokenizerMerger(PipelineStep):
 
 
 def load_doc_ends(file: InputDataFile):
-    with file.open(lambda x: open(x, "r+b")) as f:
+    with file.open_binary() as f:
         return np.frombuffer(f.read(), dtype=np.uint32)
 
 
 def load_input_mmap(file: InputDataFile):
-    with file.open(lambda x: open(x, "r+b")) as f:
+    with file.open_binary() as f:
         return mmap.mmap(f.fileno(), 0)

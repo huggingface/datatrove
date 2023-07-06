@@ -3,7 +3,7 @@ from collections.abc import Callable
 from string import Template
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import OutputDataFile, OutputDataFolder
+from datatrove.io import BaseOutputDataFolder, OutputDataFile
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -13,7 +13,7 @@ class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
 
-    def __init__(self, output_folder: OutputDataFolder, output_filename: str = None, **kwargs):
+    def __init__(self, output_folder: BaseOutputDataFolder, output_filename: str = None, **kwargs):
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.output_filename = Template(output_filename or self.default_output_filename)

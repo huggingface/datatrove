@@ -42,6 +42,12 @@ def s3_download_file(cloud_path, local_path):
     bucket.download_file(prefix, local_path)
 
 
+def s3_get_file_stream(cloud_path):
+    bucket_name, prefix = _get_s3_path_components(cloud_path)
+    s3_client = boto3.client("s3")
+    return s3_client.get_object(Bucket=bucket_name, Key=prefix)["Body"]
+
+
 def _match_prefix(base_prefix, prefix, match_pattern=None):
     if not match_pattern:
         return True

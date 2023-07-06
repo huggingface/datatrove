@@ -1,4 +1,3 @@
-import gzip
 import json
 
 from datatrove.data import Document
@@ -10,7 +9,7 @@ class JsonlReader(BaseReader):
     name = "🐿 Jsonl"
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(lambda x: gzip.open(x, "rt")) as f:
+        with datafile.open(gzip=True) as f:
             for line in f:
                 with self.time_stats_manager:
                     try:
@@ -20,5 +19,4 @@ class JsonlReader(BaseReader):
                     except EOFError:
                         # logger.warning(f"EOFError reading path {path}")
                         continue
-
                 yield document

@@ -6,7 +6,7 @@ from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import OutputDataFile, OutputDataFolder
+from datatrove.io import BaseOutputDataFolder, OutputDataFile
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -20,7 +20,11 @@ except ImportError:
 
 class TokenizedFile:
     def __init__(
-        self, output_folder: OutputDataFolder, filename: str, save_index: bool = True, save_loss_metadata: bool = True
+        self,
+        output_folder: BaseOutputDataFolder,
+        filename: str,
+        save_index: bool = True,
+        save_loss_metadata: bool = True,
     ):
         self.output_folder = output_folder
         self.filename = filename
@@ -115,7 +119,7 @@ class TokenizedFile:
 class DocumentTokenizer(PipelineStep):
     def __init__(
         self,
-        output_folder: OutputDataFolder,
+        output_folder: BaseOutputDataFolder,
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
