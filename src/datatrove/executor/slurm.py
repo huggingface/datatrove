@@ -76,7 +76,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         slurm_logfile = os.path.join(self.logging_dir, "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
-            "mem_per_cpu": f"{self.mem_per_cpu_gb}G",
+            "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
             "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
