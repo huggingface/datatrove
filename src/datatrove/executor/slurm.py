@@ -19,7 +19,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         tasks: int,
         time: str,
         logging_dir: str,
+        partition: str,
         cpus_per_task: int = 1,
+        mem_per_cpu_gb: int = 2,
         workers: int = -1,
         job_name: str = "data_processing",
         condaenv: str = None,
@@ -41,7 +43,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         super().__init__(**kwargs)
         self.tasks = tasks
         self.workers = workers
+        self.partition = partition
         self.cpus_per_task = cpus_per_task
+        self.mem_per_cpu_gb = mem_per_cpu_gb
         self.logging_dir = logging_dir
         self.time = time
         self.job_name = job_name
@@ -72,6 +76,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         slurm_logfile = os.path.join(self.logging_dir, "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
+            "mem_per_cpu": f"{self.mem_per_cpu_gb}G",
+            "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
             "output": slurm_logfile,
