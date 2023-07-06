@@ -1,5 +1,7 @@
 from abc import abstractmethod
 
+from loguru import logger
+
 from datatrove.data import DocumentsPipeline
 from datatrove.io import InputDataFile, InputDataFolder
 from datatrove.pipeline.base import PipelineStep
@@ -23,4 +25,5 @@ class BaseReader(PipelineStep):
         if data:
             yield from data
         for datafile in self.data_folder.get_files_shard(rank, world_size):
+            logger.info(f"Reading input file {datafile.path}")
             yield from self.read_file(datafile)
