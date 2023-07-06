@@ -20,6 +20,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         time: str,
         logging_dir: str,
         cpus_per_task: int = 1,
+        workers: int = -1,
         job_name: str = "data_processing",
         condaenv: str = None,
         venv_path: str = None,
@@ -39,17 +40,19 @@ class SlurmPipelineExecutor(PipelineExecutor):
         """
         super().__init__(**kwargs)
         self.tasks = tasks
+        self.workers = workers
         self.cpus_per_task = cpus_per_task
         self.logging_dir = logging_dir
         self.time = time
         self.job_name = job_name
+        assert condaenv or venv_path, "No condaenv or venv_path provided"
         self.condaenv = condaenv
         self.venv_path = venv_path
         self._sbatch_args = sbatch_args if sbatch_args else {}
 
     def run(self):
         if "SLURM_JOB_ID" in os.environ:
-            rank = int(os.environ["SLURM_PROCID"])
+            rank = int(os.environ["SLURM_ARRAY_TASK_ID"])
             self._run_for_rank(rank)
         else:
             self.launch_job()
@@ -70,11 +73,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         slurm_logfile = os.path.join(self.logging_dir, "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
-            "ntasks": self.tasks,
             "job-name": self.job_name,
             "time": self.time,
             "output": slurm_logfile,
             "error": slurm_logfile,
+            "array": f"0-{self.tasks - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             **self._sbatch_args,
         }
 
