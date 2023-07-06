@@ -45,7 +45,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.logging_dir = logging_dir
         self.time = time
         self.job_name = job_name
-        assert condaenv or venv_path, "No condaenv or venv_path provided"
         self.condaenv = condaenv
         self.venv_path = venv_path
         self._sbatch_args = sbatch_args if sbatch_args else {}
@@ -89,7 +88,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             f"""conda init bash
         conda activate {self.condaenv}"""
             if self.condaenv
-            else f"source {self.venv_path}"
+            else (f"source {self.venv_path}" if self.venv_path else "")
         )
 
         return (
@@ -98,8 +97,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             + textwrap.dedent(
                 f"""
         echo "Starting data processing job {self.job_name}"
-        source ~/.bashrc
         {env_command}
+        source ~/.bashrc
         set -xe
         srun -l python -u {os.path.abspath(sys.argv[0])}
         """
