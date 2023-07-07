@@ -24,9 +24,9 @@ class S3OutputDataFolder(BaseOutputDataFolder):
         super().close()
         for file in self._output_files.values():
             with self._lock:
-                logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
+                logger.info(f'Uploading "{file.local_path}" to "{file.path}"...')
                 s3_upload_file(file.local_path, file.path)
-                logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
+                logger.info(f'Uploaded "{file.local_path}" to "{file.path}".')
         if self._tmpdir:
             self._tmpdir.cleanup()
 
