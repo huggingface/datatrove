@@ -4,6 +4,8 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+from loguru import logger
+
 from datatrove.io import InputDataFile, LocalOutputDataFolder
 from datatrove.io.base import BaseInputDataFolder
 from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_get_file_stream, s3_upload_file
@@ -23,7 +25,9 @@ class S3OutputDataFolder(LocalOutputDataFolder):
         super().close(close_fn)
         for file in self._output_files.values():
             with self._lock:
+                logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
                 s3_upload_file(file.local_path, file.path)
+                logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
         if self._tmpdir:
             self._tmpdir.cleanup()
 
@@ -52,7 +56,9 @@ class S3InputDataFile(InputDataFile):
             # download
             if not os.path.isfile(self.local_path):
                 with self.folder._lock:
+                    logger.info(f'Downloading "{self.path}" to "{self.local_path}"...')
                     s3_download_file(self.path, self.local_path)
+                    logger.info(f'Downloaded "{self.path}" to "{self.local_path}".')
             with super().open_binary() as f:
                 yield f
 
