@@ -1,8 +1,9 @@
 from datatrove.data import Document
 from datatrove.executor.base import PipelineExecutor
-from datatrove.executor.local import LocalPipelineExecutor
+from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.io import LocalOutputDataFolder
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
+
 
 samples = [
     Document(
@@ -17,8 +18,9 @@ Donec orci lorem, cursus in urna eu, laoreet vulputate mauris. Aliquam ac urna v
 
 Aenean eget volutpat metus. Integer vitae sollicitudin sapien. Phasellus finibus risus vel dolor pellentesque consequat. Sed non posuere felis. In tortor justo, aliquet a libero et, bibendum laoreet lectus. Quisque sit amet justo nibh. Mauris aliquet, dui laoreet suscipit finibus, metus libero vehicula libero, vitae commodo felis leo vel urna. Proin urna lacus, hendrerit ac mauris et, suscipit tempor odio. Nunc eu ultricies nunc, vel mattis odio. Quisque efficitur facilisis tortor. Aliquam feugiat odio non ex malesuada porttitor. Aliquam sit amet augue pellentesque, porttitor elit nec, faucibus neque. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Suspendisse potenti. """,
         data_id=str(i),
-        metadata={"mid": i % 10}
-    ) for i, x in enumerate(["sample 1", "some text", "more text"] * 500)
+        metadata={"mid": i % 10},
+    )
+    for i, x in enumerate(["sample 1", "some text", "more text"] * 500)
 ]
 
 # output = LocalOutputDataFolder(path="/home/gui/hf_dev/datatrove/test_folder")
@@ -28,15 +30,9 @@ Aenean eget volutpat metus. Integer vitae sollicitudin sapien. Phasellus finibus
 #     for doc in samples:
 #         writer.write(doc)
 #
-pipeline = [
-    samples,
-    DocumentTokenizer(LocalOutputDataFolder(path="/home/gui/hf_dev/datatrove/tokenized_test"))
-]
+pipeline = [samples, DocumentTokenizer(LocalOutputDataFolder(path="/fsx/guilherme/tokenized"))]
 
-executor: PipelineExecutor = LocalPipelineExecutor(
-    pipeline=pipeline,
-    tasks=1
+executor: PipelineExecutor = SlurmPipelineExecutor(
+    pipeline=pipeline, tasks=2, time="30", logging_dir="/fsx/guilherme/logs/test_slurm"
 )
 executor.run()
-
-

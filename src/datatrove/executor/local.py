@@ -20,7 +20,7 @@ def init_pool_processes(dl_sem, up_sem):
 class LocalPipelineExecutor(PipelineExecutor):
     def __init__(
         self,
-        tasks: int,
+        tasks: int = 1,
         workers: int = -1,
         max_concurrent_uploads: int = 20,
         max_concurrent_downloads: int = 50,

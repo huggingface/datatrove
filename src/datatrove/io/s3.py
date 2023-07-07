@@ -1,28 +1,32 @@
 import os.path
 import tempfile
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from datatrove.io import InputDataFile, LocalOutputDataFolder
-from datatrove.io.base import InputDataFolder
-from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_upload_file
+from loguru import logger
+
+from datatrove.io import BaseOutputDataFolder, InputDataFile
+from datatrove.io.base import BaseInputDataFolder, OutputDataFile
+from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_get_file_stream, s3_upload_file
 
 
 @dataclass
-class S3OutputDataFolder(LocalOutputDataFolder):
+class S3OutputDataFolder(BaseOutputDataFolder):
     local_path: str = None
 
     def __post_init__(self):
+        super().__post_init__()
         if not self.path.startswith("s3://"):
             raise ValueError("S3OutputDataFolder path must start with s3://")
         self._tmpdir = None
 
-    def close(self, close_fn: Callable = None):
-        super().close(close_fn)
+    def close(self):
+        super().close()
         for file in self._output_files.values():
             with self._lock:
+                logger.info(f'Uploading "{file.local_path}" to "{file.path}"...')
                 s3_upload_file(file.local_path, file.path)
+                logger.info(f'Uploaded "{file.local_path}" to "{file.path}".')
         if self._tmpdir:
             self._tmpdir.cleanup()
 
@@ -30,28 +34,46 @@ class S3OutputDataFolder(LocalOutputDataFolder):
         if not self.local_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.local_path = self._tmpdir.name
-        return super().create_new_file(relative_path)
+        return OutputDataFile(
+            local_path=os.path.join(self.local_path, relative_path),
+            path=os.path.join(self.path, relative_path),
+            relative_path=relative_path,
+        )
 
 
 @dataclass
 class S3InputDataFile(InputDataFile):
-    folder: InputDataFolder = None
+    local_path: str = None
+    stream: bool = False
+    folder: BaseInputDataFolder = None
 
     @contextmanager
-    def open(self, open_fn: Callable = None):
-        # download
-        if not os.path.isfile(self.local_path):
-            with self.folder._lock:
-                s3_download_file(self.path, self.local_path)
-        with super().open(open_fn) as f:
-            yield f
+    def open_binary(self):
+        if self.stream:
+            # stream
+            response_stream = s3_get_file_stream(self.path)
+            try:
+                yield response_stream
+            finally:
+                response_stream.close()
+        else:
+            # download
+            if not os.path.isfile(self.local_path):
+                with self.folder._lock:
+                    logger.info(f'Downloading "{self.path}" to "{self.local_path}"...')
+                    s3_download_file(self.path, self.local_path)
+                    logger.info(f'Downloaded "{self.path}" to "{self.local_path}".')
+            with open(self.local_path, mode="rb") as f:
+                yield f
 
 
 @dataclass
-class S3InputDataFolder(InputDataFolder):
+class S3InputDataFolder(BaseInputDataFolder):
     local_path: str = None
+    stream: bool = False
 
     def __post_init__(self):
+        super().__post_init__()
         if not self.path.startswith("s3://"):
             raise ValueError("S3InputDataFolder path must start with s3://")
         self._tmpdir = None
@@ -62,7 +84,10 @@ class S3InputDataFolder(InputDataFolder):
             self.local_path = self._tmpdir.name
         return [
             S3InputDataFile(
-                path=os.path.join(self.path, path), local_path=os.path.join(self.local_path, path), folder=self
+                path=os.path.join(self.path, path),
+                local_path=os.path.join(self.local_path, path),
+                folder=self,
+                stream=self.stream,
             )
             for path in s3_get_file_list(self.path, match_pattern=self.match_pattern, recursive=self.recursive)
             if self._match_file(path, extension)

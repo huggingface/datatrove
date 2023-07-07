@@ -3,6 +3,8 @@ from collections import deque
 from collections.abc import Sequence
 from typing import Callable
 
+from loguru import logger
+
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -12,7 +14,7 @@ class PipelineExecutor(ABC):
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.save_stats = save_stats
 
-        pipeline = "\n".join([pipe.__repr__() for pipe in self.pipeline])
+        pipeline = "\n".join([pipe.__repr__() if callable(pipe) else "Sequence..." for pipe in self.pipeline])
         print(f"--- 🛠️PIPELINE 🛠\n{pipeline}")
 
     @abstractmethod
@@ -25,6 +27,7 @@ class PipelineExecutor(ABC):
         return 0
 
     def _run_for_rank(self, rank: int):
+        logger.info(f"Launching pipeline for {rank=}")
         # pipe data from one step to the next
         pipelined_data = None
         for pipeline_step in self.pipeline:
@@ -36,5 +39,6 @@ class PipelineExecutor(ABC):
                 raise ValueError
         if pipelined_data:
             deque(pipelined_data, maxlen=0)
-        stats = [pipeline_step.stats() for pipeline_step in self.pipeline]
+        logger.info(f"Processing done for {rank=}")
+        stats = [pipeline_step.stats() for pipeline_step in self.pipeline if isinstance(pipeline_step, PipelineStep)]
         return stats

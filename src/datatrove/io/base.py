@@ -1,25 +1,45 @@
 import contextlib
+import gzip as gzip_lib
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
+from gzip import GzipFile
+from io import TextIOWrapper
+
+from loguru import logger
 
 
 @dataclass
 class InputDataFile:
-    local_path: str
     path: str
 
     @contextmanager
-    def open(self, open_fn: Callable = None):
-        with open(self.local_path) if not open_fn else open_fn(self.local_path) as f:
+    def open_binary(self):
+        with open(self.path, mode="rb") as f:
             yield f
+
+    @contextmanager
+    def open(self, gzip: bool = False, binary=False):
+        with self.open_binary() as fo:
+            if gzip:
+                with GzipFile(mode="r" if not binary else "rb", fileobj=fo) as gf:
+                    if binary:
+                        yield gf
+                    else:
+                        with TextIOWrapper(gf) as f:
+                            yield f
+            else:
+                if binary:
+                    yield fo
+                else:
+                    with TextIOWrapper(fo) as f:
+                        yield f
 
 
 @dataclass
-class InputDataFolder(ABC):
+class BaseInputDataFolder(ABC):
     path: str
     extension: str | list[str] = None
     recursive: bool = True
@@ -27,6 +47,9 @@ class InputDataFolder(ABC):
 
     @abstractmethod
     def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
+        logger.error(
+            "Do not instantiate BaseInputDataFolder directly, " "use a LocalInputDataFolder or S3InputDataFolder"
+        )
         raise NotImplementedError
 
     def __post_init__(self):
@@ -66,29 +89,35 @@ class OutputDataFile(ABC):
     file_handler = None
     nr_documents: int = 0
 
-    def close(self, close_fn: Callable = None):
+    def close(self):
         if self.file_handler:
-            (close_fn or (lambda x: x.close()))(self.file_handler)
+            self.file_handler.close()
 
-    def open(self, open_fn: Callable = None):
-        os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
-        self.file_handler = open(self.local_path, "w") if not open_fn else open_fn(self.local_path)
-        self.file_handler = open_fn(self.local_path)
-        return self.file_handler
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
+        if not self.file_handler or overwrite:
+            os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
+            self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
+        return self
 
 
 @dataclass
-class OutputDataFolder(ABC):
+class BaseOutputDataFolder(ABC):
     path: str
     local_path: str
     _output_files: dict[str, OutputDataFile] = field(default_factory=dict)
 
-    def close(self, close_fn: Callable = None):
+    def close(self):
         for file in self._output_files.values():
-            file.close(close_fn=close_fn)
+            file.close()
 
     @abstractmethod
     def create_new_file(self, relative_path: str) -> OutputDataFile:
+        logger.error(
+            "Do not instantiate a BaseOutputDataFolder directly, " "use a LocalOutputDataFolder or S3OutputDataFolder"
+        )
         raise NotImplementedError
 
     def __post_init__(self):
@@ -101,11 +130,12 @@ class OutputDataFolder(ABC):
         if relative_path in self._output_files:
             output_file = self._output_files.pop(relative_path)
             output_file.close()
-            os.remove(output_file.local_path)
+            if output_file.local_path and os.path.isfile(output_file.local_path):
+                os.remove(output_file.local_path)
 
-    def get_file(self, relative_path: str, open_fn: Callable = None, overwrite: bool = False):
+    def open(self, relative_path: str, mode: str = "w", gzip: bool = False, overwrite: bool = False):
         if relative_path not in self._output_files or overwrite:
             new_output_file = self.create_new_file(relative_path)
-            new_output_file.open(open_fn)
+            new_output_file.open(mode, gzip, overwrite=overwrite)
             self._output_files[relative_path] = new_output_file
         return self._output_files[relative_path]
