@@ -7,15 +7,15 @@ from: https://jmlr.org/papers/volume21/20-074/20-074.pdf (C4)
 # get hashes for each doc and write them down
 
 """
-
+import heapq
 import struct
 from dataclasses import dataclass
-from queue import PriorityQueue
+from typing import Generator
 
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import InputDataFolder, OutputDataFolder
+from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -73,33 +73,11 @@ class DuFile:
         return all_x
 
 
-class SigFile:
-    def __init__(self, file_name: str, mode: str):
-        self.file_name = file_name
-        self.file_handler = open(self.file_name, mode=mode)
-
-    def write(self, hs: HashSig):
-        self.file_handler.write(struct.pack("<Q", hs.hash_value))
-        self.file_handler.write(struct.pack("<I", hs.doc_id))
-        self.file_handler.write(struct.pack("<H", hs.sent_id))
-
-    def read(self, file_id: int) -> None | HashSig:
-        x = []
-        for k, b in [("Q", 8), ("I", 4), ("H", 2)]:
-            by = self.file_handler.read(b)
-            if not by:
-                self.file_handler.close()
-                return None
-            x.append(struct.unpack(f"<{k}", by)[0])
-        x.append(file_id)
-        return HashSig(*x)
-
-
 class C4DedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🫧 C4 stage 1"
 
-    def __init__(self, output_folder: OutputDataFolder, n_sentences: int = 3, stage_2_workers: int = 1, **kwargs):
+    def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, stage_2_workers: int = 1, **kwargs):
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.n_sentences = n_sentences
@@ -110,13 +88,13 @@ class C4DedupSignature(PipelineStep):
         self.output_folder.set_lock(up_lock)
 
     def save_hashes(self, rank: int):
-        self.signatures = sorted(self.signatures, key=lambda x: x.hash_value)
+        self.signatures.sort()
 
-        f = self.output_folder.get_file(f"{rank:05d}.c4_sig", lambda x: open(x, "wb"))
-        for hs in self.signatures:
-            f.file_handler.write(struct.pack("<Q", hs.hash_value))
-            f.file_handler.write(struct.pack("<I", hs.doc_id))
-            f.file_handler.write(struct.pack("<H", hs.sent_id))
+        with self.output_folder.open(f"{rank:05d}.c4_sig", mode="wb") as f:
+            for hs in self.signatures:
+                f.file_handler.write(struct.pack("<Q", hs.hash_value))
+                f.file_handler.write(struct.pack("<I", hs.doc_id))
+                f.file_handler.write(struct.pack("<H", hs.sent_id))
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
         sentences = sent_tokenize(doc.content)
@@ -147,37 +125,46 @@ class C4DedupSignature(PipelineStep):
         self.output_folder.close()
 
 
+def read_sigs(file: InputDataFile, file_id: int) -> Generator[HashSig, None, None]:
+    with file.open(binary=True) as f:
+        while True:
+            x = {}
+            for t, b, k in [("Q", 8, "hash_value"), ("I", 4, "doc_id"), ("H", 2, "sent_id")]:
+                by = f.read(b)
+                if not by:
+                    return
+                x[k] = struct.unpack(f"<{t}", by)[0]
+            yield HashSig(file_id=file_id, **x)
+
+
 class C4CreateDedups(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🫧 C4 stage 2"
 
-    def __init__(self, data_folder: InputDataFolder, output_folder: OutputDataFolder, **kwargs):
+    def __init__(self, data_folder: BaseInputDataFolder, output_folder: BaseOutputDataFolder, **kwargs):
         super().__init__(**kwargs)
         self.data_folder = data_folder
         self.output_folder = output_folder
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        priority_queue = PriorityQueue()
-        # todo waiting for new IO
-        in_file_handles = [
-            SigFile(file_name=f"/Users/alessandrocappelli/PycharmProjects/datatrove/c4/{i:05d}.c4_sig", mode="rb")
-            for i in range(4)
-        ]
+        sig_files = self.data_folder.list_files(".c4_sig")
+        sig_readers = [read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
 
-        for i, fh in enumerate(in_file_handles):
-            priority_queue.put(fh.read(i))
+        pq = [next(sig_reader) for sig_reader in sig_readers]
+        heapq.heapify(pq)
 
         last = None
-        while not priority_queue.empty():
-            v: HashSig = priority_queue.get()
+        while pq:
+            v: HashSig = heapq.heappop(pq)
             if last == v.hash_value:
-                f = self.output_folder.get_file(f"{v.file_id:05d}.c4_dup", lambda x: open(x, "wb"))
+                f = self.output_folder.open(f"{v.file_id:05d}.c4_dup", mode="wb")
                 f.file_handler.write(struct.pack("<I", v.doc_id))
                 f.file_handler.write(struct.pack("<H", v.sent_id))
             last = v.hash_value
-            new_v = in_file_handles[v.file_id].read(v.file_id)
+            new_v = next(sig_readers[v.file_id])
             if new_v:
-                priority_queue.put(new_v)
+                heapq.heappush(pq, new_v)
+        self.output_folder.close()
 
 
 class C4Filter(PipelineStep):
@@ -186,7 +173,7 @@ class C4Filter(PipelineStep):
 
     def __init__(
         self,
-        data_folder: InputDataFolder,
+        data_folder: BaseInputDataFolder,
         min_doc_words: int = 50,
         **kwargs,
     ):
@@ -197,7 +184,7 @@ class C4Filter(PipelineStep):
     def filter(self, doc: Document, du_lines: set = None):
         sentences = sent_tokenize(doc.content)
         doc.content = " ".join([sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines])
-        if len(word_tokenize(doc.content)) > 50:
+        if len(word_tokenize(doc.content)) > self.min_doc_words:
             return True
         return False
 
