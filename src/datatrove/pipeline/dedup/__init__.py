@@ -1,1 +1,1 @@
-from .c4_dedup import C4CreateDedups, C4DedupSignature
+from .c4_dedup import C4CreateDedups, C4DedupSignature, C4Filter
