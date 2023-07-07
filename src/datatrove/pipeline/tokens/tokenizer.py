@@ -39,9 +39,9 @@ class TokenizedFile:
         return self.doc_ends[-1] if self.doc_ends else 0
 
     def open(self):
-        self.tokens_file = self.output_folder.get_file(self.filename, lambda x: open(x, "wb"))
+        self.tokens_file = self.output_folder.open(self.filename, mode="wb")
         if self.save_loss_metadata:
-            self.loss_file = self.output_folder.get_file(f"{self.filename}.loss", lambda x: open(x, "wb"))
+            self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb")
 
     def __enter__(self):
         self.open()
@@ -54,7 +54,7 @@ class TokenizedFile:
             self.loss_file.close()
         # save index: document boundaries
         if self.save_index:
-            index_file = self.output_folder.get_file(f"{self.filename}.index", lambda x: open(x, "wb"))
+            index_file = self.output_folder.open(f"{self.filename}.index", mode="wb")
             # save total number of documents
             # index_file.file_handler.write(struct.pack('<I', len(self.doc_ends)))
             # save document boundaries
@@ -89,11 +89,11 @@ class TokenizedFile:
 
     def copy(self, destination: str, ordering: np.ndarray = None):
         # open original file in read mode
-        tokens_file = self.output_folder.get_file(self.filename, lambda x: open(x, "r+b"), overwrite=True)
+        tokens_file = self.output_folder.open(self.filename, mode="r+b", overwrite=True)
         loss_file = (
             None
             if not self.loss_file
-            else self.output_folder.get_file(f"{self.filename}.loss", lambda x: open(x, "r+b"), overwrite=True)
+            else self.output_folder.open(f"{self.filename}.loss", mode="r+b", overwrite=True)
         )
         with TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata) as new_file:
             # mmap the original file

@@ -1,7 +1,7 @@
 import contextlib
+import gzip as gzip_lib
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
@@ -13,12 +13,11 @@ from loguru import logger
 
 @dataclass
 class InputDataFile:
-    local_path: str
     path: str
 
     @contextmanager
     def open_binary(self):
-        with open(self.local_path, mode="rb") as f:
+        with open(self.path, mode="rb") as f:
             yield f
 
     @contextmanager
@@ -90,15 +89,18 @@ class OutputDataFile(ABC):
     file_handler = None
     nr_documents: int = 0
 
-    def close(self, close_fn: Callable = None):
+    def close(self):
         if self.file_handler:
-            (close_fn or (lambda x: x.close()))(self.file_handler)
+            self.file_handler.close()
 
-    def open(self, open_fn: Callable = None):
-        os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
-        self.file_handler = open(self.local_path, "w") if not open_fn else open_fn(self.local_path)
-        self.file_handler = open_fn(self.local_path)
-        return self.file_handler
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
+        if not self.file_handler or overwrite:
+            os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
+            self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
+        return self
 
 
 @dataclass
@@ -107,9 +109,9 @@ class BaseOutputDataFolder(ABC):
     local_path: str
     _output_files: dict[str, OutputDataFile] = field(default_factory=dict)
 
-    def close(self, close_fn: Callable = None):
+    def close(self):
         for file in self._output_files.values():
-            file.close(close_fn=close_fn)
+            file.close()
 
     @abstractmethod
     def create_new_file(self, relative_path: str) -> OutputDataFile:
@@ -128,11 +130,12 @@ class BaseOutputDataFolder(ABC):
         if relative_path in self._output_files:
             output_file = self._output_files.pop(relative_path)
             output_file.close()
-            os.remove(output_file.local_path)
+            if output_file.local_path and os.path.isfile(output_file.local_path):
+                os.remove(output_file.local_path)
 
-    def get_file(self, relative_path: str, open_fn: Callable = None, overwrite: bool = False):
+    def open(self, relative_path: str, mode: str = "w", gzip: bool = False, overwrite: bool = False):
         if relative_path not in self._output_files or overwrite:
             new_output_file = self.create_new_file(relative_path)
-            new_output_file.open(open_fn)
+            new_output_file.open(mode, gzip, overwrite=overwrite)
             self._output_files[relative_path] = new_output_file
         return self._output_files[relative_path]

@@ -1,6 +1,5 @@
 import os.path
 import tempfile
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -21,8 +20,8 @@ class S3OutputDataFolder(LocalOutputDataFolder):
             raise ValueError("S3OutputDataFolder path must start with s3://")
         self._tmpdir = None
 
-    def close(self, close_fn: Callable = None):
-        super().close(close_fn)
+    def close(self):
+        super().close()
         for file in self._output_files.values():
             with self._lock:
                 logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
@@ -40,8 +39,9 @@ class S3OutputDataFolder(LocalOutputDataFolder):
 
 @dataclass
 class S3InputDataFile(InputDataFile):
-    folder: BaseInputDataFolder = None
+    local_path: str = None
     stream: bool = False
+    folder: BaseInputDataFolder = None
 
     @contextmanager
     def open_binary(self):
@@ -59,7 +59,7 @@ class S3InputDataFile(InputDataFile):
                     logger.info(f'Downloading "{self.path}" to "{self.local_path}"...')
                     s3_download_file(self.path, self.local_path)
                     logger.info(f'Downloaded "{self.path}" to "{self.local_path}".')
-            with super().open_binary() as f:
+            with open(self.local_path, mode="rb") as f:
                 yield f
 
 

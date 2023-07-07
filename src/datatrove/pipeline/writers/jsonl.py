@@ -1,7 +1,5 @@
 import dataclasses
-import gzip
 import json
-from collections.abc import Callable
 
 from datatrove.data import Document
 from datatrove.io import OutputDataFile
@@ -9,12 +7,11 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class JsonlWriter(DiskWriter):
-    def _gzip_open(self, f):
-        return gzip.open(f, mode="wt")
-
-    open_fn: Callable = _gzip_open
     default_output_filename: str = "${rank}.jsonl.gz"
     name = "🐿️ Jsonl"
+
+    def open(self, output_filename):
+        return self.output_folder.open(output_filename, mode="wt", gzip=True)
 
     def _write(self, document: Document, file: OutputDataFile):
         file.file_handler.write(
