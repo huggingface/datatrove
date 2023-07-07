@@ -5,13 +5,13 @@ from dataclasses import dataclass
 
 from loguru import logger
 
-from datatrove.io import InputDataFile, LocalOutputDataFolder
-from datatrove.io.base import BaseInputDataFolder
+from datatrove.io import BaseOutputDataFolder, InputDataFile
+from datatrove.io.base import BaseInputDataFolder, OutputDataFile
 from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_get_file_stream, s3_upload_file
 
 
 @dataclass
-class S3OutputDataFolder(LocalOutputDataFolder):
+class S3OutputDataFolder(BaseOutputDataFolder):
     local_path: str = None
 
     def __post_init__(self):
@@ -34,7 +34,11 @@ class S3OutputDataFolder(LocalOutputDataFolder):
         if not self.local_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.local_path = self._tmpdir.name
-        return super().create_new_file(relative_path)
+        return OutputDataFile(
+            local_path=os.path.join(self.local_path, relative_path),
+            path=os.path.join(self.path, relative_path),
+            relative_path=relative_path,
+        )
 
 
 @dataclass

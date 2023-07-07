@@ -9,6 +9,7 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
     local_path: str = field(init=False)
 
     def __post_init__(self):
+        super().__post_init__()
         self.local_path = self.path
 
     def create_new_file(self, relative_path: str):
