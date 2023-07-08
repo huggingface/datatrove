@@ -57,8 +57,8 @@ class TokenizedFile:
             index_file = self.output_folder.open(f"{self.filename}.index", mode="wb")
             # save total number of documents
             # index_file.file_handler.write(struct.pack('<I', len(self.doc_ends)))
-            # save document boundaries
-            index_file.file_handler.write(struct.pack("<%sI" % len(self.doc_ends), *self.doc_ends))
+            # save document boundaries - uint64
+            index_file.file_handler.write(struct.pack("<%sQ" % len(self.doc_ends), *self.doc_ends))
             index_file.close()
 
     def __exit__(self, exc_type, exc_val, exc_tb):

@@ -91,7 +91,7 @@ class DocumentTokenizerMerger(PipelineStep):
 
 def load_doc_ends(file: InputDataFile):
     with file.open_binary() as f:
-        return np.frombuffer(f.read(), dtype=np.uint32)
+        return np.frombuffer(f.read(), dtype=np.uint64)
 
 
 def load_input_mmap(file: InputDataFile):
