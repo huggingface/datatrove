@@ -6,6 +6,7 @@ from typing import Callable
 from loguru import logger
 
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.stats import PipelineStats
 
 
 class PipelineExecutor(ABC):
@@ -26,7 +27,7 @@ class PipelineExecutor(ABC):
     def world_size(self):
         return 0
 
-    def _run_for_rank(self, rank: int):
+    def _run_for_rank(self, rank: int) -> PipelineStats:
         logger.info(f"Launching pipeline for {rank=}")
         # pipe data from one step to the next
         pipelined_data = None
@@ -40,5 +41,7 @@ class PipelineExecutor(ABC):
         if pipelined_data:
             deque(pipelined_data, maxlen=0)
         logger.info(f"Processing done for {rank=}")
-        stats = [pipeline_step.stats() for pipeline_step in self.pipeline if isinstance(pipeline_step, PipelineStep)]
+        stats = PipelineStats(
+            [pipeline_step.stats for pipeline_step in self.pipeline if isinstance(pipeline_step, PipelineStep)]
+        )
         return stats

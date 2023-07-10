@@ -45,7 +45,7 @@ class BaseFilter(PipelineStep, ABC):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc in data:
                 self.stat_update(StatHints.total)
-                with self.time_stats_manager:
+                with self.stats.time_manager:
                     filter_result, reason = get_filter_result(self.filter(doc))
                     if filter_result is True:
                         self.stat_update(StatHints.forwarded)

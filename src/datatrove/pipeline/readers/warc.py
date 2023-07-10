@@ -9,7 +9,7 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
-    name = "🕷️ Warc"
+    name = "🕷️Warc"
 
     def __init__(self, *args, gzip_mode: bool = False, **kwargs):
         self.gzip_mode = gzip_mode
@@ -17,8 +17,12 @@ class WarcReader(BaseReader):
 
     def read_file(self, datafile: InputDataFile):
         with datafile.open(gzip=self.gzip_mode, binary=True) as f:
-            for record in ArchiveIterator(f):
-                document = process_record(record)
+            for i, record in enumerate(ArchiveIterator(f)):
+                with self.stats.time_manager:
+                    document = process_record(record)
+
+                if i > 1000:
+                    return
                 if document:
                     document.metadata["file_path"] = datafile.path
                     yield document

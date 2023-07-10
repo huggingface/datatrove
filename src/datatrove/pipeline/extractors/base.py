@@ -8,7 +8,7 @@ from datatrove.pipeline.base import PipelineStep
 
 
 class BaseExtractor(PipelineStep):
-    type = "🛢️ - EXTRACTOR"
+    type = "🛢️- EXTRAC"
 
     @abstractmethod
     def __init__(self, timeout: float = 0.1, **kwargs):
@@ -51,6 +51,7 @@ class BaseExtractor(PipelineStep):
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """ """
         for doc in data:
-            is_extracted = self.timeout_extract(doc)
+            with self.stats.time_manager:
+                is_extracted = self.timeout_extract(doc)
             if is_extracted:
                 yield doc

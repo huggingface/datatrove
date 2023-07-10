@@ -5,7 +5,6 @@ from multiprocess import Semaphore
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.stats import merge_all
 
 
 download_semaphore, upload_semaphore = None, None
@@ -52,7 +51,7 @@ class LocalPipelineExecutor(PipelineExecutor):
             with multiprocess.Pool(self.workers, initializer=init_pool_processes, initargs=(dl_sem, up_sem)) as pool:
                 stats = list(pool.map(self._run_for_rank, range(self.tasks)))
 
-        return merge_all(stats, save=self.save_stats)
+        return sum(stats[1:], stats[0]) if len(stats) > 1 else stats[0]
 
     @property
     def world_size(self):
