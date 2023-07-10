@@ -39,43 +39,9 @@ class HashSig:
         )
 
 
-class DuFile:
-    def __init__(self, file_name: str, mode: str):
-        self.mode = mode
-        self.file_name = file_name
-        self.file_handler = open(self.file_name, self.mode)
-
-    def write(self, hs: HashSig):
-        if self.mode == "rb":
-            raise ValueError
-        self.file_handler.write(struct.pack("<I", hs.doc_id))
-        self.file_handler.write(struct.pack("<H", hs.sent_id))
-
-    def read(self):
-        if self.mode == "ab":
-            raise ValueError
-        x = []
-        for k, b in [("I", 4), ("H", 2)]:
-            by = self.file_handler.read(b)
-            if not by:
-                self.file_handler.close()
-                return None
-            x.append(struct.unpack(f"<{k}", by)[0])
-        return tuple(x)
-
-    def read_all(self):
-        all_x = []
-        while True:
-            x = self.read()
-            if not x:
-                break
-            all_x.append(x)
-        return all_x
-
-
-class C4DedupSignature(PipelineStep):
+class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
-    name = "🫧 C4 stage 1"
+    name = "💥 sentence-deduplication stage 1"
 
     def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, stage_2_workers: int = 1, **kwargs):
         super().__init__(**kwargs)
@@ -90,13 +56,15 @@ class C4DedupSignature(PipelineStep):
     def save_hashes(self, rank: int):
         self.signatures.sort()
 
-        with self.output_folder.open(f"{rank:05d}.c4_sig", mode="wb") as f:
-            for hs in self.signatures:
-                f.file_handler.write(struct.pack("<Q", hs.hash_value))
-                f.file_handler.write(struct.pack("<I", hs.doc_id))
-                f.file_handler.write(struct.pack("<H", hs.sent_id))
+        f = self.output_folder.open(f"{rank:05d}.c4_sig", mode="wb")
+        for hs in self.signatures:
+            f.file_handler.write(struct.pack("<Q", hs.hash_value))
+            f.file_handler.write(struct.pack("<I", hs.doc_id))
+            f.file_handler.write(struct.pack("<H", hs.sent_id))
+        self.output_folder.close()
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
+        # todo use language id metadata in sent_tokenize
         sentences = sent_tokenize(doc.content)
         if len(sentences) < self.n_sentences:
             return []
@@ -137,9 +105,9 @@ def read_sigs(file: InputDataFile, file_id: int) -> Generator[HashSig, None, Non
             yield HashSig(file_id=file_id, **x)
 
 
-class C4CreateDedups(PipelineStep):
+class SentenceFindDedups(PipelineStep):
     type = "🫂 - DEDUP"
-    name = "🫧 C4 stage 2"
+    name = "💥 sentence-deduplication stage 2"
 
     def __init__(self, data_folder: BaseInputDataFolder, output_folder: BaseOutputDataFolder, **kwargs):
         super().__init__(**kwargs)
@@ -161,15 +129,33 @@ class C4CreateDedups(PipelineStep):
                 f.file_handler.write(struct.pack("<I", v.doc_id))
                 f.file_handler.write(struct.pack("<H", v.sent_id))
             last = v.hash_value
-            new_v = next(sig_readers[v.file_id])
+            try:
+                new_v = next(sig_readers[v.file_id])
+            except StopIteration:
+                new_v = None
             if new_v:
                 heapq.heappush(pq, new_v)
         self.output_folder.close()
 
 
-class C4Filter(PipelineStep):
+def read_dups(file: InputDataFile) -> Generator[tuple, None, None]:
+    with file.open(binary=True) as f:
+        while True:
+            x = []
+            for (
+                t,
+                b,
+            ) in [("I", 4), ("H", 2)]:
+                by = f.read(b)
+                if not by:
+                    return
+                x.append(struct.unpack(f"<{t}", by)[0])
+            yield tuple(x)
+
+
+class SentenceDedupFilter(PipelineStep):
     type = "🫂 - DEDUP"
-    name = "🫧 C4 stage 3"
+    name = "💥 sentence-deduplication stage 3"
 
     def __init__(
         self,
@@ -183,6 +169,7 @@ class C4Filter(PipelineStep):
 
     def filter(self, doc: Document, du_lines: set = None):
         sentences = sent_tokenize(doc.content)
+        # todo find a way to keep skip lines as in the original text
         doc.content = " ".join([sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines])
         if len(word_tokenize(doc.content)) > self.min_doc_words:
             return True
@@ -196,15 +183,9 @@ class C4Filter(PipelineStep):
         @param datapipe: input DocumentsPipeline
         @return: DocumentsPipeline
         """
-        du_file = merge_docs(
-            sorted(
-                # todo waiting for new IO
-                DuFile(
-                    file_name=f"/Users/alessandrocappelli/PycharmProjects/datatrove/c4/{rank:05d}.c4_dup", mode="rb"
-                ).read_all()
-            )
-        )
-
+        files = self.data_folder.get_files_shard(rank, world_size)
+        assert len(files) == 1
+        du_file = merge_docs(sorted(read_dups(files[0])))
         for idx, doc in enumerate(data):
             self.stat_update(StatHints.total)
             with self.time_stats_manager:

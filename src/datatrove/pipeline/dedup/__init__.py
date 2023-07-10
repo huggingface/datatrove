@@ -1,1 +1,1 @@
-from .c4_dedup import C4CreateDedups, C4DedupSignature, C4Filter
+from .sentence_dedup import SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
