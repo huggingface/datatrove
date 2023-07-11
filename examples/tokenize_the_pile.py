@@ -30,7 +30,7 @@ executor: PipelineExecutor = SlurmPipelineExecutor(
     pipeline=pipeline,
     tasks=20,
     time="12:00:00",
-    partition="dev_cluster",
+    partition="dev-cluster",
     logging_dir="/fsx/guilherme/logs/tokenize_the_pile",
 )
 executor.run()

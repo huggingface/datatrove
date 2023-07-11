@@ -96,4 +96,4 @@ def load_doc_ends(file: InputDataFile):
 
 def load_input_mmap(file: InputDataFile):
     with file.open_binary() as f:
-        return mmap.mmap(f.fileno(), 0)
+        return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
