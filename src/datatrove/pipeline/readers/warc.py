@@ -17,12 +17,8 @@ class WarcReader(BaseReader):
 
     def read_file(self, datafile: InputDataFile):
         with datafile.open(gzip=self.gzip_mode, binary=True) as f:
-            for i, record in enumerate(ArchiveIterator(f)):
-                with self.stats.time_manager:
-                    document = process_record(record)
-
-                if i > 1000:
-                    return
+            for record in ArchiveIterator(f):
+                document = process_record(record)
                 if document:
                     document.metadata["file_path"] = datafile.path
                     yield document
