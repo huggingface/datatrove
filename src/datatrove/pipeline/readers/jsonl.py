@@ -17,7 +17,7 @@ class JsonlReader(BaseReader):
     def read_file(self, datafile: InputDataFile):
         with datafile.open(gzip=self.gzip) as f:
             for li, line in enumerate(f):
-                with self.time_stats_manager:
+                with self.stats.time_manager:
                     try:
                         d = json.loads(line)
                         document = Document(**self.adapter(d, datafile.path, li))

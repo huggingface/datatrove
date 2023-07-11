@@ -5,7 +5,7 @@ from datatrove.pipeline.filters.base_filter import BaseFilter
 
 
 class RegexFilter(BaseFilter):
-    name = "🕵️ Regex"
+    name = "🕵️Regex"
 
     def __init__(self, regex_exp: str, **kwargs):
         """

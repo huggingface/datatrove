@@ -9,7 +9,7 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
-    name = "🕷️ Warc"
+    name = "🕷️Warc"
 
     def __init__(self, *args, gzip_mode: bool = False, **kwargs):
         self.gzip_mode = gzip_mode
