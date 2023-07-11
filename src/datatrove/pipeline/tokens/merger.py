@@ -73,8 +73,8 @@ class DocumentTokenizerMerger(PipelineStep):
                 )
                 output_file.open()
             start, end = (
-                doc_ends[input_file_id][read_idx[input_file_id] - 1] if read_idx[input_file_id] > 0 else 0,
-                doc_ends[input_file_id][read_idx[input_file_id]],
+                doc_ends[input_file_id][read_idx[input_file_id] - 1].item() if read_idx[input_file_id] > 0 else 0,
+                doc_ends[input_file_id][read_idx[input_file_id]].item(),
             )
             # copy tokens and loss
             output_file.write_bytes(token_inputs[input_file_id][start * 2 : end * 2])
