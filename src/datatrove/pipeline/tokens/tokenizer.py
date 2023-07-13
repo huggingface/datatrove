@@ -117,6 +117,9 @@ class TokenizedFile:
 
 
 class DocumentTokenizer(PipelineStep):
+    name = "✍️ Writer"
+    type = "🔢 - TOKENIZER"
+
     def __init__(
         self,
         output_folder: BaseOutputDataFolder,
@@ -170,6 +173,8 @@ class DocumentTokenizer(PipelineStep):
                     tokens = tokens[: len(loss_values)]
                 # write bytes to disk
                 unshuff.write(tokens, loss_values)
+                # save stats
+                self.stat_update("tokens", len(tokens))
         return unshuff
 
     def get_output_filename(self, rank, name):

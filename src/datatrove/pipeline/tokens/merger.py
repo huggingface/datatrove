@@ -10,6 +10,9 @@ from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 
 
 class DocumentTokenizerMerger(PipelineStep):
+    name = "🗃 Merger"
+    type = "🔢 - TOKENIZER"
+
     def __init__(
         self,
         input_folder: BaseInputDataFolder,
@@ -80,6 +83,7 @@ class DocumentTokenizerMerger(PipelineStep):
             output_file.write_bytes(token_inputs[input_file_id][start * 2 : end * 2])
             output_file.write_loss_bytes(loss_inputs[input_file_id][start:end])
             read_idx[input_file_id] += 1
+            self.stat_update("tokens", end - start)
         # cleanup
         for token_input, loss_input in zip(token_inputs, loss_inputs):
             token_input.close()
