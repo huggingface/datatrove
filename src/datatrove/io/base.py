@@ -45,10 +45,20 @@ class BaseInputDataFolder(ABC):
     recursive: bool = True
     match_pattern: str = None
 
+    @classmethod
+    def from_path(cls, path, **kwargs):
+        from datatrove.io import LocalInputDataFolder, S3InputDataFolder
+
+        if path.startswith("s3://"):
+            return S3InputDataFolder(path, **kwargs)
+        return LocalInputDataFolder(path, **kwargs)
+
     @abstractmethod
     def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
         logger.error(
-            "Do not instantiate BaseInputDataFolder directly, " "use a LocalInputDataFolder or S3InputDataFolder"
+            "Do not instantiate BaseInputDataFolder directly, "
+            "use a LocalInputDataFolder, S3InputDataFolder or call"
+            "BaseInputDataFolder.from_path(path)"
         )
         raise NotImplementedError
 
@@ -112,6 +122,14 @@ class BaseOutputDataFolder(ABC):
     def close(self):
         for file in self._output_files.values():
             file.close()
+
+    @classmethod
+    def from_path(cls, path: str, **kwargs):
+        from datatrove.io import LocalOutputDataFolder, S3OutputDataFolder
+
+        if path.startswith("s3://"):
+            return S3OutputDataFolder(path, **kwargs)
+        return LocalOutputDataFolder(path, **kwargs)
 
     @abstractmethod
     def create_new_file(self, relative_path: str) -> OutputDataFile:
