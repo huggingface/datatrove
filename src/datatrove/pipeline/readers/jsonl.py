@@ -1,5 +1,8 @@
 import json
+from json import JSONDecodeError
 from typing import Callable
+
+from loguru import logger
 
 from datatrove.data import Document
 from datatrove.io import BaseInputDataFolder, InputDataFile
@@ -22,7 +25,7 @@ class JsonlReader(BaseReader):
                         d = json.loads(line)
                         document = Document(**self.adapter(d, datafile.path, li))
                         document.metadata.setdefault("file_path", datafile.path)
-                    except EOFError:
-                        # logger.warning(f"EOFError reading path {path}")
+                    except (EOFError, JSONDecodeError) as e:
+                        logger.warning(f"Error when reading `{datafile.path}`: {e}")
                         continue
                 yield document
