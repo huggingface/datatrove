@@ -15,16 +15,16 @@ class JsonlReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        compressed: Literal["gzip", "zst"] | None = None,
+        compression: Literal["gzip", "zst"] | None = None,
         adapter: Callable = None,
         **kwargs,
     ):
         super().__init__(data_folder, **kwargs)
-        self.compressed = compressed
+        self.compression = compression
         self.adapter = adapter if adapter else lambda d, path, li: d
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(compressed=self.compressed) as f:
+        with datafile.open(compression=self.compression) as f:
             for li, line in enumerate(f):
                 with self.stats.time_manager:
                     try:

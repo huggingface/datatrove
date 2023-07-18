@@ -44,8 +44,8 @@ class InputDataFile:
                     yield f
 
     @contextmanager
-    def open(self, binary=False, compressed: Literal["gzip", "zst"] | None = None):
-        match compressed:
+    def open(self, binary=False, compression: Literal["gzip", "zst"] | None = None):
+        match compression:
             case "gzip":
                 with self.open_gzip(binary) as f:
                     yield f

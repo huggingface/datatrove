@@ -13,12 +13,12 @@ from datatrove.pipeline.readers.base import BaseReader
 class WarcReader(BaseReader):
     name = "🕷️ Warc"
 
-    def __init__(self, *args, compressed: Literal["gzip", "zst"] | None = None, **kwargs):
-        self.compressed = compressed
+    def __init__(self, *args, compression: Literal["gzip", "zst"] | None = None, **kwargs):
+        self.compression = compression
         super().__init__(*args, **kwargs)
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(compressed=self.compressed, binary=True) as f:
+        with datafile.open(compression=self.compression, binary=True) as f:
             for record in ArchiveIterator(f):
                 document = process_record(record)
                 if document:
