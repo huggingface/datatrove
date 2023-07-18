@@ -22,10 +22,10 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
 
 @dataclass
 class LocalInputDataFolder(BaseInputDataFolder):
-    def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
+    def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
         return [
             InputDataFile(path)
-            for path in get_local_file_list(self.path, self.recursive)
+            for path in get_local_file_list(os.path.join(self.path, suffix), self.recursive)
             if self._match_file(path, extension)
         ]
 

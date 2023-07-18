@@ -1,6 +1,7 @@
 import hashlib
 import re
 import string
+import struct
 
 import numpy as np
 
@@ -48,3 +49,16 @@ def merge_docs(sen_list, n_sentences: int = 3) -> dict:
             new_l.append([x[0], {x[1]}])
 
     return {x[0]: x[1] for x in new_l}
+
+
+# https://github.com/ekzhu/datasketch/blob/master/datasketch/hashfunc.py
+def sha1_hash32(data):
+    """A 32-bit hash function based on SHA1.
+
+    Args:
+        data (bytes): the data to generate 32-bit integer hash from.
+
+    Returns:
+        int: an integer hash value that can be encoded using 32 bits.
+    """
+    return struct.unpack("<I", hashlib.sha1(data).digest()[:4])[0]

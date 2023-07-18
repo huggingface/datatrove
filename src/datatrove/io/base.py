@@ -77,7 +77,7 @@ class BaseInputDataFolder(ABC):
         return LocalInputDataFolder(path, **kwargs)
 
     @abstractmethod
-    def list_files(self, extension: str | list[str] = None) -> list[InputDataFile]:
+    def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
         logger.error(
             "Do not instantiate BaseInputDataFolder directly, "
             "use a LocalInputDataFolder, S3InputDataFolder or call"
@@ -133,9 +133,13 @@ class OutputDataFile(ABC):
 
     def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
         if not self.file_handler or overwrite:
+            print(self.local_path, os.path.dirname(self.local_path))
             os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
             self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
         return self
+
+    def write(self, *args, **kwargs):
+        self.file_handler.write(*args, **kwargs)
 
 
 @dataclass
