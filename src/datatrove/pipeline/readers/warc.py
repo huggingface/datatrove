@@ -1,3 +1,5 @@
+from typing import Literal
+
 import cchardet
 import magic
 from warcio.archiveiterator import ArchiveIterator
@@ -9,14 +11,14 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
-    name = "🕷️Warc"
+    name = "🕷️ Warc"
 
-    def __init__(self, *args, gzip_mode: bool = False, **kwargs):
-        self.gzip_mode = gzip_mode
+    def __init__(self, *args, compressed: Literal["gzip", "zst"] | None = None, **kwargs):
+        self.compressed = compressed
         super().__init__(*args, **kwargs)
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(gzip=self.gzip_mode, binary=True) as f:
+        with datafile.open(compressed=self.compressed, binary=True) as f:
             for record in ArchiveIterator(f):
                 document = process_record(record)
                 if document:

@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Callable
+from typing import Callable, Literal
 
 from loguru import logger
 
@@ -12,13 +12,19 @@ from datatrove.pipeline.readers.base import BaseReader
 class JsonlReader(BaseReader):
     name = "🐿 Jsonl"
 
-    def __init__(self, data_folder: BaseInputDataFolder, gzip: bool = True, adapter: Callable = None, **kwargs):
+    def __init__(
+        self,
+        data_folder: BaseInputDataFolder,
+        compressed: Literal["gzip", "zst"] | None = None,
+        adapter: Callable = None,
+        **kwargs,
+    ):
         super().__init__(data_folder, **kwargs)
-        self.gzip = gzip
+        self.compressed = compressed
         self.adapter = adapter if adapter else lambda d, path, li: d
 
     def read_file(self, datafile: InputDataFile):
-        with datafile.open(gzip=self.gzip) as f:
+        with datafile.open(compressed=self.compressed) as f:
             for li, line in enumerate(f):
                 with self.stats.time_manager:
                     try:

@@ -7,7 +7,9 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from gzip import GzipFile
 from io import TextIOWrapper
+from typing import Literal
 
+import zstandard
 from loguru import logger
 
 
@@ -21,21 +23,42 @@ class InputDataFile:
             yield f
 
     @contextmanager
-    def open(self, gzip: bool = False, binary=False):
+    def open_gzip(self, binary=False):
         with self.open_binary() as fo:
-            if gzip:
-                with GzipFile(mode="r" if not binary else "rb", fileobj=fo) as gf:
-                    if binary:
-                        yield gf
-                    else:
-                        with TextIOWrapper(gf) as f:
-                            yield f
-            else:
+            with GzipFile(mode="r" if not binary else "rb", fileobj=fo) as gf:
                 if binary:
-                    yield fo
+                    yield gf
                 else:
-                    with TextIOWrapper(fo) as f:
+                    with TextIOWrapper(gf) as f:
                         yield f
+
+    @contextmanager
+    def open_zst(self, binary=False):
+        with self.open_binary() as fo:
+            dctx = zstandard.ZstdDecompressor(max_window_size=2**31)
+            stream_reader = dctx.stream_reader(fo)
+            if binary:
+                yield stream_reader
+            else:
+                with TextIOWrapper(stream_reader) as f:
+                    yield f
+
+    @contextmanager
+    def open(self, binary=False, compressed: Literal["gzip", "zst"] | None = None):
+        match compressed:
+            case "gzip":
+                with self.open_gzip(binary) as f:
+                    yield f
+            case "zst":
+                with self.open_zst(binary) as f:
+                    yield f
+            case _:
+                with self.open_binary() as fo:
+                    if binary:
+                        yield fo
+                    else:
+                        with TextIOWrapper(fo) as f:
+                            yield f
 
 
 @dataclass

@@ -12,6 +12,7 @@ REQUIRED_PKGS = [
     "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "trafilatura==1.6.1",
     "warcio==1.7.4",
+    "zstandard==0.21.0",
 ]
 
 EXTRAS = {
