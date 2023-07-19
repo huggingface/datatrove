@@ -58,11 +58,7 @@ class DatasetToSequence(PipelineStep):
 
     def save_sizes(self, rank: int):
         f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
-        # TODO write in block
-        for size in self.doc_lens:
-            assert size % 2 == 0
-            f_lens.file_handler.write(struct.pack("<Q", size))
-        f_lens.close()
+        f_lens.file_handler.write(struct.pack("Q" * len(self.doc_lens), *self.doc_lens))
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         f_sequence = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb")
@@ -76,7 +72,7 @@ class DatasetToSequence(PipelineStep):
         assert i + 1 == len(self.doc_lens)
 
         self.save_sizes(rank)
-        f_sequence.close()
+        self.output_folder.close()
 
 
 class MergeSequences(PipelineStep):
@@ -84,12 +80,18 @@ class MergeSequences(PipelineStep):
     name = "🪞 - exact-substrings stage 2"
 
     def __init__(
-        self, input_folder: BaseInputDataFolder, output_folder: BaseOutputDataFolder, tasks_stage_1: int, **kwargs
+        self,
+        input_folder: BaseInputDataFolder,
+        output_folder: BaseOutputDataFolder,
+        tasks_stage_1: int,
+        bytes_per_batch: int = int(500e6),
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.tasks_stage_1 = tasks_stage_1
+        self.bytes_per_batch = bytes_per_batch
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
@@ -102,15 +104,19 @@ class MergeSequences(PipelineStep):
             assert len(all_files) == self.tasks_stage_1
             f_sequence = self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb")
             for file in all_files:
+                len_sequence = 0
                 with file.open(binary=True) as f:
-                    # TODO read and write in batches
-                    sequence = f.read()
-                    bytes_per_sequence.append(bytes_per_sequence[-1] + len(sequence))
-                    f_sequence.file_handler.write(sequence)
-            f_sequence.close()
+                    while True:
+                        sequence = f.read(self.bytes_per_batch)
+                        f_sequence.file_handler.write(sequence)
+                        len_sequence += len(sequence)
+                        if len(sequence) != self.bytes_per_batch:
+                            break
+                    bytes_per_sequence.append(bytes_per_sequence[-1] + len_sequence)
+
             f_bytes = self.output_folder.open(f"bytes_offsets{EH.stage_2_bytes_offset}", mode="wb")
             f_bytes.file_handler.write(np.array([bytes_per_sequence], np.uint32).tobytes())
-            f_bytes.close()
+            self.output_folder.close()
 
 
 def read_bytes(x):
@@ -233,6 +239,7 @@ class DedupReader(JsonlReader):
 
         if duplicates:
             text = doc.content
+            # TODO improve
             for d in duplicates:
                 text = text.replace(d, "")
             doc.content = text
