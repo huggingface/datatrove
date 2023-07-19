@@ -49,6 +49,7 @@ class BaseFilter(PipelineStep, ABC):
                     filter_result, reason = get_filter_result(self.filter(doc))
                     if filter_result is True:
                         self.stat_update(StatHints.forwarded)
+                        self.stats.doc_len.update(len(doc.content))
                     else:
                         self.stat_update(StatHints.dropped)
                         if self.exclusion_writer:
