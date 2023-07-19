@@ -1,5 +1,10 @@
 import re
+
 from nltk.tokenize import sent_tokenize
+
+from datatrove.data import Document
+from datatrove.pipeline.filters.base_filter import BaseFilter
+
 
 """
 Applies heuristic rules from C4 https://jmlr.org/papers/volume21/20-074/20-074.pdf
@@ -12,20 +17,10 @@ Applies heuristic rules from C4 https://jmlr.org/papers/volume21/20-074/20-074.p
 - We removed any pages that contained a curly bracket
 """
 
-from datatrove.data import Document
-from datatrove.pipeline.filters.base_filter import BaseFilter
-
 
 class C4QualityFilter(BaseFilter):
-
-    def __init__(
-            self,
-
-            **kwargs
-    ):
-        """
-
-        """
+    def __init__(self, **kwargs):
+        """ """
         super().__init__(**kwargs)
 
         self.name = "⛰️ C4 Quality"
