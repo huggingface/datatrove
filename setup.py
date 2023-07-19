@@ -13,6 +13,7 @@ REQUIRED_PKGS = [
     "trafilatura==1.6.1",
     "warcio==1.7.4",
     "zstandard==0.21.0",
+    "pyarrow==12.0.1",
 ]
 
 EXTRAS = {
