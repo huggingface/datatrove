@@ -10,7 +10,7 @@ TLDR
 
  ... call deduplicate-text-datasets scripts ...
 
-3) DedupReader
+3) DedupReader reads docs and ranges at the same time and remove duplicates.
 
 
 ---
@@ -22,6 +22,7 @@ from typing import Generator
 import numpy as np
 import tokenizers
 from loguru import logger
+from nltk.tokenize import word_tokenize
 
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
@@ -44,11 +45,12 @@ class DatasetToSequence(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
 
+    doc_lens = []
+
     def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2", **kwargs):
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
-        self.doc_lens = []
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
@@ -134,23 +136,26 @@ class DedupReader(JsonlReader):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
 
+    bytes_offset = None
+    bytes_ranges = None
+    rank = None
+    exhausted_ranges = False
+    bytes_counter = 0
+    idx = 0
+
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
         sequence_folder: BaseInputDataFolder,
         gzip: bool = True,
         tokenizer_name: str = "gpt2",
+        min_doc_words: int = 50,
         **kwargs,
     ):
         super().__init__(data_folder=data_folder, gzip=gzip, **kwargs)
         self.sequence_folder = sequence_folder
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
-        self.bytes_offset = None
-        self.bytes_ranges = None
-        self.rank = None
-        self.exhausted_ranges = False
-        self.bytes_counter = 0
-        self.idx = 0
+        self.min_doc_words = min_doc_words
 
     def read_bytes_offset(self):
         offset_array_file: InputDataFile = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
@@ -259,7 +264,11 @@ class DedupReader(JsonlReader):
             doc.content = text
 
         self.bytes_counter += len(bytes_content)
-        return doc
+
+        if len(word_tokenize(doc.content)) < self.min_doc_words:
+            return False
+
+        return True
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         self.rank = rank
@@ -269,12 +278,15 @@ class DedupReader(JsonlReader):
         data = self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))
 
         for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
-            # we check that the two generators are synced.
-            assert doc.content == self.tokenizer.decode(
-                read_bytes(doc_content)
-            ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
-
-            yield self.remove_duplicate(doc, doc_content)
+            with self.stats.time_manager:
+                # we check that the two generators are synced.
+                assert doc.content == self.tokenizer.decode(
+                    read_bytes(doc_content)
+                ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
+                to_yield = self.remove_duplicate(doc, doc_content)
+            if to_yield:
+                self.stats.doc_len.update(len(doc.content))
+                yield doc
 
         # we check bytes counter matches with the offset of the following rank
         assert (
