@@ -104,7 +104,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def launch_file(self):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in self.sbatch_args.items()])
 
-        run_script = f"import dill;dill.load(open({os.path.join(self.logging_dir, 'executor.pik')})).run()"
+        run_script = f"import dill;dill.load(open(\"{os.path.join(self.logging_dir, 'executor.pik')}\")).run()"
 
         env_command = (
             f"""conda init bash
