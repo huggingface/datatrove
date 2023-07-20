@@ -21,7 +21,7 @@ def load_list(path) -> set:
 
 
 class URLFilter(BaseFilter):
-    name = "😈 url-filter"
+    name = "😈 Url-filter"
 
     def __init__(self, model_local_path: str = os.path.join(LocalPaths.download, "url_filter/"), **kwargs):
         super().__init__(**kwargs)
