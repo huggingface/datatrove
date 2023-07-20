@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import os
 import subprocess
-import sys
 import textwrap
 
+import dill
 from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
@@ -27,6 +29,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         condaenv: str = None,
         venv_path: str = None,
         sbatch_args: dict | None = None,
+        depends: SlurmPipelineExecutor | None = None,
         **kwargs,
     ):
         """
@@ -51,7 +54,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.job_name = job_name
         self.condaenv = condaenv
         self.venv_path = venv_path
+        self.depends = depends
         self._sbatch_args = sbatch_args if sbatch_args else {}
+        self.job_id = None
 
     def run(self):
         if "SLURM_JOB_ID" in os.environ:
@@ -63,13 +68,21 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
         os.makedirs(self.logging_dir, exist_ok=True)
+        assert not self.depends or (
+            isinstance(self.depends, SlurmPipelineExecutor) and self.depends.job_id
+        ), "depends= must be a SlurmPipelineExecutor that was already launched!"
+
+        # pickle
+        with open(os.path.join(self.logging_dir, "executor.pik"), "wb") as f:
+            dill.dump(self, f)
+
         with open(launch_script_path, "w") as f:
             f.write(self.launch_file)
 
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
         output = subprocess.check_output(["sbatch", launch_script_path]).decode("utf-8")
-        job_id = int(output.split()[-1])
-        logger.info(f"Slurm job launched successfully with id={job_id}.")
+        self.job_id = int(output.split()[-1])
+        logger.info(f"Slurm job launched successfully with id={self.job_id}.")
 
     @property
     def sbatch_args(self) -> dict:
@@ -83,12 +96,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "output": slurm_logfile,
             "error": slurm_logfile,
             "array": f"0-{self.tasks - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
+            **({"dependency": f"afterok:{self.depends.job_id}"} if self.depends else {}),
             **self._sbatch_args,
         }
 
     @property
     def launch_file(self):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in self.sbatch_args.items()])
+
+        run_script = f"import dill;dill.load(open('{os.path.join(self.logging_dir, 'executor.pik')}', 'rb')).run()"
 
         env_command = (
             f"""conda init bash
@@ -106,7 +122,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         {env_command}
         source ~/.bashrc
         set -xe
-        srun -l python -u {os.path.abspath(sys.argv[0])}
+        srun -l python -u -c "{run_script}"
         """
             )
         )

@@ -100,7 +100,9 @@ class BaseInputDataFolder(ABC):
             if not extension
             else ([extension] if type(extension) == str else extension)
         )
-        return (not extensions or get_extension(file_path) in extensions) and (  # check extension  # check pattern
+        return (
+            not extensions or any([get_extension(file_path).endswith(ext) for ext in extensions])
+        ) and (  # check extension  # check pattern
             not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
         )
 
