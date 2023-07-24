@@ -57,8 +57,8 @@ class Stats:
         if self.doc_len.counter["n"] == 0:
             return ""
         return (
-            f"{' ' * self.indentation}[{self.length.total_time:.4f}s max={self.length.max}, min={self.length.min}"
-            f" {self.length.mean:.4f}±{self.length.standard_deviation:.4f}chars/doc]\n"
+            f"{' ' * self.indentation}[max={self.length.max}, min={self.length.min}"
+            f" {self.length.mean:.0f}±{self.length.standard_deviation:.0f}chars/doc]\n"
         )
 
     def __repr__(self, total_time: float):

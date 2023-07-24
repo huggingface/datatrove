@@ -34,12 +34,15 @@ def get_n_grams(words: list[str], n: int) -> list[str]:
 def find_duplicates(x: list[str]) -> tuple[int, int]:
     unique_x = set()
     duplicate_chars = 0
+    duplicate_elements = 0
     for element in x:
         if element in unique_x:
             duplicate_chars += len(element)
+            duplicate_elements += 1
+
         else:
             unique_x.add(element)
-    return len(unique_x), duplicate_chars
+    return duplicate_elements, duplicate_chars
 
 
 def find_top_duplicate(x: list[str]) -> int:
