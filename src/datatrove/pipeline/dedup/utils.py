@@ -10,7 +10,7 @@ class ExtensionHelperES:
     stage_1_sequence_size = ".es_sequence.size"
     stage_2_big_sequence = ".big_sequence"
     stage_2_bytes_offset = ".info"
-    stage_3_bytes_ranges = ".byterange"
+    stage_3_bytes_ranges = ".bytearange"
 
 
 # taken from
