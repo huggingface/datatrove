@@ -91,8 +91,8 @@ class BaseInputDataFolder(ABC):
     def set_lock(self, lock):
         self._lock = lock
 
-    def get_files_shard(self, rank: int, world_size: int) -> list[InputDataFile]:
-        return self.list_files()[rank::world_size]
+    def get_files_shard(self, rank: int, world_size: int, extension: str | list[str] = None) -> list[InputDataFile]:
+        return self.list_files(extension=extension)[rank::world_size]
 
     def _match_file(self, file_path, extension=None):
         extensions = (
