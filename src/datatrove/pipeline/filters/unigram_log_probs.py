@@ -59,6 +59,8 @@ class UnigramLogProbFilter(BaseFilter):
         """
 
         words = word_tokenize(doc.content)
-        freqs = [self.unigram_frequencies.get(word) for word in words if self.unigram_frequencies.get(word)]
-        logprob = sum([np.log(f) for f in freqs])
+        freqs = [
+            self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
+        ]
+        logprob = sum([np.log(f) for f in freqs]) / len(freqs)
         return logprob > self.logprobs_threshold
