@@ -16,10 +16,7 @@ TLDR
 ---
 
 """
-import os
-import pickle
 import struct
-from collections import Counter
 from typing import Generator
 
 import numpy as np
@@ -143,7 +140,6 @@ class DedupReader(JsonlReader):
         sequence_folder: BaseInputDataFolder,
         gzip: bool = True,
         tokenizer_name: str = "gpt2",
-        counter: bool = False,
         **kwargs,
     ):
         super().__init__(data_folder=data_folder, gzip=gzip, **kwargs)
@@ -155,7 +151,6 @@ class DedupReader(JsonlReader):
         self.exhausted_ranges = False
         self.bytes_counter = 0
         self.idx = 0
-        self.counter = Counter() if counter else None
 
     def read_bytes_offset(self):
         offset_array_file: InputDataFile = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
@@ -164,19 +159,40 @@ class DedupReader(JsonlReader):
         self.bytes_offset = np.frombuffer(offset_array, dtype=np.uint32)
         logger.info(f"{self.rank=}, -> {self.bytes_offset[self.rank]=}")
 
+    def read_bytearange(self, bytes_range_file: InputDataFile):
+        with bytes_range_file.open(binary=False) as f:
+            bytes_ranges = f.read()
+
+        bytes_ranges = bytes_ranges.split("\n")
+        for i, x in enumerate(bytes_ranges):
+            if x == "out":
+                break
+
+        # remove lines until out and remove last empty value
+        bytes_ranges = bytes_ranges[i + 1 : -1]
+
+        shard_bytes_ranges = []
+        for br in bytes_ranges:
+            a, b = br.split(" ")
+            a, b = int(a), int(b)
+            if b > self.bytes_offset[self.rank + 1]:
+                break
+            if b > self.bytes_offset[self.rank]:
+                shard_bytes_ranges.append((a, b))
+
+        self.bytes_ranges = shard_bytes_ranges
+
     def get_all_files(self, rank: int, world_size: int):
         sequence_file = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_1_sequence)
         size_file = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_1_sequence_size)
-        byte_range = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_3_bytes_ranges)
+        byte_range_file = self.sequence_folder.list_files(extension=EH.stage_3_bytes_ranges)
 
         assert all(
-            [len(sequence_file) == 1, len(size_file) == 1, len(byte_range) == 1]
-        ), f"Need to run with n_tasks = n_files. {len(sequence_file)=}, {len(sequence_file)=}, {len(byte_range)=}"
-        sequence_file, size_file, byte_range = sequence_file[0], size_file[0], byte_range[0]
+            [len(sequence_file) == 1, len(size_file) == 1, len(byte_range_file) == 1]
+        ), f"Need to run with n_tasks = n_files. {len(sequence_file)=}, {len(sequence_file)=}, {len(byte_range_file)=}"
+        sequence_file, size_file, byte_range_file = sequence_file[0], size_file[0], byte_range_file[0]
 
-        with byte_range.open(binary=True) as f_range:
-            self.bytes_ranges = pickle.load(f_range)
-
+        self.read_bytearange(byte_range_file)
         return sequence_file, size_file
 
     def get_range(self, bytes_len: int):
@@ -234,8 +250,6 @@ class DedupReader(JsonlReader):
             byte_a, byte_b = self.normalize_range(dup_range, n_bytes)
             dup_sentence = self.tokenizer.decode(np.frombuffer(bytes_content[byte_a:byte_b], dtype=np.uint16).tolist())
             duplicates.append(dup_sentence)
-            if self.counter:
-                self.counter[dup_sentence] += 1
 
         if duplicates:
             text = doc.content
@@ -251,10 +265,6 @@ class DedupReader(JsonlReader):
         self.rank = rank
         self.read_bytes_offset()
 
-        if os.path.isfile(f"{os.getcwd()}/es/counter.pickle") and self.counter:
-            with open("./es/counter.pickle", "rb") as f:
-                self.c = pickle.load(f)
-
         sequence_file, size_file = self.get_all_files(rank, world_size)
         data = self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))
 
@@ -265,10 +275,6 @@ class DedupReader(JsonlReader):
             ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
 
             yield self.remove_duplicate(doc, doc_content)
-
-        if self.counter:
-            with open(f"{os.getcwd()}/es/counter.pickle", "wb") as f:
-                pickle.dump(self.c, f)
 
         # we check bytes counter matches with the offset of the following rank
         assert (
