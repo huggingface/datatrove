@@ -99,7 +99,7 @@ class GopherQualityFilter(BaseFilter):
 
         # that 80 % of words in a document contain at least one alphabetic character
         if (
-            sum([any([c.isalpha() for c in w]) for w in words]) / n_words < self.max_non_alpha_words_ratio
+            sum([any((c.isalpha() for c in w)) for w in words]) / n_words < self.max_non_alpha_words_ratio
             and self.max_non_alpha_words_ratio
         ):
             return False, "gopher_below_alpha_threshold"
