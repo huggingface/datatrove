@@ -133,7 +133,6 @@ class OutputDataFile(ABC):
 
     def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
         if not self.file_handler or overwrite:
-            print(self.local_path, os.path.dirname(self.local_path))
             os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
             self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
         return self

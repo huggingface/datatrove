@@ -19,14 +19,21 @@ _mersenne_prime = np.uint64((1 << 61) - 1)
 _max_hash = np.uint64((1 << 32) - 1)
 _hash_range = 1 << 32
 
-DEFAULT_NR_BUCKETS = 20
-DEFAULT_PER_BUCKET = 20
+"""
+n_grams -> roughly nr of words (this should be small enough to catch fuzzy matches but big enough to not have each shingle be too common)
+threshold is (1/8)^(1/14)~0.72
+threshold is real minhash similarity cutoff for high probability inclusion by LSH minhash
+probability of inclusion for s=0.8: 1-(1-0.8^8)^14=0.924
+"""
+
+DEFAULT_NR_BUCKETS = 14
+DEFAULT_PER_BUCKET = 8
 DEFAULT_N_GRAMS = 5
 
 
 @dataclass
 class HashSig:
-    sig: list[int]
+    sig: tuple[int]
     doc_id: int
     file_id: int
 
@@ -79,6 +86,15 @@ class MinhashDedupSignature(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
+    def get_shingles(self, text):
+        return np.array(
+            [
+                [sha1_hash32(" ".join(x).encode("utf-8"))]
+                for x in ngrams(word_tokenize(simplify_content(text)), self.n_grams)
+            ],
+            dtype=np.uint64,
+        )
+
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         buckets = [
             self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
@@ -86,13 +102,7 @@ class MinhashDedupSignature(PipelineStep):
         ]
         for doc_idx, doc in enumerate(data):
             self.stat_update(StatHints.total)
-            shingles = np.array(
-                [
-                    [sha1_hash32(" ".join(x).encode("utf-8"))]
-                    for x in ngrams(word_tokenize(simplify_content(doc.content)), self.n_grams)
-                ],
-                dtype=np.uint64,
-            )
+            shingles = self.get_shingles(doc.content)
             if shingles.size != 0:
                 sig = self.get_signature(shingles)
                 for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
@@ -132,10 +142,10 @@ class MinhashDedupBuckets(PipelineStep):
         n = self.hashes_per_bucket + 1
         with file.open(binary=True) as f:
             while True:
-                data = f.read(n * 4)
+                data = f.read(n * struct.calcsize("I"))
                 if not data:
                     return
-                data = struct.unpack("<%sI" % n, n)[0]
+                data = struct.unpack("<%sI" % n, data)
                 yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=file_id)
 
     def set_up_dl_locks(self, dl_lock, up_lock):
@@ -143,6 +153,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.output_folder.set_lock(up_lock)
 
     def __call__(self, data: DocumentsPipeline, bucket: int = 0, world_size: int = 1):
+        assert data is None, "You should not use an input block before MinhashDedupBuckets"
         assert world_size == self.num_buckets, "You must run exactly one task per bucket"
         sig_files = self.input_folder.list_files(suffix=f"bucket_{bucket:03d}")
         sig_readers = [self.read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
@@ -197,12 +208,13 @@ class MinhashDedupCluster(PipelineStep):
 
         for dup_file in dup_files:
             with dup_file.open(binary=True) as df:
-                while data := df.read(4 * 4):
-                    f1, d1, f2, d2 = struct.unpack("<4I", data)[0]
+                while data := df.read(4 * struct.calcsize("I")):
+                    f1, d1, f2, d2 = struct.unpack("<4I", data)
                     a, b = (f1, d1), (f2, d2)
                     union_set[parent(a)] = parent(b)
 
-        for node, p in sorted(union_set.items()):
+        for node in sorted(union_set.keys()):
+            p = parent(node)
             if node != p:
                 file, doc = node
                 self.output_folder.open(f"{file:06d}.remove", mode="wb").write(struct.pack("<I", doc))
@@ -216,14 +228,10 @@ class MinhashDedupFilter(PipelineStep):
     def __init__(
         self,
         input_folder: BaseInputDataFolder,
-        output_folder: BaseOutputDataFolder,
-        num_buckets: int = DEFAULT_NR_BUCKETS,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.data_folder = input_folder
-        self.output_folder = output_folder
-        self.num_buckets = num_buckets
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.data_folder.set_lock(dl_lock)
@@ -235,9 +243,9 @@ class MinhashDedupFilter(PipelineStep):
         with remove_data[0].open_binary() as f:
 
             def get_next():
-                data = f.read(4)
+                data = f.read(struct.calcsize("I"))
                 if data:
-                    return struct.unpack("<I", data)
+                    return struct.unpack("<I", data)[0]
 
             next_removal = get_next()
             for idx, doc in enumerate(data):
