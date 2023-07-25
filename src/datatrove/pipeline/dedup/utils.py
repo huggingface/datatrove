@@ -44,15 +44,14 @@ def str_hash(s: str) -> int:
 def merge_docs(sen_list, n_sentences: int = 3) -> dict:
     # TODO IMPROVE!
     def to_sentences(idx: int):
-        return (idx + i for i in range(n_sentences))
+        return {idx + i for i in range(n_sentences)}
 
-    new_l = [[sen_list[0][0], {sen_list[0][1]}]]
+    new_l = [[sen_list[0][0], to_sentences(sen_list[0][1])]]
     for x in sen_list[1:]:
         if x[0] == new_l[-1][0]:
             new_l[-1][1].update(to_sentences(x[1]))
         else:
-            new_l.append([x[0], {x[1]}])
-
+            new_l.append([x[0], to_sentences(x[1])])
     return {x[0]: x[1] for x in new_l}
 
 

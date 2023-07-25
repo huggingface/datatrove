@@ -201,9 +201,14 @@ class SentenceDedupFilter(PipelineStep):
         @param datapipe: input DocumentsPipeline
         @return: DocumentsPipeline
         """
-        files = self.data_folder.get_files_shard(rank, world_size)
-        assert len(files) == 1
+        files = self.data_folder.get_files_shard(rank, world_size, extension=ExtensionHelperSD.stage_2_duplicates)
+        assert len(files) == 1, (
+            f"n_files / n_tasks should be equal to n_workers, instead {len(files)=}\n{files}.\n"
+            f"{world_size=} {rank}"
+        )
+
         du_file = merge_docs(sorted(read_duplicates(files[0])))
+        print(du_file)
         for idx, doc in enumerate(data):
             self.stat_update(StatHints.total)
             with self.stats.time_manager:

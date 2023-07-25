@@ -40,14 +40,14 @@ def run_example():
 
     pipeline_2 = [
         SentenceFindDedups(
-            data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/c4/", extension="c4_dup"),
+            data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/c4/"),
             output_folder=LocalOutputDataFolder(path=f"{os.getcwd()}/c4/"),
         )
     ]
 
     pipeline_3 = [
         JsonlReader(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/intermediate/")),
-        SentenceDedupFilter(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/c4/", extension=".c4_dup")),
+        SentenceDedupFilter(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/c4/")),
     ]
 
     executor_1: PipelineExecutor = LocalPipelineExecutor(
