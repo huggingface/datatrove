@@ -92,10 +92,20 @@ TEXT_13 = (
     "fuggire intenti ove vestigio human l’arena stampi."
 )
 
+TEXT_14 = TEXT_11
+
+TEXT_15 = TEXT_11
+
+TEXT_16 = "I am here randomly, don't pay attention to me!"
+
+TEXT_17 = TEXT_11
+
+TEXT_18 = "I am here because Alessandro wanted a unique message at the end"
+
 bytearange_file = (
-    "S 388\nGot 2\nS 364\nS 438\nGot 2\nS 358\nGot 2\nS 298\nGot 2\nS 412\nGot 2\nGot 2\nS 388\nGot 2\n"
-    "S 350\nGot 2\nMerging.\nout\n14 158\n168 302\n303 348\n350 484\n496 768\n770 942\n980 1068"
-    "\n1406 1494\n1527 1572\n1574 1718\n2291 2526\n2527 2762\n"
+    "S 534\nGot 2\nS 520\nS 618\nGot 2\nS 442\nGot 2\nS 578\nS 578\nGot 2\nGot 2\nS 524\nGot 2\nS 500\n"
+    "Got 2\nGot 2\nMerging.\nout\n14 158\n168 302\n303 348\n350 484\n496 768\n770 942\n980 1068\n"
+    "1406 1494\n1527 1572\n1574 1718\n2291 2526\n2527 2762\n2881 3116\n3117 3352\n3389 3624\n"
 )
 
 
@@ -138,6 +148,11 @@ class TestExactSubstr(unittest.TestCase):
             Document(content=TEXT_11, data_id="10"),
             Document(content=TEXT_12, data_id="11"),
             Document(content=TEXT_13, data_id="12"),
+            Document(content=TEXT_14, data_id="13"),
+            Document(content=TEXT_15, data_id="14"),
+            Document(content=TEXT_16, data_id="15"),
+            Document(content=TEXT_17, data_id="16"),
+            Document(content=TEXT_18, data_id="17"),
         ]
 
         # test quality of stage 1, 2 output
@@ -164,7 +179,7 @@ class TestExactSubstr(unittest.TestCase):
             if i == 0:
                 self.assertEqual(doc.content, "N")
 
-            if i == 1:
+            if i in [1, 10, 11, 13, 14]:
                 self.assertEqual(doc.content, "")
 
             if i == 2:
@@ -191,11 +206,14 @@ class TestExactSubstr(unittest.TestCase):
             if i == 9:
                 self.assertEqual(doc.content, TEXT_10)
 
-            if i == 10:
-                self.assertEqual(doc.content, "")
-
-            if i == 11:
-                self.assertEqual(doc.content, TEXT_12)
-
             if i == 12:
                 self.assertEqual(doc.content, TEXT_13)
+
+            if i == 15:
+                self.assertEqual(doc.content, TEXT_16)
+
+            if i == 16:
+                self.assertEqual(doc.content, TEXT_11)
+
+            if i == 17:
+                self.assertEqual(doc.content, TEXT_18)
