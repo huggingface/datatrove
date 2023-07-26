@@ -11,10 +11,10 @@ class TextExtraction(unittest.TestCase):
         extractor = Trafilatura()
         doc = Document(content=self.ARTICLE_HTML, data_id="0")
         extractor.extract(doc)
-        self.assertEqual(doc.content, "Hello World!")
+        self.assertEqual("Hello World!", doc.content)
 
     def test_basic_article_readability(self):
         extractor = ReadabilityInscriptis()
         doc = Document(content=self.ARTICLE_HTML, data_id="0")
-        extractor.extract(doc)
-        self.assertEqual(doc.content, "Hello World!")
+        extractor.extract(doc, min_text_length=10, min_text_score=1)
+        self.assertEqual("Hello World!", doc.content)
