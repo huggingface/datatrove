@@ -14,6 +14,7 @@ REQUIRED_PKGS = [
     "warcio==1.7.4",
     "zstandard==0.21.0",
     "pyarrow==12.0.1",
+    "tokenizers==0.13.3",
 ]
 
 EXTRAS = {
