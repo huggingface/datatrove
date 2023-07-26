@@ -128,8 +128,11 @@ def sequence_reader(file: InputDataFile, size_file: InputDataFile) -> Generator[
         with file.open(binary=True) as f:
             while True:
                 n_bytes = f_size.read(struct.calcsize("<Q"))
+                if len(n_bytes) == 0:
+                    break
+                assert len(n_bytes) == 8
                 n_bytes = struct.unpack("<Q", n_bytes)[0]
-                yield f.read(n_bytes)  # read_bytes()
+                yield f.read(n_bytes)
 
 
 class DedupReader(JsonlReader):
@@ -180,11 +183,11 @@ class DedupReader(JsonlReader):
         for br in bytes_ranges:
             a, b = br.split(" ")
             a, b = int(a), int(b)
-            if b > self.bytes_offset[self.rank + 1]:
+            # TODO test + SEPARATOR_BYTES
+            if b > self.bytes_offset[self.rank + 1] + SEPARATOR_BYTES:
                 break
             if b > self.bytes_offset[self.rank]:
                 shard_bytes_ranges.append((a, b))
-
         self.bytes_ranges = shard_bytes_ranges
 
     def get_all_files(self, rank: int, world_size: int):
@@ -275,7 +278,9 @@ class DedupReader(JsonlReader):
         self.read_bytes_offset()
 
         sequence_file, size_file = self.get_all_files(rank, world_size)
-        data = self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))
+        # data is given only during tests.
+        if not data:
+            data = self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))
 
         for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
             with self.stats.time_manager:
