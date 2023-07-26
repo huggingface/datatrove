@@ -1,7 +1,5 @@
 from trafilatura import extract
 
-from datatrove.data import Document
-
 from .base import BaseExtractor
 
 
@@ -19,9 +17,5 @@ class Trafilatura(BaseExtractor):
         if self.include_images:
             raise NotImplementedError
 
-    def extract(self, doc: Document) -> bool:
-        content = extract(doc.content)
-        if content:
-            doc.content = content
-            return True
-        return False
+    def extract(self, content: str) -> str:
+        return extract(content)

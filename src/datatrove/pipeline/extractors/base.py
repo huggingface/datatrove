@@ -13,17 +13,17 @@ class BaseExtractor(PipelineStep):
     @abstractmethod
     def __init__(self, timeout: float = 0.1, **kwargs):
         """
-        Base Extractor module, it convert html to text.
+        Base Extractor module, converts html to text.
         """
         super().__init__(**kwargs)
         self.timeout = timeout
 
     @abstractmethod
-    def extract(self, doc: Document) -> bool:
+    def extract(self, content: str) -> str:
         """
         abstract module that actually implements the extraction, e.g. trafilatura.
         """
-        return True
+        pass
 
     def timeout_extract(self, doc: Document):
         """
@@ -38,7 +38,7 @@ class BaseExtractor(PipelineStep):
         signal.signal(signal.SIGALRM, signal_handler)
         signal.setitimer(signal.ITIMER_REAL, self.timeout)
         try:
-            return self.extract(doc)
+            return self.extract(doc.content)
 
         except TimeoutError:
             logger.warning("⏰ Timeout while cleaning record content. Skipping record.")
@@ -52,6 +52,6 @@ class BaseExtractor(PipelineStep):
         """ """
         for doc in data:
             with self.stats.time_manager:
-                is_extracted = self.timeout_extract(doc)
-            if is_extracted:
+                doc.content = self.timeout_extract(doc)
+            if doc.content:
                 yield doc
