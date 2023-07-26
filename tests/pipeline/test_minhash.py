@@ -51,7 +51,7 @@ class TestMinhash(unittest.TestCase):
 
         # check correct number of outputs
         assert len(sig) == minhash.num_buckets
-        assert all([len(x) == minhash.hashes_per_bucket for x in sig])
+        assert all((len(x) == minhash.hashes_per_bucket for x in sig))
 
         # check similarity approximation
         for pctd in range(0, 100, 5):
