@@ -68,7 +68,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launch_job()
 
     def launch_merge_stats(self):
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.NamedTemporaryFile("w") as f:
             f.write(
                 self.get_launch_file(
                     {
