@@ -24,9 +24,9 @@ class DiskWriter(PipelineStep, ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _get_output_filename(self, document: Document, rank: int = 0):
+    def _get_output_filename(self, document: Document, rank: int = 0, **kwargs):
         return self.output_filename.substitute(
-            {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata}
+            {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata, **kwargs}
         )
 
     def set_up_dl_locks(self, dl_lock, up_lock):
@@ -39,11 +39,12 @@ class DiskWriter(PipelineStep, ABC):
     def open(self, output_filename):
         return self.output_folder.open(output_filename)
 
-    def write(self, document: Document, rank: int = 0):
-        output_filename = self._get_output_filename(document, rank)
+    def write(self, document: Document, rank: int = 0, **kwargs):
+        output_filename = self._get_output_filename(document, rank, **kwargs)
         output_file: OutputDataFile = self.open(output_filename)
         self._write(document, output_file)
         output_file.nr_documents += 1
+        self.stat_update(output_filename)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         with self:

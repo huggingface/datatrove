@@ -61,7 +61,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def run(self):
         if "SLURM_JOB_ID" in os.environ:
             rank = int(os.environ["SLURM_ARRAY_TASK_ID"])
-            self._run_for_rank(rank)
+            stats = self._run_for_rank(rank)
+            stats.save_to_disk(os.path.join(self.logging_dir, "stats", f"{rank:05d}.json"))
         else:
             self.launch_job()
 
@@ -86,7 +87,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def sbatch_args(self) -> dict:
-        slurm_logfile = os.path.join(self.logging_dir, "%j.out")
+        slurm_logfile = os.path.join(self.logging_dir, "logs", "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
@@ -123,6 +124,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         source ~/.bashrc
         set -xe
         srun -l python -u -c "{run_script}"
+        wait
+        merge_stats {os.path.join(self.logging_dir, "stats")} --output {os.path.join(self.logging_dir, "stats.json")}
         """
             )
         )
