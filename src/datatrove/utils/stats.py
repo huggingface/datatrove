@@ -72,7 +72,7 @@ class Stats:
             data["time"] = {
                 "total": self.time.total_time,
                 "n": self.time.count,
-                "%": self._get_frac(total_time),
+                "%": self._get_frac(total_time) * 100,
                 "mean": self.time.mean,
                 "std_dev": self.time.standard_deviation,
             }
@@ -81,7 +81,7 @@ class Stats:
                 "n": self.doc_len.counter["n"],
                 "max": self.length.max,
                 "min": self.length.min,
-                "mean": self.length.min,
+                "mean": self.length.mean,
                 "std_dev": self.length.standard_deviation,
             }
         return data
