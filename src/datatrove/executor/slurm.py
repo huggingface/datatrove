@@ -82,7 +82,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 )
             )
             f.flush()
-            subprocess.run(["sbatch", f.name])
+            subprocess.check_output(["sbatch", f.name])
 
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
