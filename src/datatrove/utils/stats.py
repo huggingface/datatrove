@@ -87,7 +87,7 @@ class Stats:
     @classmethod
     def from_dict(cls, data):
         stats = cls(data["name"])
-        stats.counter = data["stats"]
+        stats.counter = Counter(data["stats"])
         if "time" in data:
             stats.time_manager.running_mean = data["time"]["mean"]
             stats.time_manager.running_variance = data["time"]["std_dev"]
