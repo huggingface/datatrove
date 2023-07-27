@@ -68,7 +68,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
-        os.makedirs(self.logging_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.logging_dir, "stats"), exist_ok=True)
+        os.makedirs(os.path.join(self.logging_dir, "logs"), exist_ok=True)
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor) and self.depends.job_id
         ), "depends= must be a SlurmPipelineExecutor that was already launched!"
