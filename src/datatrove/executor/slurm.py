@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 import textwrap
 
 import dill
@@ -66,6 +67,23 @@ class SlurmPipelineExecutor(PipelineExecutor):
         else:
             self.launch_job()
 
+    def launch_merge_stats(self):
+        with tempfile.NamedTemporaryFile() as f:
+            f.write(
+                self.get_launch_file(
+                    {
+                        **self.sbatch_args,
+                        "cpus-per-task": 1,
+                        "mem-per-cpu": "1G",
+                        "array": "0",
+                        "dependency": f"afterok:{self.job_id}",
+                    },
+                    f'merge_stats {os.path.join(self.logging_dir, "stats")} --output {os.path.join(self.logging_dir, "stats.json")}',
+                )
+            )
+            f.flush()
+            subprocess.run(["sbatch", f.name])
+
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
         os.makedirs(os.path.join(self.logging_dir, "stats"), exist_ok=True)
@@ -85,6 +103,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         output = subprocess.check_output(["sbatch", launch_script_path]).decode("utf-8")
         self.job_id = int(output.split()[-1])
         logger.info(f"Slurm job launched successfully with id={self.job_id}.")
+        self.launch_merge_stats()
 
     @property
     def sbatch_args(self) -> dict:
@@ -104,9 +123,13 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def launch_file(self):
-        args = "\n".join([f"#SBATCH --{k}={v}" for k, v in self.sbatch_args.items()])
+        return self.get_launch_file(
+            self.sbatch_args,
+            f'srun -l python -u -c "import dill;dill.load(open(\'{os.path.join(self.logging_dir, "executor.pik")}\', \'rb\')).run()"',
+        )
 
-        run_script = f"import dill;dill.load(open('{os.path.join(self.logging_dir, 'executor.pik')}', 'rb')).run()"
+    def get_launch_file(self, sbatch_args: dict, run_script: str):
+        args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])
 
         env_command = (
             f"""conda init bash
@@ -124,9 +147,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         {env_command}
         source ~/.bashrc
         set -xe
-        srun -l python -u -c "{run_script}"
-        wait
-        merge_stats {os.path.join(self.logging_dir, "stats")} --output {os.path.join(self.logging_dir, "stats.json")}
+        {run_script}
         """
             )
         )
