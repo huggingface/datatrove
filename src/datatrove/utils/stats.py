@@ -93,10 +93,10 @@ class Stats:
             stats.time_manager.running_variance = data["time"]["std_dev"]
             stats.time_manager.counter["total"] = data["time"]["total"]
         if "doc_len" in data:
-            stats.time_manager.running_mean = data["time"]["mean"]
-            stats.time_manager.running_variance = data["time"]["std_dev"]
-            stats.time_manager.min_value = data["time"]["min"]
-            stats.time_manager.max_value = data["time"]["max"]
+            stats.time_manager.running_mean = data["doc_len"]["mean"]
+            stats.time_manager.running_variance = data["doc_len"]["std_dev"]
+            stats.time_manager.min_value = data["doc_len"]["min"]
+            stats.time_manager.max_value = data["doc_len"]["max"]
         return stats
 
 
