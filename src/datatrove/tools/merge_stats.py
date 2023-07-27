@@ -24,7 +24,7 @@ parser.add_argument(
 def main():
     args = parser.parse_args()
     stats_path = args.path
-    output_file = args.output
+    output_file = os.path.abspath(args.output)
 
     stats = []
     for file in os.listdir(stats_path):

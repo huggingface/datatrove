@@ -71,12 +71,14 @@ class Stats:
         if self.time.total_time != 0:
             data["time"] = {
                 "total": self.time.total_time,
+                "n": self.time.count,
                 "%": self._get_frac(total_time),
                 "mean": self.time.mean,
                 "std_dev": self.time.standard_deviation,
             }
         if self.doc_len.counter["n"] != 0:
             data["doc_len"] = {
+                "n": self.doc_len.counter["n"],
                 "max": self.length.max,
                 "min": self.length.min,
                 "mean": self.length.min,
@@ -92,11 +94,13 @@ class Stats:
             stats.time_manager.running_mean = data["time"]["mean"]
             stats.time_manager.running_variance = data["time"]["std_dev"]
             stats.time_manager.counter["total"] = data["time"]["total"]
+            stats.time_manager.counter["n"] = data["time"]["n"]
         if "doc_len" in data:
-            stats.time_manager.running_mean = data["doc_len"]["mean"]
-            stats.time_manager.running_variance = data["doc_len"]["std_dev"]
-            stats.time_manager.min_value = data["doc_len"]["min"]
-            stats.time_manager.max_value = data["doc_len"]["max"]
+            stats.doc_len.counter["n"] = data["doc_len"]["n"]
+            stats.doc_len.running_mean = data["doc_len"]["mean"]
+            stats.doc_len.running_variance = data["doc_len"]["std_dev"]
+            stats.doc_len.min_value = data["doc_len"]["min"]
+            stats.doc_len.max_value = data["doc_len"]["max"]
         return stats
 
 
