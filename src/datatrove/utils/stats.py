@@ -109,6 +109,9 @@ class PipelineStats:
             self.stats = [x + y for x, y in zip(self.stats, pipestat.stats)]
         return self
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     @property
     def total_time(self):
         return sum([stat.time.total_time for stat in self.stats])
