@@ -98,12 +98,6 @@ class GopherRepetitionFilter(BaseFilter):
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """ """
         text = doc.content
-        lines = text.splitlines()
-        line_duplicates, char_duplicates = find_duplicates(lines)
-        if self.dup_line_frac and line_duplicates / len(lines) > self.dup_line_frac:
-            return False, "dup_line_frac"
-        if self.dup_line_char_frac and char_duplicates / len(text) > self.dup_line_char_frac:
-            return False, "dup_line_char_frac"
 
         paragraphs = self.paragraph_exp.split(text)
         paragraphs_duplicates, char_duplicates = find_duplicates(paragraphs)
@@ -111,6 +105,13 @@ class GopherRepetitionFilter(BaseFilter):
             return False, "dup_para_frac"
         if char_duplicates / len(text) > self.dup_para_char_frac:
             return False, "dup_para_char_frac"
+
+        lines = text.splitlines()
+        line_duplicates, char_duplicates = find_duplicates(lines)
+        if self.dup_line_frac and line_duplicates / len(lines) > self.dup_line_frac:
+            return False, "dup_line_frac"
+        if self.dup_line_char_frac and char_duplicates / len(text) > self.dup_line_char_frac:
+            return False, "dup_line_char_frac"
 
         words = word_tokenize(text, language="english")  # TODO we should use language id filter
 
@@ -121,7 +122,8 @@ class GopherRepetitionFilter(BaseFilter):
 
         for n, n_frac in self.dup_n_grams:
             n_duplicates_char = find_all_duplicate(words, n)
-            if n_duplicates_char > n_frac:
+            assert n_duplicates_char <= len(text)
+            if n_duplicates_char / len(text) > n_frac:
                 return False, f"duplicated_{n}_n_grams"
 
         return True
