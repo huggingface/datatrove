@@ -45,8 +45,6 @@ class DatasetToSequence(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
 
-    doc_lens = []
-
     def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2", **kwargs):
         super().__init__(**kwargs)
         self.output_folder = output_folder
@@ -55,22 +53,24 @@ class DatasetToSequence(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def save_sizes(self, rank: int):
+    def save_sizes(self, doc_lens: list[int], rank: int):
         f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
-        f_lens.file_handler.write(struct.pack("Q" * len(self.doc_lens), *self.doc_lens))
+        f_lens.file_handler.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+        # TODO talk with guilherme
+        doc_lens = []
         f_sequence = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb")
         for i, doc in enumerate(data):
             with self.stats.time_manager:
                 b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.content, rank=rank, doc_id=i)
-                self.doc_lens.append(len(b_doc))
+                doc_lens.append(len(b_doc))
                 f_sequence.file_handler.write(b_doc)
 
         assert i < 2**32, "doc ID overflow"  # TODO check
-        assert i + 1 == len(self.doc_lens)
+        assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
 
-        self.save_sizes(rank)
+        self.save_sizes(doc_lens, rank)
         self.output_folder.close()
 
 
@@ -139,13 +139,6 @@ class DedupReader(JsonlReader):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
 
-    bytes_offset = None
-    bytes_ranges = None
-    rank = None
-    exhausted_ranges = False
-    bytes_counter = 0
-    idx = 0
-
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
@@ -159,6 +152,20 @@ class DedupReader(JsonlReader):
         self.sequence_folder = sequence_folder
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
         self.min_doc_words = min_doc_words
+        self.bytes_offset = None
+        self.bytes_ranges = None
+        self.rank = None
+        self.exhausted_ranges = False
+        self.bytes_counter = 0
+        self.idx = 0
+
+    def reset(self):
+        self.bytes_counter = 0
+        self.idx = 0
+        self.exhausted_ranges = False
+        self.bytes_offset = None
+        self.bytes_ranges = None
+        self.rank = None
 
     def read_bytes_offset(self):
         offset_array_file: InputDataFile = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
@@ -183,13 +190,13 @@ class DedupReader(JsonlReader):
         for br in bytes_ranges:
             a, b = br.split(" ")
             a, b = int(a), int(b)
-            # TODO test + SEPARATOR_BYTES
             if b > self.bytes_offset[self.rank + 1] + SEPARATOR_BYTES:
                 break
             if b > self.bytes_offset[self.rank]:
                 shard_bytes_ranges.append((a, b))
         self.bytes_ranges = shard_bytes_ranges
 
+    # rank is given like that for testing purposes.
     def get_all_files(self, rank: int, world_size: int):
         sequence_file = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_1_sequence)
         size_file = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_1_sequence_size)
@@ -220,19 +227,15 @@ class DedupReader(JsonlReader):
             ranges.append(self.bytes_ranges[self.idx])
             self.idx += 1
 
-            if self.idx == len(self.bytes_ranges) - 1:
+            if self.idx == len(self.bytes_ranges):
                 self.exhausted_ranges = True
                 break
-
         return ranges
 
     def normalize_range(self, x, n_bytes):
-        assert all(
-            [
-                self.bytes_offset[self.rank] < x[0] < self.bytes_offset[self.rank + 1],
-                self.bytes_offset[self.rank] < x[1] < self.bytes_offset[self.rank + 1],
-            ]
-        )
+        assert (
+            self.bytes_offset[self.rank] < x[0] < x[1] < self.bytes_offset[self.rank + 1] + SEPARATOR_BYTES
+        ), f"{self.bytes_offset[self.rank]=}, {x[0]} {x[1]} {self.bytes_offset[self.rank + 1]=}"
 
         offset = self.bytes_offset[self.rank] + self.bytes_counter
         a, b = x[0] - offset, x[1] - offset
@@ -274,13 +277,14 @@ class DedupReader(JsonlReader):
         return True
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        self.reset()
         self.rank = rank
         self.read_bytes_offset()
 
-        sequence_file, size_file = self.get_all_files(rank, world_size)
+        sequence_file, size_file = self.get_all_files(rank=self.rank, world_size=world_size)
         # data is given only during tests.
         if not data:
-            data = self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))
+            data = self.read_files_shard(self.data_folder.get_files_shard(self.rank, world_size))
 
         for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
             with self.stats.time_manager:
@@ -297,3 +301,4 @@ class DedupReader(JsonlReader):
         assert (
             self.bytes_counter == self.bytes_offset[rank + 1] - self.bytes_offset[rank]
         ), f"got {self.bytes_counter=}, expected = {self.bytes_offset[rank + 1] - self.bytes_offset[rank]}"
+        assert self.exhausted_ranges, "A duplicate range has not been used!"
