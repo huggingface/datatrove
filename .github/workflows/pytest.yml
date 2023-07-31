@@ -23,6 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install fasttext-wheel
           pip install .
           python -m nltk.downloader punkt
           pip install ruff pytest
@@ -35,4 +36,4 @@ jobs:
           ruff --format=github --target-version=py37 .
       - name: Test with pytest
         run: |
-          pytest
+          pytest tests

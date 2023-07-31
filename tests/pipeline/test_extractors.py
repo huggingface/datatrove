@@ -3,7 +3,7 @@ import unittest
 from datatrove.pipeline.extractors import ReadabilityInscriptis, Trafilatura
 
 
-class TextExtraction(unittest.TestCase):
+class TestExtractors(unittest.TestCase):
     ARTICLE_HTML = "<html><body><article><p>Hello World!</p></article></body></html>"
 
     def test_basic_article_trafilatura(self):

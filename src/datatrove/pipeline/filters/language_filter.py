@@ -5,7 +5,8 @@ from loguru import logger
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.typeshelper import Languages, LocalPaths
+from datatrove.utils.assets import DOWNLOAD_PATH
+from datatrove.utils.typeshelper import Languages
 
 
 LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
@@ -24,7 +25,7 @@ class LanguageFilter(BaseFilter):
         self,
         languages: tuple = (Languages.english,),
         language_threshold: float = 0.65,
-        model_local_path: str = os.path.join(LocalPaths.download, "language_id/lid.176.bin"),
+        model_local_path: str = os.path.join(DOWNLOAD_PATH, "language_id/lid.176.bin"),
         **kwargs,
     ):
         """

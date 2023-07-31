@@ -47,7 +47,7 @@ class BaseFilter(PipelineStep, ABC):
                 self.stat_update(StatHints.total)
                 with self.stats.time_manager:
                     filter_result, reason = get_filter_result(self.filter(doc))
-                    if filter_result is True:
+                    if filter_result:
                         self.stat_update(StatHints.forwarded)
                         self.stats.doc_len.update(len(doc.content))
                     else:

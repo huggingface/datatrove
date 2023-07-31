@@ -99,7 +99,7 @@ bytearange_file = (
 )
 
 
-class SentenceDedup(unittest.TestCase):
+class TestExactSubstr(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.test_dir = tempfile.mkdtemp()
