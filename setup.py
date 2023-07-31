@@ -57,4 +57,10 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="data machine learning processing",
+    entry_points={
+        "console_scripts": [
+            "check_dataset=datatrove.tools.check_dataset:main",
+            "merge_stats=datatrove.tools.merge_stats:main",
+        ]
+    },
 )

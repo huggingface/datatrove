@@ -1,4 +1,6 @@
+import json
 import math
+import os
 import time
 from collections import Counter
 from dataclasses import dataclass
@@ -38,7 +40,7 @@ class Stats:
         return self
 
     def _get_frac(self, total_time):
-        return (self.time.total_time / total_time) * 100 if total_time > 0 else 0
+        return (self.time.total_time / total_time) if total_time > 0 else 0
 
     def _counter_repr(self):
         if self.counter == Counter():
@@ -49,7 +51,7 @@ class Stats:
         if self.time.total_time == 0:
             return f"{' ' * self.indentation}Time not computed\n"
         return (
-            f"{' ' * self.indentation}[{self.time.total_time:.4f}s {self._get_frac(total_time):.4f}%"
+            f"{' ' * self.indentation}[{self.time.total_time:.4f}s {self._get_frac(total_time):.2%}"
             f" {self.time.mean:.4f}±{self.time.standard_deviation:.4f}s/doc]\n"
         )
 
@@ -61,8 +63,45 @@ class Stats:
             f" {self.length.mean:.0f}±{self.length.standard_deviation:.0f}chars/doc]\n"
         )
 
-    def __repr__(self, total_time: float):
+    def __repr__(self, total_time: float = 0.0):
         return f"{self.name}\n" f"{self._time_repr(total_time)}" f"{self._counter_repr()} " f"{self._len_repr()} "
+
+    def to_dict(self, total_time: float = 0.0):
+        data = {"name": self.name, "stats": self.counter}
+        if self.time.total_time != 0:
+            data["time"] = {
+                "total": self.time.total_time,
+                "n": self.time.count,
+                "%": self._get_frac(total_time) * 100,
+                "mean": self.time.mean,
+                "std_dev": self.time.standard_deviation,
+            }
+        if self.doc_len.counter["n"] != 0:
+            data["doc_len"] = {
+                "n": self.doc_len.counter["n"],
+                "max": self.length.max,
+                "min": self.length.min,
+                "mean": self.length.mean,
+                "std_dev": self.length.standard_deviation,
+            }
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        stats = cls(data["name"])
+        stats.counter = Counter(data["stats"])
+        if "time" in data:
+            stats.time_manager.running_mean = data["time"]["mean"]
+            stats.time_manager.running_variance = data["time"]["std_dev"]
+            stats.time_manager.counter["total"] = data["time"]["total"]
+            stats.time_manager.counter["n"] = data["time"]["n"]
+        if "doc_len" in data:
+            stats.doc_len.counter["n"] = data["doc_len"]["n"]
+            stats.doc_len.running_mean = data["doc_len"]["mean"]
+            stats.doc_len.running_variance = data["doc_len"]["std_dev"]
+            stats.doc_len.min_value = data["doc_len"]["min"]
+            stats.doc_len.max_value = data["doc_len"]["max"]
+        return stats
 
 
 class PipelineStats:
@@ -70,8 +109,12 @@ class PipelineStats:
         self.stats = stats
 
     def __add__(self, pipestat):
-        self.stats = [x + y for x, y in zip(self.stats, pipestat.stats)]
+        if not isinstance(pipestat, int):
+            self.stats = [x + y for x, y in zip(self.stats, pipestat.stats)]
         return self
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
     @property
     def total_time(self):
@@ -81,6 +124,18 @@ class PipelineStats:
         x = f"\n\n{'📉' * 3} STATS {'📉' * 3}\n\n"
         x += "".join([stat.__repr__(self.total_time) for stat in self.stats])
         return x
+
+    def to_json(self):
+        return json.dumps([stat.to_dict(self.total_time) for stat in self.stats], indent=4)
+
+    @classmethod
+    def from_json(cls, data):
+        return PipelineStats([Stats.from_dict(stat) for stat in data])
+
+    def save_to_disk(self, path: str):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(self.to_json())
 
 
 class ComputeOnlineStats:

@@ -5,6 +5,7 @@ from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.typeshelper import StatHints
 
 
 class BaseExtractor(PipelineStep):
@@ -42,6 +43,7 @@ class BaseExtractor(PipelineStep):
 
         except TimeoutError:
             logger.warning("⏰ Timeout while cleaning record content. Skipping record.")
+
         except Exception as e:
             logger.warning(f'❌ Error "{e}" while cleaning record content. Skipping record.')
 
@@ -51,7 +53,12 @@ class BaseExtractor(PipelineStep):
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """ """
         for doc in data:
+            self.stat_update(StatHints.total)
             with self.stats.time_manager:
                 doc.content = self.timeout_extract(doc)
             if doc.content:
+                self.stat_update(StatHints.forwarded)
+                self.stats.doc_len.update(len(doc.content))
                 yield doc
+            else:
+                self.stat_update(StatHints.dropped)

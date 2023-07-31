@@ -50,8 +50,7 @@ class LocalPipelineExecutor(PipelineExecutor):
             up_sem = Semaphore(self.max_concurrent_uploads)
             with multiprocess.Pool(self.workers, initializer=init_pool_processes, initargs=(dl_sem, up_sem)) as pool:
                 stats = list(pool.map(self._run_for_rank, range(self.tasks)))
-
-        return sum(stats[1:], stats[0]) if len(stats) > 1 else stats[0]
+        return sum(stats)
 
     @property
     def world_size(self):
