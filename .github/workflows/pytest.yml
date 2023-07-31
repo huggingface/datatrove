@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          apt install g++
+          sudo apt-get install -y g++
           pip install .
           python -m nltk.downloader punkt
           pip install ruff pytest
