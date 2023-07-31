@@ -15,6 +15,7 @@ REQUIRED_PKGS = [
     "zstandard==0.21.0",
     "pyarrow==12.0.1",
     "tokenizers==0.13.3",
+    "tldextract==3.4.4",
 ]
 
 EXTRAS = {
