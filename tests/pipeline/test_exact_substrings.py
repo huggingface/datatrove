@@ -169,7 +169,7 @@ TARGETS = {
 TARGETS_2 = {0: "", 1: TEXT_2_0, 2: ""}
 
 
-class SentenceDedup(unittest.TestCase):
+class TestExactSubstr(unittest.TestCase):
     def match_doc(self, sequence, size, reader, docs):
         for i, doc_content in enumerate(sequence_reader(sequence, size)):
             self.assertEqual(docs[i].content, reader.tokenizer.decode(read_bytes(doc_content)))
