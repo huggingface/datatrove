@@ -16,6 +16,7 @@ REQUIRED_PKGS = [
     "pyarrow==12.0.1",
     "tokenizers==0.13.3",
     "tldextract==3.4.4",
+    "pandas==2.0.3",
 ]
 
 EXTRAS = {
@@ -39,8 +40,9 @@ setup(
     author_email="guilherme@huggingface.co",
     url="https://github.com/huggingface/datatrove",
     license="Apache 2.0",
-    package_dir={"": "src"},
     packages=find_packages("src"),
+    package_dir={"": "src"},
+    package_data={"": ["assets/*"]},
     python_requires=">=3.7.0",
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS,

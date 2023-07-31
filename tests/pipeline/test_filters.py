@@ -36,7 +36,7 @@ def get_doc(text, url=None):
     return Document(text, data_id="0", metadata={"url": url})
 
 
-class TestMinhash(unittest.TestCase):
+class TestFilters(unittest.TestCase):
     def check_filter(self, filter, doc, filter_reason):
         filter_result = filter.filter(doc)
         self.assertEqual(type(filter_result), tuple)

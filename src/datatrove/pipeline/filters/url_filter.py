@@ -56,7 +56,7 @@ class URLFilter(BaseFilter):
     def download_data(self):
         if not os.path.isfile(self.download_path + "blacklists.tar.gz"):
             os.makedirs(os.path.dirname(self.download_path), exist_ok=True)
-            logger.info("⬇️ Downloading block-list urls language identifier model ...")
+            logger.info("⬇️ Downloading block-list urls...")
             urllib.request.urlretrieve(ADULT_LIST, self.download_path + "blacklists.tar.gz")
 
         if not os.path.isfile(f"{self.download_path}adult/domains") or not os.path.isfile(
