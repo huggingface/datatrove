@@ -22,8 +22,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          sudo apt-get install -y python3-dev
           python -m pip install --upgrade pip
+          pip install fasttext-wheel
           pip install .
           python -m nltk.downloader punkt
           pip install ruff pytest
