@@ -19,7 +19,7 @@ from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFil
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
-from .utils import merge_docs, simplify_content, str_hash
+from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash
 
 
 @dataclass
@@ -30,7 +30,7 @@ class HashSig:
     file_id: int = None
 
     # priority queue accepts anything that is sortable
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         return (self.hash_value, self.file_id, self.doc_id, self.sent_id) < (
             other.hash_value,
             other.file_id,
@@ -40,15 +40,23 @@ class HashSig:
 
 
 class SentenceDedupSignature(PipelineStep):
-    type = "🫂 - DEDUP"
+    type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
 
+    signatures = []
+
     def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, stage_2_workers: int = 1, **kwargs):
+        """
+
+        :param output_folder: folder where signatures are saved
+        :param n_sentences: n_sentences where duplicates are checked.
+        :param stage_2_workers: TODO implement parallel second stage
+        :param kwargs:
+        """
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.n_sentences = n_sentences
         self.stage_2_workers = stage_2_workers
-        self.signatures = []
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
@@ -56,12 +64,11 @@ class SentenceDedupSignature(PipelineStep):
     def save_hashes(self, rank: int):
         self.signatures.sort()
 
-        f = self.output_folder.open(f"{rank:05d}.c4_sig", mode="wb")
+        f = self.output_folder.open(f"{rank:05d}{ExtensionHelperSD.stage_1_signature}", mode="wb")
         for hs in self.signatures:
             f.file_handler.write(struct.pack("<Q", hs.hash_value))
             f.file_handler.write(struct.pack("<I", hs.doc_id))
             f.file_handler.write(struct.pack("<H", hs.sent_id))
-        self.output_folder.close()
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
         # todo use language id metadata in sent_tokenize
@@ -87,8 +94,9 @@ class SentenceDedupSignature(PipelineStep):
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         for doc_idx, doc in enumerate(data):
-            self.stat_update(StatHints.total)
-            self.signatures.extend(self.get_hashes(doc, doc_idx))
+            with self.stats.time_manager:
+                self.stat_update(StatHints.total)
+                self.signatures.extend(self.get_hashes(doc, doc_idx))
         self.save_hashes(rank)
         self.output_folder.close()
 
@@ -97,7 +105,11 @@ def read_sigs(file: InputDataFile, file_id: int) -> Generator[HashSig, None, Non
     with file.open(binary=True) as f:
         while True:
             x = {}
-            for t, b, k in [("Q", 8, "hash_value"), ("I", 4, "doc_id"), ("H", 2, "sent_id")]:
+            for t, b, k in [
+                ("Q", struct.calcsize("Q"), "hash_value"),
+                ("I", struct.calcsize("I"), "doc_id"),
+                ("H", struct.calcsize("H"), "sent_id"),
+            ]:
                 by = f.read(b)
                 if not by:
                     return
@@ -106,7 +118,7 @@ def read_sigs(file: InputDataFile, file_id: int) -> Generator[HashSig, None, Non
 
 
 class SentenceFindDedups(PipelineStep):
-    type = "🫂 - DEDUP"
+    type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 2"
 
     def __init__(self, data_folder: BaseInputDataFolder, output_folder: BaseOutputDataFolder, **kwargs):
@@ -115,37 +127,37 @@ class SentenceFindDedups(PipelineStep):
         self.output_folder = output_folder
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        sig_files = self.data_folder.list_files(".c4_sig")
-        sig_readers = [read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
+        assert world_size == 1
+        with self.stats.time_manager:
+            sig_files = self.data_folder.list_files(ExtensionHelperSD.stage_1_signature)
+            sig_readers = [read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
 
-        pq = [next(sig_reader) for sig_reader in sig_readers]
-        heapq.heapify(pq)
+            pq = [next(sig_reader) for sig_reader in sig_readers]
+            heapq.heapify(pq)
 
-        last = None
-        while pq:
-            v: HashSig = heapq.heappop(pq)
-            if last == v.hash_value:
-                f = self.output_folder.open(f"{v.file_id:05d}.c4_dup", mode="wb")
-                f.file_handler.write(struct.pack("<I", v.doc_id))
-                f.file_handler.write(struct.pack("<H", v.sent_id))
-            last = v.hash_value
-            try:
-                new_v = next(sig_readers[v.file_id])
-            except StopIteration:
-                new_v = None
-            if new_v:
-                heapq.heappush(pq, new_v)
-        self.output_folder.close()
+            last = None
+            while pq:
+                v: HashSig = heapq.heappop(pq)
+                if last == v.hash_value:
+                    f = self.output_folder.open(f"{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}", mode="wb")
+                    f.file_handler.write(struct.pack("<I", v.doc_id))
+                    f.file_handler.write(struct.pack("<H", v.sent_id))
+                last = v.hash_value
+                new_v = next(sig_readers[v.file_id], None)
+
+                if new_v:
+                    heapq.heappush(pq, new_v)
+            self.output_folder.close()
 
 
-def read_dups(file: InputDataFile) -> Generator[tuple, None, None]:
+def read_duplicates(file: InputDataFile) -> Generator[tuple, None, None]:
     with file.open(binary=True) as f:
         while True:
             x = []
             for (
                 t,
                 b,
-            ) in [("I", 4), ("H", 2)]:
+            ) in [("I", struct.calcsize("I")), ("H", struct.calcsize("H"))]:
                 by = f.read(b)
                 if not by:
                     return
@@ -154,7 +166,7 @@ def read_dups(file: InputDataFile) -> Generator[tuple, None, None]:
 
 
 class SentenceDedupFilter(PipelineStep):
-    type = "🫂 - DEDUP"
+    type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 3"
 
     def __init__(
@@ -163,8 +175,14 @@ class SentenceDedupFilter(PipelineStep):
         min_doc_words: int = 50,
         **kwargs,
     ):
+        """
+
+        :param data_folder: data folder to get duplicate files.
+        :param min_doc_words: min amount of words for each document
+        :param kwargs:
+        """
         super().__init__(**kwargs)
-        self.data_folder = data_folder
+        self.data_folder: BaseInputDataFolder = data_folder
         self.min_doc_words = min_doc_words
 
     def filter(self, doc: Document, du_lines: set = None):
@@ -183,12 +201,18 @@ class SentenceDedupFilter(PipelineStep):
         @param datapipe: input DocumentsPipeline
         @return: DocumentsPipeline
         """
-        files = self.data_folder.get_files_shard(rank, world_size)
-        assert len(files) == 1
-        du_file = merge_docs(sorted(read_dups(files[0])))
+        files = self.data_folder.get_files_shard(rank, world_size, extension=ExtensionHelperSD.stage_2_duplicates)
+        assert len(files) == 1, (
+            f"n_files / n_tasks should be equal to n_workers, instead {len(files)=}\n{files}.\n"
+            f"{world_size=} {rank}"
+        )
+
+        du_file = merge_docs(sorted(read_duplicates(files[0])))
+        print(du_file)
         for idx, doc in enumerate(data):
             self.stat_update(StatHints.total)
-            with self.time_stats_manager:
+            with self.stats.time_manager:
                 is_kept = self.filter(doc, du_lines=du_file.get(idx))
             if is_kept:
+                self.stats.doc_len.update(len(doc.content))
                 yield doc
