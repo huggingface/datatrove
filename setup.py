@@ -17,6 +17,7 @@ REQUIRED_PKGS = [
     "tokenizers==0.13.3",
     "tldextract==3.4.4",
     "pandas==2.0.3",
+    "fasttext==0.9.2",
 ]
 
 EXTRAS = {
