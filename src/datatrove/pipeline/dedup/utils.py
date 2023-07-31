@@ -6,6 +6,11 @@ import struct
 import numpy as np
 
 
+class ExtensionHelperSD:
+    stage_1_signature = ".c4_sig"
+    stage_2_duplicates = ".c4_dup"
+
+
 class ExtensionHelperES:
     stage_1_sequence = ".es_sequence"
     stage_1_sequence_size = ".es_sequence.size"
