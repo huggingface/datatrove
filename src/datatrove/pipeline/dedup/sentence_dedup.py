@@ -18,6 +18,7 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
+from datatrove.utils.utils import get_language
 
 from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash
 
@@ -70,8 +71,7 @@ class SentenceDedupSignature(PipelineStep):
             f.file_handler.write(struct.pack("<H", hs.sent_id))
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
-        # todo use language id metadata in sent_tokenize
-        sentences = sent_tokenize(doc.content)
+        sentences = sent_tokenize(doc.content, language=get_language(doc))
         if len(sentences) < self.n_sentences:
             return []
 
@@ -213,10 +213,10 @@ class SentenceDedupFilter(PipelineStep):
         self.min_doc_words = min_doc_words
 
     def filter(self, doc: Document, du_lines: set = None):
-        sentences = sent_tokenize(doc.content)
+        sentences = sent_tokenize(doc.content, language=get_language(doc))
         # todo find a way to keep skip lines as in the original text
         doc.content = " ".join([sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines])
-        if len(word_tokenize(doc.content)) > self.min_doc_words:
+        if len(word_tokenize(doc.content, get_language(doc))) > self.min_doc_words:
             return True
         return False
 

@@ -58,6 +58,9 @@ class UnigramLogProbFilter(BaseFilter):
         :return: is_filter
         """
 
+        if doc.metadata["language"] != "en":
+            return True
+
         words = word_tokenize(doc.content)
         freqs = [
             self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())

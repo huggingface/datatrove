@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.utils.utils import get_language
 
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
@@ -63,7 +64,7 @@ class GopherQualityFilter(BaseFilter):
         :return: False if sample.content does not pass any of the the heuristic tests
         """
         text = doc.content
-        words = word_tokenize(text)  # TODO we should use language id filter
+        words = word_tokenize(text, language=get_language(doc))
 
         # words < min_doc_words or words > max_doc_words
         n_words = len([w for w in words if w not in string.punctuation])

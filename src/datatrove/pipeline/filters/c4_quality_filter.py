@@ -4,6 +4,7 @@ from nltk.tokenize import sent_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.utils.utils import get_language
 
 
 """
@@ -45,7 +46,7 @@ class C4QualityFilter(BaseFilter):
         :return:
         """
 
-        lines = sent_tokenize(doc.content)
+        lines = sent_tokenize(doc.content, language=get_language(doc))
         if len(lines) < self.min_lines:
             return False, f"< {self.min_lines} lines"
 

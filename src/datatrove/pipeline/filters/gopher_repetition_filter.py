@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.utils.utils import get_language
 
 
 """
@@ -113,7 +114,7 @@ class GopherRepetitionFilter(BaseFilter):
         if self.dup_line_char_frac and char_duplicates / len(text) > self.dup_line_char_frac:
             return False, "dup_line_char_frac"
 
-        words = word_tokenize(text, language="english")  # TODO we should use language id filter
+        words = word_tokenize(text, language=get_language(doc))
 
         for n, n_frac in self.top_n_grams:
             n_grams = get_n_grams(words, n)

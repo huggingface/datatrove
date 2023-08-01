@@ -27,6 +27,7 @@ from nltk.tokenize import word_tokenize
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.pipeline.readers import JsonlReader
+from datatrove.utils.utils import get_language
 
 from .utils import ExtensionHelperES as EH
 
@@ -271,7 +272,7 @@ class DedupReader(JsonlReader):
 
         self.bytes_counter += len(bytes_content)
 
-        if len(word_tokenize(doc.content)) < self.min_doc_words:
+        if len(word_tokenize(doc.content), get_language(doc)) < self.min_doc_words:
             return False
 
         return True
