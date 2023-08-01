@@ -116,12 +116,18 @@ class GopherRepetitionFilter(BaseFilter):
         words = word_tokenize(text, language="english")  # TODO we should use language id filter
 
         for n, n_frac in self.top_n_grams:
-            top_char_length = find_top_duplicate(get_n_grams(words, n))
+            n_grams = get_n_grams(words, n)
+            if not n_grams:
+                continue
+            top_char_length = find_top_duplicate(n_grams)
             if top_char_length / len(text) > n_frac:
                 return False, f"top_{n}_gram"
 
         for n, n_frac in self.dup_n_grams:
-            n_duplicates_char = find_all_duplicate(words, n)
+            n_grams = get_n_grams(words, n)
+            if not n_grams:
+                continue
+            n_duplicates_char = find_all_duplicate(n_grams, n)
             assert n_duplicates_char <= len(text)
             if n_duplicates_char / len(text) > n_frac:
                 return False, f"duplicated_{n}_n_grams"
