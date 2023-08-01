@@ -159,6 +159,7 @@ class DedupReader(JsonlReader):
         self.exhausted_ranges = False
         self.bytes_counter = 0
         self.idx = 0
+        self.warning_msg = True
 
     def reset(self):
         self.bytes_counter = 0
@@ -271,6 +272,11 @@ class DedupReader(JsonlReader):
             doc.content = text
 
         self.bytes_counter += len(bytes_content)
+
+        if "language" not in doc.metadata:
+            if self.warning_msg:
+                logger.warning("⚠️ Some documents have no language id. English is assumed")
+                self.warning_msg = False
 
         if len(word_tokenize(doc.content, get_language(doc))) < self.min_doc_words:
             return False
