@@ -7,11 +7,12 @@ import numpy as np
 from loguru import logger
 from nltk import ngrams, word_tokenize
 
-from datatrove.data import DocumentsPipeline
+from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
 from datatrove.utils.typeshelper import StatHints
+from datatrove.utils.utils import get_language, nltk_warning_msg
 
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
@@ -65,6 +66,7 @@ class MinhashDedupSignature(PipelineStep):
         self.num_hashes = self.num_buckets * self.hashes_per_bucket
         self.seed = seed
         self._parameters = None
+        self.warning_msg = True
 
     @property
     def parameters(self):
@@ -86,11 +88,12 @@ class MinhashDedupSignature(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def get_shingles(self, text):
+    def get_shingles(self, doc: Document):
+        language = get_language(doc)
         return np.array(
             [
                 [sha1_hash32(" ".join(x).encode("utf-8"))]
-                for x in ngrams(word_tokenize(simplify_content(text)), self.n_grams)
+                for x in ngrams(word_tokenize(simplify_content(doc.content), language=language), self.n_grams)
             ],
             dtype=np.uint64,
         )
@@ -101,8 +104,9 @@ class MinhashDedupSignature(PipelineStep):
             for bi in range(self.num_buckets)
         ]
         for doc_idx, doc in enumerate(data):
+            self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
             self.stat_update(StatHints.total)
-            shingles = self.get_shingles(doc.content)
+            shingles = self.get_shingles(doc)
             if shingles.size != 0:
                 sig = self.get_signature(shingles)
                 for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
