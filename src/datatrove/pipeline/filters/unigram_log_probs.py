@@ -8,6 +8,7 @@ from nltk.tokenize import word_tokenize
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.utils.typeshelper import LocalPaths
+from datatrove.utils.utils import get_language
 
 
 PANDAS_INSTALLED = True
@@ -38,6 +39,7 @@ class UnigramLogProbFilter(BaseFilter):
         self.logprobs_threshold = logprobs_threshold
         self.model_local_path = model_local_path
         self.unigram_frequencies = self.get_frequencies()
+        self.warning_msg = True
 
     def get_frequencies(self):
         if not PANDAS_INSTALLED:
@@ -58,7 +60,10 @@ class UnigramLogProbFilter(BaseFilter):
         :return: is_filter
         """
 
-        if doc.metadata["language"] != "en":
+        if get_language(doc) != "english":
+            if self.warning_msg:
+                logger.warning("⚠️ Some documents have no language id. English is assumed")
+                self.warning_msg = False
             return True
 
         words = word_tokenize(doc.content)

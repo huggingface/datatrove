@@ -92,8 +92,14 @@ class TestFilters(unittest.TestCase):
 
     def test_unigram_prob(self):
         unigram_filter = UnigramLogProbFilter(logprobs_threshold=-10)
+        self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0", metadata={"langauge": "en"})))
         self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0")))
-        self.assertFalse(unigram_filter.filter(Document(content="Cacophony Pareidolia Serendipity", data_id="0")))
+        self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0", metadata={"langauge": "fr"})))
+        self.assertFalse(
+            unigram_filter.filter(
+                Document(content="Cacophony Pareidolia Serendipity", data_id="0", metadata={"langauge": "en"})
+            )
+        )
 
     def test_url(self):
         def get_element(s):

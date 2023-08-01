@@ -272,7 +272,7 @@ class DedupReader(JsonlReader):
 
         self.bytes_counter += len(bytes_content)
 
-        if len(word_tokenize(doc.content), get_language(doc)) < self.min_doc_words:
+        if len(word_tokenize(doc.content, get_language(doc))) < self.min_doc_words:
             return False
 
         return True
