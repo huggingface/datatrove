@@ -124,11 +124,8 @@ class GopherRepetitionFilter(BaseFilter):
                 return False, f"top_{n}_gram"
 
         for n, n_frac in self.dup_n_grams:
-            n_grams = get_n_grams(words, n)
-            if not n_grams:
-                continue
-            n_duplicates_char = find_all_duplicate(n_grams, n)
-            assert n_duplicates_char <= len(text)
+            n_duplicates_char = find_all_duplicate(words, n)
+            assert n_duplicates_char <= len(text), f"{n_duplicates_char=} but {len(text)=}"
             if n_duplicates_char / len(text) > n_frac:
                 return False, f"duplicated_{n}_n_grams"
 
