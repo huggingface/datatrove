@@ -60,10 +60,12 @@ class UnigramLogProbFilter(BaseFilter):
         :return: is_filter
         """
 
-        if get_language(doc) != "english":
+        if "language" not in doc.metadata:
             if self.warning_msg:
                 logger.warning("⚠️ Some documents have no language id. English is assumed")
                 self.warning_msg = False
+
+        if get_language(doc) != "english":
             return True
 
         words = word_tokenize(doc.content)
