@@ -49,7 +49,7 @@ def find_top_duplicate(x: list[str]) -> int:
     counter = Counter()
     for element in x:
         counter[element] += 1
-    top_n_gram = counter.most_common()[0]
+    top_n_gram = counter.most_common(1)[0]
     return len(top_n_gram[0]) * top_n_gram[1]
 
 
@@ -99,11 +99,11 @@ class GopherRepetitionFilter(BaseFilter):
         """ """
         text = doc.content
 
-        paragraphs = self.paragraph_exp.split(text)
+        paragraphs = self.paragraph_exp.split(text.strip())
         paragraphs_duplicates, char_duplicates = find_duplicates(paragraphs)
         if self.dup_para_frac and paragraphs_duplicates / len(paragraphs) > self.dup_para_frac:
             return False, "dup_para_frac"
-        if char_duplicates / len(text) > self.dup_para_char_frac:
+        if self.dup_para_char_frac and char_duplicates / len(text) > self.dup_para_char_frac:
             return False, "dup_para_char_frac"
 
         lines = text.splitlines()
@@ -124,11 +124,8 @@ class GopherRepetitionFilter(BaseFilter):
                 return False, f"top_{n}_gram"
 
         for n, n_frac in self.dup_n_grams:
-            n_grams = get_n_grams(words, n)
-            if not n_grams:
-                continue
-            n_duplicates_char = find_all_duplicate(n_grams, n)
-            assert n_duplicates_char <= len(text)
+            n_duplicates_char = find_all_duplicate(words, n)
+            assert n_duplicates_char <= len(text), f"{n_duplicates_char=} but {len(text)=}"
             if n_duplicates_char / len(text) > n_frac:
                 return False, f"duplicated_{n}_n_grams"
 

@@ -47,7 +47,7 @@ class TestFilters(unittest.TestCase):
 
         self.check_filter(gopher_repetition, get_doc("I am your father.\n" * 4), "dup_line_frac")
         self.check_filter(gopher_repetition, get_doc("I am your father.\n\n" * 4), "dup_para_frac")
-        text = "I am groot.\n\n" + "You are a wizard.\n\n" + "I am your father.\n\n" * 2 + f"{'x' * 30}.\n\n" * 2
+        text = "I am groot.\n\n" + "You are a wizard.\n\n" + "I am your father.\n\n" + f"{'x' * 30}.\n\n" * 2
         self.check_filter(gopher_repetition, get_doc(text), "dup_para_char_frac")
         doc = get_doc("I am groot.\n" + "You are a wizard.\n" + "I am your father.\n" + f"{'x' * 40}.\n" * 2)
         self.check_filter(gopher_repetition, doc, "dup_line_char_frac")
@@ -66,9 +66,9 @@ class TestFilters(unittest.TestCase):
         self.check_filter(gopher_quality, get_doc("interconnection " * 20), "gopher_above_avg_threshold")
         self.check_filter(gopher_quality, get_doc("# comment " * 20), "gopher_too_many_hashes")
         self.check_filter(gopher_quality, get_doc("... comment " * 20), "gopher_too_many_ellipsis")
-        self.check_filter(
-            gopher_quality, get_doc("./!*?<><> apple orange interconnection " * 20), "gopher_below_alpha_threshold"
-        )
+        text = "the ./!*?<><> apple <?////> orange  ++ interconnection !<>??? have" * 20
+        self.check_filter(gopher_quality, get_doc(text), "gopher_below_alpha_threshold")
+        self.assertTrue(gopher_quality(get_doc(TEXT_LF_1)))
 
     def test_lambda(self):
         doc = Document(content=TEXT_LF_1, data_id="0", metadata={"test": 1})
