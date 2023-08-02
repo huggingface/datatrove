@@ -43,8 +43,6 @@ class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
 
-    signatures = []
-
     def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, stage_2_workers: int = 1, **kwargs):
         """
 
@@ -57,6 +55,7 @@ class SentenceDedupSignature(PipelineStep):
         self.output_folder = output_folder
         self.n_sentences = n_sentences
         self.stage_2_workers = stage_2_workers
+        self.signatures = []
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
@@ -93,6 +92,18 @@ class SentenceDedupSignature(PipelineStep):
         return hashes
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+        """
+
+        :param data:
+        :param rank:
+        :param world_size:
+        :return:
+
+        SentenceDedupSignature creates a signature for each document. Each HashSig has n hash, the doc id and the
+        sentence idx. Before saving them the hashes are sorted.
+
+        """
+        self.signatures = []
         for doc_idx, doc in enumerate(data):
             with self.stats.time_manager:
                 self.stat_update(StatHints.total)
@@ -127,7 +138,18 @@ class SentenceFindDedups(PipelineStep):
         self.output_folder = output_folder
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        assert world_size == 1
+        """
+
+        :param data:
+        :param rank:
+        :param world_size:
+        :return:
+
+        SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and load them
+        in a priority queue to check for duplicates. If a duplicate is found its document id and sentence id are saved.
+        """
+        assert world_size == 1, "SentenceFindDedups can only run on a single worker."
+        files_with_duplicates = set()
         with self.stats.time_manager:
             sig_files = self.data_folder.list_files(ExtensionHelperSD.stage_1_signature)
             sig_readers = [read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
@@ -142,12 +164,17 @@ class SentenceFindDedups(PipelineStep):
                     f = self.output_folder.open(f"{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}", mode="wb")
                     f.file_handler.write(struct.pack("<I", v.doc_id))
                     f.file_handler.write(struct.pack("<H", v.sent_id))
+                    files_with_duplicates.add(v.file_id)
                 last = v.hash_value
                 new_v = next(sig_readers[v.file_id], None)
 
                 if new_v:
                     heapq.heappush(pq, new_v)
-            self.output_folder.close()
+
+        for i in range(len(sig_files)):
+            if i not in files_with_duplicates:
+                self.output_folder.open(f"{i:05d}{ExtensionHelperSD.stage_2_duplicates}", mode="wb")
+        self.output_folder.close()
 
 
 def read_duplicates(file: InputDataFile) -> Generator[tuple, None, None]:
@@ -200,6 +227,8 @@ class SentenceDedupFilter(PipelineStep):
 
         @param datapipe: input DocumentsPipeline
         @return: DocumentsPipeline
+
+        SentenceDedupFilter reads a DocumentPipeline and removes duplicated sentences found at stage 2
         """
         files = self.data_folder.get_files_shard(rank, world_size, extension=ExtensionHelperSD.stage_2_duplicates)
         assert len(files) == 1, (
@@ -208,7 +237,6 @@ class SentenceDedupFilter(PipelineStep):
         )
 
         du_file = merge_docs(sorted(read_duplicates(files[0])))
-        print(du_file)
         for idx, doc in enumerate(data):
             self.stat_update(StatHints.total)
             with self.stats.time_manager:

@@ -46,6 +46,9 @@ def merge_docs(sen_list, n_sentences: int = 3) -> dict:
     def to_sentences(idx: int):
         return {idx + i for i in range(n_sentences)}
 
+    if not sen_list:
+        return {}
+
     new_l = [[sen_list[0][0], to_sentences(sen_list[0][1])]]
     for x in sen_list[1:]:
         if x[0] == new_l[-1][0]:
