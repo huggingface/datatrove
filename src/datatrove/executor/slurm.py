@@ -64,10 +64,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def run(self):
         if "SLURM_JOB_ID" in os.environ:
             rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
+            completion_file = os.path.join(self.logging_dir, "completions", f"{rank:05d}")
             if rank >= self.world_size:
+                return
+            if os.path.exists(completion_file):
+                logger.info(f"Skipping {rank=} as it was already completed.")
                 return
             stats = self._run_for_rank(rank)
             stats.save_to_disk(os.path.join(self.logging_dir, "stats", f"{rank:05d}.json"))
+            open(completion_file, "w").close()
         else:
             self.launch_job()
 
@@ -92,6 +97,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
         os.makedirs(os.path.join(self.logging_dir, "stats"), exist_ok=True)
         os.makedirs(os.path.join(self.logging_dir, "logs"), exist_ok=True)
+        os.makedirs(os.path.join(self.logging_dir, "completions"), exist_ok=True)
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor) and self.depends.job_id
         ), "depends= must be a SlurmPipelineExecutor that was already launched!"
