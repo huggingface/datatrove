@@ -40,7 +40,7 @@ class TestMinhash(unittest.TestCase):
         minhash = MinhashDedupSignature(
             output_folder=LocalOutputDataFolder(os.path.join(self.test_dir, "signatures1")),
         )
-        shingles = minhash.get_shingles(lorem_ipsum)
+        shingles = minhash.get_shingles(Document(content=lorem_ipsum, data_id="0"))
         sig = minhash.get_signature(shingles)
 
         minhash2 = MinhashDedupSignature(
@@ -58,7 +58,7 @@ class TestMinhash(unittest.TestCase):
             dec = pctd / 100
             endp = floor(len(lorem_ipsum) * dec)
             textd = lorem_ipsum[:endp] + lorem_ipsum[len(lorem_ipsum) - 1 : endp : -1]
-            sigd = minhash.get_signature(minhash.get_shingles(textd))
+            sigd = minhash.get_signature(minhash.get_shingles(Document(textd, data_id="0")))
             simil = sum([1 if a == b else 0 for ba, bb in zip(sig, sigd) for a, b in zip(ba, bb)]) / minhash.num_hashes
             assert dec - 0.2 < simil < dec + 0.2
 
