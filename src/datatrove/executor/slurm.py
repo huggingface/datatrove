@@ -107,10 +107,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         run_offset = 0
         dependency = self.depends.job_id if self.depends else None
         while run_offset * self.max_array < self.tasks:
-            args = ["sbatch", launch_script_path, f"--export=ALL,RUN_OFFSET={run_offset}"]
+            args = ["sbatch", f"--export=ALL,RUN_OFFSET={run_offset}"]
             if dependency:
                 args.append(f"--dependency=afterok:{dependency}")
-            output = subprocess.check_output(args).decode("utf-8")
+            output = subprocess.check_output(args + [launch_script_path]).decode("utf-8")
             dependency = self.job_id = int(output.split()[-1])
             run_offset += 1
         logger.info(f"Slurm job launched successfully with id={self.job_id}.")
