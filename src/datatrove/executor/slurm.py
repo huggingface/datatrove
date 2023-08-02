@@ -30,6 +30,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         condaenv: str = None,
         venv_path: str = None,
         sbatch_args: dict | None = None,
+        max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
         **kwargs,
     ):
@@ -57,11 +58,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.venv_path = venv_path
         self.depends = depends
         self._sbatch_args = sbatch_args if sbatch_args else {}
+        self.max_array_size = max_array_size
         self.job_id = None
 
     def run(self):
         if "SLURM_JOB_ID" in os.environ:
-            rank = int(os.environ["SLURM_ARRAY_TASK_ID"])
+            rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
+            if rank >= self.world_size:
+                return
             stats = self._run_for_rank(rank)
             stats.save_to_disk(os.path.join(self.logging_dir, "stats", f"{rank:05d}.json"))
         else:
@@ -100,10 +104,21 @@ class SlurmPipelineExecutor(PipelineExecutor):
             f.write(self.launch_file)
 
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
-        output = subprocess.check_output(["sbatch", launch_script_path]).decode("utf-8")
-        self.job_id = int(output.split()[-1])
+        run_offset = 0
+        dependency = self.depends.job_id if self.depends else None
+        while run_offset * self.max_array < self.tasks:
+            args = ["sbatch", launch_script_path, f"--export=ALL,RUN_OFFSET={run_offset}"]
+            if dependency:
+                args.append(f"--dependency=afterok:{dependency}")
+            output = subprocess.check_output(args).decode("utf-8")
+            dependency = self.job_id = int(output.split()[-1])
+            run_offset += 1
         logger.info(f"Slurm job launched successfully with id={self.job_id}.")
         self.launch_merge_stats()
+
+    @property
+    def max_array(self) -> int:
+        return min(self.tasks, self.max_array_size) if self.max_array_size != -1 else self.tasks
 
     @property
     def sbatch_args(self) -> dict:
@@ -116,8 +131,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "time": self.time,
             "output": slurm_logfile,
             "error": slurm_logfile,
-            "array": f"0-{self.tasks - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
-            **({"dependency": f"afterok:{self.depends.job_id}"} if self.depends else {}),
+            "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             **self._sbatch_args,
         }
 
