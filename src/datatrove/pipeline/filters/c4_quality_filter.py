@@ -4,7 +4,7 @@ from nltk.tokenize import sent_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.utils import get_language
+from datatrove.utils.utils import get_language, nltk_warning_msg
 
 
 """
@@ -30,6 +30,7 @@ class C4QualityFilter(BaseFilter):
         self.min_lines = 5
         self.min_words = 3
         self.stop_chars = (".", "'", '"', "!", "?")
+        self.warning_msg = True
 
     def line_filter(self, line: str):
         if self.javascript.search(line):
@@ -45,6 +46,8 @@ class C4QualityFilter(BaseFilter):
         :param doc:
         :return:
         """
+
+        self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
 
         lines = sent_tokenize(doc.content, language=get_language(doc))
         if len(lines) < self.min_lines:

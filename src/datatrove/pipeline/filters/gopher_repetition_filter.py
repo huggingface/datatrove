@@ -5,7 +5,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.utils import get_language
+from datatrove.utils.utils import get_language, nltk_warning_msg
 
 
 """
@@ -95,9 +95,13 @@ class GopherRepetitionFilter(BaseFilter):
         self.top_n_grams = top_n_grams
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
+        self.warning_msg = True
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """ """
+
+        self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
+
         text = doc.content
 
         paragraphs = self.paragraph_exp.split(text.strip())

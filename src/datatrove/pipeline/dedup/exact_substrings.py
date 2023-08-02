@@ -27,7 +27,7 @@ from nltk.tokenize import word_tokenize
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.pipeline.readers import JsonlReader
-from datatrove.utils.utils import get_language
+from datatrove.utils.utils import get_language, nltk_warning_msg
 
 from .utils import ExtensionHelperES as EH
 
@@ -273,11 +273,7 @@ class DedupReader(JsonlReader):
 
         self.bytes_counter += len(bytes_content)
 
-        if "language" not in doc.metadata:
-            if self.warning_msg:
-                logger.warning("⚠️ Some documents have no language id. English is assumed")
-                self.warning_msg = False
-
+        self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
         if len(word_tokenize(doc.content, get_language(doc))) < self.min_doc_words:
             return False
 

@@ -8,7 +8,7 @@ from nltk.tokenize import word_tokenize
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.utils.typeshelper import LocalPaths
-from datatrove.utils.utils import get_language
+from datatrove.utils.utils import get_language, nltk_warning_msg
 
 
 PANDAS_INSTALLED = True
@@ -60,10 +60,7 @@ class UnigramLogProbFilter(BaseFilter):
         :return: is_filter
         """
 
-        if "language" not in doc.metadata:
-            if self.warning_msg:
-                logger.warning("⚠️ Some documents have no language id. English is assumed")
-                self.warning_msg = False
+        self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
 
         if get_language(doc) != "english":
             return True
