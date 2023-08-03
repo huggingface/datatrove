@@ -18,6 +18,7 @@ REQUIRED_PKGS = [
     "tldextract==3.4.4",
     "pandas==2.0.3",
     "langcodes==3.3.0",
+    "language-data==1.1",
 ]
 
 EXTRAS = {
