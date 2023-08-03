@@ -95,11 +95,8 @@ class TestFilters(unittest.TestCase):
         self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0", metadata={"langauge": "en"})))
         self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0")))
         self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0", metadata={"langauge": "fr"})))
-        self.assertFalse(
-            unigram_filter.filter(
-                Document(content="Cacophony Pareidolia Serendipity", data_id="0", metadata={"langauge": "en"})
-            )
-        )
+        text = "Cacophony Pareidolia Serendipity"
+        self.assertFalse(unigram_filter.filter(Document(content=text, data_id="0", metadata={"langauge": "en"})))
 
     def test_url(self):
         def get_element(s):

@@ -18,7 +18,7 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
-from datatrove.utils.utils import get_language, nltk_warning_msg
+from datatrove.utils.utils import get_language
 
 from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash
 
@@ -56,7 +56,6 @@ class SentenceDedupSignature(PipelineStep):
         self.output_folder = output_folder
         self.n_sentences = n_sentences
         self.stage_2_workers = stage_2_workers
-        self.warning_msg = True
         self.signatures = []
 
     def set_up_dl_locks(self, dl_lock, up_lock):
@@ -106,7 +105,6 @@ class SentenceDedupSignature(PipelineStep):
         """
         self.signatures = []
         for doc_idx, doc in enumerate(data):
-            self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
             with self.stats.time_manager:
                 self.stat_update(StatHints.total)
                 self.signatures.extend(self.get_hashes(doc, doc_idx))
@@ -213,7 +211,6 @@ class SentenceDedupFilter(PipelineStep):
         super().__init__(**kwargs)
         self.data_folder: BaseInputDataFolder = data_folder
         self.min_doc_words = min_doc_words
-        self.warning_msg = True
 
     def filter(self, doc: Document, du_lines: set = None):
         sentences = sent_tokenize(doc.content, language=get_language(doc))
@@ -241,7 +238,6 @@ class SentenceDedupFilter(PipelineStep):
 
         du_file = merge_docs(sorted(read_duplicates(files[0])))
         for idx, doc in enumerate(data):
-            self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
             self.stat_update(StatHints.total)
             with self.stats.time_manager:
                 is_kept = self.filter(doc, du_lines=du_file.get(idx))

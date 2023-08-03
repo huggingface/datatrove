@@ -5,7 +5,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.utils import get_language, nltk_warning_msg
+from datatrove.utils.utils import get_language
 
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
@@ -54,7 +54,6 @@ class GopherQualityFilter(BaseFilter):
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
-        self.warning_msg = True
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
@@ -64,8 +63,6 @@ class GopherQualityFilter(BaseFilter):
         :param doc
         :return: False if sample.content does not pass any of the the heuristic tests
         """
-
-        self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
 
         text = doc.content
         words = word_tokenize(text, language=get_language(doc))

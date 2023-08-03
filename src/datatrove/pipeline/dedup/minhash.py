@@ -12,7 +12,7 @@ from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFil
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
 from datatrove.utils.typeshelper import StatHints
-from datatrove.utils.utils import get_language, nltk_warning_msg
+from datatrove.utils.utils import get_language
 
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
@@ -66,7 +66,6 @@ class MinhashDedupSignature(PipelineStep):
         self.num_hashes = self.num_buckets * self.hashes_per_bucket
         self.seed = seed
         self._parameters = None
-        self.warning_msg = True
 
     @property
     def parameters(self):
@@ -104,7 +103,6 @@ class MinhashDedupSignature(PipelineStep):
             for bi in range(self.num_buckets)
         ]
         for doc_idx, doc in enumerate(data):
-            self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
             self.stat_update(StatHints.total)
             shingles = self.get_shingles(doc)
             if shingles.size != 0:

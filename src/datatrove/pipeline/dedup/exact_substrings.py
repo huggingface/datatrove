@@ -27,7 +27,7 @@ from nltk.tokenize import word_tokenize
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.pipeline.readers import JsonlReader
-from datatrove.utils.utils import get_language, nltk_warning_msg
+from datatrove.utils.utils import get_language
 
 from .utils import ExtensionHelperES as EH
 
@@ -159,7 +159,6 @@ class DedupReader(JsonlReader):
         self.exhausted_ranges = False
         self.bytes_counter = 0
         self.idx = 0
-        self.warning_msg = True
 
     def reset(self):
         self.bytes_counter = 0
@@ -273,7 +272,6 @@ class DedupReader(JsonlReader):
 
         self.bytes_counter += len(bytes_content)
 
-        self.warning_msg = nltk_warning_msg(doc) if self.warning_msg else False
         if len(word_tokenize(doc.content, get_language(doc))) < self.min_doc_words:
             return False
 
