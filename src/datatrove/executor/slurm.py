@@ -59,7 +59,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.depends = depends
         self._sbatch_args = sbatch_args if sbatch_args else {}
         self.max_array_size = max_array_size
-        self.job_id = None
+        self.job_ids = []
 
     def run(self):
         if "SLURM_JOB_ID" in os.environ:
@@ -93,13 +93,22 @@ class SlurmPipelineExecutor(PipelineExecutor):
             f.flush()
             subprocess.check_output(["sbatch", f.name])
 
+    @property
+    def dependency(self):
+        dependency = []
+        if self.depends:
+            dependency.append(f"afterok:{','.join(self.depends.job_ids)}")
+        if self.job_ids:
+            dependency.append(f"afterany:{self.job_ids[-1]}")
+        return ",".join(dependency)
+
     def launch_job(self):
         launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
         os.makedirs(os.path.join(self.logging_dir, "stats"), exist_ok=True)
         os.makedirs(os.path.join(self.logging_dir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(self.logging_dir, "completions"), exist_ok=True)
         assert not self.depends or (
-            isinstance(self.depends, SlurmPipelineExecutor) and self.depends.job_id
+            isinstance(self.depends, SlurmPipelineExecutor) and self.depends.job_ids
         ), "depends= must be a SlurmPipelineExecutor that was already launched!"
 
         # pickle
@@ -110,16 +119,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
             f.write(self.launch_file)
 
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
-        run_offset = 0
-        dependency = self.depends.job_id if self.depends else None
-        while run_offset * self.max_array < self.tasks:
-            args = ["sbatch", f"--export=ALL,RUN_OFFSET={run_offset}"]
-            if dependency:
-                args.append(f"--dependency=afterok:{dependency}")
+        self.job_ids = []
+        while len(self.job_ids) * self.max_array < self.tasks:
+            args = ["sbatch", f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
+            if self.dependency:
+                args.append(f"--dependency={self.dependency}")
             output = subprocess.check_output(args + [launch_script_path]).decode("utf-8")
-            dependency = self.job_id = int(output.split()[-1])
-            run_offset += 1
-        logger.info(f"Slurm job launched successfully with id={self.job_id}.")
+            self.job_ids.append(output.split()[-1])
+        logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
         self.launch_merge_stats()
 
     @property
