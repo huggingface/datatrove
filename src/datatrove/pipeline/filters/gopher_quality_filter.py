@@ -90,7 +90,8 @@ class GopherQualityFilter(BaseFilter):
         lines = text.splitlines()
         if (
             self.max_bullet_lines_ratio
-            and sum(s.lstrip().startswith("•") for s in lines) / len(lines) > self.max_bullet_lines_ratio
+            and sum(s.lstrip().startswith("•") or s.lstrip().startswith("-") for s in lines) / len(lines)
+            > self.max_bullet_lines_ratio
         ):
             return False, "gopher_too_many_bullets"
         if (

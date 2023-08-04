@@ -58,13 +58,14 @@ def find_all_duplicate(words: list[str], n: int) -> int:
     unique = set()
     repeated_chars, idx = 0, 0
     while idx < n_words - n + 1:
-        n_gram = " ".join(words[idx : idx + n])
+        n_gram = "".join(words[idx : idx + n])
         if n_gram in unique:
             repeated_chars += len(n_gram)  # TODO check
             idx += n
         else:
             unique.add(n_gram)
             idx += 1
+    assert repeated_chars <= len("".join(words))
     return repeated_chars
 
 
@@ -125,7 +126,6 @@ class GopherRepetitionFilter(BaseFilter):
 
         for n, n_frac in self.dup_n_grams:
             n_duplicates_char = find_all_duplicate(words, n)
-            assert n_duplicates_char <= len(text), f"{n_duplicates_char=} but {len(text)=}"
             if n_duplicates_char / len(text) > n_frac:
                 return False, f"duplicated_{n}_n_grams"
 
