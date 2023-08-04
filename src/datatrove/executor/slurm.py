@@ -85,7 +85,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                         "cpus-per-task": 1,
                         "mem-per-cpu": "1G",
                         "array": "0",
-                        "dependency": f"afterok:{self.job_id}",
+                        "dependency": f"afterok:{','.join(self.job_ids)}",
                     },
                     f'merge_stats {os.path.join(self.logging_dir, "stats")} --output {os.path.join(self.logging_dir, "stats.json")}',
                 )
