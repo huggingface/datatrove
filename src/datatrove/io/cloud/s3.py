@@ -9,7 +9,9 @@ try:
     import boto3
     from botocore.exceptions import ClientError
 except ImportError:
-    pass
+
+    class ClientError(Exception):
+        pass
 
 
 def _get_s3_path_components(s3_path):
