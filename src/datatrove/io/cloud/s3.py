@@ -2,11 +2,16 @@ import os
 from collections import deque
 from fnmatch import fnmatch
 
+import backoff as backoff
+
 
 try:
     import boto3
+    from botocore.exceptions import ClientError
 except ImportError:
-    pass
+
+    class ClientError(Exception):
+        pass
 
 
 def _get_s3_path_components(s3_path):
@@ -42,6 +47,7 @@ def s3_download_file(cloud_path, local_path):
     bucket.download_file(prefix, local_path)
 
 
+@backoff.on_exception(backoff.expo, ClientError, max_time=10 * 60, giveup=lambda e: "SlowDown" not in str(e))
 def s3_get_file_stream(cloud_path):
     bucket_name, prefix = _get_s3_path_components(cloud_path)
     s3_client = boto3.client("s3")
