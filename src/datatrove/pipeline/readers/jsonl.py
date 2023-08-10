@@ -29,6 +29,8 @@ class JsonlReader(BaseReader):
                 with self.stats.time_manager:
                     try:
                         d = json.loads(line)
+                        if not d.get("content", None):
+                            continue
                         document = Document(**self.adapter(d, datafile.path, li))
                         document.metadata.setdefault("file_path", datafile.path)
                     except (EOFError, JSONDecodeError) as e:
