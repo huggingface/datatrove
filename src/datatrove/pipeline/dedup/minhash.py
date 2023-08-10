@@ -259,7 +259,7 @@ class MinhashDedupFilter(PipelineStep):
                     if next_removal == idx:
                         # to remove
                         if self.exclusion_writer:
-                            exc_writer.write(doc)
+                            exc_writer.write(doc, rank)
                         next_removal = get_next()
                         continue
                     yield doc
