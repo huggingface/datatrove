@@ -1,7 +1,7 @@
 import hashlib
 import re
-import string
 import struct
+import unicodedata
 
 import numpy as np
 
@@ -19,16 +19,20 @@ class ExtensionHelperES:
     stage_3_bytes_ranges = ".bytearange"
 
 
-# taken from
-# https://github.com/Cerebras/modelzoo/blob/main/modelzoo/transformers/data_processing/slimpajama/dedup/to_hash.py
+PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
+    map(chr, list(range(0, 32)) + list(range(127, 160)))
+)
+
+
 def simplify_content(text: str):
-    # TODO replace special chars: e' -> e
-    # lower cased
+    # lower case
     text = text.lower()
     # remove punctuation
-    text = text.translate(str.maketrans("", "", string.punctuation))
+    text = text.translate(str.maketrans("", "", PUNCTUATION))
     # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end
     text = re.sub(r"\s+", " ", text.strip())
+    # diacritics/unicode normalization
+    text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
     return text
 
 
