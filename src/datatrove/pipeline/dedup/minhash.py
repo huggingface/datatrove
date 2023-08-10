@@ -1,3 +1,4 @@
+import contextlib
 import heapq
 import struct
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from datatrove.data import DocumentsPipeline
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
+from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
 
@@ -198,6 +200,7 @@ class MinhashDedupCluster(PipelineStep):
     def __call__(self, data: DocumentsPipeline, bucket: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(extension=".dups")
         assert len(dup_files) == self.num_buckets, "There should be exactly one .dups file per bucket"
+        assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
 
         def parent(x):
@@ -228,10 +231,12 @@ class MinhashDedupFilter(PipelineStep):
     def __init__(
         self,
         input_folder: BaseInputDataFolder,
+        exclusion_writer: DiskWriter = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.data_folder = input_folder
+        self.exclusion_writer = exclusion_writer
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.data_folder.set_lock(dl_lock)
@@ -241,17 +246,20 @@ class MinhashDedupFilter(PipelineStep):
         assert len(remove_data) == 1, f"Must have exactly one .remove file per task. Found {len(remove_data)} files."
 
         with remove_data[0].open_binary() as f:
+            with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
 
-            def get_next():
-                data = f.read(struct.calcsize("I"))
-                if data:
-                    return struct.unpack("<I", data)[0]
+                def get_next():
+                    data = f.read(struct.calcsize("I"))
+                    if data:
+                        return struct.unpack("<I", data)[0]
 
-            next_removal = get_next()
-            for idx, doc in enumerate(data):
-                self.stat_update(StatHints.total)
-                if next_removal == idx:
-                    # to remove
-                    next_removal = get_next()
-                    continue
-                yield doc
+                next_removal = get_next()
+                for idx, doc in enumerate(data):
+                    self.stat_update(StatHints.total)
+                    if next_removal == idx:
+                        # to remove
+                        if self.exclusion_writer:
+                            exc_writer.write(doc)
+                        next_removal = get_next()
+                        continue
+                    yield doc
