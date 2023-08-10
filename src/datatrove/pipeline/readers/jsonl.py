@@ -22,6 +22,7 @@ class JsonlReader(BaseReader):
         super().__init__(data_folder, **kwargs)
         self.compression = compression
         self.adapter = adapter if adapter else lambda d, path, li: d
+        self.empty_warning = False
 
     def read_file(self, datafile: InputDataFile):
         with datafile.open(compression=self.compression) as f:
@@ -30,6 +31,9 @@ class JsonlReader(BaseReader):
                     try:
                         d = json.loads(line)
                         if not d.get("content", None):
+                            if not self.empty_warning:
+                                self.empty_warning = True
+                                logger.warning("Found document without content, skipping.")
                             continue
                         document = Document(**self.adapter(d, datafile.path, li))
                         document.metadata.setdefault("file_path", datafile.path)
