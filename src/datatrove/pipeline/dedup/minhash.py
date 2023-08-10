@@ -214,7 +214,7 @@ class MinhashDedupCluster(PipelineStep):
                 while data := df.read(4 * struct.calcsize("I")):
                     f1, d1, f2, d2 = struct.unpack("<4I", data)
                     a, b = (f1, d1), (f2, d2)
-                    union_set[parent(a)] = parent(b)
+                    union_set[parent(b)] = parent(a)
 
         for node in sorted(union_set.keys()):
             p = parent(node)
