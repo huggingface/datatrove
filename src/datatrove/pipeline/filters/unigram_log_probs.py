@@ -51,6 +51,13 @@ class UnigramLogProbFilter(BaseFilter):
         df["count"] = df["count"] / df["count"].sum()
         return dict(zip(df["word"], df["count"]))
 
+    def get_logprob(self, doc):
+        words = word_tokenize(doc.content)
+        freqs = [
+            self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
+        ]
+        return sum([np.log(f) for f in freqs]) / len(freqs)
+
     def filter(self, doc: Document) -> bool:
         """
 
@@ -58,9 +65,4 @@ class UnigramLogProbFilter(BaseFilter):
         :return: is_filter
         """
 
-        words = word_tokenize(doc.content)
-        freqs = [
-            self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
-        ]
-        logprob = sum([np.log(f) for f in freqs]) / len(freqs)
-        return logprob > self.logprobs_threshold
+        return self.get_logprob(doc) > self.logprobs_threshold
