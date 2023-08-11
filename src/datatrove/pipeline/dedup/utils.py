@@ -4,6 +4,10 @@ import struct
 import unicodedata
 
 import numpy as np
+from nltk.tokenize import sent_tokenize
+
+
+ESCAPE_PLACEHOLDER = "@_ESC_APE_@"
 
 
 class ExtensionHelperSD:
@@ -73,3 +77,10 @@ def sha1_hash32(data):
         int: an integer hash value that can be encoded using 32 bits.
     """
     return struct.unpack("<I", hashlib.sha1(data).digest()[:4])[0]
+
+
+def tokenize_with_escapes(text):
+    escaped_text = text.replace("\n", ESCAPE_PLACEHOLDER)
+    sentences = sent_tokenize(escaped_text)
+    sentences_with_escapes = [s.replace(ESCAPE_PLACEHOLDER, "\n") for s in sentences]
+    return sentences_with_escapes
