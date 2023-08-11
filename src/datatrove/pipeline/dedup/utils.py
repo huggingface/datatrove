@@ -7,7 +7,7 @@ import numpy as np
 from nltk.tokenize import sent_tokenize
 
 
-ESCAPE_PLACEHOLDER = "@_ESC_APE_@"
+ESCAPE_PLACEHOLDER = " @_ESC_APE_@ "
 
 
 class ExtensionHelperSD:
@@ -80,6 +80,7 @@ def sha1_hash32(data):
 
 
 def tokenize_with_escapes(text):
+    # TODO improve
     escaped_text = text.replace("\n", ESCAPE_PLACEHOLDER)
     sentences = sent_tokenize(escaped_text)
     sentences_with_escapes = [s.replace(ESCAPE_PLACEHOLDER, "\n") for s in sentences]

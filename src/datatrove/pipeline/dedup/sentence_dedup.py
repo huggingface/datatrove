@@ -19,7 +19,7 @@ from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFil
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
-from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash, tokenize_with_escapes
+from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash
 
 
 @dataclass
@@ -215,7 +215,7 @@ class SentenceDedupFilter(PipelineStep):
     def filter(self, doc: Document, du_lines: set = None):
         if not du_lines:
             return True
-        sentences = tokenize_with_escapes(doc.content)
+        sentences = sent_tokenize(doc.content)
         doc.content = " ".join(
             [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
         ).strip()
