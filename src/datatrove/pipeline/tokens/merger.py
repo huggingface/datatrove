@@ -18,7 +18,8 @@ class DocumentTokenizerMerger(PipelineStep):
         input_folder: BaseInputDataFolder,
         output_folder: BaseOutputDataFolder,
         save_filename: str,  # if defined, the final output filename will be this
-        max_tokens: int = 100e9,  # max number of tokens per file. default: 100GT
+        max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
+        max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
         save_loss_metadata: bool = True,
         *args,
@@ -28,6 +29,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.save_filename = save_filename
+        self.max_tokens_per_file = max_tokens_per_file
         self.max_tokens = max_tokens
         self.shuffle = shuffle
         self.save_loss_metadata = save_loss_metadata
@@ -67,6 +69,8 @@ class DocumentTokenizerMerger(PipelineStep):
         output_file.open()
         for input_file_id in ordering:
             if 0 < self.max_tokens <= len(output_file):
+                break
+            if 0 < self.max_tokens_per_file <= len(output_file):
                 output_file.close()
                 file_ct += 1
                 output_file = TokenizedFile(
