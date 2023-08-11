@@ -19,7 +19,7 @@ from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFil
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
-from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash
+from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash, tokenize_with_escapes
 
 
 @dataclass
@@ -213,9 +213,12 @@ class SentenceDedupFilter(PipelineStep):
         self.min_doc_words = min_doc_words
 
     def filter(self, doc: Document, du_lines: set = None):
-        sentences = sent_tokenize(doc.content)
-        # todo find a way to keep skip lines as in the original text
-        doc.content = " ".join([sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines])
+        if not du_lines:
+            return True
+        sentences = tokenize_with_escapes(doc.content)
+        doc.content = " ".join(
+            [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
+        ).strip()
         if len(word_tokenize(doc.content)) > self.min_doc_words:
             return True
         return False
