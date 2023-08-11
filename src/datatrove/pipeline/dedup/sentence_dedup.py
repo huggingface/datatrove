@@ -213,9 +213,12 @@ class SentenceDedupFilter(PipelineStep):
         self.min_doc_words = min_doc_words
 
     def filter(self, doc: Document, du_lines: set = None):
+        if not du_lines:
+            return True
         sentences = sent_tokenize(doc.content)
-        # todo find a way to keep skip lines as in the original text
-        doc.content = " ".join([sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines])
+        doc.content = " ".join(
+            [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
+        ).strip()
         if len(word_tokenize(doc.content)) > self.min_doc_words:
             return True
         return False
