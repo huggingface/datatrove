@@ -31,12 +31,10 @@ def load_input_mmap(file: InputDataFile):
         return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
 
 
-if __name__ == "__main__":
-    args = parser.parse_args()
-    input_folder: BaseInputDataFolder = BaseInputDataFolder.from_path(args.data)
-    tokenizer = Tokenizer.from_pretrained(args.tokenizer)
+def check_dataset(input_folder: BaseInputDataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>"):
+    tokenizer = Tokenizer.from_pretrained(tokenizer)
 
-    eos_token = tokenizer.token_to_id(args.eos)
+    eos_token = tokenizer.token_to_id(eos_token)
 
     datafiles = input_folder.list_files(extension=".ds")
     datafiles_index = input_folder.list_files(extension=".ds.index")
@@ -52,7 +50,6 @@ if __name__ == "__main__":
     for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
         zip(doc_ends, token_inputs, loss_inputs)
     ):
-        print(f"Processing file {filei + 1}/{len(datafiles)}")
         assert (
             not check_loss or file_token_inputs.size() == file_loss_inputs.size() * 2
         ), "Mismatch between loss and tokens file sizes"
@@ -61,4 +58,12 @@ if __name__ == "__main__":
             last_token = struct.unpack("<H", file_token_inputs[(doc_end.item() - 1) * 2 : doc_end.item() * 2])[0]
             assert last_token == eos_token, f"no EOS at doc end of doc {doci}"
         file_token_inputs.close()
+
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+
+    input_folder: BaseInputDataFolder = BaseInputDataFolder.from_path(args.data)
+
+    check_dataset(input_folder, args.tokenizer, args.eos)
     print("All checks ok")

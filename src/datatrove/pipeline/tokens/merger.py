@@ -1,4 +1,4 @@
-import mmap
+from functools import partial
 
 import numpy as np
 from numpy.random import default_rng
@@ -21,11 +21,11 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
+        seed: int = None,
         save_loss_metadata: bool = True,
-        *args,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.save_filename = save_filename
@@ -33,7 +33,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.max_tokens = max_tokens
         self.shuffle = shuffle
         self.save_loss_metadata = save_loss_metadata
-        self.rand = default_rng()
+        self.rand = default_rng(seed)
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.input_folder.set_lock(dl_lock)
@@ -55,10 +55,13 @@ class DocumentTokenizerMerger(PipelineStep):
         )
 
         doc_ends = [load_doc_ends(file) for file in datafiles_index]
-        token_inputs = list(map(load_input_mmap, datafiles))
-        loss_inputs = list(map(load_input_mmap, datafiles_loss)) if self.save_loss_metadata else datafiles_loss
+        token_inputs = list(map(partial(get_data_reader, nb_bytes=2), datafiles, doc_ends))
+        loss_inputs = (
+            list(map(partial(get_data_reader, nb_bytes=1), datafiles_loss, doc_ends))
+            if self.save_loss_metadata
+            else None
+        )
         ordering = self.get_ordering(doc_ends)
-        read_idx = np.zeros(len(datafiles), dtype=int)
 
         file_ct = 0
         output_file = TokenizedFile(
@@ -79,29 +82,30 @@ class DocumentTokenizerMerger(PipelineStep):
                     save_loss_metadata=self.save_loss_metadata,
                 )
                 output_file.open()
-            start, end = (
-                doc_ends[input_file_id][read_idx[input_file_id] - 1].item() if read_idx[input_file_id] > 0 else 0,
-                doc_ends[input_file_id][read_idx[input_file_id]].item(),
-            )
             # copy tokens and loss
-            output_file.write_bytes(token_inputs[input_file_id][start * 2 : end * 2])
-            output_file.write_loss_bytes(loss_inputs[input_file_id][start:end])
-            read_idx[input_file_id] += 1
-            self.stat_update("tokens", end - start)
+            tokens = next(token_inputs[input_file_id])
+            output_file.write_bytes(tokens)
+            if loss_inputs:
+                output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
+            self.stat_update("tokens", len(tokens) // 2)
         # cleanup
-        for token_input, loss_input in zip(token_inputs, loss_inputs):
-            token_input.close()
-            if loss_input:
-                loss_input.close()
         output_file.close()
         self.output_folder.close()
 
 
 def load_doc_ends(file: InputDataFile):
     with file.open_binary() as f:
-        return np.frombuffer(f.read(), dtype=np.uint64)
+        return np.frombuffer(f.read(), dtype=np.uint64).tolist()
 
 
-def load_input_mmap(file: InputDataFile):
+def get_data_reader(file: InputDataFile, doc_ends: list, nb_bytes: int):
     with file.open_binary() as f:
-        return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+        start_e = 0
+        for r_e in doc_ends:
+            yield f.read((r_e - start_e) * nb_bytes)
+            start_e = r_e
+
+
+# def load_input_mmap(file: InputDataFile):
+#     with file.open_binary() as f:
+#         return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
