@@ -86,6 +86,7 @@ class S3InputDataFolder(BaseInputDataFolder):
             S3InputDataFile(
                 path=os.path.join(self.path, suffix, path),
                 local_path=os.path.join(self.local_path, suffix, path),
+                relative_path=path,
                 folder=self,
                 stream=self.stream,
             )
