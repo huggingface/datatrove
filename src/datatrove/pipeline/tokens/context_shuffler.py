@@ -44,11 +44,11 @@ class DocumentTokenizerContextShuffler(PipelineStep):
             total_len = load_doc_ends(index)[-1]
             nr_windows = total_len // self.window_size
             ordering = self.rand.permutation(np.arange(0, nr_windows, dtype=int))
-            output_file = self.output_folder.create_new_file(datafile.relative_path)
+            fout = self.output_folder.create_new_file(datafile.relative_path).open("wb")
             with datafile.open_binary() as f:
-                with mmap.mmap(f.fileno(), 0) as unshuf:
-                    with output_file.open("wb") as fout:
-                        for windowi in ordering:
-                            start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
-                            fout.write(unshuf[start:end])
+                with mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ) as unshuf:
+                    for windowi in ordering:
+                        start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
+                        fout.write(unshuf[start:end])
+                    fout.close()
         self.output_folder.close()

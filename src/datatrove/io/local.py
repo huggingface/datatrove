@@ -24,7 +24,7 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
 class LocalInputDataFolder(BaseInputDataFolder):
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
         return [
-            InputDataFile(path)
+            InputDataFile(path, os.path.relpath(path, self.path))
             for path in get_local_file_list(os.path.join(self.path, suffix), self.recursive)
             if self._match_file(path, extension)
         ]
