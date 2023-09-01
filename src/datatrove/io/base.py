@@ -16,6 +16,7 @@ from loguru import logger
 @dataclass
 class InputDataFile:
     path: str
+    relative_path: str
 
     @contextmanager
     def open_binary(self):
