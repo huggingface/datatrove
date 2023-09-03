@@ -30,6 +30,9 @@ sequence
 to run stage 1,2 call run_stage_1_2, after you have followed deduplicate-text-datasets instructions in the README you
 can call stage 3 with run_stage_3.
 
+N.B
+The steps
+
 """
 
 
