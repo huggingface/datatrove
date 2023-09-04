@@ -29,7 +29,7 @@ from datatrove.pipeline.readers import JsonlReader
 from .utils import ExtensionHelperES as EH
 
 
-SEPARATOR_BYTES = 12  # TODO check
+SEPARATOR_BYTES = 12
 
 
 def prepare_doc(tokenizer, doc: str, rank: int, doc_id: int):
@@ -62,7 +62,7 @@ class DatasetToSequence(PipelineStep):
         f_lens.file_handler.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        doc_lens = []  # TODO check if it should not start from 0
+        doc_lens = []
         f_sequence = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb")
         for i, doc in enumerate(data):
             with self.stats.time_manager:
@@ -105,10 +105,9 @@ class MergeSequences(PipelineStep):
         self.output_folder.set_lock(up_lock)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        bytes_per_sequence = [0]  # TODO here starts with 0, make it logically better in accordance to stage 1
+        bytes_per_sequence = [0]
         with self.stats.time_manager:
             assert world_size == 1, f"{world_size=} can't be greater than 1!"
-            # todo double check with gui if list_files gives ordered list
             all_files: list[InputDataFile] = self.input_folder.list_files(extension=EH.stage_1_sequence)
             assert len(all_files) == self.tasks_stage_1
             f_sequence = self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb")
@@ -202,7 +201,8 @@ class DedupReader(JsonlReader):
             a, b = int(a), int(b)
             if b > self.sequence_bytes_offset[self.rank + 1] + SEPARATOR_BYTES:
                 break
-            if b > self.sequence_bytes_offset[self.rank]:
+            if b > self.sequence_bytes_offset[self.rank] + SEPARATOR_BYTES:
+                a, b = a - self.sequence_bytes_offset[self.rank], b - self.sequence_bytes_offset[self.rank]
                 rank_dup_ranges.append((a, b))
         self.dup_ranges = rank_dup_ranges
 
@@ -220,35 +220,54 @@ class DedupReader(JsonlReader):
         self.get_bytearange(byte_range_file)
         return sequence_file, docs_sizes_file
 
-    def get_range(self, bytes_len: int):
+    def normalize_range(self, a, b, bytes_len):
+        a, b = a - self.bytes_counter, b - self.bytes_counter
+        a = max(SEPARATOR_BYTES, a)
+        b = min(bytes_len, b)
+        assert (
+            SEPARATOR_BYTES <= a < b <= bytes_len
+        ), f"{SEPARATOR_BYTES=} < {a=} < {b=} < {bytes_len=} is NOT satisfied"
+
+        # TODO IMPROVE
+        if (b - a) % 2 != 0:
+            if b == bytes_len:
+                a += 1
+            else:
+                b += 1
+
+        return a, b
+
+    def get_duplicate_range(self, bytes_len: int):
         """
         Ranges produced by deduplicate-text-dataset can fall in one of the following 4 categories
 
-                   1)  A   *    B    *       A --> *, idx <-- idx + 1
-                   2)  *   A    B    *       idx <-- idx + 1
-                   3)  *   A    *    B       B --> *
-                   4)  A   *    *    B       A --> *, B --> *
+                   left    )  A   *    B    *       A --> *, idx <-- idx + 1
+                   centre  )  *   A    B    *       idx <-- idx + 1
+                   right   )  *   A    *    B       B --> *
+                   outside )  A   *    *    B       A --> *, B --> *
 
         * is self.bytes_counter
         * is upper_limit =  self.bytes_counter + bytes_len
 
         """
         ranges = []
-        upper_limit = self.bytes_counter + bytes_len
+        upper_limit = self.bytes_counter + bytes_len + SEPARATOR_BYTES
+
         if self.exhausted_ranges:
             return ranges
 
         while True:
             a, b = self.dup_ranges[self.range_idx][0], self.dup_ranges[self.range_idx][1]
-            left = a < self.bytes_counter < b < upper_limit
-            centre = self.bytes_counter < a < b < upper_limit
-            right = self.bytes_counter < a < upper_limit < b
+
+            left = a < self.bytes_counter and self.bytes_counter + SEPARATOR_BYTES < b <= upper_limit
+            centre = self.bytes_counter <= a < b <= upper_limit
+            right = self.bytes_counter <= a < upper_limit - SEPARATOR_BYTES and upper_limit < b
             outside = a < self.bytes_counter < upper_limit < b
 
             if not any([left, centre, right, outside]):
                 break
 
-            assert sum([left, centre, right, centre]) == 1, f"{left=}, {centre=}, {right=}, {outside=}"
+            assert sum([left, centre, right, outside]) == 1, f"{left=}, {centre=}, {right=}, {outside=}"
 
             if left:
                 self.range_idx += 1
@@ -256,11 +275,13 @@ class DedupReader(JsonlReader):
             if centre:
                 self.range_idx += 1
             if right:
-                b = upper_limit
-            if centre:
-                a, b = self.bytes_counter, upper_limit
+                ranges.append(self.normalize_range(a, upper_limit, bytes_len))
+                break
+            if outside:
+                ranges.append(self.normalize_range(self.bytes_counter, upper_limit, bytes_len))
+                break
 
-            ranges.append((a, b))
+            ranges.append(self.normalize_range(a, b, bytes_len))
 
             if self.range_idx == len(self.dup_ranges):
                 self.exhausted_ranges = True
@@ -268,79 +289,50 @@ class DedupReader(JsonlReader):
 
         return ranges
 
+    def remove_duplicate(self, doc, bytes_content):
+        n_bytes = len(bytes_content)
+        duplicates_ranges = self.get_duplicate_range(n_bytes)
+        duplicates = []
+        for byte_a, byte_b in duplicates_ranges:
+            dup_sentence = self.tokenizer.decode(np.frombuffer(bytes_content[byte_a:byte_b], dtype=np.uint16).tolist())
+            duplicates.append(dup_sentence)
 
-def normalize_range(self, x, n_bytes):
-    assert (
-        self.sequence_bytes_offset[self.rank]
-        < x[0]
-        < x[1]
-        < self.sequence_bytes_offset[self.rank + 1] + SEPARATOR_BYTES
-    ), f"{self.sequence_bytes_offset[self.rank]=}, {x[0]} {x[1]} {self.sequence_bytes_offset[self.rank + 1]=}"
+        if duplicates:
+            text = doc.content
+            # TODO improve
+            for d in duplicates:
+                text = text.replace(d, "")
+            doc.content = text
 
-    offset = self.sequence_bytes_offset[self.rank] + self.bytes_counter
-    a, b = x[0] - offset, x[1] - offset
-    assert all([a > -SEPARATOR_BYTES, b > 0]), f"byte_a={a}, byte_b={b}"
-    assert all([a < n_bytes, b < n_bytes + SEPARATOR_BYTES]), f"byte_a={a}, byte_b={b}"
-    a = max(SEPARATOR_BYTES, a)
-    b = min(n_bytes, b)
+        self.bytes_counter += len(bytes_content)
 
-    # TODO IMPROVE
-    if (b - a) % 2 != 0:
-        if b == n_bytes:
-            a += 1
-        else:
-            b += 1
+        if len(word_tokenize(doc.content)) < self.min_doc_words:
+            return False
 
-    return a, b
+        return True
 
+    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        self.reset()
+        self.rank = rank
+        # loads the sequence file from stage 1, the size file from stage 1 and the bytearange file.
+        sequence_file, size_file = self.get_all_files(rank=self.rank, world_size=world_size)
+        # data is given only during tests.
+        if not data:
+            data = self.read_files_shard(self.data_folder.get_files_shard(self.rank, world_size))
+        # data is still useful for the metadata lost in the sequence format.
+        for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
+            with self.stats.time_manager:
+                # We check that the two generators are synced, meaning the docs sizes bytes are correct.
+                assert doc.content == self.tokenizer.decode(
+                    read_bytes(doc_content)
+                ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
+                to_yield = self.remove_duplicate(doc, doc_content)
+            if to_yield:
+                self.stats.doc_len.update(len(doc.content))
+                yield doc
 
-def remove_duplicate(self, doc, bytes_content):
-    n_bytes = len(bytes_content)
-    duplicates_ranges = self.get_range(n_bytes)
-    duplicates = []
-    for dup_range in duplicates_ranges:
-        byte_a, byte_b = self.normalize_range(dup_range, n_bytes)
-        dup_sentence = self.tokenizer.decode(np.frombuffer(bytes_content[byte_a:byte_b], dtype=np.uint16).tolist())
-        duplicates.append(dup_sentence)
-
-    if duplicates:
-        text = doc.content
-        # TODO improve
-        for d in duplicates:
-            text = text.replace(d, "")
-        doc.content = text
-
-    self.bytes_counter += len(bytes_content)
-
-    if len(word_tokenize(doc.content)) < self.min_doc_words:
-        return False
-
-    return True
-
-
-def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-    self.reset()
-    self.rank = rank
-
-    # loads the sequence file from stage 1, the size file from stage 1 and the bytearange file.
-    sequence_file, size_file = self.get_all_files(rank=self.rank, world_size=world_size)
-    # data is given only during tests.
-    if not data:
-        data = self.read_files_shard(self.data_folder.get_files_shard(self.rank, world_size))
-    # data is still useful for the metadata lost in the sequence format.
-    for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
-        with self.stats.time_manager:
-            # We check that the two generators are synced, meaning the docs sizes bytes are correct.
-            assert doc.content == self.tokenizer.decode(
-                read_bytes(doc_content)
-            ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
-            to_yield = self.remove_duplicate(doc, doc_content)
-        if to_yield:
-            self.stats.doc_len.update(len(doc.content))
-            yield doc
-
-    # we check bytes counter matches with the offset of the following rank
-    assert (
-        self.bytes_counter == self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]
-    ), f"got {self.bytes_counter=}, expected = {self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]}"
-    assert self.exhausted_ranges, "One or more duplicate ranges have not been used"
+        # we check bytes counter matches with the offset of the following rank
+        assert (
+            self.bytes_counter == self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]
+        ), f"got {self.bytes_counter=}, expected = {self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]}"
+        assert self.exhausted_ranges, "One or more duplicate ranges have not been used"
