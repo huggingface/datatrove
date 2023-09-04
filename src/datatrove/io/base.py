@@ -97,9 +97,9 @@ class BaseInputDataFolder(ABC):
 
     def _match_file(self, file_path, extension=None):
         extensions = (
-            ([self.extension] if type(self.extension) == str else self.extension)
+            ([self.extension] if isinstance(self.extension, str) else self.extension)
             if not extension
-            else ([extension] if type(extension) == str else extension)
+            else ([extension] if isinstance(extension, str) else extension)
         )
         return (
             not extensions or any((get_extension(file_path).endswith(ext) for ext in extensions))
