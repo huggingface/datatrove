@@ -7,9 +7,8 @@ import unittest
 import numpy as np
 from tokenizers import Tokenizer
 
-from build.lib.datatrove.io import LocalInputDataFolder
 from datatrove.data import Document
-from datatrove.io import BaseInputDataFolder, LocalOutputDataFolder
+from datatrove.io import BaseInputDataFolder, LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends, load_input_mmap

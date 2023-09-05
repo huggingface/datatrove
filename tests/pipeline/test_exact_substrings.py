@@ -207,8 +207,8 @@ class TestExactSubstr(unittest.TestCase):
         self.assertTrue(os.path.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
-        dedup_reader.read_bytes_offset()
-        bytes_offset = dedup_reader.bytes_offset
+        dedup_reader.get_sequence_bytes_offset()
+        bytes_offset = dedup_reader.sequence_bytes_offset
         with open(os.path.join(self.test_dir, "00000.es_sequence"), "rb") as f_s:
             with open(os.path.join(self.test_dir, "dataset.big_sequence"), "rb") as f_b:
                 sequence = f_s.read()
@@ -253,8 +253,8 @@ class TestExactSubstr(unittest.TestCase):
         self.assertTrue(os.path.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
-        dedup_reader.read_bytes_offset()
-        bytes_offset = dedup_reader.bytes_offset
+        dedup_reader.get_sequence_bytes_offset()
+        bytes_offset = dedup_reader.sequence_bytes_offset
         with open(os.path.join(self.test_dir, "00001.es_sequence"), "rb") as f_1:
             with open(os.path.join(self.test_dir, "00000.es_sequence"), "rb") as f_0:
                 with open(os.path.join(self.test_dir, "dataset.big_sequence"), "rb") as f_b:
