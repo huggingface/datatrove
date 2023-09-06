@@ -13,6 +13,7 @@ from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_get_fil
 @dataclass
 class S3OutputDataFolder(BaseOutputDataFolder):
     local_path: str = None
+    cleanup: bool = True
 
     def __post_init__(self):
         super().__post_init__()
@@ -27,6 +28,8 @@ class S3OutputDataFolder(BaseOutputDataFolder):
                 logger.info(f'Uploading "{file.local_path}" to "{file.path}"...')
                 s3_upload_file(file.local_path, file.path)
                 logger.info(f'Uploaded "{file.local_path}" to "{file.path}".')
+                if self.cleanup:
+                    os.remove(file.local_path)
         if self._tmpdir:
             self._tmpdir.cleanup()
 
