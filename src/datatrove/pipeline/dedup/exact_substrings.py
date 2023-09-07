@@ -324,7 +324,7 @@ class DedupReader(JsonlReader):
             with self.stats.time_manager:
                 # We check that the two generators are synced, meaning the docs sizes bytes are correct.
                 assert doc.content == self.tokenizer.decode(
-                    read_bytes(doc_content)
+                    read_bytes(doc_content), skip_special_tokens=False
                 ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
                 to_yield = self.remove_duplicate(doc, doc_content)
             if to_yield:
