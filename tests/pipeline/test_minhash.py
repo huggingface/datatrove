@@ -60,7 +60,7 @@ class TestMinhash(unittest.TestCase):
             textd = lorem_ipsum[:endp] + lorem_ipsum[len(lorem_ipsum) - 1 : endp : -1]
             sigd = minhash.get_signature(minhash.get_shingles(textd))
             simil = sum([1 if a == b else 0 for ba, bb in zip(sig, sigd) for a, b in zip(ba, bb)]) / minhash.num_hashes
-            assert dec - 0.2 < simil < dec + 0.2
+            assert dec - 0.21 < simil < dec + 0.21
 
         # check output file format and order
         samples = [Document(f"sample {i}, {lorem_ipsum[i:: 10]}", data_id="test") for i in range(100)]

@@ -186,12 +186,14 @@ class MinhashDedupCluster(PipelineStep):
         input_folder: BaseInputDataFolder,
         output_folder: BaseOutputDataFolder,
         num_buckets: int = DEFAULT_NR_BUCKETS,
+        save_cluster_id: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.num_buckets = num_buckets
+        self.save_cluster_id = save_cluster_id
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.input_folder.set_lock(dl_lock)
@@ -216,11 +218,19 @@ class MinhashDedupCluster(PipelineStep):
                     a, b = (f1, d1), (f2, d2)
                     union_set[parent(b)] = parent(a)
 
+        ci = 0
+        cluster_ids = {}
         for node in sorted(union_set.keys()):
+            file, doc = node
             p = parent(node)
             if node != p:
-                file, doc = node
                 self.output_folder.open(f"{file:06d}.remove", mode="wb").write(struct.pack("<I", doc))
+            if self.save_cluster_id:
+                if p not in cluster_ids:
+                    cluster_ids[p] = ci
+                    ci += 1
+                self.output_folder.open(f"{file:06d}.clusters", mode="wb").write(struct.pack("<I", doc))
+                self.output_folder.open(f"{file:06d}.clusters", mode="wb").write(struct.pack("<I", cluster_ids[p]))
         self.output_folder.close()
 
 
@@ -232,18 +242,25 @@ class MinhashDedupFilter(PipelineStep):
         self,
         input_folder: BaseInputDataFolder,
         exclusion_writer: DiskWriter = None,
+        load_cluster_ids: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.data_folder = input_folder
         self.exclusion_writer = exclusion_writer
+        self.load_cluster_ids = load_cluster_ids
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.data_folder.set_lock(dl_lock)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        remove_data = self.data_folder.get_files_shard(rank, world_size)
-        assert len(remove_data) == 1, f"Must have exactly one .remove file per task. Found {len(remove_data)} files."
+        remove_data = self.data_folder.get_files_shard(rank, world_size, extension=".remove")
+        assert len(remove_data) <= 1, f"Must have exactly one .remove file per task. Found {len(remove_data)} files."
+
+        clusters_data = self.data_folder.get_files_shard(rank, world_size, extension=".clusters")
+        assert (
+            not self.load_cluster_ids or len(clusters_data) <= 1
+        ), f"Must have exactly one .clusters file per task. Found {len(remove_data)} files."
 
         with remove_data[0].open_binary() as f:
             with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
@@ -253,8 +270,23 @@ class MinhashDedupFilter(PipelineStep):
                     if data:
                         return struct.unpack("<I", data)[0]
 
+                def load_clusters():
+                    if clusters_data:
+                        with clusters_data[0].open_binary() as cf:
+                            while data := cf.read(struct.calcsize("I") * 2):
+                                yield struct.unpack("<I", data)
+
+                if self.load_cluster_ids:
+                    cluster_loader = load_clusters()
+                    next_cluster = next(cluster_loader, None)
+
                 next_removal = get_next()
                 for idx, doc in enumerate(data):
+                    if self.load_cluster_ids:
+                        if next_cluster and doc == next_cluster[0]:
+                            doc.metadata["minhash_cluster"] = next_cluster[1]
+                            next_cluster = next(cluster_loader, None)
+
                     self.stat_update(StatHints.total)
                     if next_removal == idx:
                         # to remove
