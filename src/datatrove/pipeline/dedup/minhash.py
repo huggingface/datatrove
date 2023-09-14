@@ -274,7 +274,7 @@ class MinhashDedupFilter(PipelineStep):
                     if clusters_data:
                         with clusters_data[0].open_binary() as cf:
                             while data := cf.read(struct.calcsize("I") * 2):
-                                yield struct.unpack("<I", data)
+                                yield struct.unpack("<2I", data)
 
                 if self.load_cluster_ids:
                     cluster_loader = load_clusters()
