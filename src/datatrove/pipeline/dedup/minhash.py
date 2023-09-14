@@ -283,7 +283,7 @@ class MinhashDedupFilter(PipelineStep):
                 next_removal = get_next()
                 for idx, doc in enumerate(data):
                     if self.load_cluster_ids:
-                        if next_cluster and doc == next_cluster[0]:
+                        if next_cluster and idx == next_cluster[0]:
                             doc.metadata["minhash_cluster"] = next_cluster[1]
                             next_cluster = next(cluster_loader, None)
 
