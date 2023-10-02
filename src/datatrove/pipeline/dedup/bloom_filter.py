@@ -1,24 +1,27 @@
+import contextlib
 import math
 
 import numpy as np
+from loguru import logger
 from nltk import ngrams, word_tokenize
 
-from datatrove.data import DocumentsPipeline
+from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
+from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
 _mersenne_prime = np.uint64((1 << 61) - 1)
-_max_hash = np.uint64((1 << 32) - 1)
-_hash_range = 1 << 32
+MAX_HASH = 1 << 32 - 1
 
 
 def get_optimal_k(size_in_bytes: int, expected_elements: int) -> int:
+    assert expected_elements, f"if {expected_elements=} then k must be given"
     m = size_in_bytes * 8
-    k = (m / expected_elements) * np.ln(2)
+    k = (m / expected_elements) * np.log(2)
     return math.ceil(k)
 
 
@@ -27,38 +30,63 @@ def get_false_positive_prob(size_in_bytes: int, n: int, k: int) -> float:
     return (1.0 - (1.0 - (1.0 / m)) ** (k * n)) ** k
 
 
-def suggest_size_in_bytes(expected_elements: int, target_prob=0.01) -> int:
-    size_in_bytes = 1024 * 1024
-    while (
-        get_false_positive_prob(size_in_bytes, expected_elements, get_optimal_k(size_in_bytes, expected_elements))
-        > target_prob
-    ):
-        size_in_bytes *= 2
-    return size_in_bytes
-
-
-class BloomFilterCreation(PipelineStep):
+class SingleBloomFilter(PipelineStep):
     type = "🫂 - DEDUPS"
-    name = "💥 sentence-deduplication stage 1"
+    name = "🪷 Bloom-filter"
 
     def __init__(
-        self, output_folder: BaseOutputDataFolder, m: int, min_n_grams: int = 5, max_n_grams: int = 13, **kwargs
+        self,
+        output_folder: BaseOutputDataFolder,
+        m_bytes: int,
+        k: int = None,
+        expected_elements: int = None,
+        duplicate_threshold: float = 0.8,
+        n_grams: int = 13,
+        seed: int = 0,
+        save_bloom_filter: bool = False,
+        exclusion_writer: DiskWriter = None,
+        **kwargs,
     ):
         """
 
-        :param output_folder: folder where signatures are saved
-        :param n_sentences: n_sentences where duplicates are checked.
-        :param stage_2_workers: TODO implement parallel second stage
+        :param output_folder: output folder: local or on S3
+        :param m_bytes: bloom filter size in bytes (actual size x8 bigger)
+        :param k: number of hashes
+        :param expected_elements: expected number of elements, aka shingles.
+        :param duplicate_threshold: above which documents are considered as duplicated
+        :param n_grams: n_grams to use
+        :param seed: seed
+        :param save_bloom_filter: if true saves bloom filter for later use
+        :param exclusion_writer: saves duplicated data
         :param kwargs:
         """
+
         super().__init__(**kwargs)
         self.output_folder = output_folder
-        self.m = m
-        self.min_n_grams = min_n_grams
-        self.max_n_grams = max_n_grams
-        self.k = get_optimal_k(
-            self.m,
-        )
+        self.m_bytes = m_bytes  # size in bits
+        self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
+        self.m = m_bytes * 8  # (self.m + 7) // 8  # size in bytes
+        self.duplicate_threshold = duplicate_threshold
+        self.n_grams = n_grams
+        self.bit_vector = bytearray(([0] * self.m_bytes))
+        self.save_bloom_filter = save_bloom_filter
+        self.exclusion_writer = exclusion_writer
+        assert self.m < MAX_HASH
+
+        self.seed = seed
+        self.total_shingles = 0
+        self._parameters = None
+
+        assert self.m_bytes < MAX_HASH, f"{MAX_HASH=} is smaller than {self.m_bytes=}"
+        if expected_elements:
+            fp = get_false_positive_prob(self.m_bytes, n=expected_elements, k=self.k)
+            if fp > 0.05:
+                logger.warning(f"False probability = {fp:.3}")
+            else:
+                logger.info(f"False probability = {fp:.3}")
+
+    def set_up_dl_locks(self, dl_lock, up_lock):
+        self.output_folder.set_lock(up_lock)
 
     @property
     def parameters(self):
@@ -72,15 +100,7 @@ class BloomFilterCreation(PipelineStep):
             )
         return self._parameters
 
-    def get_signature(self, shingles):
-        a, b = self.parameters
-        phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, _max_hash)
-        return [x.tolist() for x in np.split(np.min(phv, axis=0).astype(np.uint32), self.num_buckets)]
-
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
-
-    def get_shingles(self, text):
+    def get_shingles(self, text: str) -> np.ndarray:
         return np.array(
             [
                 [sha1_hash32(" ".join(x).encode("utf-8"))]
@@ -89,11 +109,62 @@ class BloomFilterCreation(PipelineStep):
             dtype=np.uint64,
         )
 
+    def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
+        a, b = self.parameters
+        phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, self.m_bytes)
+        return phv.tolist()
+
+    def update_bf(self, indexes: list[int]):
+        for index in indexes:
+            byte_index, bit_index = divmod(index, 8)
+            mask = 1 << bit_index
+            self.bit_vector[byte_index] |= mask
+
+    def query(self, indexes: list[int]) -> bool:
+        for idx in indexes:
+            byte_index, bit_index = divmod(idx, 8)
+            mask = 1 << bit_index
+            if (self.bit_vector[byte_index] & mask) == 0:
+                return False
+
+        return True
+
+    def step(self, doc: Document) -> bool:
+        shingles = self.get_shingles(doc.content)
+        self.total_shingles += shingles.size
+        if shingles.size == 0:
+            return True
+        shingle_indexes = self.get_indexes(shingles)
+
+        duplicate_shingles = 0
+        indexes_to_update = []
+        for indexes in shingle_indexes:
+            if self.query(indexes):
+                duplicate_shingles += 1
+            else:
+                indexes_to_update.extend(indexes)
+
+        self.update_bf(indexes_to_update)
+        if duplicate_shingles / len(shingles) > self.duplicate_threshold:
+            self.stat_update(StatHints.dropped)
+            return False
+        return True
+
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        self.signatures = []
-        for doc_idx, doc in enumerate(data):
-            with self.stats.time_manager:
-                self.stat_update(StatHints.total)
-                # todo my shit
-        self.save_hashes(rank)
-        self.output_folder.close()
+        with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
+            for doc_idx, doc in enumerate(data):
+                with self.stats.time_manager:
+                    self.stat_update(StatHints.total)
+                    if self.step(doc):
+                        self.stat_update(StatHints.forwarded)
+                        yield doc
+                    else:
+                        if self.exclusion_writer:
+                            writer.write(doc, rank)
+            if self.save_bloom_filter:
+                with self.output_folder.open("bloom_filter.bloom", mode="wb") as f:
+                    f.write(self.bit_vector)
+
+        logger.info(f"{self.total_shingles=}")
+        logger.info(f"False probability = {get_false_positive_prob(self.m_bytes, n=self.total_shingles, k=self.k):.3}")
+        logger.info(f"Optimal K given total shingles = {get_optimal_k(self.m_bytes, self.total_shingles)}")
