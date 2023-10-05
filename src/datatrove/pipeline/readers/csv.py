@@ -24,7 +24,7 @@ class CSVReader(BaseReader):
         self.content_column = content_column
         self.id_column = id_column
         self.compression = compression
-        self.adapter = adapter if adapter else lambda d, path, li: self._base_adapter
+        self.adapter = adapter if adapter else self._base_adapter
         self.empty_warning = False
 
     def read_file(self, datafile: InputDataFile):
