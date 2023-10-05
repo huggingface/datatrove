@@ -4,6 +4,7 @@ from string import Template
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseOutputDataFolder, OutputDataFile
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.typeshelper import StatHints
 
 
 class DiskWriter(PipelineStep, ABC):
@@ -45,6 +46,7 @@ class DiskWriter(PipelineStep, ABC):
         self._write(document, output_file)
         output_file.nr_documents += 1
         self.stat_update(output_filename)
+        self.stat_update(StatHints.total)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         with self:

@@ -290,8 +290,10 @@ class MinhashDedupFilter(PipelineStep):
                     self.stat_update(StatHints.total)
                     if next_removal == idx:
                         # to remove
+                        self.stat_update(StatHints.dropped)
                         if self.exclusion_writer:
                             exc_writer.write(doc, rank)
                         next_removal = get_next()
                         continue
+                    self.stat_update(StatHints.forwarded)
                     yield doc
