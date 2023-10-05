@@ -8,7 +8,10 @@ TLDR
    a second file with the bytes offset of where each individual doc begins.
 2) MergeSequences all sequences into a big single sequence. it saves the bytes offset per file.
 
- ... call deduplicate-text-datasets scripts ...
+ ... call deduplicate-text-datasets scripts
+     in particular `cargo run self-similar ...` and `cargo run self-similar` need to be called
+
+
 
 3) DedupReader reads docs and ranges at the same time and remove duplicates.
 
@@ -50,6 +53,12 @@ class DatasetToSequence(PipelineStep):
     name = "🪞 - exact-substrings stage 1"
 
     def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2", **kwargs):
+        """
+
+        :param output_folder: folder where sequences are saved
+        :param tokenizer_name: name of tokenizer as in HF tokenizers.
+        :param kwargs:
+        """
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
@@ -95,6 +104,14 @@ class MergeSequences(PipelineStep):
         bytes_per_batch: int = int(500e6),
         **kwargs,
     ):
+        """
+
+        :param input_folder: folder where sequences were saved in stage 1
+        :param output_folder: folder where the big sequence will be saved
+        :param tasks_stage_1: number of tasks used in stage 1
+        :param bytes_per_batch: number of bytes read per sequence
+        :param kwargs:
+        """
         super().__init__(**kwargs)
         self.input_folder = input_folder
         self.output_folder = output_folder
