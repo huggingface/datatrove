@@ -12,6 +12,8 @@ from typing import Literal
 import zstandard
 from loguru import logger
 
+from datatrove.io.utils.fsspec import valid_fsspec_path
+
 
 @dataclass
 class InputDataFile:
@@ -71,10 +73,12 @@ class BaseInputDataFolder(ABC):
 
     @classmethod
     def from_path(cls, path, **kwargs):
-        from datatrove.io import LocalInputDataFolder, S3InputDataFolder
+        from datatrove.io import FSSpecInputDataFolder, LocalInputDataFolder, S3InputDataFolder
 
         if path.startswith("s3://"):
             return S3InputDataFolder(path, **kwargs)
+        elif valid_fsspec_path(path):
+            return FSSpecInputDataFolder(path, **kwargs)
         return LocalInputDataFolder(path, **kwargs)
 
     @abstractmethod
@@ -119,7 +123,7 @@ def get_extension(filepath):
 
 @dataclass
 class OutputDataFile(ABC):
-    local_path: str
+    local_path: str | None
     path: str
     relative_path: str
     file_handler = None
@@ -154,10 +158,12 @@ class BaseOutputDataFolder(ABC):
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
-        from datatrove.io import LocalOutputDataFolder, S3OutputDataFolder
+        from datatrove.io import FSSpecOutputDataFolder, LocalOutputDataFolder, S3OutputDataFolder
 
         if path.startswith("s3://"):
             return S3OutputDataFolder(path, **kwargs)
+        elif valid_fsspec_path(path):
+            return FSSpecOutputDataFolder(path, **kwargs)
         return LocalOutputDataFolder(path, **kwargs)
 
     @abstractmethod

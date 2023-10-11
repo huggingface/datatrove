@@ -65,7 +65,7 @@ def _match_prefix(base_prefix, prefix, match_pattern=None):
 
 def s3_get_file_list(cloud_path, match_pattern=None, recursive=True):
     """
-        Get list of relative paths to files in a cloud folder with a given (optional) extension
+        Get list of relative paths to files in a utils folder with a given (optional) extension
     @param cloud_path:
     @param match_pattern:
     @param recursive:

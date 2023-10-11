@@ -7,7 +7,7 @@ from loguru import logger
 
 from datatrove.io import BaseOutputDataFolder, InputDataFile
 from datatrove.io.base import BaseInputDataFolder, OutputDataFile
-from datatrove.io.cloud.s3 import s3_download_file, s3_get_file_list, s3_get_file_stream, s3_upload_file
+from datatrove.io.utils.s3 import s3_download_file, s3_get_file_list, s3_get_file_stream, s3_upload_file
 
 
 @dataclass

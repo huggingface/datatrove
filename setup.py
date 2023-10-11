@@ -18,6 +18,7 @@ REQUIRED_PKGS = [
     "tldextract==3.4.4",
     "pandas==2.0.3",
     "backoff==2.2.1",
+    "fsspec==2023.9.2",
 ]
 
 EXTRAS = {
