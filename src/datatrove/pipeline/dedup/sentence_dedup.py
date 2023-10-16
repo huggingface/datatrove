@@ -220,6 +220,7 @@ class SentenceDedupFilter(PipelineStep):
         filtered_sentences = [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
         if len(filtered_sentences) < len(sentences):
             self.stat_update("removed_sentences", len(sentences) - len(filtered_sentences))
+        self.stat_update()
         doc.content = " ".join(filtered_sentences).strip()
         if len(word_tokenize(doc.content)) > self.min_doc_words:
             return True
