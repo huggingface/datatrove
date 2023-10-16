@@ -43,18 +43,16 @@ class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
 
-    def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, stage_2_workers: int = 1, **kwargs):
+    def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, **kwargs):
         """
 
         :param output_folder: folder where signatures are saved
         :param n_sentences: n_sentences where duplicates are checked.
-        :param stage_2_workers: TODO implement parallel second stage
         :param kwargs:
         """
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.n_sentences = n_sentences
-        self.stage_2_workers = stage_2_workers
         self.signatures = []
 
     def set_up_dl_locks(self, dl_lock, up_lock):
@@ -173,6 +171,7 @@ class SentenceFindDedups(PipelineStep):
 
         for i in range(len(sig_files)):
             if i not in files_with_duplicates:
+                # empty files as the next stage expects 1 file per task
                 self.output_folder.open(f"{i:05d}{ExtensionHelperSD.stage_2_duplicates}", mode="wb")
         self.output_folder.close()
 
@@ -189,7 +188,7 @@ def read_duplicates(file: InputDataFile) -> Generator[tuple, None, None]:
                 if not by:
                     return
                 x.append(struct.unpack(f"<{t}", by)[0])
-            yield tuple(x)
+            yield tuple(x)  # (doc_id, sent_id) pairs
 
 
 class SentenceDedupFilter(PipelineStep):
@@ -199,6 +198,7 @@ class SentenceDedupFilter(PipelineStep):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
+        n_sentences: int = 3,
         min_doc_words: int = 50,
         **kwargs,
     ):
@@ -210,15 +210,17 @@ class SentenceDedupFilter(PipelineStep):
         """
         super().__init__(**kwargs)
         self.data_folder: BaseInputDataFolder = data_folder
+        self.n_sentences = n_sentences
         self.min_doc_words = min_doc_words
 
     def filter(self, doc: Document, du_lines: set = None):
         if not du_lines:
             return True
         sentences = sent_tokenize(doc.content)
-        doc.content = " ".join(
-            [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
-        ).strip()
+        filtered_sentences = [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
+        if len(filtered_sentences) < len(sentences):
+            self.stat_update("removed_sentences", len(sentences) - len(filtered_sentences))
+        doc.content = " ".join(filtered_sentences).strip()
         if len(word_tokenize(doc.content)) > self.min_doc_words:
             return True
         return False
@@ -239,7 +241,7 @@ class SentenceDedupFilter(PipelineStep):
             f"{world_size=} {rank}"
         )
 
-        du_file = merge_docs(sorted(read_duplicates(files[0])))
+        du_file = merge_docs(sorted(read_duplicates(files[0])), self.n_sentences)
         for idx, doc in enumerate(data):
             self.stat_update(StatHints.total)
             with self.stats.time_manager:
