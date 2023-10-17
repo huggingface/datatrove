@@ -8,7 +8,6 @@ from: https://jmlr.org/papers/volume21/20-074/20-074.pdf (C4)
 
 """
 import contextlib
-import dataclasses
 import heapq
 import struct
 from dataclasses import dataclass
@@ -273,4 +272,5 @@ class SentenceDedupFilter(PipelineStep):
                     self.stats.doc_len.update(len(doc.content))
                     yield doc
                 elif writer and original_formatted:
-                    writer.write(Document(**dataclasses.asdict(doc), content=original_formatted), rank=rank)
+                    doc.content = original_formatted
+                    writer.write(doc, rank=rank)
