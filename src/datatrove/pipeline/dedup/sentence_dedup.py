@@ -222,7 +222,7 @@ class SentenceDedupFilter(PipelineStep):
 
     def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> (str, str):
         if not du_lines:
-            return doc.content
+            return doc.content, None
         sentence_spans = list(self._tokenizer.span_tokenize(doc.content))
         kept_sentences = []
         original_formatted = []
@@ -272,5 +272,5 @@ class SentenceDedupFilter(PipelineStep):
                     doc.content = filtered_content
                     self.stats.doc_len.update(len(doc.content))
                     yield doc
-                elif writer:
+                elif writer and original_formatted:
                     writer.write(Document(**dataclasses.asdict(doc), content=original_formatted), rank=rank)
