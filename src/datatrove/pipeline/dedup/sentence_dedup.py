@@ -223,7 +223,7 @@ class SentenceDedupFilter(PipelineStep):
     def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> (str, str):
         if not du_lines:
             return doc.content
-        sentence_spans = self._tokenizer.span_tokenize(doc.content)
+        sentence_spans = list(self._tokenizer.span_tokenize(doc.content))
         kept_sentences = []
         original_formatted = []
         last_s = 0
