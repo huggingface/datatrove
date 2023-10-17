@@ -7,11 +7,14 @@ from: https://jmlr.org/papers/volume21/20-074/20-074.pdf (C4)
 # get hashes for each doc and write them down
 
 """
+import contextlib
+import dataclasses
 import heapq
 import struct
 from dataclasses import dataclass
 from typing import Generator
 
+from nltk import load
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
@@ -19,6 +22,7 @@ from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFil
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
+from ..writers.disk_base import DiskWriter
 from .utils import ExtensionHelperSD, merge_docs, simplify_content, str_hash
 
 
@@ -200,6 +204,7 @@ class SentenceDedupFilter(PipelineStep):
         data_folder: BaseInputDataFolder,
         n_sentences: int = 3,
         min_doc_words: int = 50,
+        exclusion_writer: DiskWriter = None,
         **kwargs,
     ):
         """
@@ -212,19 +217,32 @@ class SentenceDedupFilter(PipelineStep):
         self.data_folder: BaseInputDataFolder = data_folder
         self.n_sentences = n_sentences
         self.min_doc_words = min_doc_words
+        self._tokenizer = load("tokenizers/punkt/english.pickle")
+        self.exclusion_writer = exclusion_writer
 
-    def filter(self, doc: Document, du_lines: set = None):
+    def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> (str, str):
         if not du_lines:
-            return True
-        sentences = sent_tokenize(doc.content)
-        filtered_sentences = [sent for idx, sent in enumerate(sentences) if not du_lines or idx not in du_lines]
-        if len(filtered_sentences) < len(sentences):
-            self.stat_update("removed_sentences", len(sentences) - len(filtered_sentences))
-        self.stat_update("original_sentences", len(sentences))
-        doc.content = " ".join(filtered_sentences).strip()
-        if len(word_tokenize(doc.content)) > self.min_doc_words:
-            return True
-        return False
+            return doc.content
+        sentence_spans = self._tokenizer.span_tokenize(doc.content)
+        kept_sentences = []
+        original_formatted = []
+        last_s = 0
+        in_removed_span = False
+        for idx, s in enumerate(sentence_spans):
+            if idx not in du_lines:
+                kept_sentences.append(doc.content[last_s : s[1]])
+                if in_removed_span:
+                    original_formatted.append("<<<")
+                in_removed_span = False
+            elif not in_removed_span:
+                in_removed_span = True
+                original_formatted.append(">>>")
+            original_formatted.append(doc.content[last_s : s[1]])
+            last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
+        if len(kept_sentences) < len(sentence_spans):
+            self.stat_update("removed_sentences", len(sentence_spans) - len(kept_sentences))
+        self.stat_update("original_sentences", len(sentence_spans))
+        return "".join(kept_sentences).lstrip(), "".join(original_formatted)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
@@ -243,10 +261,16 @@ class SentenceDedupFilter(PipelineStep):
         )
 
         du_file = merge_docs(sorted(read_duplicates(files[0])), self.n_sentences)
-        for idx, doc in enumerate(data):
-            self.stat_update(StatHints.total)
-            with self.stats.time_manager:
-                is_kept = self.filter(doc, du_lines=du_file.get(idx))
-            if is_kept:
-                self.stats.doc_len.update(len(doc.content))
-                yield doc
+        with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
+            for idx, doc in enumerate(data):
+                self.stat_update(StatHints.total)
+                with self.stats.time_manager:
+                    filtered_content, original_formatted = self.remove_dup_sentences(doc, du_lines=du_file.get(idx))
+                if (
+                    filtered_content == doc.content or len(word_tokenize(filtered_content)) > self.min_doc_words
+                ):  # document is kept
+                    doc.content = filtered_content
+                    self.stats.doc_len.update(len(doc.content))
+                    yield doc
+                elif writer:
+                    writer.write(Document(**dataclasses.asdict(doc), content=original_formatted), rank=rank)
