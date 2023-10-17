@@ -238,6 +238,8 @@ class SentenceDedupFilter(PipelineStep):
                 original_formatted.append(">>>")
             original_formatted.append(doc.content[last_s : s[1]])
             last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
+        if in_removed_span:
+            original_formatted.append("<<<")
         if len(kept_sentences) < len(sentence_spans):
             self.stat_update("removed_sentences", len(sentence_spans) - len(kept_sentences))
         self.stat_update("original_sentences", len(sentence_spans))
