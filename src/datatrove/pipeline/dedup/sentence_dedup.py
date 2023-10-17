@@ -8,6 +8,7 @@ from: https://jmlr.org/papers/volume21/20-074/20-074.pdf (C4)
 
 """
 import contextlib
+import dataclasses
 import heapq
 import struct
 from dataclasses import dataclass
@@ -231,15 +232,15 @@ class SentenceDedupFilter(PipelineStep):
             if idx not in du_lines:
                 kept_sentences.append(doc.content[last_s : s[1]])
                 if in_removed_span:
-                    original_formatted.append("<<<")
+                    original_formatted.append("<<<\u001b[0m")
                 in_removed_span = False
             elif not in_removed_span:
                 in_removed_span = True
-                original_formatted.append(">>>")
+                original_formatted.append("\033[91m>>>")
             original_formatted.append(doc.content[last_s : s[1]])
             last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
         if in_removed_span:
-            original_formatted.append("<<<")
+            original_formatted.append("<<<\u001b[0m")
         if len(kept_sentences) < len(sentence_spans):
             self.stat_update("removed_sentences", len(sentence_spans) - len(kept_sentences))
         self.stat_update("original_sentences", len(sentence_spans))
@@ -270,9 +271,11 @@ class SentenceDedupFilter(PipelineStep):
                 if (
                     filtered_content == doc.content or len(word_tokenize(filtered_content)) > self.min_doc_words
                 ):  # document is kept
-                    doc.content = filtered_content
                     self.stats.doc_len.update(len(doc.content))
+                    if not filtered_content == doc.content and writer:
+                        writer.write(dataclasses.replace(doc, content=original_formatted), rank=rank)
+                    doc.content = filtered_content
                     yield doc
-                elif writer and original_formatted:
+                elif writer:
                     doc.content = original_formatted
                     writer.write(doc, rank=rank)
