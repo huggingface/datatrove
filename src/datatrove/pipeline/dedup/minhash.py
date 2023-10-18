@@ -153,6 +153,7 @@ class MinhashDedupBuckets(PipelineStep):
         index_folder: BaseInputDataFolder = None,
         hashes_per_bucket: int = DEFAULT_PER_BUCKET,
         num_buckets: int = DEFAULT_NR_BUCKETS,
+        only_dedup_in_index: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -161,6 +162,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.num_buckets = num_buckets
         self.hashes_per_bucket = hashes_per_bucket
         self.index_folder = index_folder
+        self.only_dedup_in_index = only_dedup_in_index
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.input_folder.set_lock(dl_lock)
@@ -192,7 +194,8 @@ class MinhashDedupBuckets(PipelineStep):
                 # write (file_id1, doc_id1, file_id2, doc_id2), where file_id1 <= file_id2
                 if last.is_from_index():
                     out_f.write(struct.pack("<4I", v.file_id, v.doc_id, SENTINEL, SENTINEL))
-                else:
+                # if there isn't an index, or we are not only deduping in relation to the index
+                elif not index_files or not self.only_dedup_in_index:
                     out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
             last = v
             next_sig = next(sig_readers[v.reader_id], None)
