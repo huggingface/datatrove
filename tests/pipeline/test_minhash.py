@@ -13,6 +13,7 @@ from datatrove.pipeline.dedup.minhash import (
     MinhashDedupCluster,
     MinhashDedupFilter,
     MinhashDedupSignature,
+    read_sigs,
 )
 
 
@@ -103,7 +104,7 @@ class TestMinhash(unittest.TestCase):
         # test file read
         for fi, file in enumerate(buckets_block.input_folder.list_files()):
             last = None
-            for sig in buckets_block.read_sigs(file, fi):
+            for sig in read_sigs(file, fi, buckets_block.hashes_per_bucket):
                 assert 0 <= sig.doc_id < 100
                 assert last is None or sig.sig >= last
                 assert len(sig.sig) == buckets_block.hashes_per_bucket

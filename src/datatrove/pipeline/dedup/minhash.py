@@ -23,7 +23,7 @@ _hash_range = 1 << 32
 
 """
 n_grams -> roughly nr of words (this should be small enough to catch fuzzy matches but big enough to not have each shingle be too common)
-threshold is (1/8)^(1/14)~0.72
+threshold is (1/14)^(1/8)~0.72
 threshold is real minhash similarity cutoff for high probability inclusion by LSH minhash
 probability of inclusion for s=0.8: 1-(1-0.8^8)^14=0.924
 """
@@ -175,6 +175,7 @@ class MinhashDedupBuckets(PipelineStep):
         sig_readers = [read_sigs(file, file_i, self.hashes_per_bucket) for file_i, file in enumerate(sig_files)]
         index_files = self.index_folder.list_files(suffix=f"bucket_{bucket:03d}") if self.index_folder else None
         if index_files:
+            logger.info(f"Found index file(s): {', '.join([file.relative_path for file in index_files])}")
             sig_readers.extend(
                 [
                     read_sigs(file, len(sig_readers) + file_i, self.hashes_per_bucket, index_file=True)
