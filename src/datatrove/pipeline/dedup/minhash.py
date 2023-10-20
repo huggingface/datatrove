@@ -192,9 +192,10 @@ class MinhashDedupBuckets(PipelineStep):
         while pq:
             v: HashSig = heapq.heappop(pq)
             if last and last.sig == v.sig and not v.is_from_index():
-                # write (file_id1, doc_id1, file_id2, doc_id2), where file_id1 <= file_id2
+                # write (file_id1, doc_id1, file_id2, doc_id2)
                 if last.is_from_index():
-                    out_f.write(struct.pack("<4I", v.file_id, v.doc_id, SENTINEL, SENTINEL))
+                    # we can't actually write -1
+                    out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_id, v.doc_id))
                 # if there isn't an index, or we are not only deduping in relation to the index
                 elif not index_files or not self.only_dedup_in_index:
                     out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
@@ -227,7 +228,7 @@ class MinhashDedupCluster(PipelineStep):
         self.input_folder.set_lock(dl_lock)
         self.output_folder.set_lock(up_lock)
 
-    def __call__(self, data: DocumentsPipeline, bucket: int = 0, world_size: int = 1):
+    def __call__(self, data: DocumentsPipeline, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(extension=".dups")
         assert len(dup_files) == self.num_buckets, "There should be exactly one .dups file per bucket"
         assert world_size == 1, "World size must be 1 for clustering"
