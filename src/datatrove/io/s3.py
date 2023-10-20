@@ -48,7 +48,8 @@ class S3OutputDataFolder(BaseOutputDataFolder):
 class S3InputDataFile(InputDataFile):
     local_path: str = None
     stream: bool = False
-    folder: BaseInputDataFolder = None
+    folder: "S3InputDataFolder" = None
+    cleanup: bool = True
 
     @contextmanager
     def open_binary(self):
@@ -67,13 +68,18 @@ class S3InputDataFile(InputDataFile):
                     s3_download_file(self.path, self.local_path)
                     logger.info(f'Downloaded "{self.path}" to "{self.local_path}".')
             with open(self.local_path, mode="rb") as f:
-                yield f
+                try:
+                    yield f
+                finally:
+                    if self.folder.cleanup:
+                        os.remove(self.local_path)
 
 
 @dataclass
 class S3InputDataFolder(BaseInputDataFolder):
     local_path: str = None
     stream: bool = False
+    cleanup: bool = True
 
     def __post_init__(self):
         super().__post_init__()
