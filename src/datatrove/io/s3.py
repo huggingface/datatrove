@@ -49,7 +49,6 @@ class S3InputDataFile(InputDataFile):
     local_path: str = None
     stream: bool = False
     folder: "S3InputDataFolder" = None
-    cleanup: bool = True
 
     @contextmanager
     def open_binary(self):
