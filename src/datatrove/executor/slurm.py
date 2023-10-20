@@ -62,7 +62,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.job_ids = []
 
     def run(self):
-        if "SLURM_JOB_ID" in os.environ:
+        if "SLURM_ARRAY_TASK_ID" in os.environ:
             rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
             completion_file = os.path.join(self.logging_dir, "completions", f"{rank:05d}")
             if rank >= self.world_size:
