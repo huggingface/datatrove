@@ -283,15 +283,17 @@ class MinhashDedupFilter(PipelineStep):
         self.data_folder.set_lock(dl_lock)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        remove_data = self.data_folder.get_files_shard(rank, world_size, extension=".remove")
-        assert len(remove_data) <= 1, f"Must have exactly one .remove file per task. Found {len(remove_data)} files."
+        remove_file = self.data_folder.get_file(f"{rank:06d}.remove")
 
         clusters_data = self.data_folder.get_files_shard(rank, world_size, extension=".clusters")
         assert (
             not self.load_cluster_ids or len(clusters_data) <= 1
-        ), f"Must have exactly one .clusters file per task. Found {len(remove_data)} files."
+        ), f"Must have exactly one .clusters file per task. Found {len(clusters_data)} files."
 
-        with remove_data[0].open_binary() as f:
+        if not remove_file:
+            logger.warning(f"No .remove file for {rank=}.")
+            return
+        with remove_file.open_binary() as f:
             with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
 
                 def get_next():

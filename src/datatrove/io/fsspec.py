@@ -55,7 +55,15 @@ class FSSpecInputDataFolder(BaseInputDataFolder):
 
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
         return [
-            FSSpecInputDataFile(path=path, relative_path=os.path.relpath(path, self.path), _fs=self._fs)
-            for path in self._fs.ls(self.path, detail=False)
+            self.__get_file(os.path.relpath(path, self.path))
+            for path in self._fs.ls(os.path.join(self.path, suffix), detail=False)
             if self._match_file(path, extension)
         ]
+
+    def __get_file(self, relative_path: str):
+        return FSSpecInputDataFile(
+            path=os.path.join(self.path, relative_path), relative_path=relative_path, _fs=self._fs
+        )
+
+    def file_exists(self, relative_path: str) -> bool:
+        return self._fs.isfile(os.path.join(self.path, relative_path))

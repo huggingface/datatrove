@@ -7,7 +7,13 @@ from loguru import logger
 
 from datatrove.io import BaseOutputDataFolder, InputDataFile
 from datatrove.io.base import BaseInputDataFolder, OutputDataFile
-from datatrove.io.utils.s3 import s3_download_file, s3_get_file_list, s3_get_file_stream, s3_upload_file
+from datatrove.io.utils.s3 import (
+    s3_download_file,
+    s3_file_exists,
+    s3_get_file_list,
+    s3_get_file_stream,
+    s3_upload_file,
+)
 
 
 @dataclass
@@ -86,18 +92,24 @@ class S3InputDataFolder(BaseInputDataFolder):
             raise ValueError("S3InputDataFolder path must start with s3://")
         self._tmpdir = None
 
+    def __get_file(self, relative_path: str):
+        return S3InputDataFile(
+            path=os.path.join(self.path, relative_path),
+            local_path=os.path.join(self.local_path, relative_path),
+            relative_path=relative_path,
+            folder=self,
+            stream=self.stream,
+        )
+
+    def file_exists(self, relative_path: str) -> bool:
+        return s3_file_exists(os.path.join(self.path, relative_path))
+
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
         if not self.local_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.local_path = self._tmpdir.name
         return [
-            S3InputDataFile(
-                path=os.path.join(self.path, suffix, path),
-                local_path=os.path.join(self.local_path, suffix, path),
-                relative_path=path,
-                folder=self,
-                stream=self.stream,
-            )
+            self.__get_file(os.path.join(suffix, path))
             for path in s3_get_file_list(
                 os.path.join(self.path, suffix), match_pattern=self.match_pattern, recursive=self.recursive
             )

@@ -99,6 +99,17 @@ class BaseInputDataFolder(ABC):
     def get_files_shard(self, rank: int, world_size: int, extension: str | list[str] = None) -> list[InputDataFile]:
         return self.list_files(extension=extension)[rank::world_size]
 
+    def get_file(self, relative_path: str) -> InputDataFile | None:
+        if self.file_exists(relative_path):
+            return self.__get_file(relative_path)
+
+    def __get_file(self, relative_path: str) -> InputDataFile:
+        return InputDataFile(path=os.path.join(self.path, relative_path), relative_path=relative_path)
+
+    @abstractmethod
+    def file_exists(self, relative_path: str) -> bool:
+        return True
+
     def _match_file(self, file_path, extension=None):
         extensions = (
             ([self.extension] if isinstance(self.extension, str) else self.extension)

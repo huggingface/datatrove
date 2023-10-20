@@ -29,6 +29,9 @@ class LocalInputDataFolder(BaseInputDataFolder):
             if self._match_file(path, extension)
         ]
 
+    def file_exists(self, relative_path: str) -> bool:
+        return os.path.exists(os.path.join(self.path, relative_path))
+
 
 def get_local_file_list(path: str, recursive: bool = True) -> list[str]:
     filelist = []

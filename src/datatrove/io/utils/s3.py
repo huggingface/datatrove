@@ -19,6 +19,24 @@ def _get_s3_path_components(s3_path):
     return bucket_name, prefix
 
 
+def s3_file_exists(cloud_path):
+    """
+        Checks if a given file to path exists. Currently only check for s3. If path is a folder path return False
+    @params cloud_path:
+    @return: bool
+    """
+    s3_client = boto3.client("s3")
+    bucket_name, prefix = _get_s3_path_components(cloud_path)
+
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=prefix)
+        return True
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] != "404":
+            raise exc
+        return False
+
+
 def s3_upload_file(local_path, cloud_path):
     """
     @param local_path:
