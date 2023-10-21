@@ -101,9 +101,9 @@ class BaseInputDataFolder(ABC):
 
     def get_file(self, relative_path: str) -> InputDataFile | None:
         if self.file_exists(relative_path):
-            return self.__get_file(relative_path)
+            return self.unchecked_get_file(relative_path)
 
-    def __get_file(self, relative_path: str) -> InputDataFile:
+    def unchecked_get_file(self, relative_path: str) -> InputDataFile:
         return InputDataFile(path=os.path.join(self.path, relative_path), relative_path=relative_path)
 
     @abstractmethod
