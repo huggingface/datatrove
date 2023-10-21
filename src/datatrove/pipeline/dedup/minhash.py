@@ -292,6 +292,10 @@ class MinhashDedupFilter(PipelineStep):
 
         if not remove_file:
             logger.warning(f"No .remove file for {rank=}.")
+            for doc in data:
+                self.stat_update(StatHints.total)
+                self.stat_update(StatHints.forwarded)
+                yield doc
             return
         with remove_file.open_binary() as f:
             with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
