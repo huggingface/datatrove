@@ -34,11 +34,11 @@ class BaseReader(PipelineStep):
                     if self.limit != -1 and li >= self.limit:
                         return
                     yield document
-                    if pbar:
+                    if self.progress:
                         pbar.update()
                     li += 1
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def __call__(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data
         yield from self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))

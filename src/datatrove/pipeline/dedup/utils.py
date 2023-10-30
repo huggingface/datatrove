@@ -32,13 +32,13 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 def simplify_content(text: str):
     # lower case
     text = text.lower()
-    # remove punctuation
-    text = text.translate(str.maketrans("", "", PUNCTUATION))
     # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end
     text = re.sub(r"\s+", " ", text.strip())
+    # remove punctuation
+    text = text.translate(str.maketrans("", "", PUNCTUATION))
     # diacritics/unicode normalization
     text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
-    return text
+    return text.strip()
 
 
 def _b2i(b: bytes) -> int:
