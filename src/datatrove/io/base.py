@@ -66,6 +66,14 @@ class InputDataFile:
 
 @dataclass
 class BaseInputDataFolder(ABC):
+    """ An input data folder
+    
+    Args:   
+        path (str): path to the folder
+        extension (str | list[str], optional): file extensions to filter. Defaults to None.
+        recursive (bool, optional): whether to search recursively. Defaults to True.
+        match_pattern (str, optional): pattern to match file names. Defaults to None.
+    """
     path: str
     extension: str | list[str] = None
     recursive: bool = True

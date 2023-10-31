@@ -17,10 +17,12 @@ class JsonlReader(BaseReader):
         data_folder: BaseInputDataFolder,
         compression: Literal["gzip", "zst"] | None = None,
         adapter: Callable = None,
+        content_key: str = "content",
         **kwargs,
     ):
         super().__init__(data_folder, **kwargs)
         self.compression = compression
+        self.content_key = content_key
         self.adapter = adapter if adapter else lambda d, path, li: d
         self.empty_warning = False
 
@@ -30,7 +32,7 @@ class JsonlReader(BaseReader):
                 with self.stats.time_manager:
                     try:
                         d = json.loads(line)
-                        if not d.get("content", None):
+                        if not d.get(self.content_key, None):
                             if not self.empty_warning:
                                 self.empty_warning = True
                                 logger.warning("Found document without content, skipping.")

@@ -27,6 +27,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mem_per_cpu_gb: int = 2,
         workers: int = -1,
         job_name: str = "data_processing",
+        env_command: str = None,
         condaenv: str = None,
         venv_path: str = None,
         sbatch_args: dict | None = None,
@@ -54,6 +55,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.logging_dir = logging_dir
         self.time = time
         self.job_name = job_name
+        self.env_command = env_command
         self.condaenv = condaenv
         self.venv_path = venv_path
         self.depends = depends
@@ -158,9 +160,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def get_launch_file(self, sbatch_args: dict, run_script: str):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])
 
-        env_command = (
+        env_command = self.env_command if self.env_command else (
             f"""conda init bash
-        conda activate {self.condaenv}"""
+        conda activate {self.condaenv}
+        source ~/.bashrc"""
             if self.condaenv
             else (f"source {self.venv_path}" if self.venv_path else "")
         )
@@ -172,7 +175,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 f"""
         echo "Starting data processing job {self.job_name}"
         {env_command}
-        source ~/.bashrc
         set -xe
         {run_script}
         """
