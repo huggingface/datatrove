@@ -50,7 +50,10 @@ class FSSpecInputDataFolder(BaseInputDataFolder):
 
     def __post_init__(self):
         super().__post_init__()
-        protocol, self.path = self.path.split("://")
+        if "://" in self.path:
+            protocol, self.path = self.path.split("://")
+        else:
+            protocol = "file"
         self._fs = fsspec.filesystem(protocol, **(self.storage_options if self.storage_options else {}))
 
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
