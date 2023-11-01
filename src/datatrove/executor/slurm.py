@@ -110,8 +110,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         os.makedirs(os.path.join(self.logging_dir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(self.logging_dir, "completions"), exist_ok=True)
         assert not self.depends or (
-            isinstance(self.depends, SlurmPipelineExecutor) and self.depends.job_ids
-        ), "depends= must be a SlurmPipelineExecutor that was already launched!"
+            isinstance(self.depends, SlurmPipelineExecutor)
+        ), "depends= must be a SlurmPipelineExecutor"
+        if self.depends and not self.depends.job_ids:
+            logger.info(f'Launching dependency job "{self.depends.job_name}"')
+            self.depends.launch_job()
 
         # pickle
         with open(os.path.join(self.logging_dir, "executor.pik"), "wb") as f:
@@ -160,12 +163,16 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def get_launch_file(self, sbatch_args: dict, run_script: str):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])
 
-        env_command = self.env_command if self.env_command else (
-            f"""conda init bash
+        env_command = (
+            self.env_command
+            if self.env_command
+            else (
+                f"""conda init bash
         conda activate {self.condaenv}
         source ~/.bashrc"""
-            if self.condaenv
-            else (f"source {self.venv_path}" if self.venv_path else "")
+                if self.condaenv
+                else (f"source {self.venv_path}" if self.venv_path else "")
+            )
         )
 
         return (

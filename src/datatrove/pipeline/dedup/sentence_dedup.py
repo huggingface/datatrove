@@ -63,16 +63,15 @@ class SentenceDedupSignature(PipelineStep):
         super().__init__(**kwargs)
         self.output_folder = output_folder
         self.n_sentences = n_sentences
-        self.signatures = []
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def save_hashes(self, rank: int):
-        self.signatures.sort()
+    def save_hashes(self, rank: int, signatures):
+        signatures.sort()
 
         f = self.output_folder.open(f"{rank:05d}{ExtensionHelperSD.stage_1_signature}", mode="wb")
-        for hs in self.signatures:
+        for hs in signatures:
             f.write(struct.pack("<Q", hs.hash_value))
             f.write(struct.pack("<I", hs.doc_id))
             f.write(struct.pack("<H", hs.sent_id))
@@ -108,12 +107,12 @@ class SentenceDedupSignature(PipelineStep):
         sentence idx. Before saving them the hashes are sorted.
 
         """
-        self.signatures = []
+        signatures = []
         for doc_idx, doc in enumerate(data):
             with self.stats.time_manager:
                 self.stat_update(StatHints.total)
-                self.signatures.extend(self.get_hashes(doc, doc_idx))
-        self.save_hashes(rank)
+                signatures.extend(self.get_hashes(doc, doc_idx))
+        self.save_hashes(rank, signatures)
         self.output_folder.close()
 
 
