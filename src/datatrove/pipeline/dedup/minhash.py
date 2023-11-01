@@ -11,7 +11,7 @@ from nltk import ngrams, word_tokenize
 from datatrove.data import DocumentsPipeline
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
+from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, simplify_content
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
@@ -54,16 +54,11 @@ class HashSig:
 
 def read_sigs(file: InputDataFile, reader_id: int, hashes_per_bucket: int, index_file: bool = False) -> Generator:
     n = hashes_per_bucket + 1 if not index_file else hashes_per_bucket
-    with file.open(binary=True) as f:
-        while True:
-            data = f.read(n * struct.calcsize("I"))
-            if not data:
-                return
-            data = struct.unpack("<%sI" % n, data)
-            if index_file:
-                yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
-            else:
-                yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
+    for data in read_tuples_from_file(file, f"{n}I"):
+        if index_file:
+            yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
+        else:
+            yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
 
 
 class MinhashDedupSignature(PipelineStep):
@@ -241,11 +236,9 @@ class MinhashDedupCluster(PipelineStep):
             return union_set[x]
 
         for dup_file in dup_files:
-            with dup_file.open(binary=True) as df:
-                while data := df.read(4 * struct.calcsize("I")):
-                    f1, d1, f2, d2 = struct.unpack("<4I", data)
-                    a, b = (f1, d1), (f2, d2)
-                    union_set[parent(b)] = parent(a)
+            for f1, d1, f2, d2 in read_tuples_from_file(dup_file, "4I"):
+                a, b = (f1, d1), (f2, d2)
+                union_set[parent(b)] = parent(a)
 
         ci = 0
         cluster_ids = {}
@@ -307,9 +300,7 @@ class MinhashDedupFilter(PipelineStep):
 
                 def load_clusters():
                     if clusters_data:
-                        with clusters_data[0].open_binary() as cf:
-                            while data := cf.read(struct.calcsize("I") * 2):
-                                yield struct.unpack("<2I", data)
+                        yield from read_tuples_from_file(clusters_data[0], "2I")
 
                 if self.load_cluster_ids:
                     cluster_loader = load_clusters()

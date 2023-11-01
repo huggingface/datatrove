@@ -5,15 +5,14 @@ import unicodedata
 from collections import defaultdict
 
 import numpy as np
-from nltk.tokenize import sent_tokenize
 
-
-ESCAPE_PLACEHOLDER = " @_ESC_APE_@ "
+from datatrove.io import InputDataFile
 
 
 class ExtensionHelperSD:
     stage_1_signature = ".c4_sig"
     stage_2_duplicates = ".c4_dup"
+    index = ".c4_index"
 
 
 class ExtensionHelperES:
@@ -27,6 +26,17 @@ class ExtensionHelperES:
 PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
     map(chr, list(range(0, 32)) + list(range(127, 160)))
 )
+
+
+def read_tuples_from_file(file: InputDataFile, *formats):
+    with file.open(binary=True) as f:
+        while True:
+            line = []
+            for F in formats:
+                if not (data := f.read(struct.calcsize(F))):
+                    return
+                line.extend(struct.unpack(f"<{F}", data))
+            yield tuple(line)
 
 
 def simplify_content(text: str):
@@ -51,7 +61,6 @@ def str_hash(s: str) -> int:
 
 
 def merge_docs(sen_list, n_sentences: int = 3) -> dict:
-    # TODO IMPROVE!
     def to_sentences(idx: int):
         return {idx + i for i in range(n_sentences)}
 
@@ -72,11 +81,3 @@ def sha1_hash32(data):
         int: an integer hash value that can be encoded using 32 bits.
     """
     return struct.unpack("<I", hashlib.sha1(data).digest()[:4])[0]
-
-
-def tokenize_with_escapes(text):
-    # TODO improve
-    escaped_text = text.replace("\n", ESCAPE_PLACEHOLDER)
-    sentences = sent_tokenize(escaped_text)
-    sentences_with_escapes = [s.replace(ESCAPE_PLACEHOLDER, "\n") for s in sentences]
-    return sentences_with_escapes

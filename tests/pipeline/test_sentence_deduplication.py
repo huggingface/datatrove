@@ -87,8 +87,8 @@ rs_2 = get_random_string()
 DOCS = [
     Document(content=TEXT_0, data_id="0"),
     Document(content=TEXT_1, data_id="1"),
-    Document(content=" ".join([TEXT_0 + rs_1]), data_id="2"),
-    Document(content=" ".join([rs_1 + TEXT_0 + rs_2]), data_id="3"),
+    Document(content=" ".join([TEXT_0, rs_1]), data_id="2"),
+    Document(content=" ".join([rs_1, TEXT_0, rs_2]), data_id="3"),
     Document(content=LOTR, data_id="4"),
     Document(content=" ".join([LOTR, HPPS]), data_id="5"),
 ]
@@ -104,16 +104,25 @@ DOCS_2 = [
 TARGETS = [
     TEXT_0,
     EXPECTED_TEXT_1,
-    "'" + rs_1,
-    " ".join([rs_1 + SENTENCE_ + " '" + rs_2]),
+    rs_1,
+    " ".join([rs_1, rs_2]),
     LOTR,
     HPPS,
 ]
 
-TARGETS_2 = [
+TARGETS_WS2_0 = [
+    TEXT_0,
+    EXPECTED_TEXT_1,
+    rs_1,
+    " ".join([rs_1, rs_2]),
+    HPPS,
+]
+
+TARGETS_WS2_1 = [
     TEXT_0_1,
     TEXT_1_1,
     TEXT_2_1,
+    LOTR,
     TEXT_3_1,
 ]
 
@@ -134,28 +143,25 @@ class SentenceDedup(unittest.TestCase):
         )
         dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.test_dir), min_doc_words=0)
 
-        docs = copy.deepcopy(DOCS)
-        signature_creation(data=docs)
+        signature_creation(data=DOCS)
         find_duplicates(data=[])
-        for i, doc in enumerate(dedup_filter(data=docs)):
+        for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS))):
             self.assertEqual(doc.content, TARGETS[i])
 
     def test_sd_worker(self):
-        docs, docs_2 = copy.deepcopy(DOCS), copy.deepcopy(DOCS_2)
         signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.test_dir))
-        signature_creation(data=docs, rank=0, world_size=2)
-        signature_creation(data=docs_2, rank=1, world_size=2)
 
         find_duplicates = SentenceFindDedups(
             data_folder=LocalInputDataFolder(self.test_dir), output_folder=LocalOutputDataFolder(self.test_dir)
         )
-
-        find_duplicates(data=[])
-
         dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.test_dir), min_doc_words=0)
 
+        signature_creation(data=DOCS, rank=0, world_size=2)
+        signature_creation(data=DOCS_2, rank=1, world_size=2)
+        find_duplicates(data=[])
+
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS), rank=0, world_size=2)):
-            self.assertEqual(doc.content, TARGETS[i])
+            self.assertEqual(doc.content, TARGETS_WS2_0[i], msg=str(i))
 
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2)):
-            self.assertEqual(doc.content, TARGETS_2[i])
+            self.assertEqual(doc.content, TARGETS_WS2_1[i])
