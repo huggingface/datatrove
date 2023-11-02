@@ -74,8 +74,8 @@ def read_sigs(file: InputDataFile, reader_id: int, config: MinhashConfig, index_
         for data in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}"):
             yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
     else:
-        for *data, doc_id in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}", "I"):
-            yield HashSig(sig=tuple(data), doc_id=doc_id, file_id=reader_id, reader_id=reader_id)
+        for data in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}", "I"):
+            yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
 
 
 class MinhashDedupSignature(PipelineStep):
