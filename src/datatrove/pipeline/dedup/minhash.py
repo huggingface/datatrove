@@ -382,7 +382,7 @@ class MinhashBuildIndex(PipelineStep):
         while pq:
             v: HashSig = heapq.heappop(pq)
             if not last or last.sig != v.sig:
-                out_f.write(struct.pack("<%dI" % self.config.hashes_per_bucket, *v.sig))
+                out_f.write(struct.pack(f"<%d{self.config.hash_format}" % self.config.hashes_per_bucket, *v.sig))
             last = v
             next_sig = next(sig_readers[v.file_id], None)
             if next_sig:
