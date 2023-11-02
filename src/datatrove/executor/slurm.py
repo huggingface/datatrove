@@ -62,6 +62,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self._sbatch_args = sbatch_args if sbatch_args else {}
         self.max_array_size = max_array_size
         self.job_ids = []
+        self.depends_job_ids = []
 
     def run(self):
         if "SLURM_ARRAY_TASK_ID" in os.environ:
@@ -98,8 +99,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
     @property
     def dependency(self):
         dependency = []
-        if self.depends:
-            dependency.append(f"afterok:{','.join(self.depends.job_ids)}")
+        if self.depends_job_ids:
+            dependency.append(f"afterok:{','.join(self.depends_job_ids)}")
         if self.job_ids:
             dependency.append(f"afterany:{self.job_ids[-1]}")
         return ",".join(dependency)
@@ -112,9 +113,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor)
         ), "depends= must be a SlurmPipelineExecutor"
-        if self.depends and not self.depends.job_ids:
-            logger.info(f'Launching dependency job "{self.depends.job_name}"')
-            self.depends.launch_job()
+        if self.depends:
+            if not self.depends.job_ids:
+                logger.info(f'Launching dependency job "{self.depends.job_name}"')
+                self.depends.launch_job()
+            self.depends_job_ids = self.depends.job_ids
+            self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
         # pickle
         with open(os.path.join(self.logging_dir, "executor.pik"), "wb") as f:
