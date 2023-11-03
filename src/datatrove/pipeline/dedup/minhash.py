@@ -109,7 +109,7 @@ class MinhashDedupSignature(PipelineStep):
     def get_signature(self, shingles):
         a, b = self.parameters
         phv = (shingles * a + b) % _mersenne_prime
-        if self.config.use_64bit_hashes:
+        if not self.config.use_64bit_hashes:
             phv = np.bitwise_and(phv, _max_hash_32b)
         return [
             x.tolist() for x in np.split(np.min(phv, axis=0).astype(self.config.hash_dtype), self.config.num_buckets)
