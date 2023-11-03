@@ -11,7 +11,7 @@ from nltk import ngrams, word_tokenize
 from datatrove.data import DocumentsPipeline
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, simplify_content
+from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, sha1_hash64, simplify_content
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
@@ -93,6 +93,7 @@ class MinhashDedupSignature(PipelineStep):
         self.config = config
         self.num_hashes = self.config.num_buckets * self.config.hashes_per_bucket
         self._parameters = None
+        self._hash_func = sha1_hash32 if not self.config.use_64bit_hashes else sha1_hash64
 
     @property
     def parameters(self):
@@ -121,7 +122,7 @@ class MinhashDedupSignature(PipelineStep):
     def get_shingles(self, text):
         return np.array(
             [
-                [sha1_hash32(" ".join(x).encode("utf-8"))]
+                [self._hash_func(" ".join(x).encode("utf-8"))]
                 for x in ngrams(word_tokenize(simplify_content(text)), self.config.n_grams)
             ],
             dtype=np.uint64,
