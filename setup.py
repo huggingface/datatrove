@@ -2,6 +2,7 @@ from setuptools import find_packages, setup
 
 
 REQUIRED_PKGS = [
+    "boto3==1.28.78",
     "cchardet==2.1.7",
     "inscriptis==2.3.2",
     "loguru==0.7.0",

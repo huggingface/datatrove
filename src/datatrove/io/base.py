@@ -145,7 +145,7 @@ def get_extension(filepath):
 class OutputDataFile(ABC):
     local_path: str | None
     path: str
-    relative_path: str
+    relative_path: str = None
     file_handler = None
     nr_documents: int = 0
 

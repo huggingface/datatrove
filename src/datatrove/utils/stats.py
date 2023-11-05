@@ -86,6 +86,9 @@ class Stats:
             }
         return data
 
+    def to_json(self):
+        return json.dumps(self.to_dict(), indent=4)
+
     @classmethod
     def from_dict(cls, data):
         stats = cls(data["name"])

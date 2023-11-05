@@ -1,3 +1,4 @@
+import gzip as gzip_lib
 import os.path
 import tempfile
 from contextlib import contextmanager
@@ -36,6 +37,8 @@ class S3OutputDataFolder(BaseOutputDataFolder):
                 logger.info(f'Uploaded "{file.local_path}" to "{file.path}".')
                 if self.cleanup:
                     os.remove(file.local_path)
+        if self.cleanup:
+            self._output_files = {}
         if self._tmpdir:
             self._tmpdir.cleanup()
 
@@ -48,6 +51,46 @@ class S3OutputDataFolder(BaseOutputDataFolder):
             path=os.path.join(self.path, relative_path),
             relative_path=relative_path,
         )
+
+
+@dataclass
+class S3OutputDataFile(OutputDataFile):
+    path: str = None
+    cleanup: bool = True
+
+    def __post_init__(self):
+        if not self.path.startswith("s3://"):
+            raise ValueError("S3OutputDataFile path must start with s3://")
+        self._tmpdir = None
+
+    def close(self):
+        super().close()
+        logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
+        s3_upload_file(self.local_path, self.path)
+        logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
+        if self.cleanup:
+            os.remove(self.local_path)
+        if self._tmpdir:
+            self._tmpdir.cleanup()
+
+    def __enter__(self):
+        self.open()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
+        if not self.local_path:
+            self._tmpdir = tempfile.TemporaryDirectory()
+            self.local_path = self._tmpdir.name
+        if not self.file_handler or overwrite:
+            os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
+            self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
+        return self
+
+    def write(self, *args, **kwargs):
+        self.file_handler.write(*args, **kwargs)
 
 
 @dataclass

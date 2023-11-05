@@ -43,7 +43,7 @@ def s3_upload_file(local_path, cloud_path):
     @param cloud_path:
     """
     if not os.path.isfile(local_path):
-        raise OSError
+        raise OSError(f"File {local_path} does not exist")
     bucket_name, prefix = _get_s3_path_components(cloud_path)
 
     # Upload the file
