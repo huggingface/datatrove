@@ -16,7 +16,7 @@ class CSVReader(BaseReader):
         data_folder: BaseInputDataFolder,
         content_column: str = "content",
         id_column: str = "data_id",
-        compression: Literal["gzip", "zst"] | None = None,
+        compression: Literal["guess", "gzip", "zst"] | None = "guess",
         adapter: Callable = None,
         **kwargs,
     ):

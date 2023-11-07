@@ -15,7 +15,7 @@ class JsonlReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        compression: Literal["gzip", "zst"] | None = None,
+        compression: Literal["guess", "gzip", "zst"] | None = "guess",
         adapter: Callable = None,
         content_key: str = "content",
         **kwargs,

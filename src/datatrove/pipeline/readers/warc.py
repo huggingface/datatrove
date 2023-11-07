@@ -13,7 +13,7 @@ from datatrove.pipeline.readers.base import BaseReader
 class WarcReader(BaseReader):
     name = "🕷️ Warc"
 
-    def __init__(self, *args, compression: Literal["gzip", "zst"] | None = None, **kwargs):
+    def __init__(self, *args, compression: Literal["guess", "gzip", "zst"] | None = "guess", **kwargs):
         self.compression = compression
         super().__init__(*args, **kwargs)
 

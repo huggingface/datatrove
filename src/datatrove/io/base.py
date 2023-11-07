@@ -47,7 +47,9 @@ class InputDataFile:
                     yield f
 
     @contextmanager
-    def open(self, binary=False, compression: Literal["gzip", "zst"] | None = None):
+    def open(self, binary=False, compression: Literal["guess", "gzip", "zst"] | None = None):
+        if compression == "guess":
+            compression = guess_compression(self.relative_path)
         match compression:
             case "gzip":
                 with self.open_gzip(binary) as f:
@@ -132,13 +134,25 @@ class BaseInputDataFolder(ABC):
         )
 
 
-def get_extension(filepath):
+def get_extension(filepath, depth=None):
     exts = []
     stem, ext = os.path.splitext(filepath)
     while ext:
         exts.append(ext)
         stem, ext = os.path.splitext(stem)
+        if depth and len(exts) >= depth:
+            break
     return "".join(reversed(exts))
+
+
+def guess_compression(filename):
+    match get_extension(filename, depth=1):
+        case ".gz":
+            return "gzip"
+        case ".zst":
+            return "zst"
+        case _:
+            return None
 
 
 @dataclass
@@ -148,6 +162,7 @@ class OutputDataFile(ABC):
     relative_path: str
     file_handler = None
     nr_documents: int = 0
+    mode: str = None
 
     def close(self):
         if self.file_handler:
@@ -156,11 +171,17 @@ class OutputDataFile(ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
-        if not self.file_handler or overwrite:
-            os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
-            self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
+    def open(self, mode: str = "w", gzip: bool = False):
+        if not self.file_handler or self.mode != mode:
+            if self.file_handler:
+                self.file_handler.close()
+            self.file_handler = self._create_file_handler(mode, gzip)
+            self.mode = mode
         return self
+
+    def _create_file_handler(self, mode: str = "w", gzip: bool = False):
+        os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
+        return open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
 
     def write(self, *args, **kwargs):
         self.file_handler.write(*args, **kwargs)
@@ -206,9 +227,7 @@ class BaseOutputDataFolder(ABC):
             if output_file.local_path and os.path.isfile(output_file.local_path):
                 os.remove(output_file.local_path)
 
-    def open(self, relative_path: str, mode: str = "w", gzip: bool = False, overwrite: bool = False):
-        if relative_path not in self._output_files or overwrite:
-            new_output_file = self.create_new_file(relative_path)
-            new_output_file.open(mode, gzip, overwrite=overwrite)
-            self._output_files[relative_path] = new_output_file
-        return self._output_files[relative_path]
+    def open(self, relative_path: str, mode: str = "w", gzip: bool = False):
+        if relative_path not in self._output_files:
+            self._output_files[relative_path] = self.create_new_file(relative_path)
+        return self._output_files[relative_path].open(mode, gzip)

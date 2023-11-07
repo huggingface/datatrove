@@ -51,6 +51,9 @@ class S3OutputDataFile(OutputDataFile):
     def __post_init__(self):
         if not self.path.startswith("s3://"):
             raise ValueError("S3OutputDataFile path must start with s3://")
+        if not self.local_path:
+            self._tmpdir = tempfile.TemporaryDirectory()
+            self.local_path = self._tmpdir.name
 
     def close(self):
         super().close()
@@ -68,14 +71,9 @@ class S3OutputDataFile(OutputDataFile):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
-        if not self.local_path:
-            self._tmpdir = tempfile.TemporaryDirectory()
-            self.local_path = self._tmpdir.name
-        if not self.file_handler or overwrite:
-            os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
-            self.file_handler = open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
-        return self
+    def _create_file_handler(self, mode: str = "w", gzip: bool = False):
+        os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
+        return open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
 
     def write(self, *args, **kwargs):
         self.file_handler.write(*args, **kwargs)

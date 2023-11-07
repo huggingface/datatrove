@@ -89,12 +89,8 @@ class TokenizedFile:
 
     def copy(self, destination: str, ordering: np.ndarray = None):
         # open original file in read mode
-        tokens_file = self.output_folder.open(self.filename, mode="r+b", overwrite=True)
-        loss_file = (
-            None
-            if not self.loss_file
-            else self.output_folder.open(f"{self.filename}.loss", mode="r+b", overwrite=True)
-        )
+        tokens_file = self.output_folder.open(self.filename, mode="r+b")
+        loss_file = None if not self.loss_file else self.output_folder.open(f"{self.filename}.loss", mode="r+b")
         with TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata) as new_file:
             # mmap the original file
             orig_tokens = mmap.mmap(tokens_file.file_handler.fileno(), 0)

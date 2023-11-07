@@ -12,11 +12,9 @@ from datatrove.io.base import BaseInputDataFolder, BaseOutputDataFolder, OutputD
 class FSSpecOutputDataFile(OutputDataFile):
     _fs: fsspec.AbstractFileSystem = None
 
-    def open(self, mode: str = "w", gzip: bool = False, overwrite: bool = False):
+    def _create_file_handler(self, mode: str = "w", gzip: bool = False):
         assert gzip is False
-        if not self.file_handler or overwrite:
-            self.file_handler = self._fs.open(self.local_path, mode)
-        return self
+        return self._fs.open(self.local_path, mode)
 
 
 @dataclass
