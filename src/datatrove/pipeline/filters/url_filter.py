@@ -1,10 +1,8 @@
 import os
 import re
 import tarfile
-import urllib
 
 import tldextract
-from loguru import logger
 
 from datatrove.data import Document
 from datatrove.utils.assets import ASSETS_PATH, DOWNLOAD_PATH
@@ -54,15 +52,10 @@ class URLFilter(BaseFilter):
         return load_list(os.path.join(abs_path, file_name)).union(extra if extra else {})
 
     def download_data(self):
-        if not os.path.isfile(self.download_path + "blacklists.tar.gz"):
-            os.makedirs(os.path.dirname(self.download_path), exist_ok=True)
-            logger.info("⬇️ Downloading block-list urls...")
-            urllib.request.urlretrieve(ADULT_LIST, self.download_path + "blacklists.tar.gz")
-
         if not os.path.isfile(f"{self.download_path}adult/domains") or not os.path.isfile(
             f"{self.download_path}adult/urls"
         ):
-            with tarfile.open(self.download_path + "blacklists.tar.gz", "r:gz") as tar:
+            with tarfile.open(os.path.join(ASSETS_PATH, "blacklists.tar.gz"), "r:gz") as tar:
                 tar.extractall(self.download_path)
 
     def filter(self, document: Document) -> bool | tuple[bool, str]:

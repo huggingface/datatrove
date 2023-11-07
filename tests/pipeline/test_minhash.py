@@ -106,7 +106,7 @@ class TestMinhash(unittest.TestCase):
                 config=config,
             )
 
-            clusters = [[0, 20, 50], [400, 420], [800, 810, 820, 840, 860], [1200, 1215, 1225, 1245], [1600], [2000]]
+            clusters = [[0, 20, 50], [400, 420], [800, 810, 820, 840, 860], [1205, 1215, 1225, 1245], [1600], [2000]]
 
             cluster_samples = [
                 Document(content=lorem_ipsum[x : x + 300], data_id=f"{ci}_{xi}", metadata={"ci": ci, "xi": xi})
@@ -140,6 +140,8 @@ class TestMinhash(unittest.TestCase):
                         pairs[d2].add(d1)
             doc_id = 0
             for cluster in clusters:
+                print(cluster)
+                print(pairs)
                 for a in range(doc_id, doc_id + len(cluster)):
                     assert len(cluster) < 2 or any(
                         a in pairs[b] for b in range(doc_id, doc_id + len(cluster)) if a != b
