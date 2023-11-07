@@ -2,6 +2,7 @@ from setuptools import find_packages, setup
 
 
 REQUIRED_PKGS = [
+    "boto3==1.28.78",
     "cchardet==2.1.7",
     "inscriptis==2.3.2",
     "loguru==0.7.0",
@@ -45,6 +46,7 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     package_data={"": ["assets/*"]},
+    include_package_data=True,
     python_requires=">=3.7.0",
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS,

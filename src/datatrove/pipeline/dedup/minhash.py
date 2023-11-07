@@ -152,7 +152,7 @@ class MinhashDedupSignature(PipelineStep):
                     bucket.write(struct.pack("<I", doc_idx))
         logger.info("Sorting buckets...")
         for bi, bucket in enumerate(buckets):
-            bucket.close()
+            bucket.file_handler.close()
             fo = self.output_folder.open(bucket.relative_path, mode="r+b", overwrite=True)
             mmap = np.memmap(
                 fo.file_handler,

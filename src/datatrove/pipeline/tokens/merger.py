@@ -51,7 +51,9 @@ class DocumentTokenizerMerger(PipelineStep):
             self.input_folder.list_files(extension=".ds.loss") if self.save_loss_metadata else [None] * len(datafiles)
         )
         assert len(datafiles) == len(datafiles_index) == len(datafiles_loss), (
-            "Mismatch between number of .ds, " ".ds.index and/or .ds.loss files"
+            f"Mismatch between number of .ds, "
+            ".ds.index and/or .ds.loss files"
+            f"({len(datafiles)} vs {len(datafiles_index)} vs {len(datafiles_loss)})"
         )
 
         doc_ends = [load_doc_ends(file) for file in datafiles_index]
