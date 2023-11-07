@@ -122,7 +122,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
         if all(map(self.is_rank_completed, range(self.tasks))):
-            logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} have already been completed.")
+            logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
             self.launched = True
             return
 
