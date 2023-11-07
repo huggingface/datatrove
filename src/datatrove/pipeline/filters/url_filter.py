@@ -55,7 +55,7 @@ class URLFilter(BaseFilter):
         if not os.path.isfile(f"{self.download_path}adult/domains") or not os.path.isfile(
             f"{self.download_path}adult/urls"
         ):
-            with tarfile.open(os.path.join(ASSETS_PATH, "blacklists.tar.gz"), "r:gz") as tar:
+            with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
                 tar.extractall(self.download_path)
 
     def filter(self, document: Document) -> bool | tuple[bool, str]:
