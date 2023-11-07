@@ -63,19 +63,19 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.max_array_size = max_array_size
         self.job_ids = []
         self.depends_job_ids = []
+        self.launched = False
 
     def run(self):
         if "SLURM_ARRAY_TASK_ID" in os.environ:
             rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
-            completion_file = os.path.join(self.logging_dir, "completions", f"{rank:05d}")
             if rank >= self.world_size:
                 return
-            if os.path.exists(completion_file):
-                logger.info(f"Skipping {rank=} as it was already completed.")
+            if self.is_rank_completed(rank):
+                logger.info(f"Skipping {rank=} as it has already been completed.")
                 return
             stats = self._run_for_rank(rank)
             stats.save_to_disk(os.path.join(self.logging_dir, "stats", f"{rank:05d}.json"))
-            open(completion_file, "w").close()
+            self.mark_rank_as_completed(rank)
         else:
             self.launch_job()
 
@@ -110,15 +110,23 @@ class SlurmPipelineExecutor(PipelineExecutor):
         os.makedirs(os.path.join(self.logging_dir, "stats"), exist_ok=True)
         os.makedirs(os.path.join(self.logging_dir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(self.logging_dir, "completions"), exist_ok=True)
+
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor)
         ), "depends= must be a SlurmPipelineExecutor"
         if self.depends:
-            if not self.depends.job_ids:
+            if not self.depends.launched:
                 logger.info(f'Launching dependency job "{self.depends.job_name}"')
                 self.depends.launch_job()
             self.depends_job_ids = self.depends.job_ids
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
+
+        if all(map(self.is_rank_completed, range(self.tasks))):
+            logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} have already been completed.")
+            self.launched = True
+            return
+
+        logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
 
         # pickle
         with open(os.path.join(self.logging_dir, "executor.pik"), "wb") as f:
@@ -127,7 +135,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         with open(launch_script_path, "w") as f:
             f.write(self.launch_file)
 
-        logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
         self.job_ids = []
         while len(self.job_ids) * self.max_array < self.tasks:
             args = ["sbatch", f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
@@ -135,6 +142,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 args.append(f"--dependency={self.dependency}")
             output = subprocess.check_output(args + [launch_script_path]).decode("utf-8")
             self.job_ids.append(output.split()[-1])
+        self.launched = True
         logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
         self.launch_merge_stats()
 
@@ -163,6 +171,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.sbatch_args,
             f'srun -l python -u -c "import dill;dill.load(open(\'{os.path.join(self.logging_dir, "executor.pik")}\', \'rb\')).run()"',
         )
+
+    def is_rank_completed(self, rank: int):
+        return os.path.exists(os.path.join(self.logging_dir, "completions", f"{rank:05d}"))
+
+    def mark_rank_as_completed(self, rank: int):
+        open(os.path.join(self.logging_dir, "completions", f"{rank:05d}"), "w").close()
 
     def get_launch_file(self, sbatch_args: dict, run_script: str):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])

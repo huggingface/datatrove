@@ -48,6 +48,12 @@ class MinhashConfig:
     def hash_format(self):
         return "Q" if self.use_64bit_hashes else "I"
 
+    def __str__(self):
+        return (
+            f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_"
+            f"{'64' if self.use_64bit_hashes else '32'}b"
+        )
+
 
 DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
