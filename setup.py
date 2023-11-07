@@ -46,6 +46,7 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     package_data={"": ["assets/*"]},
+    include_package_data=True,
     python_requires=">=3.7.0",
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS,
