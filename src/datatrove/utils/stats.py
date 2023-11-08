@@ -1,9 +1,10 @@
 import json
 import math
-import os
 import time
 from collections import Counter
 from dataclasses import dataclass
+
+from datatrove.io import BaseOutputDataFile
 
 
 @dataclass
@@ -108,8 +109,8 @@ class Stats:
 
 
 class PipelineStats:
-    def __init__(self, stats: list[Stats]):
-        self.stats = stats
+    def __init__(self, stats: list[Stats] = None):
+        self.stats = stats if stats else []
 
     def __add__(self, pipestat):
         if not isinstance(pipestat, int):
@@ -135,10 +136,9 @@ class PipelineStats:
     def from_json(cls, data):
         return PipelineStats([Stats.from_dict(stat) for stat in data])
 
-    def save_to_disk(self, path: str):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as f:
-            f.write(self.to_json())
+    def save_to_disk(self, file: BaseOutputDataFile):
+        file.write(self.to_json())
+        file.close()
 
 
 class ComputeOnlineStats:

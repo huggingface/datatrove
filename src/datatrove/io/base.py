@@ -28,7 +28,27 @@ class BaseInputDataFile:
 
     path: str
     relative_path: str
-    folder: "BaseInputDataFolder"
+    folder: "BaseInputDataFolder" = None
+
+    @classmethod
+    def from_path(cls, path: str, **kwargs):
+        """
+            InputDataFile factory: get the correct instance from a path. Additional arguments will be passed to the
+            constructor of the matched implementation.
+        :param path: the full path to match
+        :param kwargs: any additional argument passed to the matched implementation
+        :return:
+        """
+        from datatrove.io import FSSpecInputDataFile, LocalInputDataFile, S3InputDataFile
+
+        if "relative_path" not in kwargs:
+            kwargs["relative_path"] = os.path.basename(path)
+
+        if path.startswith("s3://"):
+            return S3InputDataFile(path, **kwargs)
+        elif valid_fsspec_path(path):
+            return FSSpecInputDataFile(path, **kwargs)
+        return LocalInputDataFile(path, **kwargs)
 
     @contextmanager
     @abstractmethod
@@ -264,9 +284,29 @@ class BaseOutputDataFile(ABC):
 
     path: str
     relative_path: str
-    folder: "BaseOutputDataFolder"
+    folder: "BaseOutputDataFolder" = None
     _file_handler = None
     _mode: str = None
+
+    @classmethod
+    def from_path(cls, path: str, **kwargs):
+        """
+            OutputDataFile factory: get the correct instance from a path. Additional arguments will be passed to the
+            constructor of the matched implementation.
+        :param path: the full path to match
+        :param kwargs: any additional argument passed to the matched implementation
+        :return:
+        """
+        from datatrove.io import FSSpecOutputDataFile, LocalOutputDataFile, S3OutputDataFile
+
+        if "relative_path" not in kwargs:
+            kwargs["relative_path"] = os.path.basename(path)
+
+        if path.startswith("s3://"):
+            return S3OutputDataFile(path, **kwargs)
+        elif valid_fsspec_path(path):
+            return FSSpecOutputDataFile(path, **kwargs)
+        return LocalOutputDataFile(path, **kwargs)
 
     def close(self):
         """
@@ -276,6 +316,9 @@ class BaseOutputDataFile(ABC):
         """
         if self._file_handler:
             self._file_handler.close()
+
+    def __enter__(self):
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
@@ -327,9 +370,15 @@ class BaseOutputDataFile(ABC):
             Does not call close() on the OutputDataFile directly to avoid uploading/saving it externally.
         :return:
         """
-        self.folder.pop_file(self.relative_path)
+        if self.folder:
+            self.folder.pop_file(self.relative_path)
         if self._file_handler:
             self._file_handler.close()
+
+    @property
+    @abstractmethod
+    def path_in_local_disk(self):
+        raise NotImplementedError
 
 
 @dataclass
@@ -371,7 +420,7 @@ class BaseOutputDataFolder(ABC):
         return LocalOutputDataFolder(path, **kwargs)
 
     @abstractmethod
-    def create_new_file(self, relative_path: str) -> BaseOutputDataFile:
+    def _create_new_file(self, relative_path: str) -> BaseOutputDataFile:
         """
             Create an OutputDataFile for the file located on `relative_path`, its path relative to this folder.
             Each io implementation should override it.
@@ -400,9 +449,13 @@ class BaseOutputDataFolder(ABC):
         :return: OutputDataFile
         """
         if relative_path not in self._output_files:
-            self._output_files[relative_path] = self.create_new_file(relative_path)
+            self._output_files[relative_path] = self._create_new_file(relative_path)
         return self._output_files[relative_path].open(mode, gzip)
 
     def pop_file(self, relative_path):
         if relative_path in self._output_files:
             self._output_files.pop(relative_path)
+
+    @abstractmethod
+    def to_input_folder(self) -> BaseInputDataFolder:
+        raise NotImplementedError

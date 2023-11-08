@@ -1,9 +1,11 @@
 from copy import deepcopy
+from typing import Callable
 
 import multiprocess.pool
 from multiprocess import Semaphore
 
 from datatrove.executor.base import PipelineExecutor
+from datatrove.io import BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -19,13 +21,14 @@ def init_pool_processes(dl_sem, up_sem):
 class LocalPipelineExecutor(PipelineExecutor):
     def __init__(
         self,
+        pipeline: list[PipelineStep | Callable],
         tasks: int = 1,
         workers: int = -1,
         max_concurrent_uploads: int = 20,
         max_concurrent_downloads: int = 50,
-        **kwargs,
+        logging_dir: BaseOutputDataFolder = None,
     ):
-        super().__init__(**kwargs)
+        super().__init__(pipeline, logging_dir)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.max_concurrent_uploads = max_concurrent_uploads

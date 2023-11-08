@@ -25,6 +25,10 @@ class FSSpecOutputDataFile(BaseOutputDataFile):
         if self._fs.isfile(self.path):
             self._fs.rm(self.path)
 
+    @property
+    def path_in_local_disk(self):
+        raise NotImplementedError
+
 
 @dataclass
 class FSSpecOutputDataFolder(BaseOutputDataFolder):
@@ -45,15 +49,18 @@ class FSSpecOutputDataFolder(BaseOutputDataFolder):
             protocol = "file"
         self._fs = fsspec.filesystem(protocol, **(self.storage_options if self.storage_options else {}))
 
-    def create_new_file(self, relative_path: str):
+    def _create_new_file(self, relative_path: str):
         return FSSpecOutputDataFile(
             path=os.path.join(self.path, relative_path), relative_path=relative_path, _fs=self._fs, folder=self
         )
 
+    def to_input_folder(self) -> BaseInputDataFolder:
+        return FSSpecInputDataFolder(path=self.path, storage_options=self.storage_options)
+
 
 @dataclass
 class FSSpecInputDataFile(BaseInputDataFile):
-    _fs: fsspec.AbstractFileSystem
+    _fs: fsspec.AbstractFileSystem = None
 
     @contextmanager
     def open_binary(self):

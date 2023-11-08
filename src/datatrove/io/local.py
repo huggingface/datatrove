@@ -23,6 +23,10 @@ class LocalOutputDataFile(BaseOutputDataFile):
         if os.path.isfile(self.path):
             os.remove(self.path)
 
+    @property
+    def path_in_local_disk(self):
+        return self.path
+
 
 @dataclass
 class LocalOutputDataFolder(BaseOutputDataFolder):
@@ -32,10 +36,13 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
         path (str): absolute path to a local folder on disk
     """
 
-    def create_new_file(self, relative_path: str) -> LocalOutputDataFile:
+    def _create_new_file(self, relative_path: str) -> LocalOutputDataFile:
         return LocalOutputDataFile(
             path=os.path.join(self.path, relative_path), relative_path=relative_path, folder=self
         )
+
+    def to_input_folder(self) -> BaseInputDataFolder:
+        return LocalInputDataFolder(path=self.path)
 
 
 @dataclass

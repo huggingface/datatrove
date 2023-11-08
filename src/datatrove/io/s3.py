@@ -43,13 +43,16 @@ class S3OutputDataFolder(BaseOutputDataFolder):
         if self._tmpdir:
             self._tmpdir.cleanup()
 
-    def create_new_file(self, relative_path: str):
+    def _create_new_file(self, relative_path: str):
         return S3OutputDataFile(
             local_path=os.path.join(self.local_path, relative_path),
             path=os.path.join(self.path, relative_path),
             relative_path=relative_path,
             folder=self,
         )
+
+    def to_input_folder(self) -> BaseInputDataFolder:
+        return S3InputDataFolder(path=self.path, local_path=self.local_path, cleanup=self.cleanup)
 
 
 @dataclass
@@ -74,7 +77,7 @@ class S3OutputDataFile(BaseOutputDataFile):
             logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
             s3_upload_file(self.local_path, self.path)
             logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
-        if self.folder.cleanup:
+        if self.folder and self.folder.cleanup:
             os.remove(self.local_path)
 
     def _create_file_handler(self, mode: str = "w", gzip: bool = False):
@@ -85,6 +88,10 @@ class S3OutputDataFile(BaseOutputDataFile):
         super().delete()
         if os.path.isfile(self.local_path):
             os.remove(self.local_path)
+
+    @property
+    def path_in_local_disk(self):
+        return self.local_path
 
 
 @dataclass
@@ -112,7 +119,7 @@ class S3InputDataFile(BaseInputDataFile):
         else:
             # download
             if not os.path.isfile(self.local_path):
-                with self.folder._lock:
+                with contextlib.nullcontext() if not self.folder else self.folder._lock:
                     logger.info(f'Downloading "{self.path}" to "{self.local_path}"...')
                     s3_download_file(self.path, self.local_path)
                     logger.info(f'Downloaded "{self.path}" to "{self.local_path}".')
@@ -120,7 +127,7 @@ class S3InputDataFile(BaseInputDataFile):
                 try:
                     yield f
                 finally:
-                    if self.folder.cleanup:
+                    if self.folder and self.folder.cleanup:
                         os.remove(self.local_path)
 
 

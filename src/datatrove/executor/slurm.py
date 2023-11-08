@@ -4,11 +4,14 @@ import os
 import subprocess
 import tempfile
 import textwrap
+from typing import Callable
 
 import dill
 from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
+from datatrove.io import BaseOutputDataFolder, S3OutputDataFolder
+from datatrove.pipeline.base import PipelineStep
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
@@ -19,9 +22,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def __init__(
         self,
+        pipeline: list[PipelineStep | Callable],
         tasks: int,
         time: str,
-        logging_dir: str,
         partition: str,
         cpus_per_task: int = 1,
         mem_per_cpu_gb: int = 2,
@@ -33,12 +36,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
-        **kwargs,
+        logging_dir: BaseOutputDataFolder = None,
     ):
         """
         :param tasks: total number of tasks to run
         :param time: time limit, passed to slurm
-        :param logging_dir: directory where log files and the launch script should be saved
         :param cpus_per_task: how many cpus per task
         :param job_name: slurm job name
         :param condaenv: name of a conda environment to activate before starting the job
@@ -46,13 +48,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
         :param sbatch_args: a dictionary of other SBATCH arguments for the launch script
         :param kwargs:
         """
-        super().__init__(**kwargs)
+        if isinstance(logging_dir, S3OutputDataFolder):
+            logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
+        super().__init__(pipeline, logging_dir)
         self.tasks = tasks
         self.workers = workers
         self.partition = partition
         self.cpus_per_task = cpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
-        self.logging_dir = logging_dir
         self.time = time
         self.job_name = job_name
         self.env_command = env_command
@@ -70,12 +73,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
             if rank >= self.world_size:
                 return
-            if self.is_rank_completed(rank):
-                logger.info(f"Skipping {rank=} as it has already been completed.")
-                return
-            stats = self._run_for_rank(rank)
-            stats.save_to_disk(os.path.join(self.logging_dir, "stats", f"{rank:05d}.json"))
-            self.mark_rank_as_completed(rank)
+            self._run_for_rank(rank)
         else:
             self.launch_job()
 
@@ -90,7 +88,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                         "array": "0",
                         "dependency": f"afterok:{','.join(self.job_ids)}",
                     },
-                    f'merge_stats {os.path.join(self.logging_dir, "stats")} --output {os.path.join(self.logging_dir, "stats.json")}',
+                    f'merge_stats {os.path.join(self.logging_dir.path, "stats")} '
+                    f'--output {os.path.join(self.logging_dir.path, "stats.json")}',
                 )
             )
             f.flush()
@@ -106,11 +105,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         return ",".join(dependency)
 
     def launch_job(self):
-        launch_script_path = os.path.join(self.logging_dir, "launch_script.slurm")
-        os.makedirs(os.path.join(self.logging_dir, "stats"), exist_ok=True)
-        os.makedirs(os.path.join(self.logging_dir, "logs"), exist_ok=True)
-        os.makedirs(os.path.join(self.logging_dir, "completions"), exist_ok=True)
-
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor)
         ), "depends= must be a SlurmPipelineExecutor"
@@ -126,21 +120,25 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launched = True
             return
 
-        logger.info(f'Launching Slurm job {self.job_name} with launch script "{launch_script_path}"')
-
         # pickle
-        with open(os.path.join(self.logging_dir, "executor.pik"), "wb") as f:
-            dill.dump(self, f)
+        with self.logging_dir.open("executor.pik", "wb") as executor_f:
+            dill.dump(self, executor_f)
 
-        with open(launch_script_path, "w") as f:
-            f.write(self.launch_file)
+        with self.logging_dir.open("launch_script.slurm") as launchscript_f:
+            launchscript_f.write(
+                self.get_launch_file(
+                    self.sbatch_args,
+                    f"srun -l python -u -c \"import dill;dill.load(open('{executor_f.path_in_local_disk}', 'rb')).run()\"",
+                )
+            )
+        logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
 
         self.job_ids = []
         while len(self.job_ids) * self.max_array < self.tasks:
             args = ["sbatch", f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
-            output = subprocess.check_output(args + [launch_script_path]).decode("utf-8")
+            output = subprocess.check_output(args + [launchscript_f.path_in_local_disk]).decode("utf-8")
             self.job_ids.append(output.split()[-1])
         self.launched = True
         logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
@@ -152,7 +150,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def sbatch_args(self) -> dict:
-        slurm_logfile = os.path.join(self.logging_dir, "logs", "%j.out")
+        slurm_logfile = os.path.join(self.logging_dir.path, "logs", "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
@@ -164,19 +162,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             **self._sbatch_args,
         }
-
-    @property
-    def launch_file(self):
-        return self.get_launch_file(
-            self.sbatch_args,
-            f'srun -l python -u -c "import dill;dill.load(open(\'{os.path.join(self.logging_dir, "executor.pik")}\', \'rb\')).run()"',
-        )
-
-    def is_rank_completed(self, rank: int):
-        return os.path.exists(os.path.join(self.logging_dir, "completions", f"{rank:05d}"))
-
-    def mark_rank_as_completed(self, rank: int):
-        open(os.path.join(self.logging_dir, "completions", f"{rank:05d}"), "w").close()
 
     def get_launch_file(self, sbatch_args: dict, run_script: str):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])

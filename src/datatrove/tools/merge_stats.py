@@ -4,6 +4,7 @@ import os.path
 
 from loguru import logger
 
+from datatrove.io import BaseInputDataFolder, BaseOutputDataFile
 from datatrove.utils.stats import PipelineStats
 
 
@@ -23,16 +24,16 @@ parser.add_argument(
 
 def main():
     args = parser.parse_args()
-    stats_path = args.path
-    output_file = os.path.abspath(args.output)
+    stats_folder = BaseInputDataFolder.from_path(args.path)
+    output_file = BaseOutputDataFile.from_path(os.path.abspath(args.output))
 
     stats = []
-    for file in os.listdir(stats_path):
-        with open(os.path.join(stats_path, file)) as f:
+    for file in stats_folder.list_files():
+        with file.open() as f:
             stats.append(PipelineStats.from_json(json.load(f)))
     merged = sum(stats)
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    merged.save_to_disk(output_file)
+    with output_file.open() as f:
+        merged.save_to_disk(f)
     logger.info(f"Processing complete. Results saved to {output_file}.")
 
 
