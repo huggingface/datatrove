@@ -30,18 +30,16 @@ class TokenizedFile:
         self.filename = filename
         self.save_index = save_index
         self.save_loss_metadata = save_loss_metadata
-        self.tokens_file: BaseOutputDataFile | None = None
-        self.loss_file: BaseOutputDataFile | None = None
         self.write_idx = 0
         self.doc_ends = []
 
-    def __len__(self):
-        return self.doc_ends[-1] if self.doc_ends else 0
-
-    def open(self):
         self.tokens_file = self.output_folder.open(self.filename, mode="wb")
+        self.loss_file: BaseOutputDataFile | None = None
         if self.save_loss_metadata:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb")
+
+    def __len__(self):
+        return self.doc_ends[-1] if self.doc_ends else 0
 
     def close(self):
         if self.tokens_file:
@@ -59,8 +57,8 @@ class TokenizedFile:
 
     def cleanup(self):
         self.doc_ends = []
-        del self.tokens_file
-        del self.loss_file
+        self.tokens_file.delete()
+        self.loss_file.delete()
 
     def write_bytes(self, tk_bytes: bytes):
         self.tokens_file.write(tk_bytes)
@@ -86,7 +84,7 @@ class TokenizedFile:
         new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
         # mmap the original file
         orig_tokens = mmap.mmap(tokens_file._file_handler.fileno(), 0)
-        orig_loss = mmap.mmap(loss_file.file_handler.fileno(), 0) if loss_file else None
+        orig_loss = mmap.mmap(loss_file._file_handler.fileno(), 0) if loss_file else None
         # shuffle doc_id
         for doc_id in ordering:
             # get start and end from the boundaries

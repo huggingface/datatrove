@@ -20,8 +20,8 @@ class FSSpecOutputDataFile(BaseOutputDataFile):
         assert gzip is False
         return self._fs.open(self.path, mode)
 
-    def __del__(self):
-        super().__del__()
+    def delete(self):
+        super().delete()
         if self._fs.isfile(self.path):
             self._fs.rm(self.path)
 

@@ -71,7 +71,6 @@ class DocumentTokenizerMerger(PipelineStep):
             filename=f"{file_ct:03d}_{self.save_filename}.ds",
             save_loss_metadata=self.save_loss_metadata,
         )
-        output_file.open()
         for input_file_id in ordering:
             if 0 < self.max_tokens <= len(output_file):
                 break
@@ -83,7 +82,6 @@ class DocumentTokenizerMerger(PipelineStep):
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
                 )
-                output_file.open()
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
             output_file.write_bytes(tokens)

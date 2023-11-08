@@ -321,7 +321,7 @@ class BaseOutputDataFile(ABC):
         """
         return np.memmap(self._file_handler, dtype=dtype)
 
-    def __del__(self):
+    def delete(self):
         """
             Remove pointer to the given file, close its underlying file object and delete it from disk if it exists locally.
             Does not call close() on the OutputDataFile directly to avoid uploading/saving it externally.

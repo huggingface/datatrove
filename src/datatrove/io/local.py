@@ -18,8 +18,8 @@ class LocalOutputDataFile(BaseOutputDataFile):
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         return open(self.path, mode) if not gzip else gzip_lib.open(self.path, mode)
 
-    def __del__(self):
-        super().__del__()
+    def delete(self):
+        super().delete()
         if os.path.isfile(self.path):
             os.remove(self.path)
 

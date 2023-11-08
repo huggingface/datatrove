@@ -81,8 +81,8 @@ class S3OutputDataFile(BaseOutputDataFile):
         os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
         return open(self.local_path, mode) if not gzip else gzip_lib.open(self.local_path, mode)
 
-    def __del__(self):
-        super().__del__()
+    def delete(self):
+        super().delete()
         if os.path.isfile(self.local_path):
             os.remove(self.local_path)
 
