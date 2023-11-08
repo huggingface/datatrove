@@ -7,7 +7,7 @@ from loguru import logger
 
 from datatrove.io import BaseOutputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import get_random_str, get_timestamp
+from datatrove.utils.logging import add_task_logger, get_random_str, get_timestamp
 from datatrove.utils.stats import PipelineStats
 
 
@@ -31,11 +31,11 @@ class PipelineExecutor(ABC):
     def world_size(self):
         return 0
 
-    def _run_for_rank(self, rank: int) -> PipelineStats:
+    def _run_for_rank(self, rank: int, local_rank: int = -1) -> PipelineStats:
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()  # todo: fetch the original stats file (?)
-        logger.info(f"Launching pipeline for {rank=}")
+        add_task_logger(self.logging_dir, rank, local_rank)
         # pipe data from one step to the next
         pipelined_data = None
         for pipeline_step in self.pipeline:

@@ -74,6 +74,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if rank >= self.world_size:
                 return
             self._run_for_rank(rank)
+            self.logging_dir.close()  # make sure everything is properly saved (logs etc)
         else:
             self.launch_job()
 
@@ -143,6 +144,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.launched = True
         logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
         self.launch_merge_stats()
+        self.logging_dir.close()
 
     @property
     def max_array(self) -> int:
@@ -150,15 +152,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def sbatch_args(self) -> dict:
-        slurm_logfile = os.path.join(self.logging_dir.path, "logs", "%j.out")
+        slurm_logfile = self.logging_dir.open("slurm_logs/%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
             "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
-            "output": slurm_logfile,
-            "error": slurm_logfile,
+            "output": slurm_logfile.path_in_local_disk,
+            "error": slurm_logfile.path_in_local_disk,
             "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             **self._sbatch_args,
         }
