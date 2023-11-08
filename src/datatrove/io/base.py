@@ -391,21 +391,6 @@ class BaseOutputDataFolder(ABC):
         """
         self._lock = lock
 
-    def delete_file(self, relative_path: str):
-        """
-            Remove pointer to the given file, close its underlying file object and delete it from disk if it exists locally.
-            Does not call close() on the OutputDataFile directly to avoid uploading/saving it externally.
-        :param relative_path: relative_path to the file
-        :return:
-        """
-        if relative_path in self._output_files:
-            output_file = self._output_files.pop(relative_path)
-            # only close the actual file_handler, avoid any sort of upload
-            if output_file._file_handler:
-                output_file._file_handler.close()
-            if output_file.local_path and os.path.isfile(output_file.local_path):
-                os.remove(output_file.local_path)
-
     def open(self, relative_path: str, mode: str = "w", gzip: bool = False) -> BaseOutputDataFile:
         """
             Open/create output file with `relative_path` for writing.

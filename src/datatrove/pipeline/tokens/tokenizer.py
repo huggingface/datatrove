@@ -59,9 +59,8 @@ class TokenizedFile:
 
     def cleanup(self):
         self.doc_ends = []
-        self.output_folder.delete_file(self.filename)
-        self.output_folder.delete_file(f"{self.filename}.index")
-        self.output_folder.delete_file(f"{self.filename}.loss")
+        del self.tokens_file
+        del self.loss_file
 
     def write_bytes(self, tk_bytes: bytes):
         self.tokens_file.write(tk_bytes)
