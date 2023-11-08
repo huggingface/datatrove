@@ -58,21 +58,15 @@ class MinhashConfig:
 DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
 
-@dataclass
+@dataclass(order=True)
 class HashSig:
     sig: tuple[int]
-    doc_id: int
     file_id: int
+    doc_id: int
     reader_id: int
-
-    def to_tuple(self):
-        return self.sig, self.file_id, self.doc_id, self.reader_id
 
     def is_from_index(self):
         return self.reader_id != self.file_id
-
-    def __lt__(self, other):
-        return self.to_tuple() < other.to_tuple()
 
 
 def read_sigs(file: InputDataFile, reader_id: int, config: MinhashConfig, index_file: bool = False) -> Generator:

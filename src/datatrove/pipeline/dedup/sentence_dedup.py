@@ -27,23 +27,15 @@ from ..writers.disk_base import DiskWriter
 from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, simplify_content, str_hash
 
 
-@dataclass
+@dataclass(order=True)
 class HashSig:
+    # this also determines the sorting order
+    # hash_value needs to come first as that's what we match on
+    # file_id should come after doc_id so that hashes from the index (sent_id=doc_id=-1) come up first
     hash_value: int
     doc_id: int
-    sent_id: int
     file_id: int = None
-
-    def to_tuple(self):
-        # this also determines the sorting order
-        # hash_value needs to come first as that's what we match on
-        # file_id should come after doc_id so that hashes from the index (sent_id=doc_id=-1) come up first
-        # return self.hash_value, self.sent_id, self.doc_id, self.file_id
-        return self.hash_value, self.doc_id, self.file_id, self.sent_id
-
-    # priority queue accepts anything that is sortable
-    def __lt__(self, other) -> bool:
-        return self.to_tuple() < other.to_tuple()
+    sent_id: int = None
 
     def is_from_index(self):
         return self.doc_id == self.sent_id == -1

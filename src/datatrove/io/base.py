@@ -17,16 +17,30 @@ from datatrove.io.utils.fsspec import valid_fsspec_path
 
 @dataclass
 class InputDataFile:
+    """
+    Represents an individual input file that we can read from.
+    Supports compression formats and/or opening in binary mode.
+    """
+
     path: str
     relative_path: str
 
     @contextmanager
     def open_binary(self):
+        """
+            Main method to overwrite. Should return a stream open in binary mode
+        :return: binary stream
+        """
         with open(self.path, mode="rb") as f:
             yield f
 
     @contextmanager
     def open_gzip(self, binary=False):
+        """
+            Read a gzip compressed file directly
+        :param binary: optionally open in binary mode
+        :return: stream
+        """
         with self.open_binary() as fo:
             with GzipFile(mode="r" if not binary else "rb", fileobj=fo) as gf:
                 if binary:
@@ -37,6 +51,11 @@ class InputDataFile:
 
     @contextmanager
     def open_zst(self, binary=False):
+        """
+            Read a zst compressed file directly
+        :param binary:
+        :return: stream
+        """
         with self.open_binary() as fo:
             dctx = zstandard.ZstdDecompressor(max_window_size=2**31)
             stream_reader = dctx.stream_reader(fo)
@@ -48,6 +67,12 @@ class InputDataFile:
 
     @contextmanager
     def open(self, binary=False, compression: Literal["guess", "gzip", "zst"] | None = None):
+        """
+            Main entrypoint for input files. Return a stream to read this file. Optionally accepts compression and/or binary mode.
+        :param binary:
+        :param compression:
+        :return:
+        """
         if compression == "guess":
             compression = guess_compression(self.relative_path)
         match compression:
@@ -68,10 +93,12 @@ class InputDataFile:
 
 @dataclass
 class BaseInputDataFolder(ABC):
-    """An input data folder
+    """
+        Base input data folder class. Specific implementations should override its relevant methods.
 
     Args:
-        path (str): path to the folder
+        path (str): full path to the folder, respecting the format of specific implementations
+            (i.e. s3 paths should start with s3://)
         extension (str | list[str], optional): file extensions to filter. Defaults to None.
         recursive (bool, optional): whether to search recursively. Defaults to True.
         match_pattern (str, optional): pattern to match file names. Defaults to None.
@@ -84,6 +111,13 @@ class BaseInputDataFolder(ABC):
 
     @classmethod
     def from_path(cls, path, **kwargs):
+        """
+            InputDataFolder factory: get the correct instance from a path. Additional arguments will be passed to the
+            constructor of the matched implementation.
+        :param path: the full path to match
+        :param kwargs: any additional argument passed to the matched implementation
+        :return:
+        """
         from datatrove.io import FSSpecInputDataFolder, LocalInputDataFolder, S3InputDataFolder
 
         if path.startswith("s3://"):
@@ -94,6 +128,13 @@ class BaseInputDataFolder(ABC):
 
     @abstractmethod
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[InputDataFile]:
+        """
+            Retrieves a list of InputDataFile for all files in this folder matching both the dataclass properties and the
+            function parameters.
+        :param extension: optionally limit the file extension of the retrieved files
+        :param suffix: optionally limit the search to a given subfolder
+        :return:
+        """
         logger.error(
             "Do not instantiate BaseInputDataFolder directly, "
             "use a LocalInputDataFolder, S3InputDataFolder or call"
