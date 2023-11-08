@@ -129,7 +129,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             launchscript_f.write(
                 self.get_launch_file(
                     self.sbatch_args,
-                    f"srun -l python -u -c \"import dill;dill.load(open('{executor_f.path_in_local_disk}', 'rb')).run()\"",
+                    f"srun -l python -u -c \"import dill;dill.load(open('{executor_f.persistent_local_path}', 'rb')).run()\"",
                 )
             )
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
@@ -139,7 +139,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             args = ["sbatch", f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
-            output = subprocess.check_output(args + [launchscript_f.path_in_local_disk]).decode("utf-8")
+            output = subprocess.check_output(args + [launchscript_f.persistent_local_path]).decode("utf-8")
             self.job_ids.append(output.split()[-1])
         self.launched = True
         logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
@@ -159,8 +159,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
-            "output": slurm_logfile.path_in_local_disk,
-            "error": slurm_logfile.path_in_local_disk,
+            "output": slurm_logfile.persistent_local_path,
+            "error": slurm_logfile.persistent_local_path,
             "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             **self._sbatch_args,
         }

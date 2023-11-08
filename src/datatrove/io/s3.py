@@ -67,9 +67,7 @@ class S3OutputDataFile(BaseOutputDataFile):
     def __post_init__(self):
         if not self.path.startswith("s3://"):
             raise ValueError("S3OutputDataFile path must start with s3://")
-        if not self.local_path:
-            self._tmpdir = tempfile.TemporaryDirectory()
-            self.local_path = self._tmpdir.name
+        assert self.local_path is not None, "S3OutputDataFile must have a local_path"
 
     def close(self):
         super().close()
@@ -90,7 +88,8 @@ class S3OutputDataFile(BaseOutputDataFile):
             os.remove(self.local_path)
 
     @property
-    def path_in_local_disk(self):
+    def persistent_local_path(self):
+        assert not self.folder or (not self.folder._tmpdir and not self.folder.cleanup)
         return self.local_path
 
 

@@ -377,7 +377,7 @@ class BaseOutputDataFile(ABC):
 
     @property
     @abstractmethod
-    def path_in_local_disk(self):
+    def persistent_local_path(self):
         raise NotImplementedError
 
 

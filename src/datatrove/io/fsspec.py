@@ -26,7 +26,7 @@ class FSSpecOutputDataFile(BaseOutputDataFile):
             self._fs.rm(self.path)
 
     @property
-    def path_in_local_disk(self):
+    def persistent_local_path(self):
         raise NotImplementedError
 
 

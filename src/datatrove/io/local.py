@@ -24,7 +24,7 @@ class LocalOutputDataFile(BaseOutputDataFile):
             os.remove(self.path)
 
     @property
-    def path_in_local_disk(self):
+    def persistent_local_path(self):
         return self.path
 
 
