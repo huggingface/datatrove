@@ -4,7 +4,7 @@ import numpy as np
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 
@@ -95,12 +95,12 @@ class DocumentTokenizerMerger(PipelineStep):
         self.output_folder.close()
 
 
-def load_doc_ends(file: InputDataFile):
+def load_doc_ends(file: BaseInputDataFile):
     with file.open_binary() as f:
         return np.frombuffer(f.read(), dtype=np.uint64).tolist()
 
 
-def get_data_reader(file: InputDataFile, doc_ends: list, nb_bytes: int):
+def get_data_reader(file: BaseInputDataFile, doc_ends: list, nb_bytes: int):
     with file.open_binary() as f:
         start_e = 0
         for r_e in doc_ends:

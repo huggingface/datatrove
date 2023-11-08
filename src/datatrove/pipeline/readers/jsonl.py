@@ -5,7 +5,7 @@ from typing import Callable, Literal
 from loguru import logger
 
 from datatrove.data import Document
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -26,7 +26,7 @@ class JsonlReader(BaseReader):
         self.adapter = adapter if adapter else lambda d, path, li: d
         self.empty_warning = False
 
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression) as f:
             for li, line in enumerate(f):
                 with self.stats.time_manager:

@@ -25,7 +25,7 @@ import tokenizers
 from loguru import logger
 from nltk.tokenize import word_tokenize
 
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.pipeline.readers import JsonlReader
 
@@ -68,7 +68,7 @@ class DatasetToSequence(PipelineStep):
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
-        f_lens.file_handler.write(struct.pack("Q" * len(doc_lens), *doc_lens))
+        f_lens._file_handler.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         doc_lens = []
@@ -77,7 +77,7 @@ class DatasetToSequence(PipelineStep):
             with self.stats.time_manager:
                 b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.content, rank=rank, doc_id=i)
                 doc_lens.append(len(b_doc))
-                f_sequence.file_handler.write(b_doc)
+                f_sequence.write(b_doc)
 
         assert i < 2**32, "doc ID overflow"
         assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
@@ -125,7 +125,7 @@ class MergeSequences(PipelineStep):
         bytes_per_sequence = [0]
         with self.stats.time_manager:
             assert world_size == 1, f"{world_size=} can't be greater than 1!"
-            all_files: list[InputDataFile] = self.input_folder.list_files(extension=EH.stage_1_sequence)
+            all_files: list[BaseInputDataFile] = self.input_folder.list_files(extension=EH.stage_1_sequence)
             assert len(all_files) == self.tasks_stage_1
             f_sequence = self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb")
             for file in all_files:
@@ -133,14 +133,14 @@ class MergeSequences(PipelineStep):
                 with file.open(binary=True) as f:
                     while True:
                         sequence = f.read(self.bytes_per_batch)
-                        f_sequence.file_handler.write(sequence)
+                        f_sequence.write(sequence)
                         len_sequence += len(sequence)
                         if len(sequence) != self.bytes_per_batch:
                             break
                     bytes_per_sequence.append(bytes_per_sequence[-1] + len_sequence)
 
             f_bytes = self.output_folder.open(f"bytes_offsets{EH.stage_2_bytes_offset}", mode="wb")
-            f_bytes.file_handler.write(np.array([bytes_per_sequence], np.uint32).tobytes())
+            f_bytes.write(np.array([bytes_per_sequence], np.uint32).tobytes())
             self.output_folder.close()
 
 
@@ -149,7 +149,7 @@ def read_bytes(x):
     return np.frombuffer(x[SEPARATOR_BYTES:], dtype=np.uint16).tolist()
 
 
-def sequence_reader(file: InputDataFile, size_file: InputDataFile) -> Generator[list, None, None]:
+def sequence_reader(file: BaseInputDataFile, size_file: BaseInputDataFile) -> Generator[list, None, None]:
     with size_file.open(binary=True) as f_size:
         with file.open(binary=True) as f:
             while True:
@@ -194,13 +194,13 @@ class DedupReader(JsonlReader):
         self.rank = None
 
     def get_sequence_bytes_offset(self):
-        offset_array_file: InputDataFile = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
+        offset_array_file: BaseInputDataFile = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
         with offset_array_file.open(binary=True) as f:
             offset_array = f.read()
         self.sequence_bytes_offset = np.frombuffer(offset_array, dtype=np.uint32)
         logger.info(f"{self.rank=}, -> {self.sequence_bytes_offset[self.rank]=}")
 
-    def get_bytearange(self, bytes_range_file: InputDataFile):
+    def get_bytearange(self, bytes_range_file: BaseInputDataFile):
         with bytes_range_file.open(binary=False) as f:
             dup_ranges = f.read()
 

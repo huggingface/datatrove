@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from datatrove.io import InputDataFile
+from datatrove.io import BaseInputDataFile
 
 
 class ExtensionHelperSD:
@@ -28,7 +28,7 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 )
 
 
-def read_tuples_from_file(file: InputDataFile, *formats):
+def read_tuples_from_file(file: BaseInputDataFile, *formats):
     with file.open(binary=True) as f:
         while True:
             line = []

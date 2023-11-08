@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from string import Template
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseOutputDataFolder, OutputDataFile
+from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -42,9 +42,8 @@ class DiskWriter(PipelineStep, ABC):
 
     def write(self, document: Document, rank: int = 0, **kwargs):
         output_filename = self._get_output_filename(document, rank, **kwargs)
-        output_file: OutputDataFile = self.open(output_filename)
+        output_file: BaseOutputDataFile = self.open(output_filename)
         self._write(document, output_file)
-        output_file.nr_documents += 1
         self.stat_update(output_filename)
         self.stat_update(StatHints.total)
 

@@ -5,7 +5,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import DocumentsPipeline
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -19,7 +19,7 @@ class BaseReader(PipelineStep):
         self.progress = progress
 
     @abstractmethod
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         raise NotImplementedError
 
     def set_up_dl_locks(self, dl_lock, up_lock):

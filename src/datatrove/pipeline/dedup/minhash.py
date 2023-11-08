@@ -9,7 +9,7 @@ from loguru import logger
 from nltk import ngrams, word_tokenize
 
 from datatrove.data import DocumentsPipeline
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, sha1_hash64, simplify_content
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -69,7 +69,7 @@ class HashSig:
         return self.reader_id != self.file_id
 
 
-def read_sigs(file: InputDataFile, reader_id: int, config: MinhashConfig, index_file: bool = False) -> Generator:
+def read_sigs(file: BaseInputDataFile, reader_id: int, config: MinhashConfig, index_file: bool = False) -> Generator:
     if index_file:
         for data in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}"):
             yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
@@ -146,10 +146,8 @@ class MinhashDedupSignature(PipelineStep):
                     bucket.write(struct.pack("<I", doc_idx))
         logger.info("Sorting buckets...")
         for bi, bucket in enumerate(buckets):
-            bucket.file_handler.close()
             fo = self.output_folder.open(bucket.relative_path, mode="r+b")
-            mmap = np.memmap(
-                fo.file_handler,
+            mmap = fo.get_mmap(
                 dtype=[(str(i), self.config.hash_dtype) for i in range(self.config.hashes_per_bucket)]
                 + [(str(self.config.hashes_per_bucket), np.uint32)],
             )  # doc_id at the end

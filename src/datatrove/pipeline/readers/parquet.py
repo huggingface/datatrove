@@ -3,7 +3,7 @@ from typing import Callable
 import pyarrow.parquet as pq
 
 from datatrove.data import Document
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -19,7 +19,7 @@ class ParquetReader(BaseReader):
         super().__init__(data_folder, **kwargs)
         self.adapter = adapter if adapter else lambda d, path, li: d
 
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(binary=True) as f:
             with pq.ParquetFile(f) as pqf:
                 for li, line in enumerate(pqf.iter_batches(batch_size=1)):

@@ -7,7 +7,7 @@ import numpy as np
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 
 
 parser = argparse.ArgumentParser()
@@ -21,12 +21,12 @@ parser.add_argument("--eos", type=str, help="eos token", default="<|endoftext|>"
 """
 
 
-def load_doc_ends(file: InputDataFile):
+def load_doc_ends(file: BaseInputDataFile):
     with file.open_binary() as f:
         return np.frombuffer(f.read(), dtype=np.uint64)
 
 
-def load_input_mmap(file: InputDataFile):
+def load_input_mmap(file: BaseInputDataFile):
     with file.open_binary() as f:
         return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
 

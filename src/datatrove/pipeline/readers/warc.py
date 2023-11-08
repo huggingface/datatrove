@@ -6,7 +6,7 @@ from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArcWarcRecord
 
 from datatrove.data import Document
-from datatrove.io import InputDataFile
+from datatrove.io import BaseInputDataFile
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -17,7 +17,7 @@ class WarcReader(BaseReader):
         self.compression = compression
         super().__init__(*args, **kwargs)
 
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression, binary=True) as f:
             for record in ArchiveIterator(f):
                 document = process_record(record)

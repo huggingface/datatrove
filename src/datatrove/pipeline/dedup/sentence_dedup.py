@@ -19,7 +19,7 @@ from nltk import load, ngrams
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -108,7 +108,7 @@ class SentenceDedupSignature(PipelineStep):
         self.output_folder.close()
 
 
-def read_sigs(file: InputDataFile, file_id: int, index_file: bool = False) -> Generator[HashSig, None, None]:
+def read_sigs(file: BaseInputDataFile, file_id: int, index_file: bool = False) -> Generator[HashSig, None, None]:
     if index_file:
         # only read hashes
         for (hash,) in read_tuples_from_file(file, "Q"):
@@ -192,7 +192,7 @@ class SentenceFindDedups(PipelineStep):
         self.output_folder.close()
 
 
-def read_duplicates(file: InputDataFile) -> Generator[tuple, None, None]:
+def read_duplicates(file: BaseInputDataFile) -> Generator[tuple, None, None]:
     yield from read_tuples_from_file(file, "I", "H")  # (doc_id, sent_id) pairs
 
 

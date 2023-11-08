@@ -4,7 +4,7 @@ from typing import Callable, Literal
 from loguru import logger
 
 from datatrove.data import Document
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -27,7 +27,7 @@ class CSVReader(BaseReader):
         self.adapter = adapter if adapter else self._base_adapter
         self.empty_warning = False
 
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression) as f:
             csv_reader = csv.DictReader(f)
             for di, d in enumerate(csv_reader):
