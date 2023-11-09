@@ -37,16 +37,20 @@ class PipelineExecutor(ABC):
             return PipelineStats()  # todo: fetch the original stats file (?)
         add_task_logger(self.logging_dir, rank, local_rank)
         # pipe data from one step to the next
-        pipelined_data = None
-        for pipeline_step in self.pipeline:
-            if callable(pipeline_step):
-                pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
-            elif isinstance(pipeline_step, Sequence) and not isinstance(pipeline_step, str):
-                pipelined_data = pipeline_step
-            else:
-                raise ValueError
-        if pipelined_data:
-            deque(pipelined_data, maxlen=0)
+        try:
+            pipelined_data = None
+            for pipeline_step in self.pipeline:
+                if callable(pipeline_step):
+                    pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
+                elif isinstance(pipeline_step, Sequence) and not isinstance(pipeline_step, str):
+                    pipelined_data = pipeline_step
+                else:
+                    raise ValueError
+            if pipelined_data:
+                deque(pipelined_data, maxlen=0)
+        except Exception as e:
+            logger.exception(e)
+            raise e
         logger.info(f"Processing done for {rank=}")
         stats = PipelineStats(
             [pipeline_step.stats for pipeline_step in self.pipeline if isinstance(pipeline_step, PipelineStep)]
