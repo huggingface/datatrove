@@ -68,7 +68,7 @@ class DatasetToSequence(PipelineStep):
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
-        f_lens._file_handler.write(struct.pack("Q" * len(doc_lens), *doc_lens))
+        f_lens.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         doc_lens = []
