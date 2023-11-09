@@ -34,7 +34,7 @@ def main():
     merged = sum(stats)
     with output_file.open() as f:
         merged.save_to_disk(f)
-    logger.info(f"Processing complete. Results saved to {output_file}.")
+    logger.info(f"Processing complete. Results saved to {output_file.path}.")
 
 
 if __name__ == "__main__":

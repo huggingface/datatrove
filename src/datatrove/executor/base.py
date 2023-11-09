@@ -31,7 +31,7 @@ class PipelineExecutor(ABC):
     def world_size(self):
         return 0
 
-    def _run_for_rank(self, rank: int, local_rank: int = -1) -> PipelineStats:
+    def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()  # todo: fetch the original stats file (?)

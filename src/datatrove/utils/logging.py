@@ -16,7 +16,7 @@ def get_random_str(length=5):
     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
-def add_task_logger(logging_dir: BaseOutputDataFolder, rank: int, local_rank: int = -1):
+def add_task_logger(logging_dir: BaseOutputDataFolder, rank: int, local_rank: int = 0):
     logger.remove()
     logger.add(sys.stderr, level="INFO" if local_rank == 0 else "ERROR")
     logger.add(logging_dir.open(f"logs/task_{rank:05d}.log"), colorize=True, level="DEBUG")
