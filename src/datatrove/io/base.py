@@ -316,6 +316,7 @@ class BaseOutputDataFile(ABC):
         """
         if self._file_handler:
             self._file_handler.close()
+            self._file_handler = None
 
     def __enter__(self):
         return self
@@ -374,6 +375,7 @@ class BaseOutputDataFile(ABC):
             self.folder.pop_file(self.relative_path)
         if self._file_handler:
             self._file_handler.close()
+            self._file_handler = None
 
     @property
     @abstractmethod
