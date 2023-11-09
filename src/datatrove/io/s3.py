@@ -34,6 +34,7 @@ class S3OutputDataFolder(BaseOutputDataFolder):
     def __post_init__(self):
         if not self.path.startswith("s3://"):
             raise ValueError("S3OutputDataFolder path must start with s3://")
+        self._tmpdir = None
         if not self.local_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.local_path = self._tmpdir.name
