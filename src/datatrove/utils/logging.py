@@ -19,5 +19,5 @@ def get_random_str(length=5):
 def add_task_logger(logging_dir: BaseOutputDataFolder, rank: int, local_rank: int = -1):
     logger.remove()
     logger.add(sys.stderr, level="INFO" if local_rank == 0 else "ERROR")
-    logger.add(logging_dir.open(f"task_{rank:05d}.log"), colorize=True, rotation="500 MB", level="DEBUG")
+    logger.add(logging_dir.open(f"logs/task_{rank:05d}.log"), colorize=True, level="DEBUG")
     logger.info(f"Launching pipeline for {rank=}")
