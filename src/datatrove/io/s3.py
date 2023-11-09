@@ -71,12 +71,14 @@ class S3OutputDataFile(BaseOutputDataFile):
 
     def close(self):
         super().close()
-        with contextlib.nullcontext() if not self.folder else self.folder._lock:
-            logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
-            s3_upload_file(self.local_path, self.path)
-            logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
-        if self.folder and self.folder.cleanup:
-            os.remove(self.local_path)
+        if self.local_path:
+            with contextlib.nullcontext() if not self.folder else self.folder._lock:
+                logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
+                s3_upload_file(self.local_path, self.path)
+                logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
+            if self.folder and self.folder.cleanup:
+                os.remove(self.local_path)
+            self.local_path = None
 
     def _create_file_handler(self, mode: str = "w", gzip: bool = False):
         os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
