@@ -153,6 +153,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
     @property
     def sbatch_args(self) -> dict:
         slurm_logfile = self.logging_dir.open("slurm_logs/%j.out")
+        # TODO: figure out a better way
+        slurm_logfile.delete()  # we don't want a dangling "%j.out"
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
