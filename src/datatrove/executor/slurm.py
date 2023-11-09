@@ -7,6 +7,7 @@ import textwrap
 from typing import Callable
 
 import dill
+from dill import CONTENTS_FMODE
 from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
@@ -123,7 +124,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         # pickle
         with self.logging_dir.open("executor.pik", "wb") as executor_f:
-            dill.dump(self, executor_f)
+            dill.dump(self, executor_f, fmode=CONTENTS_FMODE)
 
         with self.logging_dir.open("launch_script.slurm") as launchscript_f:
             launchscript_f.write(
