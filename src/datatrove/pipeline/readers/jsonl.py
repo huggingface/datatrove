@@ -18,13 +18,23 @@ class JsonlReader(BaseReader):
         compression: Literal["guess", "gzip", "zst"] | None = "guess",
         adapter: Callable = None,
         content_key: str = "content",
+        id_key: str = "data_id",
         **kwargs,
     ):
         super().__init__(data_folder, **kwargs)
         self.compression = compression
         self.content_key = content_key
-        self.adapter = adapter if adapter else lambda d, path, li: {"content": d.pop(content_key, ""), **d}
+        self.id_key = id_key
+        self.adapter = adapter if adapter else self._default_adapter
         self.empty_warning = False
+
+    def _default_adapter(self, d: dict, path: str, li: int):
+        return {
+            "content": d.pop(self.content_key, ""),
+            "data_id": d.pop(self.id_key, f"{path}/{li:05d}"),
+            "media": d.pop("media", []),
+            "metadata": d,
+        }
 
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression) as f:
