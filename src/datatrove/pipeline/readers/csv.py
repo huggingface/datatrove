@@ -23,7 +23,7 @@ class CSVReader(BaseReader):
             csv_reader = csv.DictReader(f)
             for di, d in enumerate(csv_reader):
                 with self.stats.time_manager:
-                    document = self.get_document_from_dict(d, datafile.path, di)
+                    document = self.get_document_from_dict(d, datafile, di)
                     if not document:
                         continue
                 yield document

@@ -19,7 +19,7 @@ class ParquetReader(BaseReader):
             with pq.ParquetFile(f) as pqf:
                 for li, line in enumerate(pqf.iter_batches(batch_size=1)):
                     with self.stats.time_manager:
-                        document = self.get_document_from_dict(line.to_pydict(), datafile.path, li)
+                        document = self.get_document_from_dict(line.to_pydict(), datafile, li)
                         if not document:
                             continue
                     yield document

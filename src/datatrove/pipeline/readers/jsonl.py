@@ -25,7 +25,7 @@ class JsonlReader(BaseReader):
             for li, line in enumerate(f):
                 with self.stats.time_manager:
                     try:
-                        document = self.get_document_from_dict(json.loads(line), datafile.path, li)
+                        document = self.get_document_from_dict(json.loads(line), datafile, li)
                         if not document:
                             continue
                     except (EOFError, JSONDecodeError) as e:

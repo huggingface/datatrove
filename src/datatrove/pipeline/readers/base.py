@@ -40,15 +40,15 @@ class BaseReader(PipelineStep):
             "metadata": data,
         }
 
-    def get_document_from_dict(self, data: dict, path: str, id_in_file: int):
-        parsed_data = self.adapter(data, path, id_in_file)
+    def get_document_from_dict(self, data: dict, source_file: BaseInputDataFile, id_in_file: int):
+        parsed_data = self.adapter(data, source_file.relative_path, id_in_file)
         if not parsed_data.get("content", None):
             if not self.empty_warning:
                 self.empty_warning = True
                 logger.warning("Found document without content, skipping.")
             return None
         document = Document(**parsed_data)
-        document.metadata.setdefault("file_path", path)
+        document.metadata.setdefault("file_path", source_file.path)
         return document
 
     @abstractmethod

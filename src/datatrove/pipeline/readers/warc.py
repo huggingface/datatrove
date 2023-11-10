@@ -23,7 +23,7 @@ class WarcReader(BaseReader):
                     extracted_data = process_record(record)
                     if not extracted_data:
                         continue
-                    document = self.get_document_from_dict(extracted_data, datafile.path, ri)
+                    document = self.get_document_from_dict(extracted_data, datafile, ri)
                     if not document:
                         continue
                 yield document
