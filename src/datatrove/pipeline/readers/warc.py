@@ -5,7 +5,6 @@ import magic
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArcWarcRecord
 
-from datatrove.data import Document
 from datatrove.io import BaseInputDataFile
 from datatrove.pipeline.readers.base import BaseReader
 
@@ -19,14 +18,18 @@ class WarcReader(BaseReader):
 
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression, binary=True) as f:
-            for record in ArchiveIterator(f):
-                document = process_record(record)
-                if document:
-                    document.metadata["file_path"] = datafile.path
-                    yield document
+            for ri, record in enumerate(ArchiveIterator(f)):
+                with self.stats.time_manager:
+                    extracted_data = process_record(record)
+                    if not extracted_data:
+                        continue
+                    document = self.get_document_from_dict(extracted_data, datafile.path, ri)
+                    if not document:
+                        continue
+                yield document
 
 
-def process_record(record: ArcWarcRecord):
+def process_record(record: ArcWarcRecord) -> dict | None:
     # record type
     if record.rec_type != "response":
         return
@@ -67,8 +70,4 @@ def process_record(record: ArcWarcRecord):
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return Document(
-        content=html,
-        data_id=data_id,
-        metadata={"url": url, "date": date},
-    )
+    return {"content": html, "data_id": data_id, "url": url, "date": date}
