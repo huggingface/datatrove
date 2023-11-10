@@ -23,7 +23,7 @@ class JsonlReader(BaseReader):
         super().__init__(data_folder, **kwargs)
         self.compression = compression
         self.content_key = content_key
-        self.adapter = adapter if adapter else lambda d, path, li: d
+        self.adapter = adapter if adapter else lambda d, path, li: {"content": d.pop(content_key, ""), **d}
         self.empty_warning = False
 
     def read_file(self, datafile: BaseInputDataFile):
@@ -31,13 +31,13 @@ class JsonlReader(BaseReader):
             for li, line in enumerate(f):
                 with self.stats.time_manager:
                     try:
-                        d = json.loads(line)
-                        if not d.get(self.content_key, None):
+                        d = self.adapter(json.loads(line), datafile.path, li)
+                        if not d.get("content", None):
                             if not self.empty_warning:
                                 self.empty_warning = True
                                 logger.warning("Found document without content, skipping.")
                             continue
-                        document = Document(**self.adapter(d, datafile.path, li))
+                        document = Document(**d)
                         document.metadata.setdefault("file_path", datafile.path)
                     except (EOFError, JSONDecodeError) as e:
                         logger.warning(f"Error when reading `{datafile.path}`: {e}")
