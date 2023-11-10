@@ -38,7 +38,7 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
 
     def _create_new_file(self, relative_path: str) -> LocalOutputDataFile:
         return LocalOutputDataFile(
-            path=os.path.join(self.path, relative_path), relative_path=relative_path, folder=self
+            path=os.path.join(self.path, relative_path), relative_path=relative_path, _lock=self._lock
         )
 
     def to_input_folder(self) -> BaseInputDataFolder:
@@ -83,7 +83,7 @@ class LocalInputDataFolder(BaseInputDataFolder):
         :return: an input file
         """
         return LocalInputDataFile(
-            path=os.path.join(self.path, relative_path), relative_path=relative_path, folder=self
+            path=os.path.join(self.path, relative_path), relative_path=relative_path, _lock=self._lock
         )
 
 

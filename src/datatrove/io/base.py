@@ -11,6 +11,7 @@ from typing import Literal
 import numpy as np
 import zstandard
 from loguru import logger
+from multiprocess.synchronize import SemLock
 
 from datatrove.io.utils.fsspec import valid_fsspec_path
 
@@ -28,7 +29,7 @@ class BaseInputDataFile:
 
     path: str
     relative_path: str
-    folder: "BaseInputDataFolder" = None
+    _lock: SemLock | contextlib.nullcontext = field(default_factory=contextlib.nullcontext)
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
@@ -133,7 +134,7 @@ class BaseInputDataFolder(ABC):
     extension: str | list[str] = None
     recursive: bool = True
     match_pattern: str = None
-    _lock = contextlib.nullcontext()
+    _lock: SemLock | contextlib.nullcontext = field(default_factory=contextlib.nullcontext)
 
     @classmethod
     def from_path(cls, path, **kwargs):
@@ -284,9 +285,9 @@ class BaseOutputDataFile(ABC):
 
     path: str
     relative_path: str
-    folder: "BaseOutputDataFolder" = None
     _file_handler = None
     _mode: str = None
+    _lock: SemLock | contextlib.nullcontext = field(default_factory=contextlib.nullcontext)
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
@@ -371,8 +372,6 @@ class BaseOutputDataFile(ABC):
             Does not call close() on the OutputDataFile directly to avoid uploading/saving it externally.
         :return:
         """
-        if self.folder:
-            self.folder.pop_file(self.relative_path)
         if self._file_handler:
             self._file_handler.close()
             self._file_handler = None
@@ -395,7 +394,7 @@ class BaseOutputDataFolder(ABC):
 
     path: str
     _output_files: dict[str, BaseOutputDataFile] = field(default_factory=dict)
-    _lock = contextlib.nullcontext()
+    _lock: SemLock | contextlib.nullcontext = field(default_factory=contextlib.nullcontext)
 
     def close(self):
         """
@@ -453,10 +452,6 @@ class BaseOutputDataFolder(ABC):
         if relative_path not in self._output_files:
             self._output_files[relative_path] = self._create_new_file(relative_path)
         return self._output_files[relative_path].open(mode, gzip)
-
-    def pop_file(self, relative_path):
-        if relative_path in self._output_files:
-            self._output_files.pop(relative_path)
 
     @abstractmethod
     def to_input_folder(self) -> BaseInputDataFolder:

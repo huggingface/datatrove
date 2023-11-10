@@ -38,6 +38,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
         logging_dir: BaseOutputDataFolder = None,
+        skip_completed: bool = True,
     ):
         """
         :param tasks: total number of tasks to run
@@ -51,7 +52,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
-        super().__init__(pipeline, logging_dir)
+        super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers
         self.partition = partition
@@ -125,6 +126,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         # pickle
         with self.logging_dir.open("executor.pik", "wb") as executor_f:
             dill.dump(self, executor_f, fmode=CONTENTS_FMODE)
+        self.save_executor_as_json()
 
         with self.logging_dir.open("launch_script.slurm") as launchscript_f:
             launchscript_f.write(

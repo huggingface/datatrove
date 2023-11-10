@@ -1,4 +1,3 @@
-import contextlib
 import gzip as gzip_lib
 import os.path
 import tempfile
@@ -49,7 +48,8 @@ class S3OutputDataFolder(BaseOutputDataFolder):
             local_path=os.path.join(self.local_path, relative_path),
             path=os.path.join(self.path, relative_path),
             relative_path=relative_path,
-            folder=self,
+            cleanup=self.cleanup,
+            _lock=self._lock,
         )
 
     def to_input_folder(self) -> BaseInputDataFolder:
@@ -63,7 +63,7 @@ class S3OutputDataFile(BaseOutputDataFile):
     """
 
     local_path: str = None
-    folder: "S3OutputDataFolder" = None
+    cleanup: bool = True
 
     def __post_init__(self):
         if not self.path.startswith("s3://"):
@@ -73,11 +73,11 @@ class S3OutputDataFile(BaseOutputDataFile):
     def close(self):
         super().close()
         if self.local_path:
-            with contextlib.nullcontext() if not self.folder else self.folder._lock:
+            with self._lock:
                 logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
                 s3_upload_file(self.local_path, self.path)
                 logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
-            if self.folder and self.folder.cleanup:
+            if self.cleanup:
                 os.remove(self.local_path)
             self.local_path = None
 
@@ -92,7 +92,7 @@ class S3OutputDataFile(BaseOutputDataFile):
 
     @property
     def persistent_local_path(self):
-        assert not self.folder or (not self.folder._tmpdir and not self.folder.cleanup)
+        assert not self.cleanup
         return self.local_path
 
 
@@ -107,7 +107,7 @@ class S3InputDataFile(BaseInputDataFile):
 
     local_path: str = None
     stream: bool = False
-    folder: "S3InputDataFolder" = None
+    cleanup: bool = True
 
     @contextmanager
     def open_binary(self):
@@ -121,7 +121,7 @@ class S3InputDataFile(BaseInputDataFile):
         else:
             # download
             if not os.path.isfile(self.local_path):
-                with contextlib.nullcontext() if not self.folder else self.folder._lock:
+                with self._lock:
                     logger.info(f'Downloading "{self.path}" to "{self.local_path}"...')
                     s3_download_file(self.path, self.local_path)
                     logger.info(f'Downloaded "{self.path}" to "{self.local_path}".')
@@ -129,7 +129,7 @@ class S3InputDataFile(BaseInputDataFile):
                 try:
                     yield f
                 finally:
-                    if self.folder and self.folder.cleanup:
+                    if self.cleanup:
                         os.remove(self.local_path)
 
 
@@ -161,8 +161,9 @@ class S3InputDataFolder(BaseInputDataFolder):
             path=os.path.join(self.path, relative_path),
             local_path=os.path.join(self.local_path, relative_path),
             relative_path=relative_path,
-            folder=self,
             stream=self.stream,
+            cleanup=self.cleanup,
+            _lock=self._lock,
         )
 
     def file_exists(self, relative_path: str) -> bool:
