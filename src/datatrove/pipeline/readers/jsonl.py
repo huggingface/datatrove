@@ -31,7 +31,7 @@ class JsonlReader(BaseReader):
     def _default_adapter(self, d: dict, path: str, li: int):
         return {
             "content": d.pop(self.content_key, ""),
-            "data_id": d.pop(self.id_key, f"{path}/{li:05d}"),
+            "data_id": d.pop(self.id_key, f"{path}/{li}"),
             "media": d.pop("media", []),
             "metadata": d,
         }
