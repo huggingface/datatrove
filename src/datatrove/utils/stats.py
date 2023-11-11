@@ -1,3 +1,4 @@
+import datetime
 import itertools
 import json
 import math
@@ -5,6 +6,8 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Callable
+
+import humanize
 
 from datatrove.io import BaseOutputDataFile
 
@@ -228,6 +231,7 @@ class OnlineStats:
 
     def __repr__(self):
         if self.mean != 1:
+            # only display relevant fields
             elements = [
                 (f"min={self.min}, ", self.min != self.mean),
                 (f"max={self.max}, ", self.max != self.mean),
@@ -252,7 +256,22 @@ class OnlineTimingStats(OnlineStats):
     def get_repr(self, total_time: float = 0.0):
         if self.total == 0:
             return "Time not computed"
-        return f"[{self.total:.4f}s ({self._get_time_frac(total_time):.2%}), {self.mean:.4f}±{self.standard_deviation:.4f}s/doc]"
+        return (
+            f"[{humanize.precisedelta(self.total)} ({self._get_time_frac(total_time):.2%}), "
+            f"{humanize.precisedelta(datetime.timedelta(seconds=self.mean), minimum_unit='milliseconds')}"
+            f"±{humanize.precisedelta(datetime.timedelta(seconds=self.standard_deviation), minimum_unit='milliseconds')}/{self.unit}]"
+        )
 
     def __repr__(self):
         return self.get_repr()
+
+    def to_dict(self):
+        data = super().to_dict()
+        data["total_human"] = humanize.precisedelta(self.total)
+        data["mean_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.mean), minimum_unit="milliseconds")
+        data["std_dev_human"] = humanize.precisedelta(
+            datetime.timedelta(seconds=self.standard_deviation), minimum_unit="milliseconds"
+        )
+        data["min_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.min), minimum_unit="milliseconds")
+        data["max_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.max), minimum_unit="milliseconds")
+        return data

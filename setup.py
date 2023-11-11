@@ -20,6 +20,7 @@ REQUIRED_PKGS = [
     "pandas==2.0.3",
     "backoff==2.2.1",
     "fsspec==2023.9.2",
+    "humanize==4.8.0",
 ]
 
 EXTRAS = {
