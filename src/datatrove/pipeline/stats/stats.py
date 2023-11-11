@@ -10,6 +10,5 @@ class Nerdino(PipelineStep):
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         for doc in data:
-            with self.stats.time_manager:
-                self.stats.doc_len.update(len(doc.content))
+            self.stats.doc_len_stats += len(doc.content)
             yield doc

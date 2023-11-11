@@ -148,16 +148,17 @@ class DocumentTokenizer(PipelineStep):
         )
         # tokenize each document's text and write its tokens sequentially to the output .ds
         for document in data:
-            encoded: Encoding = self.tokenizer.encode(document.content)
-            tokens = encoded.ids
-            # loss values
-            loss_values = self.get_loss_values(document, encoded)
-            if loss_values is not None and len(loss_values) < len(tokens):
-                tokens = tokens[: len(loss_values)]
-            # write bytes to disk
-            unshuff.write(tokens, loss_values)
-            # save stats
-            self.stat_update("tokens", len(tokens))
+            with self.track_time():
+                encoded: Encoding = self.tokenizer.encode(document.content)
+                tokens = encoded.ids
+                # loss values
+                loss_values = self.get_loss_values(document, encoded)
+                if loss_values is not None and len(loss_values) < len(tokens):
+                    tokens = tokens[: len(loss_values)]
+                # write bytes to disk
+                unshuff.write(tokens, loss_values)
+                # save stats
+                self.stat_update("tokens", value=len(tokens))
         return unshuff
 
     def get_output_filename(self, rank, name):

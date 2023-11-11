@@ -87,7 +87,7 @@ class DocumentTokenizerMerger(PipelineStep):
             output_file.write_bytes(tokens)
             if loss_inputs:
                 output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
-            self.stat_update("tokens", len(tokens) // 2)
+            self.stat_update("tokens", value=len(tokens) // 2)
         # cleanup
         output_file.close()
         self.output_folder.close()

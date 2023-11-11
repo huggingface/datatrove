@@ -57,12 +57,12 @@ class PipelineExecutor(ABC):
             if pipelined_data:
                 deque(pipelined_data, maxlen=0)
 
-            logger.info(f"Processing done for {rank=}")
+            logger.success(f"Processing done for {rank=}")
+
             # stats
-            stats = PipelineStats(
-                [pipeline_step.stats for pipeline_step in self.pipeline if isinstance(pipeline_step, PipelineStep)]
-            )
+            stats = PipelineStats(self.pipeline)
             stats.save_to_disk(self.logging_dir.open(f"stats/{rank:05d}.json"))
+            logger.info(stats.get_repr(f"Task {rank}"))
             # completed
             self.mark_rank_as_completed(rank)
         except Exception as e:

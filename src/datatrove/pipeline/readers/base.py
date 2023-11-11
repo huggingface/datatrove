@@ -62,14 +62,18 @@ class BaseReader(PipelineStep):
         li = 0
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             for datafile in shard:
+                self.stat_update("input_files")
                 logger.info(f"Reading input file {datafile.path}")
-                for document in self.read_file(datafile):
+                for di, document in enumerate(self.read_file(datafile)):
                     if self.limit != -1 and li >= self.limit:
-                        return
+                        break
                     yield document
                     if self.progress:
                         pbar.update()
                     li += 1
+                self.stat_update("documents", value=di, unit="input_file")
+                if self.limit != -1 and li >= self.limit:
+                    break
 
     def __call__(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:

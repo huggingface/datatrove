@@ -47,7 +47,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
             fout = self.output_folder.open(datafile.relative_path, "wb")
             with datafile.open_binary() as f:
                 with mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ) as unshuf:
-                    for windowi in ordering:
-                        start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
-                        fout.write(unshuf[start:end])
+                    with self.track_time():
+                        for windowi in ordering:
+                            start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
+                            fout.write(unshuf[start:end])
         self.output_folder.close()

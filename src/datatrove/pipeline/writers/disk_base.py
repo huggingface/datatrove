@@ -25,7 +25,7 @@ class DiskWriter(PipelineStep, ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _get_output_filename(self, document: Document, rank: int = 0, **kwargs):
+    def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs):
         return self.output_filename.substitute(
             {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata, **kwargs}
         )
@@ -41,15 +41,14 @@ class DiskWriter(PipelineStep, ABC):
         return self.output_folder.open(output_filename)
 
     def write(self, document: Document, rank: int = 0, **kwargs):
-        output_filename = self._get_output_filename(document, rank, **kwargs)
-        output_file: BaseOutputDataFile = self.open(output_filename)
+        output_file: BaseOutputDataFile = self.open(self._get_output_filename(document, rank, **kwargs))
         self._write(document, output_file)
-        self.stat_update(output_filename)
+        self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         with self:
             for document in data:
-                with self.stats.time_manager:
+                with self.track_time():
                     self.write(document, rank)
                 yield document

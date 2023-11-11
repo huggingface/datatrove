@@ -134,16 +134,17 @@ class MinhashDedupSignature(PipelineStep):
             for bi in range(self.config.num_buckets)
         ]
         for doc_idx, doc in enumerate(data):
-            self.stat_update(StatHints.total)
-            shingles = self.get_shingles(doc.content)
-            if shingles.size != 0:
-                sig = self.get_signature(shingles)
-                for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
-                    # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
-                    bucket.write(
-                        struct.pack(f"<{self.config.hashes_per_bucket}{self.config.hash_format}", *bucket_sig)
-                    )
-                    bucket.write(struct.pack("<I", doc_idx))
+            with self.track_time():
+                self.stat_update(StatHints.total)
+                shingles = self.get_shingles(doc.content)
+                if shingles.size != 0:
+                    sig = self.get_signature(shingles)
+                    for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
+                        # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
+                        bucket.write(
+                            struct.pack(f"<{self.config.hashes_per_bucket}{self.config.hash_format}", *bucket_sig)
+                        )
+                        bucket.write(struct.pack("<I", doc_idx))
         logger.info("Sorting buckets...")
         for bi, bucket in enumerate(buckets):
             fo = self.output_folder.open(bucket.relative_path, mode="r+b")
@@ -202,20 +203,23 @@ class MinhashDedupBuckets(PipelineStep):
         out_f = self.output_folder.open(f"{bucket:05d}.dups", mode="wb")
 
         last: HashSig | None = None
-        while pq:
-            v: HashSig = heapq.heappop(pq)
-            if last and last.sig == v.sig and not v.is_from_index():
-                # write (file_id1, doc_id1, file_id2, doc_id2)
-                if last.is_from_index():
-                    # we can't actually write -1
-                    out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_id, v.doc_id))
-                # if there isn't an index, or we are not only deduping in relation to the index
-                elif not index_files or not self.only_dedup_in_index:
-                    out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
-            last = v
-            next_sig = next(sig_readers[v.reader_id], None)
-            if next_sig:
-                heapq.heappush(pq, next_sig)
+        with self.track_time():
+            while pq:
+                v: HashSig = heapq.heappop(pq)
+                if last and last.sig == v.sig and not v.is_from_index():
+                    # write (file_id1, doc_id1, file_id2, doc_id2)
+                    if last.is_from_index():
+                        # we can't actually write -1
+                        out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_id, v.doc_id))
+                        self.stat_update("index_match", "total_matches")
+                    # if there isn't an index, or we are not only deduping in relation to the index
+                    elif not index_files or not self.only_dedup_in_index:
+                        out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
+                        self.stat_update("total_matches")
+                last = v
+                next_sig = next(sig_readers[v.reader_id], None)
+                if next_sig:
+                    heapq.heappush(pq, next_sig)
         self.output_folder.close()
 
 
@@ -253,24 +257,28 @@ class MinhashDedupCluster(PipelineStep):
             union_set[x] = parent(union_set[x])
             return union_set[x]
 
-        for dup_file in dup_files:
-            for f1, d1, f2, d2 in read_tuples_from_file(dup_file, "4I"):
-                a, b = (f1, d1), (f2, d2)
-                union_set[parent(b)] = parent(a)
+        with self.track_time():
+            for dup_file in dup_files:
+                for f1, d1, f2, d2 in read_tuples_from_file(dup_file, "4I"):
+                    a, b = (f1, d1), (f2, d2)
+                    union_set[parent(b)] = parent(a)
 
-        ci = 0
-        cluster_ids = {}
-        for node in sorted(union_set.keys()):
-            file, doc = node
-            p = parent(node)
-            if node != p:
-                self.output_folder.open(f"{file:06d}.remove", mode="wb").write(struct.pack("<I", doc))
-            if self.save_cluster_id:
-                if p not in cluster_ids:
-                    cluster_ids[p] = ci
-                    ci += 1
-                self.output_folder.open(f"{file:06d}.clusters", mode="wb").write(struct.pack("<I", doc))
-                self.output_folder.open(f"{file:06d}.clusters", mode="wb").write(struct.pack("<I", cluster_ids[p]))
+            ci = 0
+            cluster_ids = {}
+            for node in sorted(union_set.keys()):
+                self.stat_update("duplicates")
+                file, doc = node
+                p = parent(node)
+                if node != p:
+                    self.output_folder.open(f"{file:06d}.remove", mode="wb").write(struct.pack("<I", doc))
+                    self.stat_update("to_remove")
+                if self.save_cluster_id:
+                    if p not in cluster_ids:
+                        cluster_ids[p] = ci
+                        ci += 1
+                        self.stat_update("clusters")
+                    self.output_folder.open(f"{file:06d}.clusters", mode="wb").write(struct.pack("<I", doc))
+                    self.output_folder.open(f"{file:06d}.clusters", mode="wb").write(struct.pack("<I", cluster_ids[p]))
         self.output_folder.close()
 
 
@@ -304,8 +312,7 @@ class MinhashDedupFilter(PipelineStep):
         if not remove_file:
             logger.warning(f"No .remove file for {rank=}.")
             for doc in data:
-                self.stat_update(StatHints.total)
-                self.stat_update(StatHints.forwarded)
+                self.stat_update(StatHints.total, StatHints.forwarded)
                 yield doc
             return
         with remove_file.open_binary() as f:
@@ -326,20 +333,21 @@ class MinhashDedupFilter(PipelineStep):
 
                 next_removal = get_next()
                 for idx, doc in enumerate(data):
-                    if self.load_cluster_ids:
-                        if next_cluster and idx == next_cluster[0]:
-                            doc.metadata["minhash_cluster"] = next_cluster[1]
-                            next_cluster = next(cluster_loader, None)
+                    with self.track_time():
+                        if self.load_cluster_ids:
+                            if next_cluster and idx == next_cluster[0]:
+                                doc.metadata["minhash_cluster"] = next_cluster[1]
+                                next_cluster = next(cluster_loader, None)
 
-                    self.stat_update(StatHints.total)
-                    if next_removal == idx:
-                        # to remove
-                        self.stat_update(StatHints.dropped)
-                        if self.exclusion_writer:
-                            exc_writer.write(doc, rank)
-                        next_removal = get_next()
-                        continue
-                    self.stat_update(StatHints.forwarded)
+                        self.stat_update(StatHints.total)
+                        if next_removal == idx:
+                            # to remove
+                            self.stat_update(StatHints.dropped)
+                            if self.exclusion_writer:
+                                exc_writer.write(doc, rank)
+                            next_removal = get_next()
+                            continue
+                        self.stat_update(StatHints.forwarded)
                     yield doc
 
 
@@ -378,12 +386,13 @@ class MinhashBuildIndex(PipelineStep):
         out_f = self.output_folder.open(f"bucket_{bucket:03d}/{self.index_name}.minhash.index", mode="wb")
 
         last: HashSig | None = None
-        while pq:
-            v: HashSig = heapq.heappop(pq)
-            if not last or last.sig != v.sig:
-                out_f.write(struct.pack(f"<%d{self.config.hash_format}" % self.config.hashes_per_bucket, *v.sig))
-            last = v
-            next_sig = next(sig_readers[v.file_id], None)
-            if next_sig:
-                heapq.heappush(pq, next_sig)
+        with self.track_time():
+            while pq:
+                v: HashSig = heapq.heappop(pq)
+                if not last or last.sig != v.sig:
+                    out_f.write(struct.pack(f"<%d{self.config.hash_format}" % self.config.hashes_per_bucket, *v.sig))
+                last = v
+                next_sig = next(sig_readers[v.file_id], None)
+                if next_sig:
+                    heapq.heappush(pq, next_sig)
         self.output_folder.close()

@@ -45,11 +45,11 @@ class BaseFilter(PipelineStep, ABC):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc in data:
                 self.stat_update(StatHints.total)
-                with self.stats.time_manager:
+                with self.track_time():
                     filter_result, reason = get_filter_result(self.filter(doc))
                     if filter_result:
                         self.stat_update(StatHints.forwarded)
-                        self.stats.doc_len.update(len(doc.content))
+                        self.stats.doc_len_stats += len(doc.content)
                     else:
                         self.stat_update(StatHints.dropped)
                         if self.exclusion_writer:

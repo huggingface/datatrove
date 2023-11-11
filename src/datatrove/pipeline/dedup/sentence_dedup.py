@@ -101,7 +101,7 @@ class SentenceDedupSignature(PipelineStep):
         """
         signatures = []
         for doc_idx, doc in enumerate(data):
-            with self.stats.time_manager:
+            with self.stats.time_stats:
                 self.stat_update(StatHints.total)
                 signatures.extend(self.get_hashes(doc, doc_idx))
         self.save_hashes(rank, signatures)
@@ -149,7 +149,7 @@ class SentenceFindDedups(PipelineStep):
         """
         assert world_size == 1, "SentenceFindDedups can only run on a single worker."
         files_with_duplicates = set()
-        with self.stats.time_manager:
+        with self.stats.time_stats:
             sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)
             sig_readers = [read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
             index_files = self.index_folder.list_files() if self.index_folder else None
@@ -243,8 +243,8 @@ class SentenceDedupFilter(PipelineStep):
         if in_removed_span:
             original_formatted.append("<<<\u001b[0m")
         if len(kept_sentences) < len(sentence_spans):
-            self.stat_update("removed_sentences", len(sentence_spans) - len(kept_sentences))
-        self.stat_update("original_sentences", len(sentence_spans))
+            self.stat_update("removed_sentences", value=len(sentence_spans) - len(kept_sentences))
+        self.stat_update("original_sentences", value=len(sentence_spans))
         return "".join(kept_sentences).lstrip(), "".join(original_formatted)
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
@@ -267,12 +267,12 @@ class SentenceDedupFilter(PipelineStep):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for idx, doc in enumerate(data):
                 self.stat_update(StatHints.total)
-                with self.stats.time_manager:
+                with self.stats.time_stats:
                     filtered_content, original_formatted = self.remove_dup_sentences(doc, du_lines=du_file.get(idx))
                 if (
                     filtered_content == doc.content or len(word_tokenize(filtered_content)) > self.min_doc_words
                 ):  # document is kept
-                    self.stats.doc_len.update(len(doc.content))
+                    self.stats.doc_len_stats += len(doc.content)
                     if not filtered_content == doc.content and writer:
                         writer.write(dataclasses.replace(doc, content=original_formatted), rank=rank)
                     doc.content = filtered_content
@@ -296,7 +296,7 @@ class SentenceDedupBuildIndex(PipelineStep):
 
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
-        with self.stats.time_manager:
+        with self.stats.time_stats:
             sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)
             sig_readers = [read_sigs(file, file_i) for file_i, file in enumerate(sig_files)]
 

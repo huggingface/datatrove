@@ -54,11 +54,11 @@ class BaseExtractor(PipelineStep):
         """ """
         for doc in data:
             self.stat_update(StatHints.total)
-            with self.stats.time_manager:
+            with self.track_time():
                 doc.content = self.timeout_extract(doc)
             if doc.content:
                 self.stat_update(StatHints.forwarded)
-                self.stats.doc_len.update(len(doc.content))
+                self.stats.doc_len_stats += len(doc.content)
                 yield doc
             else:
                 self.stat_update(StatHints.dropped)

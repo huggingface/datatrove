@@ -26,3 +26,4 @@ def add_task_logger(logging_dir: BaseOutputDataFolder, rank: int, local_rank: in
 def close_task_logger(logging_dir: BaseOutputDataFolder, rank: int):
     logger.remove()
     logging_dir.open(f"logs/task_{rank:05d}.log").close()
+    logger.add(sys.stderr)

@@ -19,7 +19,7 @@ class WarcReader(BaseReader):
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression, binary=True) as f:
             for ri, record in enumerate(ArchiveIterator(f)):
-                with self.stats.time_manager:
+                with self.track_time():
                     extracted_data = process_record(record)
                     if not extracted_data:
                         continue

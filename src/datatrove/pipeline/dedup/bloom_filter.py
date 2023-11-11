@@ -153,14 +153,15 @@ class SingleBloomFilter(PipelineStep):
     def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc_idx, doc in enumerate(data):
-                with self.stats.time_manager:
+                with self.track_time():
                     self.stat_update(StatHints.total)
-                    if self.step(doc):
-                        self.stat_update(StatHints.forwarded)
-                        yield doc
-                    else:
+                    if not self.step(doc):
+                        self.stat_update(StatHints.dropped)
                         if self.exclusion_writer:
                             writer.write(doc, rank)
+                        continue
+                self.stat_update(StatHints.forwarded)
+                yield doc
             if self.save_bloom_filter:
                 with self.output_folder.open("bloom_filter.bloom", mode="wb") as f:
                     f.write(self.bit_vector)

@@ -2,11 +2,13 @@ from copy import deepcopy
 from typing import Callable
 
 import multiprocess.pool
+from loguru import logger
 from multiprocess import Queue, Semaphore
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.stats import PipelineStats
 
 
 download_semaphore, upload_semaphore, ranks_queue = None, None, None
@@ -41,11 +43,12 @@ class LocalPipelineExecutor(PipelineExecutor):
             for pipeline_step in self.pipeline:
                 if isinstance(pipeline_step, PipelineStep):
                     pipeline_step.set_up_dl_locks(download_semaphore, upload_semaphore)
-        local_rank = ranks_queue.get()
+        local_rank = ranks_queue.get() if ranks_queue else 0
         try:
             return super()._run_for_rank(rank, local_rank)
         finally:
-            ranks_queue.put(local_rank)  # free up used rank
+            if ranks_queue:
+                ranks_queue.put(local_rank)  # free up used rank
 
     def run(self):
         self.save_executor_as_json()
@@ -67,8 +70,10 @@ class LocalPipelineExecutor(PipelineExecutor):
                 self.workers, initializer=init_pool_processes, initargs=(dl_sem, up_sem, ranks_q)
             ) as pool:
                 stats = list(pool.map(self._run_for_rank, range(self.tasks)))
-        stats = sum(stats)
+        # merged stats
+        stats = sum(stats, start=PipelineStats())
         stats.save_to_disk(self.logging_dir.open("stats.json"))
+        logger.success(stats.get_repr(f"All {self.tasks} tasks"))
         self.logging_dir.close()
         return stats
 

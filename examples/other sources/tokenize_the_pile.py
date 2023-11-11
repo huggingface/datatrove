@@ -20,8 +20,8 @@ pipeline = [
 
 executor: PipelineExecutor = LocalPipelineExecutor(
     pipeline=pipeline,
-    tasks=20,
-    workers=20,
+    tasks=2,
+    workers=1,
     skip_completed=False,
     logging_dir=S3OutputDataFolder(
         "s3://extreme-scale-dp-temp/logs/tests/piletokenized/tokenized",

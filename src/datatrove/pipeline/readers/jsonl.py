@@ -23,7 +23,7 @@ class JsonlReader(BaseReader):
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression) as f:
             for li, line in enumerate(f):
-                with self.stats.time_manager:
+                with self.track_time():
                     try:
                         document = self.get_document_from_dict(json.loads(line), datafile, li)
                         if not document:

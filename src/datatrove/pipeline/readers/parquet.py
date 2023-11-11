@@ -18,7 +18,7 @@ class ParquetReader(BaseReader):
         with datafile.open(binary=True) as f:
             with pq.ParquetFile(f) as pqf:
                 for li, line in enumerate(pqf.iter_batches(batch_size=1)):
-                    with self.stats.time_manager:
+                    with self.track_time():
                         document = self.get_document_from_dict(line.to_pydict(), datafile, li)
                         if not document:
                             continue

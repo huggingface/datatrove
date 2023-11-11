@@ -22,7 +22,7 @@ class CSVReader(BaseReader):
         with datafile.open(compression=self.compression) as f:
             csv_reader = csv.DictReader(f)
             for di, d in enumerate(csv_reader):
-                with self.stats.time_manager:
+                with self.track_time():
                     document = self.get_document_from_dict(d, datafile, di)
                     if not document:
                         continue

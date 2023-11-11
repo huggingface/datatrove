@@ -9,10 +9,14 @@ class PipelineStep(ABC):
     type: str = None
 
     def __init__(self, **kwargs):
-        self.stats = Stats(f"{self.__repr__()}")
+        self.stats = Stats(str(self))
 
-    def stat_update(self, key, value: int = 1):
-        self.stats.counter[key] += value
+    def stat_update(self, *labels, value: int = 1, unit: str = None):
+        for label in labels:
+            self.stats[label].update(value, unit)
+
+    def track_time(self):
+        return self.stats.time_stats
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         pass
