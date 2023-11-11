@@ -15,7 +15,9 @@ class PipelineStep(ABC):
         for label in labels:
             self.stats[label].update(value, unit)
 
-    def track_time(self):
+    def track_time(self, unit: str = None):
+        if unit:
+            self.stats.time_stats.unit = unit
         return self.stats.time_stats
 
     def set_up_dl_locks(self, dl_lock, up_lock):
