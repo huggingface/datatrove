@@ -1,6 +1,7 @@
 import mmap
 import struct
 
+import humanize
 import numpy as np
 from loguru import logger
 from numpy.random import default_rng
@@ -24,7 +25,7 @@ class TokenizedFile:
         output_folder: BaseOutputDataFolder,
         filename: str,
         save_index: bool = True,
-        save_loss_metadata: bool = True,
+        save_loss_metadata: bool = False,
     ):
         self.output_folder = output_folder
         self.filename = filename
@@ -98,6 +99,12 @@ class TokenizedFile:
         orig_loss.close()
         return new_file
 
+    def save_final_metadata(self, tokenizer_name: str | None = None):
+        if not tokenizer_name:
+            tokenizer_name = "Unknown Tokenizer"
+        with self.output_folder.open(f"{self.filename}.metadata") as f:
+            f.write("\n".join([tokenizer_name, str(self.write_idx), humanize.metric(self.write_idx, unit="T")]))
+
 
 class DocumentTokenizer(PipelineStep):
     name = "✍️ Writer"
@@ -109,9 +116,10 @@ class DocumentTokenizer(PipelineStep):
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
-        save_loss_metadata: bool = True,  # save the loss information
+        save_loss_metadata: bool = False,  # save the loss information
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
         seed: int = None,
+        save_final_metadata: bool = True,
         *args,
         **kwargs,
     ):
@@ -124,6 +132,7 @@ class DocumentTokenizer(PipelineStep):
         self.shuffle = shuffle
         self._tokenizer = None
         self.rand = default_rng(seed)
+        self.save_final_metadata = save_final_metadata
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
@@ -176,6 +185,8 @@ class DocumentTokenizer(PipelineStep):
             outputfile.cleanup()
             outputfile = new_outputfile
         outputfile.close()
+        if self.save_final_metadata:
+            outputfile.save_final_metadata(self.tokenizer_name)
         self.output_folder.close()
 
     @property

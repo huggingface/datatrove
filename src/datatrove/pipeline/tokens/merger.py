@@ -23,6 +23,7 @@ class DocumentTokenizerMerger(PipelineStep):
         shuffle: bool = True,  # whether to shuffle documents in the dataset
         seed: int = None,
         save_loss_metadata: bool = True,
+        save_final_metadata: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -34,6 +35,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.shuffle = shuffle
         self.save_loss_metadata = save_loss_metadata
         self.rand = default_rng(seed)
+        self.save_final_metadata = save_final_metadata
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.input_folder.set_lock(dl_lock)
@@ -90,6 +92,13 @@ class DocumentTokenizerMerger(PipelineStep):
             self.stat_update("tokens", value=len(tokens) // 2)
         # cleanup
         output_file.close()
+        if self.save_final_metadata:
+            first_metadata_file = self.input_folder.get_file(f"{datafiles[0].relative_path}.metadata")
+            tokenizer_name = None
+            if first_metadata_file:
+                with first_metadata_file.open() as f:
+                    tokenizer_name = f.read().splitlines()[0]
+            output_file.save_final_metadata(tokenizer_name)
         self.output_folder.close()
 
 
