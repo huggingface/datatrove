@@ -46,7 +46,7 @@ def check_dataset(input_folder: BaseInputDataFolder, tokenizer: str = "gpt2", eo
 
     doc_ends = [load_doc_ends(file) for file in datafiles_index]
     token_inputs = list(map(load_input_mmap, datafiles))
-    loss_inputs = list(map(load_input_mmap, datafiles_loss)) if check_loss else None
+    loss_inputs = list(map(load_input_mmap, datafiles_loss)) if check_loss else [None] * len(token_inputs)
     for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
         zip(doc_ends, token_inputs, loss_inputs)
     ):
