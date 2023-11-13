@@ -90,11 +90,6 @@ class S3OutputDataFile(BaseOutputDataFile):
         if os.path.isfile(self.local_path):
             os.remove(self.local_path)
 
-    @property
-    def persistent_local_path(self):
-        assert not self.cleanup
-        return self.local_path
-
 
 @dataclass
 class S3InputDataFile(BaseInputDataFile):
@@ -111,7 +106,7 @@ class S3InputDataFile(BaseInputDataFile):
 
     @contextmanager
     def open_binary(self):
-        if self.stream:
+        if self.stream or self.local_path is None:
             # stream
             response_stream = s3_get_file_stream(self.path)
             try:

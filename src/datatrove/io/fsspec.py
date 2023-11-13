@@ -25,10 +25,6 @@ class FSSpecOutputDataFile(BaseOutputDataFile):
         if self._fs.isfile(self.path):
             self._fs.rm(self.path)
 
-    @property
-    def persistent_local_path(self):
-        raise NotImplementedError
-
 
 @dataclass
 class FSSpecOutputDataFolder(BaseOutputDataFolder):

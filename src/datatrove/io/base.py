@@ -376,11 +376,6 @@ class BaseOutputDataFile(ABC):
             self._file_handler.close()
             self._file_handler = None
 
-    @property
-    @abstractmethod
-    def persistent_local_path(self):
-        raise NotImplementedError
-
 
 @dataclass
 class BaseOutputDataFolder(ABC):

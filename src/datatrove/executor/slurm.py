@@ -13,6 +13,7 @@ from loguru import logger
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import BaseOutputDataFolder, S3OutputDataFolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.logging import get_random_str, get_timestamp
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
@@ -39,16 +40,31 @@ class SlurmPipelineExecutor(PipelineExecutor):
         depends: SlurmPipelineExecutor | None = None,
         logging_dir: BaseOutputDataFolder = None,
         skip_completed: bool = True,
+        slurm_logs_folder: str = None,
     ):
         """
-        :param tasks: total number of tasks to run
-        :param time: time limit, passed to slurm
-        :param cpus_per_task: how many cpus per task
+        Execute a pipeline on a slurm cluster
+        :param pipeline: a list of PipelineStep and/or custom functions with arguments
+                (data: DocumentsPipeline, rank: int, world_size: int)
+        :param tasks: total number of tasks to run the pipeline on
+        :param time: slurm time limit
+        :param partition: slurm partition
+        :param cpus_per_task: how many cpus to give each task. should be 1 except when you need to give each task more
+                memory
+        :param mem_per_cpu_gb: slurm option. use in conjunction with the above option to increase max memory
+        :param workers: how many tasks to run simultaneously. -1 for no limit
         :param job_name: slurm job name
-        :param condaenv: name of a conda environment to activate before starting the job
-        :param venv_path: path to a virtual environment to activate, if not using conda
-        :param sbatch_args: a dictionary of other SBATCH arguments for the launch script
-        :param kwargs:
+        :param env_command: command to activate a python environment, if needed
+        :param condaenv: name of a conda environment to activate
+        :param venv_path: path to a python venv to activate
+        :param sbatch_args: dictionary with additional arguments to pass to sbatch
+        :param max_array_size: the limit of tasks in a task array job on your slurm cluster or -1 if none.
+                if tasks>max_array_size, multiple task array jobs will be launched
+        :param depends: another SlurmPipelineExecutor that should run before this one
+        :param logging_dir: where to save logs, stats, etc. Should be an OutputDataFolder
+        :param skip_completed: whether to skip tasks that were completed in previous runs. default: True
+        :param slurm_logs_folder: where to store the raw slurm log files. must be a local path
+                default: slurm_logs/$job_name/$timestamp_$randomstring
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
@@ -69,6 +85,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.job_ids = []
         self.depends_job_ids = []
         self.launched = False
+        self.slurm_logs_folder = (
+            slurm_logs_folder
+            if slurm_logs_folder
+            else f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
+        )
 
     def run(self):
         if "SLURM_ARRAY_TASK_ID" in os.environ:
@@ -81,22 +102,19 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launch_job()
 
     def launch_merge_stats(self):
-        with tempfile.NamedTemporaryFile("w") as f:
-            f.write(
-                self.get_launch_file(
-                    {
-                        **self.sbatch_args,
-                        "cpus-per-task": 1,
-                        "mem-per-cpu": "1G",
-                        "array": "0",
-                        "dependency": f"afterok:{','.join(self.job_ids)}",
-                    },
-                    f'merge_stats {os.path.join(self.logging_dir.path, "stats")} '
-                    f'--output {os.path.join(self.logging_dir.path, "stats.json")}',
-                )
+        launch_slurm_job(
+            self.get_launch_file_contents(
+                {
+                    **self.sbatch_args,
+                    "cpus-per-task": 1,
+                    "mem-per-cpu": "1G",
+                    "array": "0",
+                    "dependency": f"afterok:{','.join(self.job_ids)}",
+                },
+                f'merge_stats {os.path.join(self.logging_dir.path, "stats")} '
+                f'--output {os.path.join(self.logging_dir.path, "stats.json")}',
             )
-            f.flush()
-            subprocess.check_output(["sbatch", f.name])
+        )
 
     @property
     def dependency(self):
@@ -128,22 +146,21 @@ class SlurmPipelineExecutor(PipelineExecutor):
             dill.dump(self, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
 
+        launch_file_contents = self.get_launch_file_contents(
+            self.sbatch_args,
+            f"srun -l launch_pickled_pipeline {executor_f.path}",
+        )
         with self.logging_dir.open("launch_script.slurm") as launchscript_f:
-            launchscript_f.write(
-                self.get_launch_file(
-                    self.sbatch_args,
-                    f"srun -l python -u -c \"import dill;dill.load(open('{executor_f.persistent_local_path}', 'rb')).run()\"",
-                )
-            )
+            launchscript_f.write(launch_file_contents)
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
 
         self.job_ids = []
         while len(self.job_ids) * self.max_array < self.tasks:
-            args = ["sbatch", f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
+            args = [f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
-            output = subprocess.check_output(args + [launchscript_f.persistent_local_path]).decode("utf-8")
-            self.job_ids.append(output.split()[-1])
+            launched_id = launch_slurm_job(launch_file_contents, args)
+            self.job_ids.append(launched_id)
         self.launched = True
         logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
         self.launch_merge_stats()
@@ -155,22 +172,21 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def sbatch_args(self) -> dict:
-        slurm_logfile = self.logging_dir.open("slurm_logs/%j.out")
-        # TODO: figure out a better way
-        slurm_logfile.delete()  # we don't want a dangling "%j.out"
+        os.makedirs(self.slurm_logs_folder, exist_ok=True)
+        slurm_logfile = os.path.join(self.slurm_logs_folder, "%j.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
             "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
-            "output": slurm_logfile.persistent_local_path,
-            "error": slurm_logfile.persistent_local_path,
+            "output": slurm_logfile,
+            "error": slurm_logfile,
             "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             **self._sbatch_args,
         }
 
-    def get_launch_file(self, sbatch_args: dict, run_script: str):
+    def get_launch_file_contents(self, sbatch_args: dict, run_script: str):
         args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])
 
         env_command = (
@@ -201,3 +217,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
     @property
     def world_size(self):
         return self.tasks
+
+
+def launch_slurm_job(launch_file_contents, *args):
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write(launch_file_contents)
+        f.flush()
+        return subprocess.check_output(["sbatch", *args, f.name]).decode("utf-8").split()[-1]

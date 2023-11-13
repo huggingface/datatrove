@@ -69,6 +69,7 @@ setup(
         "console_scripts": [
             "check_dataset=datatrove.tools.check_dataset:main",
             "merge_stats=datatrove.tools.merge_stats:main",
+            "launch_pickled_pipeline=datatrove.tools.launch_pickled_pipeline:main",
         ]
     },
 )

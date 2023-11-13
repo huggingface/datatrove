@@ -23,10 +23,6 @@ class LocalOutputDataFile(BaseOutputDataFile):
         if os.path.isfile(self.path):
             os.remove(self.path)
 
-    @property
-    def persistent_local_path(self):
-        return self.path
-
 
 @dataclass
 class LocalOutputDataFolder(BaseOutputDataFolder):
