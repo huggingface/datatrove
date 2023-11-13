@@ -269,13 +269,20 @@ class OnlineTimingStats(OnlineStats):
 
     def to_dict(self):
         data = super().to_dict()
-        data["total_human"] = humanize.precisedelta(self.total)
-        data["mean_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.mean), minimum_unit="milliseconds")
-        data["std_dev_human"] = humanize.precisedelta(
-            datetime.timedelta(seconds=self.standard_deviation), minimum_unit="milliseconds"
-        )
-        data["min_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.min), minimum_unit="milliseconds")
-        data["max_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.max), minimum_unit="milliseconds")
+        if isinstance(data, dict):
+            data["total_human"] = humanize.precisedelta(self.total)
+            data["mean_human"] = humanize.precisedelta(
+                datetime.timedelta(seconds=self.mean), minimum_unit="milliseconds"
+            )
+            data["std_dev_human"] = humanize.precisedelta(
+                datetime.timedelta(seconds=self.standard_deviation), minimum_unit="milliseconds"
+            )
+            data["min_human"] = humanize.precisedelta(
+                datetime.timedelta(seconds=self.min), minimum_unit="milliseconds"
+            )
+            data["max_human"] = humanize.precisedelta(
+                datetime.timedelta(seconds=self.max), minimum_unit="milliseconds"
+            )
         return data
 
 

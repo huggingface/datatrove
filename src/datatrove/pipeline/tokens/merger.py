@@ -22,7 +22,7 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
         seed: int = None,
-        save_loss_metadata: bool = True,
+        save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
         **kwargs,
     ):

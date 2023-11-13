@@ -1,7 +1,8 @@
 from datatrove.executor.base import PipelineExecutor
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.io import LocalOutputDataFolder, S3InputDataFolder, S3OutputDataFolder
+from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder, S3InputDataFolder, S3OutputDataFolder
 from datatrove.pipeline.readers import JsonlReader
+from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 
 
@@ -30,3 +31,25 @@ executor: PipelineExecutor = LocalPipelineExecutor(
     ),
 )
 executor.run()
+
+executor2: PipelineExecutor = LocalPipelineExecutor(
+    pipeline=[
+        DocumentTokenizerMerger(
+            input_folder=LocalInputDataFolder(
+                path="/home/gui/hf_dev/datatrove/examples_test/piletokenized-test/tokenized"
+            ),
+            output_folder=LocalOutputDataFolder(
+                path="/home/gui/hf_dev/datatrove/examples_test/piletokenized-test/merged"
+            ),
+            save_filename="hello",
+        )
+    ],
+    tasks=1,
+    skip_completed=False,
+    logging_dir=S3OutputDataFolder(
+        "s3://extreme-scale-dp-temp/logs/tests/piletokenized/merged",
+        local_path="/home/gui/hf_dev/datatrove/examples_test/piletokenized-test/logs2",
+        cleanup=False,
+    ),
+)
+executor2.run()

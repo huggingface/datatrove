@@ -397,6 +397,7 @@ class BaseOutputDataFolder(ABC):
         """
         for file in self._output_files.values():
             file.close()
+        self._output_files.clear()
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
