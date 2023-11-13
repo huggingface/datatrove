@@ -36,6 +36,17 @@ class LocalPipelineExecutor(PipelineExecutor):
         logging_dir: BaseOutputDataFolder = None,
         skip_completed: bool = True,
     ):
+        """
+        Execute a pipeline on a slurm cluster
+        :param pipeline: a list of PipelineStep and/or custom functions with arguments
+                (data: DocumentsPipeline, rank: int, world_size: int)
+        :param tasks: total number of tasks to run the pipeline on
+        :param workers: how many tasks to run simultaneously. -1 for no limit
+        :param max_concurrent_uploads: limit the number of files that may be uploaded simultaneously to avoid rate limits
+        :param max_concurrent_downloads: limit the number of files that may be downloaded simultaneously to avoid rate limits
+        :param logging_dir: where to save logs, stats, etc. Should be an OutputDataFolder
+        :param skip_completed: whether to skip tasks that were completed in previous runs. default: True
+        """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
