@@ -59,7 +59,8 @@ class TokenizedFile:
     def cleanup(self):
         self.doc_ends = []
         self.tokens_file.delete()
-        self.loss_file.delete()
+        if self.loss_file:
+            self.loss_file.delete()
 
     def write_bytes(self, tk_bytes: bytes):
         self.tokens_file.write(tk_bytes)
@@ -93,10 +94,12 @@ class TokenizedFile:
             # copy the bytes. each token is 2 bytes
             new_file.write_bytes(orig_tokens[start * 2 : end * 2])
             # copy loss values (1 byte per token)
-            new_file.write_loss_bytes(orig_loss[start:end])
+            if orig_loss:
+                new_file.write_loss_bytes(orig_loss[start:end])
         # close mmaps
         orig_tokens.close()
-        orig_loss.close()
+        if orig_loss:
+            orig_loss.close()
         return new_file
 
     def save_final_metadata(self, tokenizer_name: str | None = None):
