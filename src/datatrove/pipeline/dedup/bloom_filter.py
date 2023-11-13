@@ -150,7 +150,7 @@ class SingleBloomFilter(PipelineStep):
             return False
         return True
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc_idx, doc in enumerate(data):
                 with self.track_time():

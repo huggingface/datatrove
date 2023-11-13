@@ -87,7 +87,7 @@ class SentenceDedupSignature(PipelineStep):
 
         return hashes
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         """
 
         :param data:
@@ -136,7 +136,7 @@ class SentenceFindDedups(PipelineStep):
         self.index_folder = index_folder
         self.only_dedup_in_index = only_dedup_in_index
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         """
 
         :param data:
@@ -247,7 +247,7 @@ class SentenceDedupFilter(PipelineStep):
         self.stat_update("original_sentences", value=len(sentence_spans))
         return "".join(kept_sentences).lstrip(), "".join(original_formatted)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
         step method for Filters.
         Drops documents that if .filter() is False
@@ -294,7 +294,7 @@ class SentenceDedupBuildIndex(PipelineStep):
         self.output_folder = output_folder
         self.index_name = index_name
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
         with self.stats.time_stats:
             sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)

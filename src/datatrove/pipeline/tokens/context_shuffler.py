@@ -36,7 +36,7 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         datafiles = self.input_folder.get_files_shard(rank, world_size, extension=".ds")
         datafiles_index = self.input_folder.get_files_shard(rank, world_size, extension=".ds.index")
         for datafile, index in zip(datafiles, datafiles_index):

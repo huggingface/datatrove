@@ -70,7 +70,7 @@ class DatasetToSequence(PipelineStep):
         f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
         f_lens.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         doc_lens = []
         f_sequence = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb")
         for i, doc in enumerate(data):
@@ -121,7 +121,7 @@ class MergeSequences(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         bytes_per_sequence = [0]
         with self.stats.time_stats:
             assert world_size == 1, f"{world_size=} can't be greater than 1!"
@@ -328,7 +328,7 @@ class DedupReader(JsonlReader):
 
         return True
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         self.reset()
         self.rank = rank
         # loads the sequence file from stage 1, the size file from stage 1 and the bytearange file.

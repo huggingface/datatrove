@@ -81,6 +81,9 @@ class Stats:
     def to_json(self):
         return json.dumps(self.to_dict(), indent=4)
 
+    def save_to_disk(self, file: BaseOutputDataFile | str):
+        dump_json_to_outputfile(self.to_json(), file)
+
     @classmethod
     def from_dict(cls, data):
         stats = cls(data["name"])
@@ -124,9 +127,8 @@ class PipelineStats:
     def from_json(cls, data):
         return PipelineStats([Stats.from_dict(stat) for stat in data])
 
-    def save_to_disk(self, file: BaseOutputDataFile):
-        file.write(self.to_json())
-        file.close()
+    def save_to_disk(self, file: BaseOutputDataFile | str):
+        dump_json_to_outputfile(self.to_json(), file)
 
 
 @dataclass
@@ -275,3 +277,10 @@ class OnlineTimingStats(OnlineStats):
         data["min_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.min), minimum_unit="milliseconds")
         data["max_human"] = humanize.precisedelta(datetime.timedelta(seconds=self.max), minimum_unit="milliseconds")
         return data
+
+
+def dump_json_to_outputfile(json_data, file: BaseOutputDataFile | str):
+    if isinstance(file, str):
+        file = BaseOutputDataFile.from_path(file)
+    file.write(json_data)
+    file.close()

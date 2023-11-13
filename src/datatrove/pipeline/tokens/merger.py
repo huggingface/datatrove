@@ -43,7 +43,7 @@ class DocumentTokenizerMerger(PipelineStep):
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         assert world_size == 1, "world_size must be 1 for DocumentTokenizerMerger"
         datafiles = self.input_folder.list_files(extension=".ds")
         datafiles_index = self.input_folder.list_files(extension=".ds.index")
@@ -104,8 +104,3 @@ def get_data_reader(file: BaseInputDataFile, doc_ends: list, nb_bytes: int):
         for r_e in doc_ends:
             yield f.read((r_e - start_e) * nb_bytes)
             start_e = r_e
-
-
-# def load_input_mmap(file: InputDataFile):
-#     with file.open_binary() as f:
-#         return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)

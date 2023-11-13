@@ -164,7 +164,7 @@ class DocumentTokenizer(PipelineStep):
     def get_output_filename(self, rank, name):
         return "_".join([x for x in [self.save_filename, f"{rank:05d}", f"{name}.ds"] if x])
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         unshuf_filename = self.get_output_filename(rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)

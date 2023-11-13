@@ -75,7 +75,7 @@ class BaseReader(PipelineStep):
                 if self.limit != -1 and li >= self.limit:
                     break
 
-    def __call__(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data
         yield from self.read_files_shard(self.data_folder.get_files_shard(rank, world_size))

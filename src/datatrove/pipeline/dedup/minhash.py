@@ -128,7 +128,7 @@ class MinhashDedupSignature(PipelineStep):
             dtype=np.uint64,
         )
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         buckets = [
             self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
             for bi in range(self.config.num_buckets)
@@ -182,7 +182,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.input_folder.set_lock(dl_lock)
         self.output_folder.set_lock(up_lock)
 
-    def __call__(self, data: DocumentsPipeline, bucket: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline = None, bucket: int = 0, world_size: int = 1):
         assert data is None, "You should not use an input block before MinhashDedupBuckets"
         assert world_size == self.config.num_buckets, "You must run exactly one task per bucket"
         sig_files = self.input_folder.list_files(suffix=f"bucket_{bucket:03d}")
@@ -245,7 +245,7 @@ class MinhashDedupCluster(PipelineStep):
         self.input_folder.set_lock(dl_lock)
         self.output_folder.set_lock(up_lock)
 
-    def __call__(self, data: DocumentsPipeline, _: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(extension=".dups")
         assert len(dup_files) == self.config.num_buckets, "There should be exactly one .dups file per bucket"
         assert world_size == 1, "World size must be 1 for clustering"
@@ -301,7 +301,7 @@ class MinhashDedupFilter(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.data_folder.set_lock(dl_lock)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         remove_file = self.data_folder.get_file(f"{rank:06d}.remove")
 
         clusters_data = self.data_folder.get_files_shard(rank, world_size, extension=".clusters")
@@ -373,8 +373,8 @@ class MinhashBuildIndex(PipelineStep):
         self.input_folder.set_lock(dl_lock)
         self.output_folder.set_lock(up_lock)
 
-    def __call__(self, data: DocumentsPipeline, bucket: int = 0, world_size: int = 1):
-        assert data is None, "You should not use an input block before MinhashDedupBuckets"
+    def run(self, data: DocumentsPipeline = None, bucket: int = 0, world_size: int = 1):
+        assert data is None, "You should not use an input block before MinhashBuildIndex"
         assert world_size == self.config.num_buckets, "You must run exactly one task per bucket"
         sig_files = self.input_folder.list_files(suffix=f"bucket_{bucket:03d}")
         sig_readers = [read_sigs(file, file_i, self.config) for file_i, file in enumerate(sig_files)]

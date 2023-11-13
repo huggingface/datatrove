@@ -33,7 +33,7 @@ class BaseFilter(PipelineStep, ABC):
         """
         raise NotImplementedError
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
         step method for Filters.
         Drops documents that if .filter() is False

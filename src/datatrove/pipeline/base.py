@@ -27,6 +27,9 @@ class PipelineStep(ABC):
         return f"{self.type} --> {self.name}"
 
     @abstractmethod
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data
+
+    def __call__(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        return self.run(data, rank, world_size)

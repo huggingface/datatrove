@@ -50,7 +50,7 @@ class BaseExtractor(PipelineStep):
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """ """
         for doc in data:
             self.stat_update(StatHints.total)
