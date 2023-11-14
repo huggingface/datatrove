@@ -27,3 +27,7 @@ def close_task_logger(logging_dir: BaseOutputDataFolder, rank: int):
     logger.remove()
     logging_dir.open(f"logs/task_{rank:05d}.log").close()
     logger.add(sys.stderr)
+
+
+def log_pipeline(pipeline):
+    logger.info(f"--- 🛠️PIPELINE 🛠\n{[pipe.__repr__() if callable(pipe) else 'Iterable' for pipe in pipeline]}")

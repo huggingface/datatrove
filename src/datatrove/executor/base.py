@@ -9,7 +9,7 @@ from loguru import logger
 
 from datatrove.io import BaseOutputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp
+from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp, log_pipeline
 from datatrove.utils.stats import PipelineStats
 
 
@@ -27,9 +27,6 @@ class PipelineExecutor(ABC):
         )
         self.skip_completed = skip_completed
 
-        # pipeline = "\n".join([pipe.__repr__() if callable(pipe) else "Sequence..." for pipe in self.pipeline])
-        # print(f"--- 🛠️PIPELINE 🛠\n{pipeline}")
-
     @abstractmethod
     def run(self):
         pass
@@ -42,8 +39,9 @@ class PipelineExecutor(ABC):
     def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
-            return PipelineStats()  # todo: fetch the original stats file (?)
+            return PipelineStats()
         add_task_logger(self.logging_dir, rank, local_rank)
+        log_pipeline(self.pipeline)
         try:
             # pipe data from one step to the next
             pipelined_data = None
