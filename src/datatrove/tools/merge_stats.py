@@ -27,6 +27,10 @@ def main():
     stats_folder = BaseInputDataFolder.from_path(args.path)
     # output file
     extra_args = dict(extra_arg.split("=") for extra_arg in file_args)
+    if (
+        "cleanup" in extra_args
+    ):  # dumb workaround to cast this to boolean (otherwise we'd have to use pydantic or smth)
+        extra_args["cleanup"] = extra_args["cleanup"] == "True"
     path = extra_args.pop("path", os.path.abspath(args.output))
     output_file = BaseOutputDataFile.from_path(path, **extra_args)
 
