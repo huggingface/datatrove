@@ -45,23 +45,22 @@ class SingleBloomFilter(PipelineStep):
         seed: int = 0,
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
-        **kwargs,
     ):
+        """Args:
+        output_folder: output folder: local or on S3
+        m_bytes: bloom filter size in bytes (actual size x8 bigger)
+        k: number of hashes
+        expected_elements: expected number of elements, aka
+            shingles.
+        duplicate_threshold: above which documents are considered as
+            duplicated
+        n_grams: n_grams to use
+        seed: seed
+        save_bloom_filter: if true saves bloom filter for later use
+        exclusion_writer: saves duplicated data
         """
 
-        :param output_folder: output folder: local or on S3
-        :param m_bytes: bloom filter size in bytes (actual size x8 bigger)
-        :param k: number of hashes
-        :param expected_elements: expected number of elements, aka shingles.
-        :param duplicate_threshold: above which documents are considered as duplicated
-        :param n_grams: n_grams to use
-        :param seed: seed
-        :param save_bloom_filter: if true saves bloom filter for later use
-        :param exclusion_writer: saves duplicated data
-        :param kwargs:
-        """
-
-        super().__init__(**kwargs)
+        super().__init__()
         self.output_folder = output_folder
         self.m_bytes = m_bytes  # size in bits
         self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
@@ -150,17 +149,18 @@ class SingleBloomFilter(PipelineStep):
             return False
         return True
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc_idx, doc in enumerate(data):
-                with self.stats.time_manager:
+                with self.track_time():
                     self.stat_update(StatHints.total)
-                    if self.step(doc):
-                        self.stat_update(StatHints.forwarded)
-                        yield doc
-                    else:
+                    if not self.step(doc):
+                        self.stat_update(StatHints.dropped)
                         if self.exclusion_writer:
                             writer.write(doc, rank)
+                        continue
+                self.stat_update(StatHints.forwarded)
+                yield doc
             if self.save_bloom_filter:
                 with self.output_folder.open("bloom_filter.bloom", mode="wb") as f:
                     f.write(self.bit_vector)

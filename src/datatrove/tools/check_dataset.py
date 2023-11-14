@@ -7,7 +7,7 @@ import numpy as np
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 
 
 parser = argparse.ArgumentParser()
@@ -21,12 +21,12 @@ parser.add_argument("--eos", type=str, help="eos token", default="<|endoftext|>"
 """
 
 
-def load_doc_ends(file: InputDataFile):
+def load_doc_ends(file: BaseInputDataFile):
     with file.open_binary() as f:
         return np.frombuffer(f.read(), dtype=np.uint64)
 
 
-def load_input_mmap(file: InputDataFile):
+def load_input_mmap(file: BaseInputDataFile):
     with file.open_binary() as f:
         return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
 
@@ -46,7 +46,7 @@ def check_dataset(input_folder: BaseInputDataFolder, tokenizer: str = "gpt2", eo
 
     doc_ends = [load_doc_ends(file) for file in datafiles_index]
     token_inputs = list(map(load_input_mmap, datafiles))
-    loss_inputs = list(map(load_input_mmap, datafiles_loss)) if check_loss else None
+    loss_inputs = list(map(load_input_mmap, datafiles_loss)) if check_loss else [None] * len(token_inputs)
     for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
         zip(doc_ends, token_inputs, loss_inputs)
     ):

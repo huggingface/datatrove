@@ -7,6 +7,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import LocalPaths
 
 
@@ -26,7 +27,7 @@ class UnigramLogProbFilter(BaseFilter):
         self,
         logprobs_threshold: float = -10,
         model_local_path: str = os.path.join(LocalPaths.download, "logprob_filter/"),
-        **kwargs,
+        exclusion_writer: DiskWriter = None,
     ):
         """
         filters if the predicted language is not among given language or if the language score is below language
@@ -34,7 +35,7 @@ class UnigramLogProbFilter(BaseFilter):
 
         @param languages: list of languages to not filter out.
         """
-        super().__init__(**kwargs)
+        super().__init__(exclusion_writer)
         self.logprobs_threshold = logprobs_threshold
         self.model_local_path = model_local_path
         self.unigram_frequencies = self.get_frequencies()

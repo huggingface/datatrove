@@ -20,9 +20,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         output_folder: BaseOutputDataFolder,
         window_size: int = 2048 + 1,
         seed: int = None,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.window_size = window_size
@@ -36,7 +35,7 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         datafiles = self.input_folder.get_files_shard(rank, world_size, extension=".ds")
         datafiles_index = self.input_folder.get_files_shard(rank, world_size, extension=".ds.index")
         for datafile, index in zip(datafiles, datafiles_index):
@@ -47,7 +46,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
             fout = self.output_folder.open(datafile.relative_path, "wb")
             with datafile.open_binary() as f:
                 with mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ) as unshuf:
-                    for windowi in ordering:
-                        start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
-                        fout.write(unshuf[start:end])
+                    with self.track_time():
+                        for windowi in ordering:
+                            start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
+                            fout.write(unshuf[start:end])
         self.output_folder.close()

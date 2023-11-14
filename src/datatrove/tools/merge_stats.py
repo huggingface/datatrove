@@ -4,6 +4,7 @@ import os.path
 
 from loguru import logger
 
+from datatrove.io import BaseInputDataFolder, BaseOutputDataFile
 from datatrove.utils.stats import PipelineStats
 
 
@@ -22,18 +23,26 @@ parser.add_argument(
 
 
 def main():
-    args = parser.parse_args()
-    stats_path = args.path
-    output_file = os.path.abspath(args.output)
+    args, file_args = parser.parse_known_args()
+    stats_folder = BaseInputDataFolder.from_path(args.path)
+    # output file
+    extra_args = dict(extra_arg.split("=") for extra_arg in file_args)
+    if (
+        "cleanup" in extra_args
+    ):  # dumb workaround to cast this to boolean (otherwise we'd have to use pydantic or smth)
+        extra_args["cleanup"] = extra_args["cleanup"] == "True"
+    path = extra_args.pop("path", os.path.abspath(args.output))
+    output_file = BaseOutputDataFile.from_path(path, **extra_args)
 
     stats = []
-    for file in os.listdir(stats_path):
-        with open(os.path.join(stats_path, file)) as f:
+    for file in stats_folder.list_files():
+        with file.open() as f:
             stats.append(PipelineStats.from_json(json.load(f)))
-    merged = sum(stats)
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    merged.save_to_disk(output_file)
-    logger.info(f"Processing complete. Results saved to {output_file}.")
+    merged = sum(stats, start=PipelineStats())
+    with output_file.open() as f:
+        merged.save_to_disk(f)
+    logger.info(f"Processing complete. Results saved to {output_file.path}.")
+    logger.info(merged)
 
 
 if __name__ == "__main__":

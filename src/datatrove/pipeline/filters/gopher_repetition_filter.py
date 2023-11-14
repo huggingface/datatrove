@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 """
@@ -80,13 +81,13 @@ class GopherRepetitionFilter(BaseFilter):
         dup_para_char_frac: float | None = 0.2,
         top_n_grams: tuple[tuple[int, float]] = ((2, 0.2), (3, 0.18), (4, 0.16)),
         dup_n_grams: tuple[tuple[int, float]] = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10)),
-        **kwargs,
+        exclusion_writer: DiskWriter = None,
     ):
         """
 
         @param kwargs:
         """
-        super().__init__(**kwargs)
+        super().__init__(exclusion_writer)
 
         self.dup_line_frac = dup_line_frac
         self.dup_para_frac = dup_para_frac
@@ -97,7 +98,6 @@ class GopherRepetitionFilter(BaseFilter):
         self.paragraph_exp = re.compile(r"\n{2,}")
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        """ """
         text = doc.content
 
         paragraphs = self.paragraph_exp.split(text.strip())

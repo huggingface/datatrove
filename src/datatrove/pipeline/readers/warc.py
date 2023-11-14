@@ -1,32 +1,44 @@
-from typing import Literal
+from typing import Callable, Literal
 
 import cchardet
 import magic
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArcWarcRecord
 
-from datatrove.data import Document
-from datatrove.io import InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
     name = "🕷️ Warc"
 
-    def __init__(self, *args, compression: Literal["gzip", "zst"] | None = None, **kwargs):
+    def __init__(
+        self,
+        data_folder: BaseInputDataFolder,
+        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        limit: int = -1,
+        progress: bool = False,
+        adapter: Callable = None,
+        content_key: str = "content",
+        id_key: str = "data_id",
+    ):
         self.compression = compression
-        super().__init__(*args, **kwargs)
+        super().__init__(data_folder, limit, progress, adapter, content_key, id_key)
 
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression, binary=True) as f:
-            for record in ArchiveIterator(f):
-                document = process_record(record)
-                if document:
-                    document.metadata["file_path"] = datafile.path
-                    yield document
+            for ri, record in enumerate(ArchiveIterator(f)):
+                with self.track_time():
+                    extracted_data = process_record(record)
+                    if not extracted_data:
+                        continue
+                    document = self.get_document_from_dict(extracted_data, datafile, ri)
+                    if not document:
+                        continue
+                yield document
 
 
-def process_record(record: ArcWarcRecord):
+def process_record(record: ArcWarcRecord) -> dict | None:
     # record type
     if record.rec_type != "response":
         return
@@ -67,8 +79,4 @@ def process_record(record: ArcWarcRecord):
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return Document(
-        content=html,
-        data_id=data_id,
-        metadata={"url": url, "date": date},
-    )
+    return {"content": html, "data_id": data_id, "url": url, "date": date}

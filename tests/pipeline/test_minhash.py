@@ -126,7 +126,7 @@ class TestMinhash(unittest.TestCase):
 
             # test duplicate pairs
             for b in range(config.num_buckets):
-                buckets_block(None, bucket=b, world_size=config.num_buckets)
+                buckets_block(None, rank=b, world_size=config.num_buckets)
             bucket_results_folder = LocalInputDataFolder(buckets_folder)
             dup_files = bucket_results_folder.list_files(extension=".dups")
             pairs = defaultdict(set)

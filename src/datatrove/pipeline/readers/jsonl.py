@@ -4,8 +4,7 @@ from typing import Callable, Literal
 
 from loguru import logger
 
-from datatrove.data import Document
-from datatrove.io import BaseInputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -15,30 +14,24 @@ class JsonlReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        compression: Literal["gzip", "zst"] | None = None,
+        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        limit: int = -1,
+        progress: bool = False,
         adapter: Callable = None,
         content_key: str = "content",
-        **kwargs,
+        id_key: str = "data_id",
     ):
-        super().__init__(data_folder, **kwargs)
+        super().__init__(data_folder, limit, progress, adapter, content_key, id_key)
         self.compression = compression
-        self.content_key = content_key
-        self.adapter = adapter if adapter else lambda d, path, li: d
-        self.empty_warning = False
 
-    def read_file(self, datafile: InputDataFile):
+    def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression) as f:
             for li, line in enumerate(f):
-                with self.stats.time_manager:
+                with self.track_time():
                     try:
-                        d = json.loads(line)
-                        if not d.get(self.content_key, None):
-                            if not self.empty_warning:
-                                self.empty_warning = True
-                                logger.warning("Found document without content, skipping.")
+                        document = self.get_document_from_dict(json.loads(line), datafile, li)
+                        if not document:
                             continue
-                        document = Document(**self.adapter(d, datafile.path, li))
-                        document.metadata.setdefault("file_path", datafile.path)
                     except (EOFError, JSONDecodeError) as e:
                         logger.warning(f"Error when reading `{datafile.path}`: {e}")
                         continue

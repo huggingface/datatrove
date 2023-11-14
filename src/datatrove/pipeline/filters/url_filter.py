@@ -7,10 +7,8 @@ import tldextract
 from datatrove.data import Document
 from datatrove.utils.assets import ASSETS_PATH, DOWNLOAD_PATH
 
+from ..writers.disk_base import DiskWriter
 from .base_filter import BaseFilter
-
-
-ADULT_LIST = "ftp://ftp.ut-capitole.fr/pub/reseau/cache/squidguard_contrib/adult.tar.gz"
 
 
 normalizer = re.compile(r"[^a-zA-Z0-9]+")
@@ -36,9 +34,9 @@ class URLFilter(BaseFilter):
         banned_words: set = None,
         banned_subwords: set = None,
         soft_banned_words: set = None,
-        **kwargs,
+        exclusion_writer: DiskWriter = None,
     ):
-        super().__init__(**kwargs)
+        super().__init__(exclusion_writer)
         self.download_path = os.path.join(DOWNLOAD_PATH, "url_filter")
         self.download_data()
         self.block_listed_domains = self.get_list(self.download_path, "adult/domains", extra_domains)

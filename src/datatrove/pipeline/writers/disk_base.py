@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from string import Template
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseOutputDataFolder, OutputDataFile
+from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -11,8 +11,8 @@ class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
 
-    def __init__(self, output_folder: BaseOutputDataFolder, output_filename: str = None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, output_folder: BaseOutputDataFolder, output_filename: str = None):
+        super().__init__()
         self.output_folder = output_folder
         self.output_filename = Template(output_filename or self.default_output_filename)
 
@@ -25,7 +25,7 @@ class DiskWriter(PipelineStep, ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _get_output_filename(self, document: Document, rank: int = 0, **kwargs):
+    def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs):
         return self.output_filename.substitute(
             {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata, **kwargs}
         )
@@ -41,16 +41,14 @@ class DiskWriter(PipelineStep, ABC):
         return self.output_folder.open(output_filename)
 
     def write(self, document: Document, rank: int = 0, **kwargs):
-        output_filename = self._get_output_filename(document, rank, **kwargs)
-        output_file: OutputDataFile = self.open(output_filename)
+        output_file: BaseOutputDataFile = self.open(self._get_output_filename(document, rank, **kwargs))
         self._write(document, output_file)
-        output_file.nr_documents += 1
-        self.stat_update(output_filename)
+        self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         with self:
             for document in data:
-                with self.stats.time_manager:
+                with self.track_time():
                     self.write(document, rank)
                 yield document

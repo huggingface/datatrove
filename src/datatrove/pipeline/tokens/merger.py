@@ -4,7 +4,7 @@ import numpy as np
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder, InputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 
@@ -22,10 +22,10 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
         seed: int = None,
-        save_loss_metadata: bool = True,
-        **kwargs,
+        save_loss_metadata: bool = False,
+        save_final_metadata: bool = True,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.save_filename = save_filename
@@ -34,6 +34,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.shuffle = shuffle
         self.save_loss_metadata = save_loss_metadata
         self.rand = default_rng(seed)
+        self.save_final_metadata = save_final_metadata
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.input_folder.set_lock(dl_lock)
@@ -43,7 +44,7 @@ class DocumentTokenizerMerger(PipelineStep):
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
 
-    def __call__(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         assert world_size == 1, "world_size must be 1 for DocumentTokenizerMerger"
         datafiles = self.input_folder.list_files(extension=".ds")
         datafiles_index = self.input_folder.list_files(extension=".ds.index")
@@ -63,6 +64,14 @@ class DocumentTokenizerMerger(PipelineStep):
             if self.save_loss_metadata
             else None
         )
+
+        tokenizer_name = None
+        if self.save_final_metadata:
+            first_metadata_file = self.input_folder.get_file(f"{datafiles[0].relative_path}.metadata")
+            if first_metadata_file:
+                with first_metadata_file.open() as f:
+                    tokenizer_name = f.read().splitlines()[0]
+
         ordering = self.get_ordering(doc_ends)
 
         file_ct = 0
@@ -71,43 +80,44 @@ class DocumentTokenizerMerger(PipelineStep):
             filename=f"{file_ct:03d}_{self.save_filename}.ds",
             save_loss_metadata=self.save_loss_metadata,
         )
-        output_file.open()
         for input_file_id in ordering:
-            if 0 < self.max_tokens <= len(output_file):
+            if 0 < self.max_tokens <= self.stats["tokens"].total:
                 break
             if 0 < self.max_tokens_per_file <= len(output_file):
                 output_file.close()
                 file_ct += 1
+                if self.save_final_metadata:
+                    output_file.save_final_metadata(tokenizer_name)
                 output_file = TokenizedFile(
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
                 )
-                output_file.open()
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
             output_file.write_bytes(tokens)
             if loss_inputs:
                 output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
-            self.stat_update("tokens", len(tokens) // 2)
+            self.stat_update("tokens", value=len(tokens) // 2)
         # cleanup
         output_file.close()
+        if self.save_final_metadata:
+            output_file.save_final_metadata(tokenizer_name)
+            # save final total metadata file
+            output_file.save_final_metadata(
+                tokenizer_name, self.stats["tokens"].total, filename=f"{self.save_filename}.ds"
+            )
         self.output_folder.close()
 
 
-def load_doc_ends(file: InputDataFile):
+def load_doc_ends(file: BaseInputDataFile):
     with file.open_binary() as f:
         return np.frombuffer(f.read(), dtype=np.uint64).tolist()
 
 
-def get_data_reader(file: InputDataFile, doc_ends: list, nb_bytes: int):
+def get_data_reader(file: BaseInputDataFile, doc_ends: list, nb_bytes: int):
     with file.open_binary() as f:
         start_e = 0
         for r_e in doc_ends:
             yield f.read((r_e - start_e) * nb_bytes)
             start_e = r_e
-
-
-# def load_input_mmap(file: InputDataFile):
-#     with file.open_binary() as f:
-#         return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
