@@ -64,6 +64,14 @@ class DocumentTokenizerMerger(PipelineStep):
             if self.save_loss_metadata
             else None
         )
+
+        tokenizer_name = None
+        if self.save_final_metadata:
+            first_metadata_file = self.input_folder.get_file(f"{datafiles[0].relative_path}.metadata")
+            if first_metadata_file:
+                with first_metadata_file.open() as f:
+                    tokenizer_name = f.read().splitlines()[0]
+
         ordering = self.get_ordering(doc_ends)
 
         file_ct = 0
@@ -73,11 +81,13 @@ class DocumentTokenizerMerger(PipelineStep):
             save_loss_metadata=self.save_loss_metadata,
         )
         for input_file_id in ordering:
-            if 0 < self.max_tokens <= len(output_file):
+            if 0 < self.max_tokens <= self.stats["tokens"].total:
                 break
             if 0 < self.max_tokens_per_file <= len(output_file):
                 output_file.close()
                 file_ct += 1
+                if self.save_final_metadata:
+                    output_file.save_final_metadata(tokenizer_name)
                 output_file = TokenizedFile(
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
@@ -92,12 +102,11 @@ class DocumentTokenizerMerger(PipelineStep):
         # cleanup
         output_file.close()
         if self.save_final_metadata:
-            first_metadata_file = self.input_folder.get_file(f"{datafiles[0].relative_path}.metadata")
-            tokenizer_name = None
-            if first_metadata_file:
-                with first_metadata_file.open() as f:
-                    tokenizer_name = f.read().splitlines()[0]
             output_file.save_final_metadata(tokenizer_name)
+            # save final total metadata file
+            output_file.save_final_metadata(
+                tokenizer_name, self.stats["tokens"].total, filename=f"{self.save_filename}.ds"
+            )
         self.output_folder.close()
 
 

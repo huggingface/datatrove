@@ -102,11 +102,15 @@ class TokenizedFile:
             orig_loss.close()
         return new_file
 
-    def save_final_metadata(self, tokenizer_name: str | None = None):
+    def save_final_metadata(self, tokenizer_name: str | None = None, token_count: int = -1, filename: str = None):
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"
-        with self.output_folder.open(f"{self.filename}.metadata") as f:
-            f.write("\n".join([tokenizer_name, str(self.write_idx), humanize.metric(self.write_idx, unit="T")]))
+        if filename is None:
+            filename = self.filename
+        with self.output_folder.open(f"{filename}.metadata") as f:
+            if token_count == -1:
+                token_count = self.write_idx
+            f.write("\n".join([tokenizer_name, str(token_count), humanize.metric(token_count, unit="T")]))
 
 
 class DocumentTokenizer(PipelineStep):

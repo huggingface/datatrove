@@ -9,7 +9,6 @@ from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 pipeline = [
     JsonlReader(
         S3InputDataFolder("s3://bigcode-experiments/the-pile-sharded/", stream=True),
-        gzip=False,
         content_key="text",
         limit=100,
     ),
@@ -42,6 +41,7 @@ executor2: PipelineExecutor = LocalPipelineExecutor(
                 path="/home/gui/hf_dev/datatrove/examples_test/piletokenized-test/merged"
             ),
             save_filename="hello",
+            max_tokens_per_file=100000,
         )
     ],
     tasks=1,
