@@ -116,6 +116,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def launch_merge_stats(self):
         stats_json_file = self.logging_dir.create_new_file("stats.json")
+        # dump outputfile
         options = [f"{k}={v}" for k, v in dataclasses.asdict(stats_json_file).items() if not k.startswith("_")]
         launch_slurm_job(
             self.get_launch_file_contents(
@@ -126,8 +127,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     "array": "0",
                     "dependency": f"afterok:{','.join(self.job_ids)}",
                 },
-                f'merge_stats {os.path.join(self.logging_dir.path, "stats")} '
-                f'--output {stats_json_file.path} {" ".join(options)}',
+                f'merge_stats {os.path.join(self.logging_dir.path, "stats")} {" ".join(options)}',
             )
         )
 
