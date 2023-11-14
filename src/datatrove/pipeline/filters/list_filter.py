@@ -14,12 +14,12 @@ class ListFilter(BaseFilter):
         self.new_line_ratio = new_line_ratio
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        """
-            Applies the heuristics rules to decide if a document should be REMOVED:
-                -
+        """Applies heuristic rules to decide if a document should be REMOVED
+        Args:
+            doc
 
-        :param doc
-        :return: False if sample.content is a list
+        Returns:
+            False if sample.content is a list
         """
         text = doc.content
         words = word_tokenize(text)  # TODO we should use language id filter

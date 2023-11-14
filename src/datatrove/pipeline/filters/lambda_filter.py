@@ -18,9 +18,10 @@ class LambdaFilter(BaseFilter):
         self.filter_function = filter_function
 
     def filter(self, doc: Document) -> bool:
-        """
+        """Args:
+            doc: document
 
-        :param doc: document
-        :return: is_filter
+        Returns:
+            is_filter
         """
         return self.filter_function(doc)

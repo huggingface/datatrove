@@ -20,10 +20,12 @@ def _get_s3_path_components(s3_path):
 
 
 def s3_file_exists(cloud_path):
-    """
-        Checks if a given file to path exists. Currently only check for s3. If path is a folder path return False
-    @params cloud_path:
-    @return: bool
+    """Checks if a given file to path exists. Currently only check for s3. If path is a folder path return False
+    Args:
+        cloud_path:
+
+    Returns:
+        bool
     """
     s3_client = boto3.client("s3")
     bucket_name, prefix = _get_s3_path_components(cloud_path)
@@ -38,9 +40,9 @@ def s3_file_exists(cloud_path):
 
 
 def s3_upload_file(local_path, cloud_path):
-    """
-    @param local_path:
-    @param cloud_path:
+    """Args:
+    local_path
+    cloud_path
     """
     if not os.path.isfile(local_path):
         raise OSError(f"File {local_path} does not exist")
@@ -52,9 +54,9 @@ def s3_upload_file(local_path, cloud_path):
 
 
 def s3_download_file(cloud_path, local_path):
-    """
-    @param cloud_path:
-    @param local_path:
+    """Args:
+    cloud_path
+    local_path
     """
     bucket_name, prefix = _get_s3_path_components(cloud_path)
     s3_resource = boto3.resource("s3")
@@ -82,12 +84,15 @@ def _match_prefix(base_prefix, prefix, match_pattern=None):
 
 
 def s3_get_file_list(cloud_path, match_pattern=None, recursive=True):
-    """
-        Get list of relative paths to files in a utils folder with a given (optional) extension
-    @param cloud_path:
-    @param match_pattern:
-    @param recursive:
-    @return:
+    """Get list of relative paths to files in a utils folder with a given (optional) extension
+
+    Args:
+        cloud_path
+        match_pattern
+        recursive
+
+    Returns:
+
     """
     s3_client = boto3.client("s3")
     bucket, main_prefix = _get_s3_path_components(cloud_path)

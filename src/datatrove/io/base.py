@@ -18,8 +18,7 @@ from datatrove.io.utils.fsspec import valid_fsspec_path
 
 @dataclass
 class BaseInputDataFile:
-    """
-    Represents an individual input file that can be read from.
+    """Represents an individual input file that can be read from.
     Supports compression formats and/or opening in binary mode.
 
     Args:
@@ -33,12 +32,16 @@ class BaseInputDataFile:
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
-        """
-            InputDataFile factory: get the correct instance from a path. Additional arguments will be passed to the
-            constructor of the matched implementation.
-        :param path: the full path to match
-        :param kwargs: any additional argument passed to the matched implementation
-        :return:
+        """InputDataFile factory: get the correct instance from a path. Additional arguments will be passed to the
+        constructor of the matched implementation.
+
+        Args:
+            path: the full path to match
+            **kwargs: any additional argument passed to the matched
+                implementation
+
+        Returns:
+
         """
         from datatrove.io import FSSpecInputDataFile, LocalInputDataFile, S3InputDataFile
 
@@ -54,18 +57,22 @@ class BaseInputDataFile:
     @contextmanager
     @abstractmethod
     def open_binary(self):
-        """
-            Main method to overwrite. Should return a stream open in binary mode
-        :return: binary stream
+        """Main method to overwrite. Should return a stream open in binary mode
+
+        Returns:
+            binary stream
         """
         raise NotImplementedError
 
     @contextmanager
     def open_gzip(self, binary=False):
-        """
-            Read a gzip compressed file directly
-        :param binary: optionally open in binary mode
-        :return: stream
+        """Read a gzip compressed file directly
+
+        Args:
+            binary: optionally open in binary mode
+
+        Returns:
+            stream
         """
         with self.open_binary() as fo:
             with GzipFile(mode="r" if not binary else "rb", fileobj=fo) as gf:
@@ -77,10 +84,13 @@ class BaseInputDataFile:
 
     @contextmanager
     def open_zst(self, binary=False):
-        """
-            Read a zst compressed file directly
-        :param binary:
-        :return: stream
+        """Read a zst compressed file directly
+
+        Args:
+            binary
+
+        Returns:
+            stream
         """
         with self.open_binary() as fo:
             dctx = zstandard.ZstdDecompressor(max_window_size=2**31)
@@ -93,11 +103,14 @@ class BaseInputDataFile:
 
     @contextmanager
     def open(self, binary=False, compression: Literal["guess", "gzip", "zst"] | None = None):
-        """
-            Main entrypoint for input files. Return a stream to read this file. Optionally accepts compression and/or binary mode.
-        :param binary:
-        :param compression:
-        :return:
+        """Main entrypoint for input files. Return a stream to read this file. Optionally accepts compression and/or binary mode.
+
+        Args:
+            binary
+            compression
+
+        Returns:
+
         """
         if compression == "guess":
             compression = guess_compression(self.relative_path)
@@ -119,15 +132,14 @@ class BaseInputDataFile:
 
 @dataclass
 class BaseInputDataFolder(ABC):
-    """
-        Base input data folder class. Specific implementations should override its relevant methods.
+    """Base input data folder class. Specific implementations should override its relevant methods.
 
-    Args:
-        path (str): full path to the folder, respecting the format of specific implementations
-            (i.e. s3 paths should start with s3://)
-        extension (str | list[str], optional): file extensions to filter. Defaults to None.
-        recursive (bool, optional): whether to search recursively. Defaults to True.
-        match_pattern (str, optional): pattern to match file names. Defaults to None.
+        Args:
+    path (str): full path to the folder, respecting the format of specific implementations
+        (i.e. s3 paths should start with s3://)
+    extension (str | list[str], optional): file extensions to filter. Defaults to None.
+    recursive (bool, optional): whether to search recursively. Defaults to True.
+    match_pattern (str, optional): pattern to match file names. Defaults to None.
     """
 
     path: str
@@ -138,12 +150,16 @@ class BaseInputDataFolder(ABC):
 
     @classmethod
     def from_path(cls, path, **kwargs):
-        """
-            InputDataFolder factory: get the correct instance from a path. Additional arguments will be passed to the
-            constructor of the matched implementation.
-        :param path: the full path to match
-        :param kwargs: any additional argument passed to the matched implementation
-        :return:
+        """InputDataFolder factory: get the correct instance from a path. Additional arguments will be passed to the
+        constructor of the matched implementation.
+
+        Args:
+            path: the full path to match
+            **kwargs: any additional argument passed to the matched
+                implementation
+
+        Returns:
+
         """
         from datatrove.io import FSSpecInputDataFolder, LocalInputDataFolder, S3InputDataFolder
 
@@ -155,12 +171,16 @@ class BaseInputDataFolder(ABC):
 
     @abstractmethod
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[BaseInputDataFile]:
-        """
-            Retrieves a list of InputDataFile for all files in this folder matching both the dataclass properties and the
-            function parameters.
-        :param extension: optionally limit the file extension of the retrieved files
-        :param suffix: optionally limit the search to a given subfolder
-        :return:
+        """Retrieves a list of InputDataFile for all files in this folder matching both the dataclass properties and the
+        function parameters.
+
+        Args:
+            extension: optionally limit the file extension of the
+                retrieved files
+            suffix: optionally limit the search to a given subfolder
+
+        Returns:
+
         """
         logger.error(
             "Do not instantiate BaseInputDataFolder directly, "
@@ -170,62 +190,79 @@ class BaseInputDataFolder(ABC):
         raise NotImplementedError
 
     def set_lock(self, lock):
-        """
-            Pass a synchronization primitive to limit concurrent downloads
-        :param lock: synchronization primitive (Semaphore, Lock)
-        :return:
+        """Pass a synchronization primitive to limit concurrent downloads
+
+        Args:
+            lock: synchronization primitive (Semaphore, Lock)
+
+        Returns:
+
         """
         self._lock = lock
 
     def get_files_shard(
         self, rank: int, world_size: int, extension: str | list[str] = None
     ) -> list[BaseInputDataFile]:
-        """
-            Fetch a shard (set of files) for a given rank, assuming there are a total of `world_size` shards.
-            This should be deterministic to not have any overlap among different ranks.
+        """Fetch a shard (set of files) for a given rank, assuming there are a total of `world_size` shards.
+        This should be deterministic to not have any overlap among different ranks.
 
-        :param rank: rank of the shard to fetch
-        :param world_size: total number of shards
-        :param extension: optional file extension to pass on to list_files
-        :return: a list of input files
+        Args:
+            rank: rank of the shard to fetch
+            world_size: total number of shards
+            extension: optional file extension to pass on to list_files
+
+        Returns:
+            a list of input files
         """
         return self.list_files(extension=extension)[rank::world_size]
 
     def get_file(self, relative_path: str) -> BaseInputDataFile | None:
-        """
-            Get a file directly by its name.
-        :param relative_path: The file name/path from this folder.
-        :return: an input file if it exists or None
+        """Get a file directly by its name.
+
+        Args:
+            relative_path: The file name/path from this folder.
+
+        Returns:
+            an input file if it exists or None
         """
         if self.file_exists(relative_path):
             return self._unchecked_get_file(relative_path)
 
     @abstractmethod
     def _unchecked_get_file(self, relative_path: str) -> BaseInputDataFile:
-        """
-            Get a file directly by its name, without checking if it exists.
-            Subclasses should override this method (and not the one above).
-            Should not be called directly. Instead, call `get_file`
-        :param relative_path: The file name/path from this folder.
-        :return: an input file
+        """Get a file directly by its name, without checking if it exists.
+        Subclasses should override this method (and not the one above).
+        Should not be called directly. Instead, call `get_file`
+
+        Args:
+            relative_path: The file name/path from this folder.
+
+        Returns:
+            an input file
         """
         raise NotImplementedError
 
     @abstractmethod
     def file_exists(self, relative_path: str) -> bool:
-        """
-            Should be overriden by subclasses. Check if a given file exists.
-        :param relative_path: The file name/path from this folder.
-        :return: if the file exists
+        """Should be overriden by subclasses. Check if a given file exists.
+
+        Args:
+            relative_path: The file name/path from this folder.
+
+        Returns:
+            if the file exists
         """
         return True
 
     def _match_file(self, file_path, extension=None) -> bool:
-        """
-            Checks if a given file matches the chosen extension(s) and/or pattern.
-        :param file_path: the relative file path
-        :param extension:
-        :return: bool
+        """Checks if a given file matches the chosen extension(s) and/or pattern.
+
+        Args:
+            file_path: the relative file path
+            extension
+
+        Returns:
+            bool
         """
         extensions = (
             ([self.extension] if isinstance(self.extension, str) else self.extension)
@@ -240,12 +277,15 @@ class BaseInputDataFolder(ABC):
 
 
 def get_extension(filepath, depth=None) -> str:
-    """
-        Get full file extension (example: .jsonl.gz)
-        Optionally only get last `depth` extensions (depth=1: .gz)
-    :param filepath: relative path to the file
-    :param depth: how many extensions maximum to get
-    :return: the extension
+    """Get full file extension (example: .jsonl.gz)
+    Optionally only get last `depth` extensions (depth=1: .gz)
+
+    Args:
+        filepath: relative path to the file
+        depth: how many extensions maximum to get
+
+    Returns:
+        the extension
     """
     exts = []
     stem, ext = os.path.splitext(filepath)
@@ -258,10 +298,13 @@ def get_extension(filepath, depth=None) -> str:
 
 
 def guess_compression(filename) -> str | None:
-    """
-        Guess compression scheme from file extension
-    :param filename:
-    :return:
+    """Guess compression scheme from file extension
+
+    Args:
+        filename
+
+    Returns:
+
     """
     match get_extension(filename, depth=1):
         case ".gz":
@@ -274,8 +317,7 @@ def guess_compression(filename) -> str | None:
 
 @dataclass
 class BaseOutputDataFile(ABC):
-    """
-    Represents an individual output file that can be written to.
+    """Represents an individual output file that can be written to.
     Supports writing directly to a gzip compressed file
 
     Args:
@@ -291,12 +333,16 @@ class BaseOutputDataFile(ABC):
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
-        """
-            OutputDataFile factory: get the correct instance from a path. Additional arguments will be passed to the
-            constructor of the matched implementation.
-        :param path: the full path to match
-        :param kwargs: any additional argument passed to the matched implementation
-        :return:
+        """OutputDataFile factory: get the correct instance from a path. Additional arguments will be passed to the
+        constructor of the matched implementation.
+
+        Args:
+            path: the full path to match
+            **kwargs: any additional argument passed to the matched
+                implementation
+
+        Returns:
+
         """
         from datatrove.io import FSSpecOutputDataFile, LocalOutputDataFile, S3OutputDataFile
 
@@ -310,10 +356,11 @@ class BaseOutputDataFile(ABC):
         return LocalOutputDataFile(path, **kwargs)
 
     def close(self):
-        """
-            Close the underlying file object.
-            Subclasses my also save/upload the file
-        :return:
+        """Close the underlying file object.
+        Subclasses my also save/upload the file
+
+        Returns:
+
         """
         if self._file_handler:
             self._file_handler.close()
@@ -326,11 +373,14 @@ class BaseOutputDataFile(ABC):
         self.close()
 
     def open(self, mode: str = "w", gzip: bool = False):
-        """
-            Open/create the underlying file object
-        :param mode: mode to open
-        :param gzip: whether to compress the file with gzip
-        :return:
+        """Open/create the underlying file object
+
+        Args:
+            mode: mode to open
+            gzip: whether to compress the file with gzip
+
+        Returns:
+
         """
         if not self._file_handler or self._mode != mode:
             if self._file_handler:
@@ -341,36 +391,46 @@ class BaseOutputDataFile(ABC):
 
     @abstractmethod
     def _create_file_handler(self, mode: str = "w", gzip: bool = False):
-        """
-            Should be overriden by subclasses. Opens/creates the underlying file object
-        :param mode:
-        :param gzip:
-        :return:
+        """Should be overriden by subclasses. Opens/creates the underlying file object
+
+        Args:
+            mode
+            gzip
+
+        Returns:
+
         """
         raise NotImplementedError
 
     def write(self, *args, **kwargs):
-        """
-            Write to the underlying file object
-        :param args:
-        :param kwargs:
-        :return:
+        """Write to the underlying file object
+
+        Args:
+            *args
+            **kwargs
+
+        Returns:
+
         """
         self._file_handler.write(*args, **kwargs)
 
     def get_mmap(self, dtype):
-        """
-            Get a numpy memmap for this file
-        :param dtype: memmap dtype
-        :return:
+        """Get a numpy memmap for this file
+
+        Args:
+            dtype: memmap dtype
+
+        Returns:
+
         """
         return np.memmap(self._file_handler, dtype=dtype)
 
     def delete(self):
-        """
-            Remove pointer to the given file, close its underlying file object and delete it from disk if it exists locally.
-            Does not call close() on the OutputDataFile directly to avoid uploading/saving it externally.
-        :return:
+        """Remove pointer to the given file, close its underlying file object and delete it from disk if it exists locally.
+        Does not call close() on the OutputDataFile directly to avoid uploading/saving it externally.
+
+        Returns:
+
         """
         if self._file_handler:
             self._file_handler.close()
@@ -379,12 +439,10 @@ class BaseOutputDataFile(ABC):
 
 @dataclass
 class BaseOutputDataFolder(ABC):
-    """
-        Base output data folder class. Specific implementations should override its relevant methods.
+    """Base output data folder class. Specific implementations should override its relevant methods.
 
     Args:
-        path (str): full path to the folder, respecting the format of specific implementations
-            (i.e. s3 paths should start with s3://)
+        path (str): full path to the folder, respecting the format of specific implementations (i.e. s3 paths should start with s3://)
     """
 
     path: str
@@ -392,21 +450,23 @@ class BaseOutputDataFolder(ABC):
     _lock: SemLock | contextlib.nullcontext = field(default_factory=contextlib.nullcontext)
 
     def close(self):
-        """
-        Close all the output files and cleanup any leftover temporary files.
-        """
+        """Close all the output files and cleanup any leftover temporary files."""
         for file in self._output_files.values():
             file.close()
         self._output_files.clear()
 
     @classmethod
     def from_path(cls, path: str, **kwargs):
-        """
-            OutputDataFolder factory: get the correct instance from a path. Additional arguments will be passed to the
-            constructor of the matched implementation.
-        :param path: the full path to match
-        :param kwargs: any additional argument passed to the matched implementation
-        :return:
+        """OutputDataFolder factory: get the correct instance from a path. Additional arguments will be passed to the
+        constructor of the matched implementation.
+
+        Args:
+            path: the full path to match
+            **kwargs: any additional argument passed to the matched
+                implementation
+
+        Returns:
+
         """
         from datatrove.io import FSSpecOutputDataFolder, LocalOutputDataFolder, S3OutputDataFolder
 
@@ -418,11 +478,14 @@ class BaseOutputDataFolder(ABC):
 
     @abstractmethod
     def _create_new_file(self, relative_path: str) -> BaseOutputDataFile:
-        """
-            Create an OutputDataFile for the file located on `relative_path`, its path relative to this folder.
-            Each io implementation should override it.
-        :param relative_path:
-        :return: an OutputDataFile
+        """Create an OutputDataFile for the file located on `relative_path`, its path relative to this folder.
+        Each io implementation should override it.
+
+        Args:
+            relative_path
+
+        Returns:
+            an OutputDataFile
         """
         logger.error(
             "Do not instantiate a BaseOutputDataFolder directly, " "use a LocalOutputDataFolder or S3OutputDataFolder"
@@ -430,20 +493,26 @@ class BaseOutputDataFolder(ABC):
         raise NotImplementedError
 
     def set_lock(self, lock):
-        """
-            Pass a synchronization primitive to limit concurrent uploads
-        :param lock: synchronization primitive (Semaphore, Lock)
-        :return:
+        """Pass a synchronization primitive to limit concurrent uploads
+
+        Args:
+            lock: synchronization primitive (Semaphore, Lock)
+
+        Returns:
+
         """
         self._lock = lock
 
     def open(self, relative_path: str, mode: str = "w", gzip: bool = False) -> BaseOutputDataFile:
-        """
-            Open/create output file with `relative_path` for writing.
-        :param relative_path: the file path relative to this folder
-        :param mode: the mode to open as (w, wb, etc)
-        :param gzip: whether to open in gzip mode
-        :return: OutputDataFile
+        """Open/create output file with `relative_path` for writing.
+
+        Args:
+            relative_path: the file path relative to this folder
+            mode: the mode to open as (w, wb, etc)
+            gzip: whether to open in gzip mode
+
+        Returns:
+            OutputDataFile
         """
         if relative_path not in self._output_files:
             self._output_files[relative_path] = self._create_new_file(relative_path)

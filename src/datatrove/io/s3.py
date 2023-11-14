@@ -19,8 +19,7 @@ from datatrove.io.utils.s3 import (
 
 @dataclass
 class S3OutputDataFolder(BaseOutputDataFolder):
-    """
-    S3 output data folder. Output files will be uploaded to s3.
+    """S3 output data folder. Output files will be uploaded to s3.
     Args:
         path (str): the s3 path to this folder
         local_path (str): where to save output data locally before uploading
@@ -58,9 +57,7 @@ class S3OutputDataFolder(BaseOutputDataFolder):
 
 @dataclass
 class S3OutputDataFile(BaseOutputDataFile):
-    """
-    An individual S3OutputFile. This file is uploaded to s3 when closed.
-    """
+    """An individual S3OutputFile. This file is uploaded to s3 when closed."""
 
     local_path: str = None
     cleanup: bool = True
@@ -93,8 +90,7 @@ class S3OutputDataFile(BaseOutputDataFile):
 
 @dataclass
 class S3InputDataFile(BaseInputDataFile):
-    """
-    An individual s3 input file.
+    """An individual s3 input file.
     Args:
         local_path (str): local path where this file will be downloaded to (if `stream=False`)
         stream (bool): stream the file directly from s3, without saving to disk
@@ -130,8 +126,7 @@ class S3InputDataFile(BaseInputDataFile):
 
 @dataclass
 class S3InputDataFolder(BaseInputDataFolder):
-    """
-    S3 input data folder
+    """S3 input data folder
     Args:
         local_path (str): where to download the files to (if `stream=False`)
         stream (bool): stream the file directly from s3, without saving to disk

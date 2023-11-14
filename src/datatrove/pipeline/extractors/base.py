@@ -9,9 +9,7 @@ from datatrove.utils.typeshelper import StatHints
 
 
 class BaseExtractor(PipelineStep):
-    """
-    Base Extractor module. Extractors extract text from html
-    """
+    """Base Extractor module. Extractors extract text from html"""
 
     type = "🛢️- EXTRAC"
 
@@ -25,17 +23,18 @@ class BaseExtractor(PipelineStep):
 
     @abstractmethod
     def extract(self, content: str) -> str:
-        """
-        abstract method that actually implements the extraction, e.g. trafilatura.
-        """
+        """abstract method that actually implements the extraction, e.g. trafilatura."""
         pass
 
     def timeout_extract(self, doc: Document):
-        """
-        Stops the extraction if it takes longer than timeout.
+        """Stops the extraction if it takes longer than timeout.
         This is the main entrypoint for this class.
-        :param doc: Document
-        :return:
+
+        Args:
+            doc: Document
+
+        Returns:
+
         """
 
         def signal_handler(signum, frame):

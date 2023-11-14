@@ -9,11 +9,14 @@ from datatrove.io.base import BaseInputDataFile, BaseInputDataFolder, BaseOutput
 @dataclass
 class LocalOutputDataFile(BaseOutputDataFile):
     def _create_file_handler(self, mode: str = "w", gzip: bool = False):
-        """
-            Opens/creates the underlying file object
-        :param mode:
-        :param gzip:
-        :return:
+        """Opens/creates the underlying file object
+
+        Args:
+            mode
+            gzip
+
+        Returns:
+
         """
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         return open(self.path, mode) if not gzip else gzip_lib.open(self.path, mode)
@@ -26,8 +29,7 @@ class LocalOutputDataFile(BaseOutputDataFile):
 
 @dataclass
 class LocalOutputDataFolder(BaseOutputDataFolder):
-    """
-    Local output data folder. The output files will simply be saved to a folder on disk.
+    """Local output data folder. The output files will simply be saved to a folder on disk.
     Args:
         path (str): absolute path to a local folder on disk
     """
@@ -45,9 +47,10 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
 class LocalInputDataFile(BaseInputDataFile):
     @contextmanager
     def open_binary(self):
-        """
-            Opens local file in binary mode
-        :return: binary stream
+        """Opens local file in binary mode
+
+        Returns:
+            binary stream
         """
         with open(self.path, mode="rb") as f:
             yield f
@@ -55,8 +58,7 @@ class LocalInputDataFile(BaseInputDataFile):
 
 @dataclass
 class LocalInputDataFolder(BaseInputDataFolder):
-    """
-    Local input data folder. Read data already present on disk.
+    """Local input data folder. Read data already present on disk.
     Args:
         path (str): absolute path to a local folder on disk
 
@@ -73,10 +75,13 @@ class LocalInputDataFolder(BaseInputDataFolder):
         return os.path.exists(os.path.join(self.path, relative_path))
 
     def _unchecked_get_file(self, relative_path: str) -> LocalInputDataFile:
-        """
-            Get a file directly by its name, without checking if it exists.
-        :param relative_path: The file name/path from this folder.
-        :return: an input file
+        """Get a file directly by its name, without checking if it exists.
+
+        Args:
+            relative_path: The file name/path from this folder.
+
+        Returns:
+            an input file
         """
         return LocalInputDataFile(
             path=os.path.join(self.path, relative_path), relative_path=relative_path, _lock=self._lock
@@ -84,11 +89,15 @@ class LocalInputDataFolder(BaseInputDataFolder):
 
 
 def get_local_file_list(path: str, recursive: bool = True) -> list[str]:
-    """
-        Get a list of absolute paths to all the files in a given local folder, sorted.
-    :param path: The path to scan
-    :param recursive: if False will only scan the top level files (no subdirectories)
-    :return: list of file paths
+    """Get a list of absolute paths to all the files in a given local folder, sorted.
+
+    Args:
+        path: The path to scan
+        recursive: if False will only scan the top level files (no
+            subdirectories)
+
+    Returns:
+        list of file paths
     """
     filelist = []
     with os.scandir(path) as files:

@@ -10,9 +10,7 @@ from datatrove.io.base import BaseInputDataFolder, BaseOutputDataFile, BaseOutpu
 
 @dataclass
 class FSSpecOutputDataFile(BaseOutputDataFile):
-    """
-    An individual FSSpecOutputDataFile.
-    """
+    """An individual FSSpecOutputDataFile."""
 
     _fs: fsspec.AbstractFileSystem = None
 
@@ -28,8 +26,7 @@ class FSSpecOutputDataFile(BaseOutputDataFile):
 
 @dataclass
 class FSSpecOutputDataFolder(BaseOutputDataFolder):
-    """
-    fsspec output data folder. Accepts any valid fsspec path schema, such as hf://datasets/...
+    """fsspec output data folder. Accepts any valid fsspec path schema, such as hf://datasets/...
     Args:
         path (str): the fsspec path to this folder
         local_path (str): where to save output data locally before uploading

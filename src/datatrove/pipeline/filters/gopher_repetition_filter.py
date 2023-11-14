@@ -98,7 +98,6 @@ class GopherRepetitionFilter(BaseFilter):
         self.paragraph_exp = re.compile(r"\n{2,}")
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        """ """
         text = doc.content
 
         paragraphs = self.paragraph_exp.split(text.strip())

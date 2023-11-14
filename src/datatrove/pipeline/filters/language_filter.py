@@ -56,10 +56,11 @@ class LanguageFilter(BaseFilter):
         return self._model
 
     def filter(self, doc: Document) -> bool:
-        """
+        """Args:
+            doc: document
 
-        :param doc: document
-        :return: is_filter
+        Returns:
+            is_filter
         """
 
         language, score = self.model.predict(doc.content.replace("\n", ""))

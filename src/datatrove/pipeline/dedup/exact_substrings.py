@@ -1,5 +1,4 @@
-"""
-Here we implement exact substrings as suggested by https://arxiv.org/pdf/2107.06499.pdf.
+"""Here we implement exact substrings as suggested by https://arxiv.org/pdf/2107.06499.pdf.
 We use suffix array to deduplicate exact substrings above a minimum threshold. We will take the code tom build the
 actual suffix array and find duplicates form the GitHub page of "Deduplicating Training Data Makes Language Models
 Better".
@@ -11,10 +10,7 @@ TLDR
  ... call deduplicate-text-datasets scripts
      in particular `cargo run self-similar ...` and `cargo run self-similar` need to be called
 
-
-
 3) DedupReader reads docs and ranges at the same time and remove duplicates.
-
 
 """
 import struct
@@ -43,8 +39,7 @@ def prepare_doc(tokenizer, doc: str, rank: int, doc_id: int):
 
 
 class DatasetToSequence(PipelineStep):
-    """
-    STAGE 1
+    """STAGE 1
     Creates a sequence of all docs pre-prepended by a unique separator. It also saves a second file with the
     bytes offset of where each individual doc begins.
     """
@@ -53,11 +48,9 @@ class DatasetToSequence(PipelineStep):
     name = "🪞 - exact-substrings stage 1"
 
     def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2"):
-        """
-
-        :param output_folder: folder where sequences are saved
-        :param tokenizer_name: name of tokenizer as in HF tokenizers.
-        :param kwargs:
+        """Args:
+        output_folder: folder where sequences are saved
+        tokenizer_name: name of tokenizer as in HF tokenizers.
         """
         super().__init__()
         self.output_folder = output_folder
@@ -87,8 +80,7 @@ class DatasetToSequence(PipelineStep):
 
 
 class MergeSequences(PipelineStep):
-    """
-    STAGE 2
+    """STAGE 2
     It merges all the sequences from stage 1 into a big sequence. It saves a file with the cumulative bytes offset
     of every single sequence.
     """
@@ -103,13 +95,11 @@ class MergeSequences(PipelineStep):
         tasks_stage_1: int,
         bytes_per_batch: int = int(500e6),
     ):
-        """
-
-        :param input_folder: folder where sequences were saved in stage 1
-        :param output_folder: folder where the big sequence will be saved
-        :param tasks_stage_1: number of tasks used in stage 1
-        :param bytes_per_batch: number of bytes read per sequence
-        :param kwargs:
+        """Args:
+        input_folder: folder where sequences were saved in stage 1
+        output_folder: folder where the big sequence will be saved
+        tasks_stage_1: number of tasks used in stage 1
+        bytes_per_batch: number of bytes read per sequence
         """
         super().__init__()
         self.input_folder = input_folder
@@ -253,8 +243,7 @@ class DedupReader(JsonlReader):
         return a, b
 
     def get_duplicate_range(self, bytes_len: int):
-        """
-        Ranges produced by deduplicate-text-dataset can fall in one of the following 4 categories
+        """Ranges produced by deduplicate-text-dataset can fall in one of the following 4 categories
 
                    left    )  A   *    B    *       A --> *, idx <-- idx + 1
                    centre  )  *   A    B    *       idx <-- idx + 1

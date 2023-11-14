@@ -47,15 +47,18 @@ def read_tuples_from_file(file: BaseInputDataFile, *formats):
 
 
 def simplify_content(text: str):
-    """
-        Performs the following operations to increase recall when looking for matches between documents:
-        - lowercase text
-        - replace all whitespace with a single " "
-        - remove all punctuation
-        - convert diacritics
-        - unicode normalize
-    :param text:
-    :return:
+    """Performs the following operations to increase recall when looking for matches between documents:
+    - lowercase text
+    - replace all whitespace with a single " "
+    - remove all punctuation
+    - convert diacritics
+    - unicode normalize
+
+    Args:
+        text
+
+    Returns:
+        modified text
     """
     # lower case
     text = text.lower()

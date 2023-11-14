@@ -17,8 +17,7 @@ from datatrove.utils.logging import get_random_str, get_timestamp
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
-    """
-    Executor to run pipelines on Slurm.
+    """Executor to run pipelines on Slurm.
     Creates and calls a sbatch launch script.
     """
 
@@ -42,29 +41,41 @@ class SlurmPipelineExecutor(PipelineExecutor):
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
     ):
-        """
-        Execute a pipeline on a slurm cluster
-        :param pipeline: a list of PipelineStep and/or custom functions with arguments
-                (data: DocumentsPipeline, rank: int, world_size: int)
-        :param tasks: total number of tasks to run the pipeline on
-        :param time: slurm time limit
-        :param partition: slurm partition
-        :param cpus_per_task: how many cpus to give each task. should be 1 except when you need to give each task more
-                memory
-        :param mem_per_cpu_gb: slurm option. use in conjunction with the above option to increase max memory
-        :param workers: how many tasks to run simultaneously. -1 for no limit
-        :param job_name: slurm job name
-        :param env_command: command to activate a python environment, if needed
-        :param condaenv: name of a conda environment to activate
-        :param venv_path: path to a python venv to activate
-        :param sbatch_args: dictionary with additional arguments to pass to sbatch
-        :param max_array_size: the limit of tasks in a task array job on your slurm cluster or -1 if none.
-                if tasks>max_array_size, multiple task array jobs will be launched
-        :param depends: another SlurmPipelineExecutor that should run before this one
-        :param logging_dir: where to save logs, stats, etc. Should be an OutputDataFolder
-        :param skip_completed: whether to skip tasks that were completed in previous runs. default: True
-        :param slurm_logs_folder: where to store the raw slurm log files. must be a local path
-                default: slurm_logs/$job_name/$timestamp_$randomstring
+        """Execute a pipeline on a slurm cluster
+
+        Args:
+            pipeline: a list of PipelineStep and/or custom functions
+                with arguments (data: DocumentsPipeline, rank: int,
+                world_size: int)
+            tasks: total number of tasks to run the pipeline on
+            time: slurm time limit
+            partition: slurm partition
+            cpus_per_task: how many cpus to give each task. should be 1
+                except when you need to give each task more memory
+            mem_per_cpu_gb: slurm option. use in conjunction with the
+                above option to increase max memory
+            workers: how many tasks to run simultaneously. -1 for no
+                limit
+            job_name: slurm job name
+            env_command: command to activate a python environment, if
+                needed
+            condaenv: name of a conda environment to activate
+            venv_path: path to a python venv to activate
+            sbatch_args: dictionary with additional arguments to pass to
+                sbatch
+            max_array_size: the limit of tasks in a task array job on
+                your slurm cluster or -1 if none. if
+                tasks>max_array_size, multiple task array jobs will be
+                launched
+            depends: another SlurmPipelineExecutor that should run
+                before this one
+            logging_dir: where to save logs, stats, etc. Should be an
+                OutputDataFolder
+            skip_completed: whether to skip tasks that were completed in
+                previous runs. default: True
+            slurm_logs_folder: where to store the raw slurm log files.
+                must be a local path default:
+                slurm_logs/$job_name/$timestamp_$randomstring
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail

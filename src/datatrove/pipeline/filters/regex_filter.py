@@ -18,9 +18,10 @@ class RegexFilter(BaseFilter):
         self.regex = re.compile(regex_exp)
 
     def filter(self, doc: Document) -> bool:
-        """
+        """Args:
+            doc: document
 
-        :param doc: document
-        :return: is_filter
+        Returns:
+            is_filter
         """
         return not len(self.regex.findall(doc.content)) > 0

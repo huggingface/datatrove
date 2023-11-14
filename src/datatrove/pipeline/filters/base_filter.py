@@ -16,9 +16,7 @@ def get_filter_result(res):
 
 
 class BaseFilter(PipelineStep, ABC):
-    """
-    Base module for Filters. Filters remove documents.
-    """
+    """Base module for Filters. Filters remove documents."""
 
     type = "🔻 - FILTER"
 
@@ -31,12 +29,15 @@ class BaseFilter(PipelineStep, ABC):
 
     @abstractmethod
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
-        """
-        Filter modules main method.
+        """Filter modules main method.
         Returns true if a sample should be kept, false if it should be removed.
 
-        @param doc: sample to filter
-        @return: bool - whether the doc should be kept; or (False, str), to drop with a specific reason
+        Args:
+            doc: sample to filter
+
+        Returns:
+            bool - whether the doc should be kept
+            or (False, str), to drop with a specific reason
         """
         raise NotImplementedError
 

@@ -1,5 +1,4 @@
-"""
-'To deduplicate the data set, we discarded all but one of any three-sentence span
+"""'To deduplicate the data set, we discarded all but one of any three-sentence span
 occurring more than once in the data set.'
 
 from: https://jmlr.org/papers/volume21/20-074/20-074.pdf (C4)
@@ -46,11 +45,10 @@ class SentenceDedupSignature(PipelineStep):
     name = "💥 sentence-deduplication stage 1"
 
     def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3):
-        """
-
-        :param output_folder: folder where signatures are saved
-        :param n_sentences: n_sentences where duplicates are checked.
-        :param kwargs:
+        """Args:
+        output_folder: folder where signatures are saved
+        n_sentences: n_sentences where duplicates are checked.
+        kwargs
         """
         super().__init__()
         self.output_folder = output_folder
@@ -88,12 +86,12 @@ class SentenceDedupSignature(PipelineStep):
         return hashes
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        """
+        """Args:
+            data
+            rank
+            world_size
 
-        :param data:
-        :param rank:
-        :param world_size:
-        :return:
+        Returns:
 
         SentenceDedupSignature creates a signature for each document. Each HashSig has n hash, the doc id and the
         sentence idx. Before saving them the hashes are sorted.
@@ -136,12 +134,12 @@ class SentenceFindDedups(PipelineStep):
         self.only_dedup_in_index = only_dedup_in_index
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
-        """
+        """Args:
+            data
+            rank
+            world_size
 
-        :param data:
-        :param rank:
-        :param world_size:
-        :return:
+        Returns:
 
         SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and load them
         in a priority queue to check for duplicates. If a duplicate is found its document id and sentence id are saved.
@@ -206,11 +204,9 @@ class SentenceDedupFilter(PipelineStep):
         min_doc_words: int = 50,
         exclusion_writer: DiskWriter = None,
     ):
-        """
-
-        :param data_folder: data folder to get duplicate files.
-        :param min_doc_words: min amount of words for each document
-        :param kwargs:
+        """Args:
+        data_folder: data folder to get duplicate files.
+        min_doc_words: min amount of words for each document
         """
         super().__init__()
         self.data_folder: BaseInputDataFolder = data_folder
@@ -246,12 +242,8 @@ class SentenceDedupFilter(PipelineStep):
         return "".join(kept_sentences).lstrip(), "".join(original_formatted)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        """
-        step method for Filters.
+        """step method for Filters.
         Drops documents that if .filter() is False
-
-        @param datapipe: input DocumentsPipeline
-        @return: DocumentsPipeline
 
         SentenceDedupFilter reads a DocumentPipeline and removes duplicated sentences found at stage 2
         """

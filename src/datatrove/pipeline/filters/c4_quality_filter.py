@@ -9,8 +9,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class C4QualityFilter(BaseFilter):
-    """
-    Applies heuristic rules from C4 https://jmlr.org/papers/volume21/20-074/20-074.pdf
+    """Applies heuristic rules from C4 https://jmlr.org/papers/volume21/20-074/20-074.pdf
 
     - We only retained lines that ended in a terminal punctuation mark (! . " ?)
     - We discarded any page with fewer than 5 sentences and only retained lines that contained at least 3 words
@@ -41,9 +40,11 @@ class C4QualityFilter(BaseFilter):
             return False
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        """
-        :param doc:
-        :return:
+        """Args:
+            doc
+
+        Returns:
+
         """
 
         lines = sent_tokenize(doc.content)

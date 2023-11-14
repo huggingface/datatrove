@@ -46,18 +46,18 @@ class SingleBloomFilter(PipelineStep):
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
     ):
-        """
-
-        :param output_folder: output folder: local or on S3
-        :param m_bytes: bloom filter size in bytes (actual size x8 bigger)
-        :param k: number of hashes
-        :param expected_elements: expected number of elements, aka shingles.
-        :param duplicate_threshold: above which documents are considered as duplicated
-        :param n_grams: n_grams to use
-        :param seed: seed
-        :param save_bloom_filter: if true saves bloom filter for later use
-        :param exclusion_writer: saves duplicated data
-        :param kwargs:
+        """Args:
+        output_folder: output folder: local or on S3
+        m_bytes: bloom filter size in bytes (actual size x8 bigger)
+        k: number of hashes
+        expected_elements: expected number of elements, aka
+            shingles.
+        duplicate_threshold: above which documents are considered as
+            duplicated
+        n_grams: n_grams to use
+        seed: seed
+        save_bloom_filter: if true saves bloom filter for later use
+        exclusion_writer: saves duplicated data
         """
 
         super().__init__()
