@@ -25,8 +25,10 @@ parser.add_argument(
 def main():
     args, file_args = parser.parse_known_args()
     stats_folder = BaseInputDataFolder.from_path(args.path)
-    extra_args = dict((extra_arg.split("=") for extra_arg in file_args))
-    output_file = BaseOutputDataFile.from_path(os.path.abspath(args.output), **extra_args)
+    # output file
+    extra_args = dict(extra_arg.split("=") for extra_arg in file_args)
+    path = extra_args.pop("path", os.path.abspath(args.output))
+    output_file = BaseOutputDataFile.from_path(path, **extra_args)
 
     stats = []
     for file in stats_folder.list_files():
