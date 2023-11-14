@@ -5,6 +5,7 @@ from loguru import logger
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.assets import DOWNLOAD_PATH
 from datatrove.utils.typeshelper import Languages
 
@@ -26,7 +27,7 @@ class LanguageFilter(BaseFilter):
         languages: tuple = (Languages.english,),
         language_threshold: float = 0.65,
         model_local_path: str = os.path.join(DOWNLOAD_PATH, "language_id/lid.176.bin"),
-        **kwargs,
+        exclusion_writer: DiskWriter = None,
     ):
         """
         filters if the predicted language is not among given language or if the language score is below language
@@ -35,7 +36,7 @@ class LanguageFilter(BaseFilter):
         @param regex_exp: language_threshold minimum score to accept a document.
         @param languages: list of languages to not filter out.
         """
-        super().__init__(**kwargs)
+        super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
         self.languages = languages
         self.model_local_path = model_local_path

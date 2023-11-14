@@ -20,9 +20,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         output_folder: BaseOutputDataFolder,
         window_size: int = 2048 + 1,
         seed: int = None,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.window_size = window_size

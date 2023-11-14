@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Literal
+from typing import Callable, Literal
 
 from loguru import logger
 
@@ -15,9 +15,13 @@ class JsonlReader(BaseReader):
         self,
         data_folder: BaseInputDataFolder,
         compression: Literal["guess", "gzip", "zst"] | None = "guess",
-        **kwargs,
+        limit: int = -1,
+        progress: bool = False,
+        adapter: Callable = None,
+        content_key: str = "content",
+        id_key: str = "data_id",
     ):
-        super().__init__(data_folder, **kwargs)
+        super().__init__(data_folder, limit, progress, adapter, content_key, id_key)
         self.compression = compression
 
     def read_file(self, datafile: BaseInputDataFile):

@@ -16,32 +16,31 @@ def get_filter_result(res):
 
 
 class BaseFilter(PipelineStep, ABC):
+    """
+    Base module for Filters. Filters remove documents.
+    """
+
     type = "🔻 - FILTER"
 
-    def __init__(self, exclusion_writer: DiskWriter = None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, exclusion_writer: DiskWriter = None):
+        """
+        :param exclusion_writer: optionally pass in a writer that will save the dropped documents
+        """
+        super().__init__()
         self.exclusion_writer = exclusion_writer
 
     @abstractmethod
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
         """
-        Filter modules' main method.
-        Returns true if a sample should be filtered.
+        Filter modules main method.
+        Returns true if a sample should be kept, false if it should be removed.
 
-        @param doc: sample to (maybe) filter
-        @return: bool - whether the doc should be filtered
+        @param doc: sample to filter
+        @return: bool - whether the doc should be kept; or (False, str), to drop with a specific reason
         """
         raise NotImplementedError
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        """
-        step method for Filters.
-        Drops documents that if .filter() is False
-
-        @param datapipe: input DocumentsPipeline
-        @return: DocumentsPipeline
-        """
-
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for doc in data:
                 self.stat_update(StatHints.total)

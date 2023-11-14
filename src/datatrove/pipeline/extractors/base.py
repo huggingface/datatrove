@@ -9,27 +9,32 @@ from datatrove.utils.typeshelper import StatHints
 
 
 class BaseExtractor(PipelineStep):
+    """
+    Base Extractor module. Extractors extract text from html
+    """
+
     type = "🛢️- EXTRAC"
 
     @abstractmethod
-    def __init__(self, timeout: float = 0.1, **kwargs):
+    def __init__(self, timeout: float = 0.1):
         """
-        Base Extractor module, converts html to text.
+        :param timeout: the timeout for extraction, per document, in seconds
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.timeout = timeout
 
     @abstractmethod
     def extract(self, content: str) -> str:
         """
-        abstract module that actually implements the extraction, e.g. trafilatura.
+        abstract method that actually implements the extraction, e.g. trafilatura.
         """
         pass
 
     def timeout_extract(self, doc: Document):
         """
-        stops the extraction if it takes longer than timeout
-        :param doc: Documnet
+        Stops the extraction if it takes longer than timeout.
+        This is the main entrypoint for this class.
+        :param doc: Document
         :return:
         """
 
@@ -51,7 +56,6 @@ class BaseExtractor(PipelineStep):
             signal.setitimer(signal.ITIMER_REAL, 0)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        """ """
         for doc in data:
             self.stat_update(StatHints.total)
             with self.track_time():

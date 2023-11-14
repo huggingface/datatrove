@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
@@ -25,7 +26,7 @@ class GopherQualityFilter(BaseFilter):
         max_non_alpha_words_ratio: float | None = 0.8,
         min_stop_words: int | None = 2,
         stop_words: list[str] | None = None,
-        **kwargs,
+        exclusion_writer: DiskWriter = None,
     ):
         """
         Filter to apply Gopher's quality heuristic rules.
@@ -42,7 +43,7 @@ class GopherQualityFilter(BaseFilter):
         @param min_stop_words:
         @param stop_words:
         """
-        super().__init__(**kwargs)
+        super().__init__(exclusion_writer)
         self.min_doc_words = min_doc_words
         self.max_doc_words = max_doc_words
         self.min_avg_word_length = min_avg_word_length

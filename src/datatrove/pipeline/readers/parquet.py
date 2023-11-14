@@ -1,3 +1,5 @@
+from typing import Callable
+
 import pyarrow.parquet as pq
 
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder
@@ -10,9 +12,13 @@ class ParquetReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        **kwargs,
+        limit: int = -1,
+        progress: bool = False,
+        adapter: Callable = None,
+        content_key: str = "content",
+        id_key: str = "data_id",
     ):
-        super().__init__(data_folder, **kwargs)
+        super().__init__(data_folder, limit, progress, adapter, content_key, id_key)
 
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(binary=True) as f:

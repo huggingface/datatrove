@@ -21,9 +21,8 @@ class BaseReader(PipelineStep):
         adapter: Callable = None,
         content_key: str = "content",
         id_key: str = "data_id",
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.data_folder = data_folder
         self.limit = limit
         self.progress = progress

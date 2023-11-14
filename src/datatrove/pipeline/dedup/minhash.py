@@ -86,9 +86,8 @@ class MinhashDedupSignature(PipelineStep):
         self,
         output_folder: BaseOutputDataFolder,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.output_folder = output_folder
         self.config = config
         self.num_hashes = self.config.num_buckets * self.config.hashes_per_bucket
@@ -169,9 +168,8 @@ class MinhashDedupBuckets(PipelineStep):
         index_folder: BaseInputDataFolder = None,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         only_dedup_in_index: bool = True,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.index_folder = index_folder
@@ -233,9 +231,8 @@ class MinhashDedupCluster(PipelineStep):
         output_folder: BaseOutputDataFolder,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         save_cluster_id: bool = False,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.config = config
@@ -291,9 +288,8 @@ class MinhashDedupFilter(PipelineStep):
         input_folder: BaseInputDataFolder,
         exclusion_writer: DiskWriter = None,
         load_cluster_ids: bool = False,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.data_folder = input_folder
         self.exclusion_writer = exclusion_writer
         self.load_cluster_ids = load_cluster_ids
@@ -361,9 +357,8 @@ class MinhashBuildIndex(PipelineStep):
         output_folder: BaseOutputDataFolder,
         index_name: str,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.config = config

@@ -1,20 +1,29 @@
-from typing import Literal
+from typing import Callable, Literal
 
 import cchardet
 import magic
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArcWarcRecord
 
-from datatrove.io import BaseInputDataFile
+from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
     name = "🕷️ Warc"
 
-    def __init__(self, *args, compression: Literal["guess", "gzip", "zst"] | None = "guess", **kwargs):
+    def __init__(
+        self,
+        data_folder: BaseInputDataFolder,
+        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        limit: int = -1,
+        progress: bool = False,
+        adapter: Callable = None,
+        content_key: str = "content",
+        id_key: str = "data_id",
+    ):
         self.compression = compression
-        super().__init__(*args, **kwargs)
+        super().__init__(data_folder, limit, progress, adapter, content_key, id_key)
 
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(compression=self.compression, binary=True) as f:

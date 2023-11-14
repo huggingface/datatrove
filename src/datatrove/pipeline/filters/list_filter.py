@@ -2,18 +2,15 @@ from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class ListFilter(BaseFilter):
     name = "🎅 List"
 
-    def __init__(
-        self,
-        new_line_ratio: float | None = 0.3,  # TODO better tune
-        **kwargs,
-    ):
+    def __init__(self, new_line_ratio: float | None = 0.3, exclusion_writer: DiskWriter = None):  # TODO better tune
         """ """
-        super().__init__(**kwargs)
+        super().__init__(exclusion_writer)
         self.new_line_ratio = new_line_ratio
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:

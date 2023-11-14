@@ -52,14 +52,14 @@ class DatasetToSequence(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
 
-    def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2", **kwargs):
+    def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2"):
         """
 
         :param output_folder: folder where sequences are saved
         :param tokenizer_name: name of tokenizer as in HF tokenizers.
         :param kwargs:
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.output_folder = output_folder
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
 
@@ -102,7 +102,6 @@ class MergeSequences(PipelineStep):
         output_folder: BaseOutputDataFolder,
         tasks_stage_1: int,
         bytes_per_batch: int = int(500e6),
-        **kwargs,
     ):
         """
 
@@ -112,7 +111,7 @@ class MergeSequences(PipelineStep):
         :param bytes_per_batch: number of bytes read per sequence
         :param kwargs:
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.tasks_stage_1 = tasks_stage_1
@@ -172,9 +171,8 @@ class DedupReader(JsonlReader):
         gzip: bool = True,
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
-        **kwargs,
     ):
-        super().__init__(data_folder=data_folder, gzip=gzip, **kwargs)
+        super().__init__(data_folder=data_folder, gzip=gzip)
         self.sequence_folder = sequence_folder
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
         self.min_doc_words = min_doc_words

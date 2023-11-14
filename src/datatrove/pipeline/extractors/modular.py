@@ -16,16 +16,16 @@ class ReadabilityInscriptis(BaseExtractor):
     Extracts the text from the HTML document using readability and inscriptis.
     """
 
-    def __init__(self, max_new_lines: int = 2, min_text_length=25, min_text_score=20, **kwargs):
+    def __init__(self, max_new_lines: int = 2, min_text_length=25, min_text_score=20, timeout: float = 0.1):
         """
-        :param max_new_lines:
+        :param max_new_lines: maximum number of consecutive \n to keep.
         :param min_text_length: the minimum string length of a text block. If all text blocks are shorter than
         `min_text_length`, the document is considered empty.
         :param min_text_score: `score = sqrt(block_lenth - min_text_length)`. The sum of scores of all text blocks must
         be greater than `min_text_score`.
-        :param kwargs:
+        :param timeout: the timeout for extraction, per document, in seconds
         """
-        super().__init__(**kwargs)
+        super().__init__(timeout)
         self.min_text_length = min_text_length
         self.min_text_score = min_text_score
         self.new_line_chars = "\n" * max_new_lines

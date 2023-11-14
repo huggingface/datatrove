@@ -24,9 +24,8 @@ class DocumentTokenizerMerger(PipelineStep):
         seed: int = None,
         save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.save_filename = save_filename

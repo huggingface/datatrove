@@ -45,7 +45,6 @@ class SingleBloomFilter(PipelineStep):
         seed: int = 0,
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
-        **kwargs,
     ):
         """
 
@@ -61,7 +60,7 @@ class SingleBloomFilter(PipelineStep):
         :param kwargs:
         """
 
-        super().__init__(**kwargs)
+        super().__init__()
         self.output_folder = output_folder
         self.m_bytes = m_bytes  # size in bits
         self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)

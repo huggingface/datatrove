@@ -8,7 +8,7 @@ class PipelineStep(ABC):
     name: str = None
     type: str = None
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         self.stats = Stats(str(self))
 
     def stat_update(self, *labels, value: int = 1, unit: str = None):

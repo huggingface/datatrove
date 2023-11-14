@@ -29,6 +29,13 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 
 
 def read_tuples_from_file(file: BaseInputDataFile, *formats):
+    """
+        Utility to easily parse binary files. formats is a list of struct format characters.
+        yields tuples of size len(formats) with the data read
+    :param file: the file to read from
+    :param formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
+    :return: tuples with data specified in formats
+    """
     with file.open(binary=True) as f:
         while True:
             line = []
@@ -40,6 +47,16 @@ def read_tuples_from_file(file: BaseInputDataFile, *formats):
 
 
 def simplify_content(text: str):
+    """
+        Performs the following operations to increase recall when looking for matches between documents:
+        - lowercase text
+        - replace all whitespace with a single " "
+        - remove all punctuation
+        - convert diacritics
+        - unicode normalize
+    :param text:
+    :return:
+    """
     # lower case
     text = text.lower()
     # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end

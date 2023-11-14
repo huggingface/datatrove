@@ -45,14 +45,14 @@ class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
 
-    def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3, **kwargs):
+    def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3):
         """
 
         :param output_folder: folder where signatures are saved
         :param n_sentences: n_sentences where duplicates are checked.
         :param kwargs:
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.output_folder = output_folder
         self.n_sentences = n_sentences
 
@@ -128,9 +128,8 @@ class SentenceFindDedups(PipelineStep):
         output_folder: BaseOutputDataFolder,
         index_folder: BaseInputDataFolder = None,
         only_dedup_in_index: bool = True,
-        **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.data_folder = data_folder
         self.output_folder = output_folder
         self.index_folder = index_folder
@@ -206,7 +205,6 @@ class SentenceDedupFilter(PipelineStep):
         n_sentences: int = 3,
         min_doc_words: int = 50,
         exclusion_writer: DiskWriter = None,
-        **kwargs,
     ):
         """
 
@@ -214,7 +212,7 @@ class SentenceDedupFilter(PipelineStep):
         :param min_doc_words: min amount of words for each document
         :param kwargs:
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.data_folder: BaseInputDataFolder = data_folder
         self.n_sentences = n_sentences
         self.min_doc_words = min_doc_words
@@ -287,9 +285,12 @@ class SentenceDedupBuildIndex(PipelineStep):
     name = "💥 sentence-deduplication build index"
 
     def __init__(
-        self, data_folder: BaseInputDataFolder, output_folder: BaseOutputDataFolder, index_name: str, **kwargs
+        self,
+        data_folder: BaseInputDataFolder,
+        output_folder: BaseOutputDataFolder,
+        index_name: str,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         self.data_folder = data_folder
         self.output_folder = output_folder
         self.index_name = index_name

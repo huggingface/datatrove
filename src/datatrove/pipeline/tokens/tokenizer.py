@@ -123,10 +123,8 @@ class DocumentTokenizer(PipelineStep):
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
         seed: int = None,
         save_final_metadata: bool = True,
-        *args,
-        **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.output_folder = output_folder
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
