@@ -34,7 +34,7 @@ class LocalOutputDataFolder(BaseOutputDataFolder):
         path (str): absolute path to a local folder on disk
     """
 
-    def _create_new_file(self, relative_path: str) -> LocalOutputDataFile:
+    def create_new_file(self, relative_path: str) -> LocalOutputDataFile:
         return LocalOutputDataFile(
             path=os.path.join(self.path, relative_path), relative_path=relative_path, _lock=self._lock
         )

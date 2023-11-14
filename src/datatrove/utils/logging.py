@@ -30,4 +30,5 @@ def close_task_logger(logging_dir: BaseOutputDataFolder, rank: int):
 
 
 def log_pipeline(pipeline):
-    logger.info(f"--- 🛠️PIPELINE 🛠\n{[pipe.__repr__() if callable(pipe) else 'Iterable' for pipe in pipeline]}")
+    steps = "\n".join([pipe.__repr__() if callable(pipe) else "Iterable" for pipe in pipeline])
+    logger.info(f"\n--- 🛠️ PIPELINE 🛠\n{steps}")

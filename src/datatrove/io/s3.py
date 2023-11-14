@@ -42,7 +42,7 @@ class S3OutputDataFolder(BaseOutputDataFolder):
         if self._tmpdir:
             self._tmpdir.cleanup()
 
-    def _create_new_file(self, relative_path: str):
+    def create_new_file(self, relative_path: str):
         return S3OutputDataFile(
             local_path=os.path.join(self.local_path, relative_path),
             path=os.path.join(self.path, relative_path),

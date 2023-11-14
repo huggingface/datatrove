@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import dataclasses
 import os
 import subprocess
 import tempfile
 import textwrap
+from copy import deepcopy
 from typing import Callable
 
 import dill
@@ -113,6 +115,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launch_job()
 
     def launch_merge_stats(self):
+        stats_json_file = self.logging_dir.create_new_file("stats.json")
+        options = [f"{k}={v}" for k, v in dataclasses.asdict(stats_json_file).items() if not k.startswith("_")]
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
@@ -123,7 +127,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     "dependency": f"afterok:{','.join(self.job_ids)}",
                 },
                 f'merge_stats {os.path.join(self.logging_dir.path, "stats")} '
-                f'--output {os.path.join(self.logging_dir.path, "stats.json")}',
+                f'--output {stats_json_file.path} {" ".join(options)}',
             )
         )
 
@@ -152,9 +156,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launched = True
             return
 
+        executor = deepcopy(self)
+
         # pickle
         with self.logging_dir.open("executor.pik", "wb") as executor_f:
-            dill.dump(self, executor_f, fmode=CONTENTS_FMODE)
+            dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
 
         launch_file_contents = self.get_launch_file_contents(
@@ -170,7 +176,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             args = [f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
-            launched_id = launch_slurm_job(launch_file_contents, args)
+            launched_id = launch_slurm_job(launch_file_contents, *args)
             self.job_ids.append(launched_id)
         self.launched = True
         logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")

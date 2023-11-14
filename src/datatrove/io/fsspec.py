@@ -42,7 +42,7 @@ class FSSpecOutputDataFolder(BaseOutputDataFolder):
             protocol = "file"
         self._fs = fsspec.filesystem(protocol, **(self.storage_options if self.storage_options else {}))
 
-    def _create_new_file(self, relative_path: str):
+    def create_new_file(self, relative_path: str):
         return FSSpecOutputDataFile(
             path=os.path.join(self.path, relative_path), relative_path=relative_path, _fs=self._fs, _lock=self._lock
         )

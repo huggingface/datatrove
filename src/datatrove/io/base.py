@@ -477,9 +477,10 @@ class BaseOutputDataFolder(ABC):
         return LocalOutputDataFolder(path, **kwargs)
 
     @abstractmethod
-    def _create_new_file(self, relative_path: str) -> BaseOutputDataFile:
+    def create_new_file(self, relative_path: str) -> BaseOutputDataFile:
         """Create an OutputDataFile for the file located on `relative_path`, its path relative to this folder.
         Each io implementation should override it.
+        Usually shouldn't be called directly - call open() instead.
 
         Args:
             relative_path
@@ -515,7 +516,7 @@ class BaseOutputDataFolder(ABC):
             OutputDataFile
         """
         if relative_path not in self._output_files:
-            self._output_files[relative_path] = self._create_new_file(relative_path)
+            self._output_files[relative_path] = self.create_new_file(relative_path)
         return self._output_files[relative_path].open(mode, gzip)
 
     @abstractmethod

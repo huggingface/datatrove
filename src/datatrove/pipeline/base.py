@@ -24,7 +24,7 @@ class PipelineStep(ABC):
         pass
 
     def __repr__(self):
-        return f"{self.type} --> {self.name}"
+        return f"{self.type}: {self.name}"
 
     @abstractmethod
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
