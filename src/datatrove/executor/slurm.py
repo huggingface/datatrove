@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import random
 import subprocess
 import tempfile
 import textwrap
@@ -46,6 +47,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         max_array_launch_parallel: bool = False,
         stagger_max_array_jobs: int = 0,
         run_on_dependency_fail: bool = False,
+        randomize_start: bool = False,
     ):
         """Execute a pipeline on a slurm cluster
 
@@ -87,6 +89,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
                 between launching each of the parallel jobs
             run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
+            randomize_start: randomize the start of each task in a job in a ~3 min window
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
@@ -107,6 +110,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.max_array_launch_parallel = max_array_launch_parallel
         self.stagger_max_array_jobs = stagger_max_array_jobs
         self.run_on_dependency_fail = run_on_dependency_fail
+        self.randomize_start = randomize_start
         self.job_ids = []
         self.depends_job_ids = []
         self.launched = False
@@ -121,6 +125,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
             if rank >= self.world_size:
                 return
+            if self.randomize_start:
+                time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)
             self.logging_dir.close()  # make sure everything is properly saved (logs etc)
         else:
