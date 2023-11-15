@@ -42,6 +42,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         logging_dir: BaseOutputDataFolder = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
+        max_array_launch_parallel: bool = False,
     ):
         """Execute a pipeline on a slurm cluster
 
@@ -78,6 +79,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             slurm_logs_folder: where to store the raw slurm log files.
                 must be a local path default:
                 slurm_logs/$job_name/$timestamp_$randomstring
+            max_array_launch_parallel: if we need multiple jobs due to max_array_size, whether to launch them all in
+                one go (parallel) or sequentially
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
@@ -95,6 +98,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.depends = depends
         self._sbatch_args = sbatch_args if sbatch_args else {}
         self.max_array_size = max_array_size
+        self.max_array_launch_parallel = max_array_launch_parallel
         self.job_ids = []
         self.depends_job_ids = []
         self.launched = False
@@ -136,7 +140,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         dependency = []
         if self.depends_job_ids:
             dependency.append(f"afterok:{','.join(self.depends_job_ids)}")
-        if self.job_ids:
+        if self.job_ids and not self.max_array_launch_parallel:
             dependency.append(f"afterany:{self.job_ids[-1]}")
         return ",".join(dependency)
 

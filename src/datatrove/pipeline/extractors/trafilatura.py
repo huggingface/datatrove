@@ -8,7 +8,14 @@ class Trafilatura(BaseExtractor):
 
     name = "⛏️ Trafilatura"
 
-    def __init__(self, favour_precision: bool = False, include_images: bool = False, timeout: float = 0.1, **kwargs):
+    def __init__(
+        self,
+        favour_precision: bool = True,
+        include_images: bool = False,
+        timeout: float = 0.1,
+        deduplicate: bool = True,
+        **kwargs,
+    ):
         """
 
         :param favour_precision: prefer less text but correct extraction.
@@ -19,9 +26,16 @@ class Trafilatura(BaseExtractor):
         super().__init__(timeout)
         self.favour_precision = favour_precision
         self.include_images = include_images
+        self.deduplicate = deduplicate
         self.kwargs = kwargs
         if self.include_images:
             raise NotImplementedError
 
     def extract(self, content: str) -> str:
-        return extract(content, favor_precision=self.favour_precision, **self.kwargs)
+        return extract(
+            content,
+            favor_precision=self.favour_precision,
+            include_comments=False,
+            deduplicate=self.deduplicate,
+            **self.kwargs,
+        )
