@@ -19,7 +19,7 @@ class C4QualityFilter(BaseFilter):
     - We removed any pages that contained a curly bracket
     """
 
-    name = "⛰️ C4 Quality"
+    name = "⛰ C4 Quality"
 
     def __init__(self, exclusion_writer: DiskWriter = None):
         super().__init__(exclusion_writer)

@@ -8,7 +8,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 class JsonlWriter(DiskWriter):
     default_output_filename: str = "${rank}.jsonl.gz"
-    name = "🐿️Jsonl"
+    name = "🐿 Jsonl"
 
     def open(self, output_filename):
         return self.output_folder.open(output_filename, mode="wt", gzip=True)

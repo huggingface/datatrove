@@ -10,7 +10,7 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class WarcReader(BaseReader):
-    name = "🕷️ Warc"
+    name = "🕷 Warc"
 
     def __init__(
         self,

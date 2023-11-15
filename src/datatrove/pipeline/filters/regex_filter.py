@@ -6,7 +6,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class RegexFilter(BaseFilter):
-    name = "🕵️Regex"
+    name = "🕵 Regex"
 
     def __init__(self, regex_exp: str, exclusion_writer: DiskWriter = None):
         """

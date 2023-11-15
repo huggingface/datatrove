@@ -11,7 +11,7 @@ from datatrove.utils.typeshelper import StatHints
 class BaseExtractor(PipelineStep):
     """Base Extractor module. Extractors extract text from html"""
 
-    type = "🛢️- EXTRAC"
+    type = "🛢 - EXTRAC"
 
     @abstractmethod
     def __init__(self, timeout: float = 0.1):

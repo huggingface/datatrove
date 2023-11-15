@@ -6,7 +6,7 @@ from .base import BaseExtractor
 class Trafilatura(BaseExtractor):
     """Trafilatura extractor, it uses https://trafilatura.readthedocs.io/en/latest/index.html"""
 
-    name = "⛏️ Trafilatura"
+    name = "⛏ Trafilatura"
 
     def __init__(
         self,
