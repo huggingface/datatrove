@@ -237,6 +237,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         echo "Starting data processing job {self.job_name}"
         {env_command}
         set -xe
+        export PYTHONUNBUFFERED=TRUE
         {run_script}
         """
             )
