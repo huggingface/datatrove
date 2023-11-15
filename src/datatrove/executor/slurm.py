@@ -5,6 +5,7 @@ import os
 import subprocess
 import tempfile
 import textwrap
+import time
 from copy import deepcopy
 from typing import Callable
 
@@ -43,6 +44,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,
+        stagger_max_array_jobs: int = 0,
     ):
         """Execute a pipeline on a slurm cluster
 
@@ -81,6 +83,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 slurm_logs/$job_name/$timestamp_$randomstring
             max_array_launch_parallel: if we need multiple jobs due to max_array_size, whether to launch them all in
                 one go (parallel) or sequentially
+            stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
+                between launching each of the parallel jobs
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
@@ -99,6 +103,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self._sbatch_args = sbatch_args if sbatch_args else {}
         self.max_array_size = max_array_size
         self.max_array_launch_parallel = max_array_launch_parallel
+        self.stagger_max_array_jobs = stagger_max_array_jobs
         self.job_ids = []
         self.depends_job_ids = []
         self.launched = False
@@ -177,6 +182,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         self.job_ids = []
         while len(self.job_ids) * self.max_array < self.tasks:
+            if self.job_ids and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
+                time.sleep(self.stagger_max_array_jobs)
             args = [f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
