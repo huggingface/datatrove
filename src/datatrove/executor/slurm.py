@@ -111,9 +111,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.stagger_max_array_jobs = stagger_max_array_jobs
         self.run_on_dependency_fail = run_on_dependency_fail
         self.randomize_start = randomize_start
-        self.job_ids = []
+        self.job_id = None
         self.depends_job_id = None
-        self.launched = False
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
@@ -143,7 +142,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     "cpus-per-task": 1,
                     "mem-per-cpu": "1G",
                     "array": "0",
-                    "dependency": f"afterok:{','.join(self.job_ids)}",
+                    "dependency": f"afterok:{','.join(self.job_id)}",
                 },
                 f'merge_stats {os.path.join(self.logging_dir.path, "stats")} {" ".join(options)}',
             )
@@ -154,8 +153,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         dependency = []
         if self.depends_job_id:
             dependency.append(f"{'afterany' if self.run_on_dependency_fail else 'afterok'}:" f"{self.depends_job_id}")
-        if self.job_ids and not self.max_array_launch_parallel:
-            dependency.append(f"afterany:{self.job_ids[-1]}")
+        if self.job_id and not self.max_array_launch_parallel:
+            dependency.append(f"afterany:{self.job_id}")
         return ",".join(dependency)
 
     def launch_job(self):
@@ -163,10 +162,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
             isinstance(self.depends, SlurmPipelineExecutor)
         ), "depends= must be a SlurmPipelineExecutor"
         if self.depends:
-            if not self.depends.launched:
+            if not self.depends.job_id:
                 logger.info(f'Launching dependency job "{self.depends.job_name}"')
                 self.depends.launch_job()
-            self.depends_job_id = self.depends.job_ids[-1]
+            self.depends_job_id = self.depends.job_id
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
         if all(map(self.is_rank_completed, range(self.tasks))):
@@ -189,17 +188,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
             launchscript_f.write(launch_file_contents)
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
 
-        self.job_ids = []
-        while len(self.job_ids) * self.max_array < self.tasks:
-            if self.job_ids and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
+        launched_jobs = 0
+        while launched_jobs * self.max_array < self.tasks:
+            if launched_jobs and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
                 time.sleep(self.stagger_max_array_jobs)
-            args = [f"--export=ALL,RUN_OFFSET={len(self.job_ids)}"]
+            args = [f"--export=ALL,RUN_OFFSET={launched_jobs}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
-            launched_id = launch_slurm_job(launch_file_contents, *args)
-            self.job_ids.append(launched_id)
-        self.launched = True
-        logger.info(f"Slurm job launched successfully with id(s)={','.join(self.job_ids)}.")
+            self.job_id = launch_slurm_job(launch_file_contents, *args)
+        logger.info(f"Slurm job launched successfully with (last) id={self.job_id}.")
         self.launch_merge_stats()
         self.logging_dir.close()
 
