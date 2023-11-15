@@ -112,7 +112,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.run_on_dependency_fail = run_on_dependency_fail
         self.randomize_start = randomize_start
         self.job_ids = []
-        self.depends_job_ids = []
+        self.depends_job_id = None
         self.launched = False
         self.slurm_logs_folder = (
             slurm_logs_folder
@@ -152,10 +152,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
     @property
     def dependency(self):
         dependency = []
-        if self.depends_job_ids:
-            dependency.append(
-                f"{'afterany' if self.run_on_dependency_fail else 'afterok'}:" f"{','.join(self.depends_job_ids)}"
-            )
+        if self.depends_job_id:
+            dependency.append(f"{'afterany' if self.run_on_dependency_fail else 'afterok'}:" f"{self.depends_job_id}")
         if self.job_ids and not self.max_array_launch_parallel:
             dependency.append(f"afterany:{self.job_ids[-1]}")
         return ",".join(dependency)
@@ -168,7 +166,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if not self.depends.launched:
                 logger.info(f'Launching dependency job "{self.depends.job_name}"')
                 self.depends.launch_job()
-            self.depends_job_ids = self.depends.job_ids
+            self.depends_job_id = self.depends.job_ids[-1]
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
         if all(map(self.is_rank_completed, range(self.tasks))):
