@@ -211,11 +211,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "output": slurm_logfile,
             "error": slurm_logfile,
             "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
+            "requeue": "",
             **self._sbatch_args,
         }
 
     def get_launch_file_contents(self, sbatch_args: dict, run_script: str):
-        args = "\n".join([f"#SBATCH --{k}={v}" for k, v in sbatch_args.items()])
+        args = "\n".join([f"#SBATCH --{k}={v}" if v else f"#SBATCH --{k}" for k, v in sbatch_args.items()])
 
         env_command = (
             self.env_command
