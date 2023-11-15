@@ -45,6 +45,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,
         stagger_max_array_jobs: int = 0,
+        run_on_dependency_fail: bool = False,
     ):
         """Execute a pipeline on a slurm cluster
 
@@ -85,6 +86,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 one go (parallel) or sequentially
             stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
                 between launching each of the parallel jobs
+            run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
         """
         if isinstance(logging_dir, S3OutputDataFolder):
             logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
@@ -104,6 +106,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.max_array_size = max_array_size
         self.max_array_launch_parallel = max_array_launch_parallel
         self.stagger_max_array_jobs = stagger_max_array_jobs
+        self.run_on_dependency_fail = run_on_dependency_fail
         self.job_ids = []
         self.depends_job_ids = []
         self.launched = False
@@ -144,7 +147,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
     def dependency(self):
         dependency = []
         if self.depends_job_ids:
-            dependency.append(f"afterok:{','.join(self.depends_job_ids)}")
+            dependency.append(
+                f"{'afterany' if self.run_on_dependency_fail else 'afterok'}:" f"{','.join(self.depends_job_ids)}"
+            )
         if self.job_ids and not self.max_array_launch_parallel:
             dependency.append(f"afterany:{self.job_ids[-1]}")
         return ",".join(dependency)
