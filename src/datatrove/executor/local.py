@@ -33,7 +33,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         workers: int = -1,
         max_concurrent_uploads: int = 20,
         max_concurrent_downloads: int = 50,
-        logging_dir: BaseOutputDataFolder = None,
+        logging_dir: BaseOutputDataFolder | str = None,
         skip_completed: bool = True,
     ):
         """Execute a pipeline on a slurm cluster
@@ -50,7 +50,7 @@ class LocalPipelineExecutor(PipelineExecutor):
             max_concurrent_downloads: limit the number of files that may
                 be downloaded simultaneously to avoid rate limits
             logging_dir: where to save logs, stats, etc. Should be an
-                OutputDataFolder
+                OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert it
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
         """

@@ -15,7 +15,7 @@ from dill import CONTENTS_FMODE
 from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import BaseOutputDataFolder, S3OutputDataFolder
+from datatrove.io import BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp
 
@@ -41,7 +41,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
-        logging_dir: BaseOutputDataFolder = None,
+        logging_dir: str | BaseOutputDataFolder = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,
@@ -78,7 +78,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             depends: another SlurmPipelineExecutor that should run
                 before this one
             logging_dir: where to save logs, stats, etc. Should be an
-                OutputDataFolder
+                OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
             slurm_logs_folder: where to store the raw slurm log files.
@@ -91,8 +91,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
             run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
             randomize_start: randomize the start of each task in a job in a ~3 min window
         """
-        if isinstance(logging_dir, S3OutputDataFolder):
-            logging_dir.cleanup = False  # if the files are removed from disk job launch will fail
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers

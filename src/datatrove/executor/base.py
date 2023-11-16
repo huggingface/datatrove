@@ -21,7 +21,18 @@ class PipelineExecutor(ABC):
         logging_dir: BaseOutputDataFolder = None,
         skip_completed: bool = True,
     ):
+        """
+        Args:
+            pipeline: a list of PipelineStep and/or custom functions
+                with arguments (data: DocumentsPipeline, rank: int, world_size: int)
+            logging_dir: where to save logs, stats, etc. Should be an
+                OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert it
+            skip_completed: whether to skip tasks that were completed in
+                previous runs. default: True
+        """
         self.pipeline: list[PipelineStep | Callable] = pipeline
+        if isinstance(logging_dir, str):
+            logging_dir = BaseOutputDataFolder.from_path(logging_dir)
         self.logging_dir = (
             logging_dir if logging_dir else LocalOutputDataFolder(f"logs/{get_timestamp()}_{get_random_str()}")
         )
