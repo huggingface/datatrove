@@ -194,6 +194,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
             self.job_id = launch_slurm_job(launch_file_contents, *args)
+            launched_jobs += 1
         logger.info(f"Slurm job launched successfully with (last) id={self.job_id}.")
         self.launch_merge_stats()
         self.logging_dir.close()
