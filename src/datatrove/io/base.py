@@ -414,6 +414,11 @@ class BaseOutputDataFile(ABC):
         """
         self._file_handler.write(*args, **kwargs)
 
+    def flush(self):
+        """Flush output"""
+        if self._file_handler:
+            self._file_handler.flush()
+
     def get_mmap(self, dtype):
         """Get a numpy memmap for this file
 
