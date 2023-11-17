@@ -68,15 +68,14 @@ class S3OutputDataFile(BaseOutputDataFile):
         assert self.local_path is not None, "S3OutputDataFile must have a local_path"
 
     def close(self):
-        super().close()
-        if self.local_path:
+        if self._file_handler:
+            super().close()
             with self._lock:
                 logger.info(f'Uploading "{self.local_path}" to "{self.path}"...')
                 s3_upload_file(self.local_path, self.path)
                 logger.info(f'Uploaded "{self.local_path}" to "{self.path}".')
             if self.cleanup:
                 os.remove(self.local_path)
-            self.local_path = None
 
     def _create_file_handler(self, mode: str = "w", gzip: bool = False):
         os.makedirs(os.path.dirname(self.local_path), exist_ok=True)
