@@ -65,7 +65,7 @@ class URLFilter(BaseFilter):
         if url_info.domain in self.block_listed_domains:
             return False, "domain"
 
-        if ".".join([url_info.domain, url_info.subdomain]) in self.block_listed_url:
+        if ".".join([url_info.subdomain, url_info.domain]) in self.block_listed_url:
             return False, "url"
 
         url_words = set(normalizer.split(url))
