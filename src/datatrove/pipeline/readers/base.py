@@ -63,6 +63,7 @@ class BaseReader(PipelineStep):
             for datafile in shard:
                 self.stat_update("input_files")
                 logger.info(f"Reading input file {datafile.path}")
+                di = 0
                 for di, document in enumerate(self.read_file(datafile)):
                     if self.limit != -1 and li >= self.limit:
                         break
