@@ -41,8 +41,7 @@ class URLStats(PipelineStep):
         else:
             # map and produce one output file per rank
             for doc in data:
-                url_info = tldextract.extract(doc.metadata.get(self.url_field))
-                url = ".".join([url_info.subdomain, url_info.domain])
+                url = tldextract.extract(doc.metadata.get(self.url_field)).fqdn
                 doc_counter[url] += 1
                 if token_count := doc.metadata.get("token_count", None):
                     tokens_counter[url] += token_count

@@ -62,10 +62,13 @@ class URLFilter(BaseFilter):
         assert url, "Document does not have url in its metadata"
         url_info = tldextract.extract(url)
 
-        if url_info.domain in self.block_listed_domains:
+        if url_info.registered_domain in self.block_listed_domains:
             return False, "domain"
 
-        if ".".join([url_info.subdomain, url_info.domain]) in self.block_listed_url:
+        if url_info.fqdn in self.block_listed_domains:
+            return False, "subdomain"
+
+        if url in self.block_listed_url:
             return False, "url"
 
         url_words = set(normalizer.split(url))
