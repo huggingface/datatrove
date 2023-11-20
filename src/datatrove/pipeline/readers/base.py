@@ -36,7 +36,7 @@ class BaseReader(PipelineStep):
             "content": data.pop(self.content_key, ""),
             "data_id": data.pop(self.id_key, f"{path}/{id_in_file}"),
             "media": data.pop("media", []),
-            "metadata": data,
+            "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
 
     def get_document_from_dict(self, data: dict, source_file: BaseInputDataFile, id_in_file: int):
