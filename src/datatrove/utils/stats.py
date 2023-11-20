@@ -21,7 +21,7 @@ class OnlineStatsDict(defaultdict):
     Stores multiple stats
     """
 
-    def __init__(self, init=None, *_, **kwargs):
+    def __init__(self, *_, init=None, **kwargs):
         super().__init__(OnlineStats, **kwargs)
         if init:
             self.update(init)
