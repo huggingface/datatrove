@@ -1,4 +1,5 @@
 import datetime
+import heapq
 import itertools
 import json
 import math
@@ -30,6 +31,9 @@ class OnlineStatsDict(defaultdict):
         for key, item in itertools.chain(self.items(), other.items()):
             result[key] += item
         return result
+
+    def topk(self, k=20):
+        return OnlineStatsDict(init={s: self.get(s) for s in heapq.nlargest(k, self, key=lambda s: self.get(s).total)})
 
     def __repr__(self):
         return ", ".join(f"{key}: {stats}" for key, stats in self.items())

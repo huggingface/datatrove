@@ -16,11 +16,13 @@ class URLStats(PipelineStep):
         output_folder: BaseOutputDataFolder,
         url_field: str = "url",
         input_folder: BaseInputDataFolder = None,
+        topk: int = None,
     ):
         super().__init__()
         self.url_field = url_field
         self.output_folder = output_folder
         self.input_folder = input_folder
+        self.topk = topk
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         doc_counter = OnlineStatsDict()
@@ -33,6 +35,9 @@ class URLStats(PipelineStep):
                     file_data = json.load(f)
                     doc_counter += OnlineStatsDict(init=file_data["doc_counter"])
                     tokens_counter += OnlineStatsDict(init=file_data["tokens_counter"])
+            if self.topk:
+                doc_counter = doc_counter.topk(self.topk)
+                tokens_counter = tokens_counter.topk(self.topk)
         else:
             # map and produce one output file per rank
             for doc in data:
