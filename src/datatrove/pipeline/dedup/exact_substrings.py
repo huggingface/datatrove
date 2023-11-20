@@ -332,7 +332,7 @@ class DedupReader(JsonlReader):
                 ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
                 to_yield = self.remove_duplicate(doc, doc_content)
             if to_yield:
-                self.stats.doc_len_stats += len(doc.content)
+                self.update_doc_stats(doc)
                 yield doc
 
         # we check bytes counter matches with the offset of the following rank

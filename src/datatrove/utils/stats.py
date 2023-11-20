@@ -20,8 +20,10 @@ class OnlineStatsDict(defaultdict):
     Stores multiple stats
     """
 
-    def __init__(self, *_, **kwargs):
+    def __init__(self, init=None, *_, **kwargs):
         super().__init__(OnlineStats, **kwargs)
+        if init:
+            self.update(init)
 
     def __add__(self, other):
         result = OnlineStatsDict()
@@ -41,7 +43,6 @@ class Stats:
         self.name = name
         self.time_stats = OnlineTimingStats()
         self.stats = OnlineStatsDict()
-        self.doc_len_stats = OnlineStats()
 
     def __getitem__(self, item: str) -> "OnlineStats":
         return self.stats[item]
@@ -54,7 +55,6 @@ class Stats:
         result = Stats(self.name)
         result.time_stats = self.time_stats + stat.time_stats
         result.stats = self.stats + stat.stats
-        result.doc_len_stats = self.doc_len_stats + stat.doc_len_stats
         return result
 
     def __repr__(self, total_time: float = 0.0):
@@ -65,7 +65,6 @@ class Stats:
                     f"{self.name}",
                     f"Runtime: {self.time_stats.get_repr(total_time)}" if self.time_stats.total > 0 else None,
                     f"Stats: {{{self.stats}}}" if len(self.stats) > 0 else None,
-                    f"Doc lens: {self.doc_len_stats}" if self.doc_len_stats.total > 0 else None,
                 ],
             )
         )
@@ -75,7 +74,6 @@ class Stats:
             "name": self.name,
             "time_stats": self.time_stats.to_dict(),
             "stats": self.stats.to_dict(),
-            "doc_len_stats": self.doc_len_stats.to_dict(),
         }
 
     def to_json(self):
@@ -88,9 +86,7 @@ class Stats:
     def from_dict(cls, data):
         stats = cls(data["name"])
         stats.time_stats = OnlineTimingStats.from_dict(data["time_stats"])
-        stats.stats = OnlineStatsDict()
-        stats.stats.update(data["stats"])
-        stats.doc_len_stats = OnlineStats.from_dict(data["doc_len_stats"])
+        stats.stats = OnlineStatsDict(init=data["stats"])
         return stats
 
 

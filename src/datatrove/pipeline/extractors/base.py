@@ -61,7 +61,7 @@ class BaseExtractor(PipelineStep):
                 doc.content = self.timeout_extract(doc)
             if doc.content:
                 self.stat_update(StatHints.forwarded)
-                self.stats.doc_len_stats += len(doc.content)
+                self.update_doc_stats(doc)
                 yield doc
             else:
                 self.stat_update(StatHints.dropped)

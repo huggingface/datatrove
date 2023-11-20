@@ -45,6 +45,7 @@ class DiskWriter(PipelineStep, ABC):
         self._write(document, output_file)
         self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
+        self.update_doc_stats(document)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         with self:

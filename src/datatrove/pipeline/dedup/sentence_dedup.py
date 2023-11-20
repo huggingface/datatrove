@@ -262,7 +262,7 @@ class SentenceDedupFilter(PipelineStep):
                 if (
                     filtered_content == doc.content or len(word_tokenize(filtered_content)) > self.min_doc_words
                 ):  # document is kept
-                    self.stats.doc_len_stats += len(doc.content)
+                    self.update_doc_stats(doc)
                     if not filtered_content == doc.content and writer:
                         writer.write(dataclasses.replace(doc, content=original_formatted), rank=rank)
                     doc.content = filtered_content
