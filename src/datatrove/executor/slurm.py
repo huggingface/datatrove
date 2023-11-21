@@ -188,7 +188,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         with self.logging_dir.open("ranks_to_run.json") as ranks_to_run_file:
             # we actually save this (only once) to avoid race conditions
-            ranks_to_run_file.write(json.dump(ranks_to_run, ranks_to_run_file))
+            json.dump(ranks_to_run, ranks_to_run_file)
 
         launch_file_contents = self.get_launch_file_contents(
             self.sbatch_args,
