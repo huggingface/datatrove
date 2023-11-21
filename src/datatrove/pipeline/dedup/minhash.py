@@ -168,6 +168,7 @@ class MinhashDedupBuckets(PipelineStep):
         index_folder: BaseInputDataFolder = None,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         only_dedup_in_index: bool = True,
+        create_index_name: str = None,
     ):
         super().__init__()
         self.input_folder = input_folder
@@ -175,6 +176,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.index_folder = index_folder
         self.config = config
         self.only_dedup_in_index = only_dedup_in_index
+        self.create_index_name = create_index_name
 
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.input_folder.set_lock(dl_lock)
@@ -192,6 +194,9 @@ class MinhashDedupBuckets(PipelineStep):
                 [
                     read_sigs(file, len(sig_readers) + file_i, self.config, index_file=True)
                     for file_i, file in enumerate(index_files)
+                    # exclude "itself" if the index was partially uploaded/ended midway
+                    if not self.create_index_name
+                    or file.relative_path != f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index"
                 ]
             )
 
@@ -200,24 +205,39 @@ class MinhashDedupBuckets(PipelineStep):
 
         out_f = self.output_folder.open(f"{bucket:05d}.dups", mode="wb")
 
+        # out index file
+        out_index = None
+        if self.index_folder and self.create_index_name:
+            out_index = self.index_folder.to_output_folder().open(
+                f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index"
+            )
+
         last: HashSig | None = None
         with self.track_time():
             while pq:
                 v: HashSig = heapq.heappop(pq)
-                if last and last.sig == v.sig and not v.is_from_index():
-                    # write (file_id1, doc_id1, file_id2, doc_id2)
-                    if last.is_from_index():
-                        # we can't actually write -1
-                        out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_id, v.doc_id))
-                        self.stat_update("index_match", "total_matches")
-                    # if there isn't an index, or we are not only deduping in relation to the index
-                    elif not index_files or not self.only_dedup_in_index:
-                        out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
-                        self.stat_update("total_matches")
+                if not v.is_from_index():
+                    if last and last.sig == v.sig:
+                        # write (file_id1, doc_id1, file_id2, doc_id2)
+                        if last.is_from_index():
+                            # we can't actually write -1, so we use SENTINEL instead
+                            out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_id, v.doc_id))
+                            self.stat_update("index_match", "total_matches")
+                        # if there isn't an index, or we are not only deduping in relation to the index
+                        elif not index_files or not self.only_dedup_in_index:
+                            out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
+                            self.stat_update("total_matches")
+                    elif out_index:
+                        # new sig that isn't part of any index, save to our new index
+                        out_index.write(
+                            struct.pack(f"<%d{self.config.hash_format}" % self.config.hashes_per_bucket, *v.sig)
+                        )
                 last = v
                 next_sig = next(sig_readers[v.reader_id], None)
                 if next_sig:
                     heapq.heappush(pq, next_sig)
+        if out_index:
+            out_index.close()
         self.output_folder.close()
 
 

@@ -87,6 +87,9 @@ class LocalInputDataFolder(BaseInputDataFolder):
             path=os.path.join(self.path, relative_path), relative_path=relative_path, _lock=self._lock
         )
 
+    def to_output_folder(self) -> BaseOutputDataFolder:
+        return LocalOutputDataFolder(path=self.path)
+
 
 def get_local_file_list(path: str, recursive: bool = True) -> list[str]:
     """Get a list of absolute paths to all the files in a given local folder, sorted.

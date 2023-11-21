@@ -275,6 +275,10 @@ class BaseInputDataFolder(ABC):
             not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
         )
 
+    @abstractmethod
+    def to_output_folder(self) -> "BaseOutputDataFolder":
+        raise NotImplementedError
+
 
 def get_extension(filepath, depth=None) -> str:
     """Get full file extension (example: .jsonl.gz)

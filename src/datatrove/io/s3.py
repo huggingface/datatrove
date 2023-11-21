@@ -168,3 +168,6 @@ class S3InputDataFolder(BaseInputDataFolder):
             )
             if self._match_file(os.path.join(suffix, path), extension)
         ]
+
+    def to_output_folder(self) -> BaseOutputDataFolder:
+        return S3OutputDataFolder(path=self.path, local_path=self.local_path, cleanup=self.cleanup)

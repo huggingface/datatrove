@@ -86,3 +86,6 @@ class FSSpecInputDataFolder(BaseInputDataFolder):
 
     def file_exists(self, relative_path: str) -> bool:
         return self._fs.isfile(os.path.join(self.path, relative_path))
+
+    def to_output_folder(self) -> BaseOutputDataFolder:
+        return FSSpecOutputDataFolder(path=self.path, storage_options=self.storage_options)
