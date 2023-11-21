@@ -52,6 +52,8 @@ class BaseFilter(PipelineStep, ABC):
                         self.update_doc_stats(doc)
                     else:
                         self.stat_update(StatHints.dropped)
+                        if reason:
+                            self.stat_update(f"dropped_{reason}")
                         if self.exclusion_writer:
                             if reason:
                                 doc.metadata["filter_reason"] = reason

@@ -61,7 +61,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
     while idx < n_words - n + 1:
         n_gram = "".join(words[idx : idx + n])
         if n_gram in unique:
-            repeated_chars += len(n_gram)  # TODO check
+            repeated_chars += len(n_gram)
             idx += n
         else:
             unique.add(n_gram)

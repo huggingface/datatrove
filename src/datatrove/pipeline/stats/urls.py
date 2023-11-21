@@ -4,7 +4,7 @@ from tldextract import tldextract
 
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
-from datatrove.utils.stats import OnlineStatsDict
+from datatrove.utils.stats import MetricStatsDict
 
 
 class URLStats(PipelineStep):
@@ -25,16 +25,16 @@ class URLStats(PipelineStep):
         self.topk = topk
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        doc_counter = OnlineStatsDict()
-        tokens_counter = OnlineStatsDict()
+        doc_counter = MetricStatsDict()
+        tokens_counter = MetricStatsDict()
         if self.input_folder:
             # reduce the map results
             assert world_size == 1, "world_size must be 1 when getting the input from an input_folder"
             for file in self.input_folder.list_files(extension="json"):
                 with file.open() as f:
                     file_data = json.load(f)
-                    doc_counter += OnlineStatsDict(init=file_data["doc_counter"])
-                    tokens_counter += OnlineStatsDict(init=file_data["tokens_counter"])
+                    doc_counter += MetricStatsDict(init=file_data["doc_counter"])
+                    tokens_counter += MetricStatsDict(init=file_data["tokens_counter"])
             if self.topk:
                 doc_counter = doc_counter.topk(self.topk)
                 tokens_counter = tokens_counter.topk(self.topk)

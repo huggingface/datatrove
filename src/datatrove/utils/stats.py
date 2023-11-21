@@ -16,24 +16,24 @@ from datatrove.io import BaseOutputDataFile
 INDENT = " " * 4
 
 
-class OnlineStatsDict(defaultdict):
+class MetricStatsDict(defaultdict):
     """
     Stores multiple stats
     """
 
     def __init__(self, *_, init=None, **kwargs):
-        super().__init__(OnlineStats, **kwargs)
+        super().__init__(MetricStats, **kwargs)
         if init:
             self.update(init)
 
     def __add__(self, other):
-        result = OnlineStatsDict()
+        result = MetricStatsDict()
         for key, item in itertools.chain(self.items(), other.items()):
             result[key] += item
         return result
 
     def topk(self, k=20):
-        return OnlineStatsDict(init={s: self.get(s) for s in heapq.nlargest(k, self, key=lambda s: self.get(s).total)})
+        return MetricStatsDict(init={s: self.get(s) for s in heapq.nlargest(k, self, key=lambda s: self.get(s).total)})
 
     def __repr__(self):
         return ", ".join(f"{key}: {stats}" for key, stats in self.items())
@@ -45,13 +45,13 @@ class OnlineStatsDict(defaultdict):
 class Stats:
     def __init__(self, name: str):
         self.name = name
-        self.time_stats = OnlineTimingStats()
-        self.stats = OnlineStatsDict()
+        self.time_stats = TimingStats()
+        self.stats = MetricStatsDict()
 
-    def __getitem__(self, item: str) -> "OnlineStats":
+    def __getitem__(self, item: str) -> "MetricStats":
         return self.stats[item]
 
-    def __setitem__(self, key: str, value: "OnlineStats"):
+    def __setitem__(self, key: str, value: "MetricStats"):
         self.stats[key] = value
 
     def __add__(self, stat):
@@ -89,8 +89,10 @@ class Stats:
     @classmethod
     def from_dict(cls, data):
         stats = cls(data["name"])
-        stats.time_stats = OnlineTimingStats.from_dict(data["time_stats"])
-        stats.stats = OnlineStatsDict(init=data["stats"])
+        stats.time_stats = TimingStats.from_dict(data["time_stats"])
+        stats.stats = MetricStatsDict(init=data["stats"])
+        if doc_len_stats := data.get("doc_len_stats", None):  # backwards compatibility
+            stats.stats["doc_len"] = MetricStats.from_dict(doc_len_stats)
         return stats
 
 
@@ -132,7 +134,11 @@ class PipelineStats:
 
 
 @dataclass
-class OnlineStats:
+class MetricStats:
+    """
+    Stats to track a particular metric
+    """
+
     total: float = 0
     n: int = 0
     mean: float = 0.0
@@ -229,7 +235,7 @@ class OnlineStats:
                 unit=data.get("unit", cls.unit),
             )
         else:
-            return cls(total=data, min=data, max=data, mean=data, n=data)
+            return cls(total=data, min=data, max=data, mean=data, n=data, unit="task")
 
     def __repr__(self):
         if self.mean != 1:
@@ -245,12 +251,47 @@ class OnlineStats:
 
 
 @dataclass
-class OnlineTimingStats(OnlineStats):
+class TimingStats(MetricStats):
+    global_mean: float = 0
+    n_tasks: int = 1
+    global_min: float = float("inf")
+    global_max: float = float("-inf")
+    global_std_dev: float = 0.0
+
     def __enter__(self):
         self._entry_time = time.perf_counter()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.update(time.perf_counter() - self._entry_time)
+
+    def __post_init__(self):
+        if self.global_mean == 0:
+            self.global_mean = self.global_min = self.global_max = self.total
+
+    def update(self, x: float, unit: str = None):
+        super().update(x, unit)
+        if self.n_tasks == 1:
+            self.global_mean = self.global_min = self.global_max = self.total
+
+    def __add__(self, other):
+        new_time_stats: TimingStats = super().__add__(other)
+        if not isinstance(other, type(self)):
+            other = type(self).from_dict(other)
+        new_time_stats.global_min = min(self.global_min, other.global_min)
+        new_time_stats.global_max = max(self.global_max, other.global_max)
+        new_time_stats.n_tasks = self.n_tasks + other.n_tasks
+        new_time_stats.global_mean = (
+            self.n_tasks * self.global_mean + other.n_tasks * other.global_mean
+        ) / new_time_stats.n_tasks
+        s1 = self.global_std_dev**2 * (self.n_tasks - 1)
+        s2 = other.global_std_dev**2 * (other.n_tasks - 1)
+        s = (
+            s1
+            + s2
+            + (self.global_mean - other.global_mean) ** 2 * self.n_tasks * other.n_tasks / new_time_stats.n_tasks
+        )
+        new_time_stats.global_std_dev = math.sqrt(s / (new_time_stats.n_tasks - 1))
+        return new_time_stats
 
     def _get_time_frac(self, total_time):
         return (self.total / total_time) if total_time > 0 else 0
@@ -259,9 +300,13 @@ class OnlineTimingStats(OnlineStats):
         if self.total == 0:
             return "Time not computed"
         return (
-            f"[{humanize.precisedelta(self.total)} ({self._get_time_frac(total_time):.2%}), "
-            f"{humanize.precisedelta(datetime.timedelta(seconds=self.mean), minimum_unit='milliseconds')}"
-            f"±{humanize.precisedelta(datetime.timedelta(seconds=self.standard_deviation), minimum_unit='milliseconds')}/{self.unit}]"
+            f"({self._get_time_frac(total_time):.2%})"
+            + f" {humanize.precisedelta(self.global_mean)}"
+            + (f"±{humanize.precisedelta(self.global_std_dev)}/task" if self.global_std_dev != 0 else "")
+            + (f", min={humanize.precisedelta(self.global_min)}" if self.global_min != self.total else "")
+            + (f", max={humanize.precisedelta(self.global_max)}" if self.global_max != self.total else "")
+            + f" [{humanize.precisedelta(datetime.timedelta(seconds=self.mean), minimum_unit='milliseconds')}"
+            + f"±{humanize.precisedelta(datetime.timedelta(seconds=self.standard_deviation), minimum_unit='milliseconds')}/{self.unit}]"
         )
 
     def __repr__(self):
@@ -283,7 +328,28 @@ class OnlineTimingStats(OnlineStats):
             data["max_human"] = humanize.precisedelta(
                 datetime.timedelta(seconds=self.max), minimum_unit="milliseconds"
             )
+            if self.n_tasks != 1:
+                data["global_mean"] = self.global_mean
+                data["global_mean_human"] = humanize.precisedelta(self.global_mean)
+                data["global_min"] = self.global_min
+                data["global_min_human"] = humanize.precisedelta(self.global_min)
+                data["global_max"] = self.global_max
+                data["global_max_human"] = humanize.precisedelta(self.global_max)
+                data["global_std_dev"] = self.global_std_dev
+                data["global_std_dev_human"] = humanize.precisedelta(self.global_std_dev)
         return data
+
+    @classmethod
+    def from_dict(cls, data):
+        res: TimingStats = super().from_dict(data)
+        if isinstance(data, dict):
+            res.global_mean = data.get("global_mean", res.total)
+            res.global_min = data.get("global_min", res.total)
+            res.global_max = data.get("global_max", res.total)
+            res.global_std_dev = data.get("global_std_dev", 0)
+        else:
+            res.global_mean = res.global_min = res.global_max = res.total
+        return res
 
 
 def dump_json_to_outputfile(json_data, file: BaseOutputDataFile | str):
