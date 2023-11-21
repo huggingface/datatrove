@@ -156,6 +156,8 @@ class S3InputDataFolder(BaseInputDataFolder):
         )
 
     def file_exists(self, relative_path: str) -> bool:
+        if self.local_path and os.path.exists(os.path.join(self.local_path, relative_path)):
+            return True
         return s3_file_exists(os.path.join(self.path, relative_path))
 
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[BaseInputDataFile]:
