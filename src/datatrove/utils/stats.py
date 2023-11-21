@@ -111,11 +111,14 @@ class PipelineStats:
 
     @property
     def total_time(self):
-        return sum([stat.time_stats.total for stat in self.stats])
+        return sum([stat.time_stats.global_mean for stat in self.stats])
 
     def get_repr(self, text=None):
-        x = f"\n\n{'📉' * 3} Stats{': ' + text if text else ''} {'📉' * 3}\n\n"
         total_time = self.total_time
+        x = (
+            f"\n\n{'📉' * 3} Stats{': ' + text if text else ''} {'📉' * 3}\n\n"
+            + f"Total Runtime: {humanize.precisedelta(total_time)}\n\n"
+        )
         x += "\n".join([stat.__repr__(total_time) for stat in self.stats])
         return x
 
@@ -294,7 +297,7 @@ class TimingStats(MetricStats):
         return new_time_stats
 
     def _get_time_frac(self, total_time):
-        return (self.total / total_time) if total_time > 0 else 0
+        return (self.global_mean / total_time) if total_time > 0 else 0
 
     def get_repr(self, total_time: float = 0.0):
         if self.total == 0:
