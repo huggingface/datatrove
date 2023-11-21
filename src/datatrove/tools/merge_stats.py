@@ -43,7 +43,6 @@ def main():
         merged.save_to_disk(f)
     logger.info(f"Processing complete. Results saved to {output_file.path}.")
     logger.info(merged)
-    logger.warning(stats[0])
 
 
 if __name__ == "__main__":
