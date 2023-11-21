@@ -21,6 +21,7 @@ class BaseReader(PipelineStep):
         adapter: Callable = None,
         content_key: str = "content",
         id_key: str = "data_id",
+        default_metadata: dict = None,
     ):
         super().__init__()
         self.data_folder = data_folder
@@ -29,7 +30,8 @@ class BaseReader(PipelineStep):
         self.content_key = content_key
         self.id_key = id_key
         self.adapter = adapter if adapter else self._default_adapter
-        self.empty_warning = False
+        self._empty_warning = False
+        self.default_metadata = default_metadata
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int):
         return {
@@ -42,12 +44,14 @@ class BaseReader(PipelineStep):
     def get_document_from_dict(self, data: dict, source_file: BaseInputDataFile, id_in_file: int):
         parsed_data = self.adapter(data, source_file.relative_path, id_in_file)
         if not parsed_data.get("content", None):
-            if not self.empty_warning:
-                self.empty_warning = True
+            if not self._empty_warning:
+                self._empty_warning = True
                 logger.warning("Found document without content, skipping.")
             return None
         document = Document(**parsed_data)
         document.metadata.setdefault("file_path", source_file.path)
+        if self.default_metadata:
+            document.metadata = self.default_metadata | document.metadata
         return document
 
     @abstractmethod
