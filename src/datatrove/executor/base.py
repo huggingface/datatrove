@@ -1,4 +1,5 @@
 import dataclasses
+import itertools
 import json
 from abc import ABC, abstractmethod
 from collections import deque
@@ -86,6 +87,9 @@ class PipelineExecutor(ABC):
 
     def mark_rank_as_completed(self, rank: int):
         self.logging_dir.open(f"completions/{rank:05d}").close()
+
+    def get_incomplete_ranks(self):
+        return list(itertools.filterfalse(self.is_rank_completed, range(self.world_size)))
 
     def to_json(self, indent=4):
         data = self.__dict__

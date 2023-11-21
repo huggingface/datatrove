@@ -1,4 +1,3 @@
-import itertools
 from copy import deepcopy
 from multiprocessing import Value
 from typing import Callable
@@ -85,7 +84,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         for i in range(self.workers):
             ranks_q.put(i)
 
-        ranks_to_run = list(itertools.filterfalse(self.is_rank_completed, range(self.tasks)))
+        ranks_to_run = self.get_incomplete_ranks()
         if (skipped := self.tasks - len(ranks_to_run)) > 0:
             logger.info(f"Skipping {skipped} already completed tasks")
 

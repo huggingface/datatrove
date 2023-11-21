@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import os
 import random
 import subprocess
@@ -119,9 +120,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def run(self):
         if "SLURM_ARRAY_TASK_ID" in os.environ:
-            rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
-            if rank >= self.world_size:
+            slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
+                os.environ.get("RUN_OFFSET", 0)
+            )
+            with self.logging_dir.open("ranks_to_run.json") as ranks_to_run_file:
+                all_ranks = json.load(ranks_to_run_file)
+            if slurm_rank >= len(all_ranks):
                 return
+            rank = all_ranks[slurm_rank]
             if self.randomize_start:
                 time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)
@@ -163,12 +169,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if not self.depends.job_id:
                 logger.info(f'Launching dependency job "{self.depends.job_name}"')
                 self.depends.launch_job()
-            self.depends_job_id = self.depends.job_id
+            if self.depends.job_id != -1:
+                self.depends_job_id = self.depends.job_id
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
-        if all(map(self.is_rank_completed, range(self.tasks))):
+        ranks_to_run = self.get_incomplete_ranks()
+        if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
-            self.launched = True
+            self.job_id = -1
             return
 
         executor = deepcopy(self)
@@ -177,6 +185,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         with self.logging_dir.open("executor.pik", "wb") as executor_f:
             dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
+
+        with self.logging_dir.open("ranks_to_run.json") as ranks_to_run_file:
+            # we actually save this (only once) to avoid race conditions
+            ranks_to_run_file.write(json.dump(ranks_to_run, ranks_to_run_file))
 
         launch_file_contents = self.get_launch_file_contents(
             self.sbatch_args,
@@ -187,7 +199,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
 
         launched_jobs = 0
-        while launched_jobs * self.max_array < self.tasks:
+        while launched_jobs * self.max_array < len(ranks_to_run):
             if launched_jobs and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
                 time.sleep(self.stagger_max_array_jobs)
             args = [f"--export=ALL,RUN_OFFSET={launched_jobs}"]
