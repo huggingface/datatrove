@@ -209,7 +209,7 @@ class MinhashDedupBuckets(PipelineStep):
         out_index = None
         if self.index_folder and self.create_index_name:
             out_index = self.index_folder.to_output_folder().open(
-                f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index"
+                f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index", mode="wb"
             )
 
         last: HashSig | None = None
