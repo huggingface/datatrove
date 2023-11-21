@@ -113,11 +113,18 @@ class PipelineStats:
     def total_time(self):
         return sum([stat.time_stats.global_mean for stat in self.stats])
 
+    @property
+    def total_std_dev(self):
+        return math.sqrt(sum((stat.time_stats.global_std_dev**2 for stat in self.stats)))
+
     def get_repr(self, text=None):
         total_time = self.total_time
+        total_std_dev = self.total_std_dev
         x = (
             f"\n\n{'📉' * 3} Stats{': ' + text if text else ''} {'📉' * 3}\n\n"
-            + f"Total Runtime: {humanize.precisedelta(total_time)}\n\n"
+            + f"Total Runtime: {humanize.precisedelta(total_time)}"
+            + (f" ± {humanize.precisedelta(total_std_dev)}/task" if total_std_dev != 0.0 else "")
+            + "\n\n"
         )
         x += "\n".join([stat.__repr__(total_time) for stat in self.stats])
         return x
