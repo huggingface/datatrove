@@ -21,6 +21,7 @@ REQUIRED_PKGS = [
     "backoff==2.2.1",
     "fsspec==2023.9.2",
     "humanize==4.8.0",
+    "rich==13.7.0",
 ]
 
 EXTRAS = {
