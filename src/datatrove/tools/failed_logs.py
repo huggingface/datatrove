@@ -26,7 +26,14 @@ def main():
     logger.remove()
 
     logging_dir = BaseInputDataFolder.from_path(args.path)
-    with logging_dir.get_file("executor.json").open() as f:
+    executor_file = logging_dir.get_file("executor.json")
+    if not executor_file:
+        console.log(
+            'Could not find "executor.json" in the given directory. Are you sure it is a ' "logging folder?",
+            style="red",
+        )
+        return
+    with executor_file.open() as f:
         world_size = json.load(f).get("world_size", None)
     if not world_size:
         console.log("Could not get the total number of tasks, please try relaunching the run.", style="red")
