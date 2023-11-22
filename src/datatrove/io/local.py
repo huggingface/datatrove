@@ -102,6 +102,8 @@ def get_local_file_list(path: str, recursive: bool = True) -> list[str]:
     Returns:
         list of file paths
     """
+    if not os.path.isdir(path):
+        return []
     filelist = []
     with os.scandir(path) as files:
         for f in files:
