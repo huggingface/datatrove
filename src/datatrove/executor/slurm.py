@@ -197,7 +197,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         )
         with self.logging_dir.open("launch_script.slurm") as launchscript_f:
             launchscript_f.write(launch_file_contents)
-        logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
+        logger.info(
+            f"Launching Slurm job {self.job_name} ({len(ranks_to_run)} tasks) with launch script "
+            f'"{launchscript_f.path}"'
+        )
 
         launched_jobs = 0
         while launched_jobs * max_array < len(ranks_to_run):

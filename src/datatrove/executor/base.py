@@ -1,5 +1,4 @@
 import dataclasses
-import itertools
 import json
 from abc import ABC, abstractmethod
 from collections import deque
@@ -89,7 +88,10 @@ class PipelineExecutor(ABC):
         self.logging_dir.open(f"completions/{rank:05d}").close()
 
     def get_incomplete_ranks(self):
-        return list(itertools.filterfalse(self.is_rank_completed, range(self.world_size)))
+        completed = {
+            file.relative_path for file in self.logging_dir.to_input_folder().list_files(suffix="completions")
+        }
+        return list(filter(lambda rank: f"completions/{rank:05d}" not in completed, range(self.world_size)))
 
     def to_json(self, indent=4):
         data = self.__dict__
@@ -106,7 +108,7 @@ class ExecutorJSONEncoder(json.JSONEncoder):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)
         if isinstance(o, PipelineExecutor):
-            return o.__dict__
+            return o.__dict__ | {"world_size": o.world_size}
         if isinstance(o, PipelineStep):
             return {a: b for a, b in o.__dict__.items() if a != "stats"}
         return str(o)
