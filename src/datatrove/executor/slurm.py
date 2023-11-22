@@ -142,10 +142,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
-                    **self.sbatch_args,
+                    **self.get_sbatch_args(),
                     "cpus-per-task": 1,
                     "mem-per-cpu": "1G",
-                    "array": "0",
                     "dependency": f"afterok:{self.job_id}",
                 },
                 f'merge_stats {os.path.join(self.logging_dir.path, "stats")} {" ".join(options)}',
@@ -190,8 +189,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
             # we actually save this (only once) to avoid race conditions
             json.dump(ranks_to_run, ranks_to_run_file)
 
+        max_array = min(len(ranks_to_run), self.max_array_size) if self.max_array_size != -1 else len(ranks_to_run)
+
         launch_file_contents = self.get_launch_file_contents(
-            self.sbatch_args,
+            self.get_sbatch_args(max_array),
             f"srun -l launch_pickled_pipeline {executor_f.path}",
         )
         with self.logging_dir.open("launch_script.slurm") as launchscript_f:
@@ -199,7 +200,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         logger.info(f'Launching Slurm job {self.job_name} with launch script "{launchscript_f.path}"')
 
         launched_jobs = 0
-        while launched_jobs * self.max_array < len(ranks_to_run):
+        while launched_jobs * max_array < len(ranks_to_run):
             if launched_jobs and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
                 time.sleep(self.stagger_max_array_jobs)
             args = [f"--export=ALL,RUN_OFFSET={launched_jobs}"]
@@ -211,12 +212,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.launch_merge_stats()
         self.logging_dir.close()
 
-    @property
-    def max_array(self) -> int:
-        return min(self.tasks, self.max_array_size) if self.max_array_size != -1 else self.tasks
-
-    @property
-    def sbatch_args(self) -> dict:
+    def get_sbatch_args(self, max_array: int = 1) -> dict:
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%j.out")
         return {
@@ -227,7 +223,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "time": self.time,
             "output": slurm_logfile,
             "error": slurm_logfile,
-            "array": f"0-{self.max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
+            "array": f"0-{max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             "requeue": "",
             **self._sbatch_args,
         }
