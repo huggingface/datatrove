@@ -96,8 +96,12 @@ class S3InputDataFile(BaseInputDataFile):
     """
 
     local_path: str = None
-    stream: bool = False
+    stream: bool = None
     cleanup: bool = True
+
+    def __post_init__(self):
+        if self.stream is None:
+            self.stream = self.local_path is None
 
     @contextmanager
     def open_binary(self):
@@ -134,13 +138,15 @@ class S3InputDataFolder(BaseInputDataFolder):
     """
 
     local_path: str = None
-    stream: bool = False
+    stream: bool = None
     cleanup: bool = True
 
     def __post_init__(self):
         if not self.path.startswith("s3://"):
             raise ValueError("S3InputDataFolder path must start with s3://")
         self._tmpdir = None
+        if self.stream is None:
+            self.stream = self.local_path is None
         if not self.local_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.local_path = self._tmpdir.name
