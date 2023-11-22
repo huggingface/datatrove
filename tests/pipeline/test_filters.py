@@ -96,11 +96,20 @@ class TestFilters(unittest.TestCase):
         self.assertFalse(unigram_filter.filter(Document(content="Cacophony Pareidolia Serendipity", data_id="0")))
 
     def test_url(self):
-        def get_element(s):
-            for e in s:
-                return e
+        url_filter = URLFilter(extra_domains=("blocked.com", "danger.org", "badsubdomain.nice.com"))
 
-        url_filter = URLFilter()
-
-        url = get_element(url_filter.block_listed_domains)
-        self.check_filter(url_filter, get_doc(TEXT_LF_1, url), "domain")
+        for url, result in (
+            ("https://blocked.com/some-sub-url?with=stuff", "domain"),
+            ("https://hey.danger.org/some-sub-url?with=stuff", "domain"),
+            ("http://hey.danger.org/some-sub-url?with=stuff", "domain"),
+            ("http://www.danger.org/some-sub-url?with=stuff", "domain"),
+            ("https://nice.com/some-sub-url?with=stuff", True),
+            ("https://badsubdomain.nice.com/some-sub-url?with=stuff", "subdomain"),
+            ("https://sdsd.badsubdomain.nice.com/some-sub-url?with=stuff", True),
+            ("https://blocke.dcom/some-sub-url?with=stuff", True),
+        ):
+            doc = get_doc(TEXT_LF_1, url)
+            if result is True:
+                assert url_filter.filter(doc)
+            else:
+                self.check_filter(url_filter, doc, result)

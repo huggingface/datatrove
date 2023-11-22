@@ -1,8 +1,9 @@
 import os
 import re
 import tarfile
+from typing import Iterable
 
-import tldextract
+from tldextract import TLDExtract
 
 from datatrove.data import Document
 from datatrove.utils.assets import ASSETS_PATH, DOWNLOAD_PATH
@@ -29,11 +30,11 @@ class URLFilter(BaseFilter):
     def __init__(
         self,
         soft_word_threshold: int = 2,
-        extra_domains: set = None,
-        extra_urls: set = None,
-        banned_words: set = None,
-        banned_subwords: set = None,
-        soft_banned_words: set = None,
+        extra_domains: Iterable = None,
+        extra_urls: Iterable = None,
+        banned_words: Iterable = None,
+        banned_subwords: Iterable = None,
+        soft_banned_words: Iterable = None,
         exclusion_writer: DiskWriter = None,
     ):
         super().__init__(exclusion_writer)
@@ -45,30 +46,38 @@ class URLFilter(BaseFilter):
         self.banned_subwords = banned_subwords
         self.soft_banned_words = soft_banned_words
         self._downloaded = False
+        self.tldextractor = TLDExtract()
 
-    def get_list(self, abs_path: str, file_name: str, extra: set = None):
-        return load_list(os.path.join(abs_path, file_name)).union(extra if extra else {})
+    def get_list(self, abs_path: str, file_name: str, extra: set = None, do_normalize: bool = True):
+        return load_list(os.path.join(abs_path, file_name), do_normalize=do_normalize).union(
+            set(extra) if extra else set()
+        )
 
     def download_data(self):
+        if self._downloaded:
+            return
         if not os.path.isfile(f"{self.download_path}adult/domains") or not os.path.isfile(
             f"{self.download_path}adult/urls"
         ):
             with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
                 tar.extractall(self.download_path)
-        self.block_listed_domains = self.get_list(self.download_path, "adult/domains", self.block_listed_domains)
-        self.block_listed_url = self.get_list(self.download_path, "adult/urls", self.block_listed_url)
+        self.block_listed_domains = self.get_list(
+            self.download_path, "adult/domains", self.block_listed_domains, do_normalize=False
+        )
+        self.block_listed_url = self.get_list(
+            self.download_path, "adult/urls", self.block_listed_url, do_normalize=False
+        )
         self.banned_words = self.get_list(ASSETS_PATH, "banned_words.txt", self.banned_words)
         self.banned_subwords = self.get_list(ASSETS_PATH, "banned_subwords.txt", self.banned_subwords)
         self.soft_banned_words = self.get_list(ASSETS_PATH, "soft_banned_words.txt", self.soft_banned_words)
         self._downloaded = True
 
     def filter(self, document: Document) -> bool | tuple[bool, str]:
-        if not self._downloaded:
-            self.download_data()
+        self.download_data()
         url = document.metadata.get("url")
 
         assert url, "Document does not have url in its metadata"
-        url_info = tldextract.extract(url)
+        url_info = self.tldextractor(url)
 
         if url_info.registered_domain in self.block_listed_domains:
             return False, "domain"
