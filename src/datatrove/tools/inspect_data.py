@@ -103,8 +103,6 @@ def main():
     for sample in sampler(reader()):
         if not filter_expr(sample):
             continue
-        if not Confirm.ask("Show next sample?", default=True):
-            break
         with console.pager():
             console.print(
                 Panel(
