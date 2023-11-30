@@ -90,7 +90,7 @@ def main():
     console.print(
         f'Loading samples from "{data_folder.path}" with {reader} and sampling_rate={args.sample}.\n'
         f"Samples are displayed full page one by one.\n"
-        f"If you don't see any color you may run \"export pager='less -r'\"."
+        f"If you don't see any color you may run \"export PAGER='less -r'\"."
     )
 
     filter_expr_text = None
@@ -103,7 +103,7 @@ def main():
     for sample in sampler(reader()):
         if not filter_expr(sample):
             continue
-        with console.pager():
+        with console.pager(styles=True):
             console.print(
                 Panel(
                     f"[yellow]Data ID:[reset] {sample.data_id}\n"
