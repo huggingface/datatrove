@@ -36,6 +36,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mem_per_cpu_gb: int = 2,
         workers: int = -1,
         job_name: str = "data_processing",
+        qos: str = "normal",
         env_command: str = None,
         condaenv: str = None,
         venv_path: str = None,
@@ -100,6 +101,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.time = time
         self.job_name = job_name
+        self.qos = qos
         self.env_command = env_command
         self.condaenv = condaenv
         self.venv_path = venv_path
@@ -228,6 +230,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "error": slurm_logfile,
             "array": f"0-{max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             "requeue": "",
+            "qos": self.qos,
             **self._sbatch_args,
         }
 
