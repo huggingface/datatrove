@@ -1,0 +1,120 @@
+import argparse
+import os.path
+import sys
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Confirm
+
+from datatrove.io import BaseInputDataFolder
+from datatrove.io.base import get_file_extension
+from datatrove.pipeline.filters import SamplerFilter
+from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
+
+
+parser = argparse.ArgumentParser(
+    "Manually inspect some RefinedWeb samples. "
+    "Any unknown parameters will be passed to the reader (example: 'content_key=text')."
+)
+
+parser.add_argument(
+    "path", type=str, nargs="?", help="Path to the data folder. Defaults to current directory.", default=os.getcwd()
+)
+
+parser.add_argument(
+    "-r",
+    "--reader",
+    type=str,
+    help="The type of Reader to use to read the data. "
+    "By default it will be guessed from the file extension. "
+    "Can be ('jsonl', 'parquet', 'csv' or 'warc')",
+)
+
+parser.add_argument(
+    "-s", "--sample", type=float, help="Randomly sample a given % of samples. 1.0 to see all samples", default=1.0
+)
+
+console = Console()
+
+
+def reader_class_from_name(reader_type):
+    match reader_type:
+        case "jsonl":
+            return JsonlReader
+        case "csv":
+            return CSVReader
+        case "parquet":
+            return ParquetReader
+        case "warc":
+            return WarcReader
+        case other:
+            console.log(f"[red]Unknwon reader type {other}")
+            sys.exit(-1)
+
+
+def reader_factory(data_folder: BaseInputDataFolder, reader_type: str = None, **kwargs):
+    data_files = data_folder.list_files()
+    if not data_files:
+        console.log(f'[red]Could not find any files in "{data_folder.path}"')
+        sys.exit(-1)
+
+    if not reader_type:
+        match get_file_extension(data_files[0].path):
+            case ".jsonl.gz" | ".jsonl" | ".json":
+                reader_type = "jsonl"
+            case ".csv":
+                reader_type = "csv"
+            case ".parquet":
+                reader_type = "parquet"
+            case ".warc.gz" | "arc.gz" | ".warc":
+                reader_type = "warc"
+            case other:
+                console.log(f'[red]Could not find a matching reader for file extension "{other}"')
+                sys.exit(-1)
+    return reader_class_from_name(reader_type)(data_folder, **kwargs)
+
+
+def get_filter_expr(text=None):
+    return (lambda x: eval(text)) if text else (lambda x: True)
+
+
+def main():
+    args, extra_args = parser.parse_known_args()
+    kwargs = dict(extra_arg.split("=") for extra_arg in extra_args)
+    data_folder = BaseInputDataFolder.from_path(args.path)
+
+    reader = reader_factory(data_folder, args.reader, **kwargs)
+
+    sampler = SamplerFilter(args.sample)
+
+    console.print(
+        f'Loading samples from "{data_folder.path}" with {reader} and sampling_rate={args.sample}.\n'
+        f"Samples are displayed full page one by one.\n"
+        f"If you don't see any color you may run \"export pager='less -r'\"."
+    )
+
+    filter_expr_text = None
+    if Confirm.ask(
+        "Would you like to add a filtering expression? (ex: x.metadata['token_count'] > 5000)", default=False
+    ):
+        filter_expr_text = Confirm.get_input(console, "Type your filtering expression: ", password=False)
+    filter_expr = get_filter_expr(filter_expr_text)
+
+    for sample in sampler(reader()):
+        if not filter_expr(sample):
+            continue
+        if not Confirm.ask("Show next sample?", default=True):
+            break
+        with console.pager():
+            console.print(
+                Panel(
+                    f"[yellow]Data ID:[reset] {sample.data_id}\n"
+                    f"[yellow]Metadata:[reset]\n"
+                    + "\n".join(f"- [blue]{field}: [reset] {value}" for field, value in sample.metadata.items())
+                )
+            )
+            console.print(sample.content)
+
+
+if __name__ == "__main__":
+    main()

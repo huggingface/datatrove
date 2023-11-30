@@ -270,7 +270,7 @@ class BaseInputDataFolder(ABC):
             else ([extension] if isinstance(extension, str) else extension)
         )
         return (
-            not extensions or any((get_extension(file_path).endswith(ext) for ext in extensions))
+            not extensions or any((get_file_extension(file_path).endswith(ext) for ext in extensions))
         ) and (  # check extension  # check pattern
             not self.match_pattern or fnmatch(os.path.relpath(file_path, self.path), self.match_pattern)
         )
@@ -280,7 +280,7 @@ class BaseInputDataFolder(ABC):
         raise NotImplementedError
 
 
-def get_extension(filepath, depth=None) -> str:
+def get_file_extension(filepath, depth=None) -> str:
     """Get full file extension (example: .jsonl.gz)
     Optionally only get last `depth` extensions (depth=1: .gz)
 
@@ -310,7 +310,7 @@ def guess_compression(filename) -> str | None:
     Returns:
 
     """
-    match get_extension(filename, depth=1):
+    match get_file_extension(filename, depth=1):
         case ".gz":
             return "gzip"
         case ".zst":

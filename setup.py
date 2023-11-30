@@ -72,6 +72,7 @@ setup(
             "merge_stats=datatrove.tools.merge_stats:main",
             "launch_pickled_pipeline=datatrove.tools.launch_pickled_pipeline:main",
             "failed_logs=datatrove.tools.failed_logs:main",
+            "inspect_data=datatrove.tools.inspect_data:main",
         ]
     },
 )
