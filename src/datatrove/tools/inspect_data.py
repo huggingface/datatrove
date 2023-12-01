@@ -88,7 +88,6 @@ def main():
     kwargs = dict(extra_arg.split("=") for extra_arg in extra_args)
     data_folder = BaseInputDataFolder.from_path(args.path)
     label_folder_path = BaseOutputDataFolder.from_path(args.label) if args.label else None
-    print(label_folder_path)
 
     reader = reader_factory(data_folder, args.reader, **kwargs)
 
