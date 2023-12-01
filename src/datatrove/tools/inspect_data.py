@@ -109,42 +109,47 @@ def main():
 
     good_samples = []
     bad_samples = []
-    for sample in sampler(reader()):
-        if not filter_expr(sample):
-            continue
-        with console.pager(styles=True):
-            console.print(
-                Panel(
-                    f"[yellow]Data ID:[reset] {sample.data_id}\n"
-                    f"[yellow]Metadata:[reset]\n"
-                    + "\n".join(f"- [blue]{field}: [reset] {value}" for field, value in sample.metadata.items())
+    iterator = sampler(reader())
+    try:
+        for sample in iterator:
+            if not filter_expr(sample):
+                continue
+            with console.pager(styles=True):
+                console.print(
+                    Panel(
+                        f"[yellow]Data ID:[reset] {sample.data_id}\n"
+                        f"[yellow]Metadata:[reset]\n"
+                        + "\n".join(f"- [blue]{field}: [reset] {value}" for field, value in sample.metadata.items())
+                    )
                 )
+                console.print(sample.content)
+            result = Prompt.ask(
+                "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next sample. Enter 'e' (exit) to leave:",
+                console=console,
+                choices=["g", "b", "e", "q"],
             )
-            console.print(sample.content)
-        result = Prompt.ask(
-            "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next sample. Enter 'e' (exit) to leave:",
-            console=console,
-            choices=["g", "b", "e", "q"],
-        )
-        if result == "g":
-            good_samples.append(sample)
-        elif result == "b":
-            bad_samples.append(sample)
-        elif result == "e":
-            break
-    if good_samples and label_folder_path:
-        print("save samples to", label_folder_path)
-        with JsonlWriter(label_folder_path, "good_samples.jsonl", gzip=False) as writer:
-            for sample in good_samples:
-                writer.write(sample)
-    if bad_samples and label_folder_path:
-        print("save samples to", label_folder_path)
-        with JsonlWriter(label_folder_path, "bad_samples.jsonl", gzip=False) as writer:
-            for sample in bad_samples:
-                writer.write(sample)
+            if result == "g":
+                good_samples.append(sample)
+            elif result == "b":
+                bad_samples.append(sample)
+            elif result == "e":
+                break
+    except Exception:
+        console.print_exception()
+    finally:
+        if good_samples and label_folder_path:
+            print("save samples to", label_folder_path)
+            with JsonlWriter(label_folder_path, "good_samples.jsonl", gzip=False) as writer:
+                for sample in good_samples:
+                    writer.write(sample)
+        if bad_samples and label_folder_path:
+            print("save samples to", label_folder_path)
+            with JsonlWriter(label_folder_path, "bad_samples.jsonl", gzip=False) as writer:
+                for sample in bad_samples:
+                    writer.write(sample)
 
-    if label_folder_path:
-        label_folder_path.close()
+        if label_folder_path:
+            label_folder_path.close()
 
 
 if __name__ == "__main__":
