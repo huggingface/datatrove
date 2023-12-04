@@ -137,12 +137,10 @@ def main():
         console.print_exception()
     finally:
         if good_samples and label_folder_path:
-            print("save samples to", label_folder_path)
             with JsonlWriter(label_folder_path, "good_samples.jsonl", gzip=False) as writer:
                 for sample in good_samples:
                     writer.write(sample)
         if bad_samples and label_folder_path:
-            print("save samples to", label_folder_path)
             with JsonlWriter(label_folder_path, "bad_samples.jsonl", gzip=False) as writer:
                 for sample in bad_samples:
                     writer.write(sample)
