@@ -122,17 +122,18 @@ def main():
                     )
                 )
                 console.print(sample.content)
-            result = Prompt.ask(
-                "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next sample. Enter 'e' (exit) to leave:",
-                console=console,
-                choices=["g", "b", "e", "q"],
-            )
-            if result == "g":
-                good_samples.append(sample)
-            elif result == "b":
-                bad_samples.append(sample)
-            elif result == "e":
-                break
+            if label_folder_path:
+                result = Prompt.ask(
+                    "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next sample. Enter 'e' (exit) to leave:",
+                    console=console,
+                    choices=["g", "b", "e", "q"],
+                )
+                if result == "g":
+                    good_samples.append(sample)
+                elif result == "b":
+                    bad_samples.append(sample)
+                elif result == "e":
+                    break
     except Exception:
         console.print_exception()
     finally:
