@@ -4,12 +4,13 @@ import sys
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 
-from datatrove.io import BaseInputDataFolder
+from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.io.base import get_file_extension
 from datatrove.pipeline.filters import SamplerFilter
 from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
+from datatrove.pipeline.writers import JsonlWriter
 
 
 parser = argparse.ArgumentParser(
@@ -32,6 +33,10 @@ parser.add_argument(
 
 parser.add_argument(
     "-s", "--sample", type=float, help="Randomly sample a given % of samples. 1.0 to see all samples", default=1.0
+)
+
+parser.add_argument(
+    "-l", "--label", type=str, help="Label the examples as good/bad and store at this location", default=""
 )
 
 console = Console()
@@ -82,6 +87,7 @@ def main():
     args, extra_args = parser.parse_known_args()
     kwargs = dict(extra_arg.split("=") for extra_arg in extra_args)
     data_folder = BaseInputDataFolder.from_path(args.path)
+    label_folder_path = BaseOutputDataFolder.from_path(args.label) if args.label else None
 
     reader = reader_factory(data_folder, args.reader, **kwargs)
 
@@ -100,18 +106,47 @@ def main():
         filter_expr_text = Confirm.get_input(console, "Type your filtering expression: ", password=False)
     filter_expr = get_filter_expr(filter_expr_text)
 
-    for sample in sampler(reader()):
-        if not filter_expr(sample):
-            continue
-        with console.pager(styles=True):
-            console.print(
-                Panel(
-                    f"[yellow]Data ID:[reset] {sample.data_id}\n"
-                    f"[yellow]Metadata:[reset]\n"
-                    + "\n".join(f"- [blue]{field}: [reset] {value}" for field, value in sample.metadata.items())
+    good_samples = []
+    bad_samples = []
+    iterator = sampler(reader())
+    try:
+        for sample in iterator:
+            if not filter_expr(sample):
+                continue
+            with console.pager(styles=True):
+                console.print(
+                    Panel(
+                        f"[yellow]Data ID:[reset] {sample.data_id}\n"
+                        f"[yellow]Metadata:[reset]\n"
+                        + "\n".join(f"- [blue]{field}: [reset] {value}" for field, value in sample.metadata.items())
+                    )
                 )
+                console.print(sample.content)
+            result = Prompt.ask(
+                "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next sample. Enter 'e' (exit) to leave:",
+                console=console,
+                choices=["g", "b", "e", "q"],
             )
-            console.print(sample.content)
+            if result == "g":
+                good_samples.append(sample)
+            elif result == "b":
+                bad_samples.append(sample)
+            elif result == "e":
+                break
+    except Exception:
+        console.print_exception()
+    finally:
+        if good_samples and label_folder_path:
+            with JsonlWriter(label_folder_path, "good_samples.jsonl", gzip=False) as writer:
+                for sample in good_samples:
+                    writer.write(sample)
+        if bad_samples and label_folder_path:
+            with JsonlWriter(label_folder_path, "bad_samples.jsonl", gzip=False) as writer:
+                for sample in bad_samples:
+                    writer.write(sample)
+
+        if label_folder_path:
+            label_folder_path.close()
 
 
 if __name__ == "__main__":
