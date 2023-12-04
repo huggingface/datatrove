@@ -3,6 +3,7 @@ import json
 import os.path
 
 from loguru import logger
+from tqdm import tqdm
 
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFile
 from datatrove.utils.stats import PipelineStats
@@ -35,14 +36,14 @@ def main():
     output_file = BaseOutputDataFile.from_path(path, **extra_args)
 
     stats = []
-    for file in stats_folder.list_files():
+    for file in tqdm(stats_folder.list_files()):
         with file.open() as f:
             stats.append(PipelineStats.from_json(json.load(f)))
-    merged = sum(stats, start=PipelineStats())
+    merged = sum(tqdm(stats), start=PipelineStats())
     with output_file.open() as f:
         merged.save_to_disk(f)
     logger.info(f"Processing complete. Results saved to {output_file.path}.")
-    logger.info(merged)
+    # logger.info(merged)
 
 
 if __name__ == "__main__":
