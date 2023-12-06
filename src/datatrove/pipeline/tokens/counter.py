@@ -40,3 +40,19 @@ class TokensCounter(PipelineStep):
                 raise ImportError
             self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
         return self._tokenizer
+
+
+class LengthCounter(PipelineStep):
+    name = "📊 Document length counter"
+    type = "🔢 - TOKENIZER"
+
+    def __init__(
+        self,
+    ):
+        super().__init__()
+
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        for document in data:
+            count = document.metadata["token_count"]
+            self.stats[count].update(1)
+            yield document

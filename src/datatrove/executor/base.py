@@ -91,7 +91,12 @@ class PipelineExecutor(ABC):
         completed = {
             file.relative_path for file in self.logging_dir.to_input_folder().list_files(suffix="completions")
         }
-        return list(filter(lambda rank: f"completions/{rank:05d}" not in completed, range(self.world_size)))
+        return list(
+            filter(
+                lambda rank: not self.skip_completed or f"completions/{rank:05d}" not in completed,
+                range(self.world_size),
+            )
+        )
 
     def to_json(self, indent=4):
         data = self.__dict__
