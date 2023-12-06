@@ -182,6 +182,10 @@ class DocumentTokenizer(PipelineStep):
         unshuf_filename = self.get_output_filename(rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
+        if len(outputfile) == 0:
+            self.output_folder.close()
+            logger.warning("No data saved.")
+            return
         if self.shuffle:
             shuffled_filename = self.get_output_filename(rank, "shuffled")
             # get new TokenizedFile, shuffling docs from original one
