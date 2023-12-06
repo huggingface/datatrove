@@ -35,7 +35,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         logging_dir: BaseOutputDataFolder | str = None,
         skip_completed: bool = True,
     ):
-        """Execute a pipeline on a slurm cluster
+        """Execute a pipeline locally
 
         Args:
             pipeline: a list of PipelineStep and/or custom functions
