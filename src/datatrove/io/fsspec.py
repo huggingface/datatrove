@@ -73,11 +73,18 @@ class FSSpecInputDataFolder(BaseInputDataFolder):
         self._fs = fsspec.filesystem(protocol, **(self.storage_options if self.storage_options else {}))
 
     def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[BaseInputDataFile]:
-        return [
-            self._unchecked_get_file(os.path.relpath(path, self.path))
-            for path in self._fs.ls(os.path.join(self.path, suffix), detail=False)
-            if self._match_file(path, extension)
-        ]
+        if self.recursive:
+            return [
+                self._unchecked_get_file(os.path.relpath(path, self.path))
+                for path in self._fs.glob(os.path.join(self.path, "**"), detail=False)
+                if self._match_file(os.path.relpath(path, self.path), extension)
+            ]
+        else:
+            return [
+                self._unchecked_get_file(os.path.relpath(path, self.path))
+                for path in self._fs.ls(os.path.join(self.path, suffix), detail=False)
+                if self._match_file(path, extension)
+            ]
 
     def _unchecked_get_file(self, relative_path: str):
         return FSSpecInputDataFile(
