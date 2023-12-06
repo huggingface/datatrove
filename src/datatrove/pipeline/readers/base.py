@@ -82,6 +82,12 @@ class BaseReader(PipelineStep):
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data
-        for doc in self.read_files_shard(self.data_folder.get_files_shard(rank, world_size)):
+        files_shard = self.data_folder.get_files_shard(rank, world_size)
+        if len(files_shard) == 0:
+            if rank == 0:
+                raise RuntimeError(f"No files found on {self.data_folder.path}!")
+            # otherwise just a warning
+            logger.warning(f"No files found on {self.data_folder.path} for {rank=}")
+        for doc in self.read_files_shard(files_shard):
             self.update_doc_stats(doc)
             yield doc
