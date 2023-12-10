@@ -106,14 +106,12 @@ def s3_get_file_list(cloud_path, match_pattern=None, recursive=True):
         prefix = prefixes.popleft()
         for resp in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
             if recursive:
-                prefixes.extend(
-                    [
-                        next_prefix["Prefix"]
-                        for next_prefix in resp.get("CommonPrefixes", [])
-                        if _match_prefix(main_prefix, next_prefix["Prefix"], match_pattern)
-                    ]
-                )
+                prefixes.extend([next_prefix["Prefix"] for next_prefix in resp.get("CommonPrefixes", [])])
             objects.extend(
-                [os.path.relpath(x["Key"], main_prefix) for x in resp.get("Contents", []) if x["Key"] != prefix]
+                [
+                    os.path.relpath(x["Key"], main_prefix)
+                    for x in resp.get("Contents", [])
+                    if x["Key"] != prefix and _match_prefix(main_prefix, x["Key"], match_pattern)
+                ]
             )
     return sorted(objects)

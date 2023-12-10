@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from loguru import logger
 
 from datatrove.io import BaseInputDataFile, BaseOutputDataFolder
-from datatrove.io.base import BaseInputDataFolder, BaseOutputDataFile
+from datatrove.io.base import BaseInputDataFolder, BaseInputFileListFolder, BaseOutputDataFile
 from datatrove.io.utils.s3 import (
     s3_download_file,
     s3_file_exists,
@@ -177,3 +177,46 @@ class S3InputDataFolder(BaseInputDataFolder):
 
     def to_output_folder(self) -> BaseOutputDataFolder:
         return S3OutputDataFolder(path=self.path, local_path=self.local_path, cleanup=self.cleanup)
+
+
+@dataclass
+class S3InputFileListFolder(BaseInputFileListFolder):
+    """S3 input file list folder
+    Args:
+        local_path (str): where to download the files to (if `stream=False`)
+        stream (bool): stream the file directly from s3, without saving to disk
+        cleanup (str): remove downloaded files from disk after they are closed
+
+    """
+
+    local_path: str = None
+    stream: bool = None
+    cleanup: bool = True
+
+    def __post_init__(self):
+        if not self.file_list[0].startswith("s3://"):
+            raise ValueError("S3InputFileListFolder pathes must start with s3://")
+        self._tmpdir = None
+        if self.stream is None:
+            self.stream = self.local_path is None
+        if not self.local_path:
+            self._tmpdir = tempfile.TemporaryDirectory()
+            self.local_path = self._tmpdir.name
+
+    def _unchecked_get_file(self, file_path: str):
+        return S3InputDataFile(
+            path=file_path,
+            local_path=os.path.join(self.local_path, file_path.replace("s3://", "")),
+            relative_path=file_path.replace("s3://", ""),
+            stream=self.stream,
+            cleanup=self.cleanup,
+            _lock=self._lock,
+        )
+
+    def file_exists(self, file_path: str) -> bool:
+        if self.local_path and os.path.exists(os.path.join(self.local_path, file_path.replace("s3://", ""))):
+            return True
+        return s3_file_exists(file_path)
+
+    def list_files(self) -> list[BaseInputDataFile]:
+        return [self._unchecked_get_file(file_path) for file_path in self.file_list]

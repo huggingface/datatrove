@@ -280,6 +280,118 @@ class BaseInputDataFolder(ABC):
         raise NotImplementedError
 
 
+@dataclass
+class BaseInputFileListFolder(ABC):
+    """Base input data folder class. Specific implementations should override its relevant methods.
+
+        Args:
+    file_list (list(str)): list of files, respecting the format of specific implementations
+        (i.e. s3 paths should start with s3://) – all files have to be in the same file system
+    """
+
+    file_list: list[str]
+    _lock: SemLock | contextlib.nullcontext = field(default_factory=contextlib.nullcontext)
+
+    @classmethod
+    def from_path(cls, file_list, **kwargs):
+        """InputDataFolder factory: get the correct instance from a path. Additional arguments will be passed to the
+        constructor of the matched implementation.
+
+        Args:
+            file_list: list of files
+            **kwargs: any additional argument passed to the matched
+                implementation
+
+        Returns:
+
+        """
+        from datatrove.io import S3InputFileListFolder
+
+        if len(file_list) == 0:
+            raise ValueError("file_list must contain at least one file")
+        if file_list[0].startswith("s3://"):
+            return S3InputFileListFolder(file_list, **kwargs)
+        else:
+            raise NotImplementedError
+
+    @abstractmethod
+    def list_files(self) -> list[BaseInputDataFile]:
+        """Retrieves a list of InputDataFile for all files in this folder matching both the dataclass properties and the
+        function parameters.
+
+        Returns:
+
+        """
+        logger.error(
+            "Do not instantiate BaseInputFileListFolder directly, "
+            "use a S3InputFileListFolder or call"
+            "BaseInputFileListFolder.from_path(path)"
+        )
+        raise NotImplementedError
+
+    def set_lock(self, lock):
+        """Pass a synchronization primitive to limit concurrent downloads
+
+        Args:
+            lock: synchronization primitive (Semaphore, Lock)
+
+        Returns:
+
+        """
+        self._lock = lock
+
+    def get_files_shard(self, rank: int, world_size: int) -> list[BaseInputDataFile]:
+        """Fetch a shard (set of files) for a given rank, assuming there are a total of `world_size` shards.
+        This should be deterministic to not have any overlap among different ranks.
+
+        Args:
+            rank: rank of the shard to fetch
+            world_size: total number of shards
+
+        Returns:
+            a list of input files
+        """
+        return self.list_files()[rank::world_size]
+
+    def get_file(self, file_path: str) -> BaseInputDataFile | None:
+        """Get a file directly by its name.
+
+        Args:
+            file_path: The file name/path.
+
+        Returns:
+            an input file if it exists or None
+        """
+        if self.file_exists(file_path):
+            return self._unchecked_get_file(file_path)
+
+    @abstractmethod
+    def _unchecked_get_file(self, file_path: str) -> BaseInputDataFile:
+        """Get a file directly by its name, without checking if it exists.
+        Subclasses should override this method (and not the one above).
+        Should not be called directly. Instead, call `get_file`
+
+        Args:
+            file_path: The file name/path.
+
+        Returns:
+            an input file
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def file_exists(self, file_path: str) -> bool:
+        """Should be overriden by subclasses. Check if a given file exists.
+
+        Args:
+            file_path: The file name/path.
+
+        Returns:
+            if the file exists
+        """
+        return True
+
+
 def get_file_extension(filepath, depth=None) -> str:
     """Get full file extension (example: .jsonl.gz)
     Optionally only get last `depth` extensions (depth=1: .gz)

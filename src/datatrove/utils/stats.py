@@ -39,6 +39,7 @@ class MetricStatsDict(defaultdict):
         return ", ".join(f"{key}: {stats}" for key, stats in self.items())
 
     def to_dict(self):
+        print(f"to_dict {self} in {list(self.items())}")
         return {a: b.to_dict() for a, b in self.items()}
 
 

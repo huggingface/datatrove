@@ -46,8 +46,8 @@ class BaseReader(PipelineStep):
         if not parsed_data.get("content", None):
             if not self._empty_warning:
                 self._empty_warning = True
-                logger.warning("Found document without content, skipping.")
-            return None
+                logger.warning("Found document without content.")
+            # return None  # This is not a good idea anymore, because it break the pipeline
         document = Document(**parsed_data)
         document.metadata.setdefault("file_path", source_file.path)
         if self.default_metadata:
