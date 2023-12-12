@@ -1,6 +1,7 @@
 from typing import Callable
 
 import pyarrow.parquet as pq
+from loguru import logger
 
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
@@ -24,9 +25,14 @@ class ParquetReader(BaseReader):
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(binary=True) as f:
             with pq.ParquetFile(f) as pqf:
-                for li, line in enumerate(pqf.iter_batches(batch_size=1)):
+                li = 0
+                if self.content_key not in pqf.schema_arrow.names:
+                    logger.warning(f"Input file {datafile.path} is without content, skipping.")
+                for batch in pqf.iter_batches(batch_size=1000, columns=[self.content_key]):
                     with self.track_time():
-                        document = self.get_document_from_dict(line.to_pydict(), datafile, li)
-                        if not document:
-                            continue
-                    yield document
+                        for line in batch.to_pylist():
+                            document = self.get_document_from_dict(line, datafile, li)
+                            if not document:
+                                continue
+                            li += 1
+                            yield document
