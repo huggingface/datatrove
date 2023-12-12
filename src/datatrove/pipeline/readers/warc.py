@@ -41,7 +41,7 @@ class WarcReader(BaseReader):
 
 def process_record(record: ArcWarcRecord) -> dict | None:
     # record type
-    if record.rec_type != "response":
+    if record.rec_type != "response" and record.rec_type != "conversion":  # wet files have "conversion" type
         return
 
     # content type filtering
