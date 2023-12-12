@@ -30,7 +30,7 @@ class PipelineExecutor(ABC):
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
         """
-        self.pipeline: list[PipelineStep | Callable] = pipeline
+        self.pipeline: List[Union[PipelineStep, Callable]] = pipeline
         if isinstance(logging_dir, str):
             logging_dir = BaseOutputDataFolder.from_path(logging_dir)
         self.logging_dir = (

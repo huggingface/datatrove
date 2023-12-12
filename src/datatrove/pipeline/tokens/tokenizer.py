@@ -36,7 +36,7 @@ class TokenizedFile:
         self.doc_ends = []
 
         self.tokens_file = self.output_folder.open(self.filename, mode="wb")
-        self.loss_file: BaseOutputDataFile | None = None
+        self.loss_file: Optional[BaseOutputDataFile] = None
         if self.save_loss_metadata:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb")
 
