@@ -1,5 +1,6 @@
 import dataclasses
 import json
+from string import Template
 
 from datatrove.data import Document
 from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
@@ -14,7 +15,7 @@ class JsonlWriter(DiskWriter):
         super().__init__(output_folder, output_filename=output_filename)
         self.gzip = gzip
         if self.gzip:
-            self.output_filename = self.output_filename + ".gz"
+            self.output_filename = Template(self.output_filename.template + ".gz")
 
     def open(self, output_filename):
         return self.output_folder.open(output_filename, mode="wt", gzip=self.gzip)
