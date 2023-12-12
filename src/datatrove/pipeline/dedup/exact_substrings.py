@@ -14,7 +14,7 @@ TLDR
 
 """
 import struct
-from typing import Generator, Literal
+from typing import Generator, List, Literal, Optional
 
 import numpy as np
 import tokenizers
@@ -59,7 +59,7 @@ class DatasetToSequence(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def save_sizes(self, doc_lens: list[int], rank: int):
+    def save_sizes(self, doc_lens: List[int], rank: int):
         f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
         f_lens.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
@@ -158,7 +158,7 @@ class DedupReader(JsonlReader):
         self,
         data_folder: BaseInputDataFolder,
         sequence_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        compression: Optional[Literal["guess", "gzip", "zst"]] = "guess",
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
     ):

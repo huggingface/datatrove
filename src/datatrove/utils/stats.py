@@ -6,7 +6,7 @@ import math
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, List, Optional, Union
 
 import humanize
 
@@ -83,7 +83,7 @@ class Stats:
     def to_json(self):
         return json.dumps(self.to_dict(), indent=4)
 
-    def save_to_disk(self, file: BaseOutputDataFile | str):
+    def save_to_disk(self, file: Union[BaseOutputDataFile, str]):
         dump_json_to_outputfile(self.to_json(), file)
 
     @classmethod
@@ -97,10 +97,10 @@ class Stats:
 
 
 class PipelineStats:
-    def __init__(self, stats: list[Stats | Callable] = None):
-        self.stats: list[Stats] = stats if stats else []
+    def __init__(self, stats: Optional[List[Union[Stats, Callable]]] = None):
+        self.stats: List[Stats] = stats if stats else []
         if self.stats and not isinstance(self.stats[0], Stats):
-            self.stats: list[Stats] = [
+            self.stats: List[Stats] = [
                 pipeline_step.stats for pipeline_step in self.stats if hasattr(pipeline_step, "stats")
             ]
 
@@ -139,7 +139,7 @@ class PipelineStats:
     def from_json(cls, data):
         return PipelineStats([Stats.from_dict(stat) for stat in data])
 
-    def save_to_disk(self, file: BaseOutputDataFile | str):
+    def save_to_disk(self, file: Union[BaseOutputDataFile, str]):
         dump_json_to_outputfile(self.to_json(), file)
 
 
@@ -362,7 +362,7 @@ class TimingStats(MetricStats):
         return res
 
 
-def dump_json_to_outputfile(json_data, file: BaseOutputDataFile | str):
+def dump_json_to_outputfile(json_data, file: Union[BaseOutputDataFile, str]):
     if isinstance(file, str):
         file = BaseOutputDataFile.from_path(file)
     file.write(json_data)

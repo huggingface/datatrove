@@ -1,5 +1,5 @@
 import csv
-from typing import Callable, Literal
+from typing import Callable, Literal, Optional
 
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
@@ -11,7 +11,7 @@ class CSVReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        compression: Optional[Literal["guess", "gzip", "zst"]] = "guess",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,

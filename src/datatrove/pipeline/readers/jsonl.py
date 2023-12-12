@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Callable, Literal
+from typing import Callable, Literal, Optional
 
 from loguru import logger
 
@@ -14,7 +14,7 @@ class JsonlReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        compression: Optional[Literal["guess", "gzip", "zst"]] = "guess",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,

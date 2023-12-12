@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from string import Template
+from typing import Union
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
@@ -25,7 +26,7 @@ class DiskWriter(PipelineStep, ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs):
+    def _get_output_filename(self, document: Document, rank: Union[int, str] = 0, **kwargs):
         return self.output_filename.substitute(
             {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata, **kwargs}
         )

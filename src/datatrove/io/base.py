@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import os
 from abc import ABC, abstractmethod
@@ -114,20 +116,19 @@ class BaseInputDataFile:
         """
         if compression == "guess":
             compression = guess_compression(self.relative_path)
-        match compression:
-            case "gzip":
-                with self.open_gzip(binary) as f:
-                    yield f
-            case "zst":
-                with self.open_zst(binary) as f:
-                    yield f
-            case _:
-                with self.open_binary() as fo:
-                    if binary:
-                        yield fo
-                    else:
-                        with TextIOWrapper(fo) as f:
-                            yield f
+        if compression == "gzip":
+            with self.open_gzip(binary) as f:
+                yield f
+        elif compression == "zst":
+            with self.open_zst(binary) as f:
+                yield f
+        else:
+            with self.open_binary() as fo:
+                if binary:
+                    yield fo
+                else:
+                    with TextIOWrapper(fo) as f:
+                        yield f
 
 
 @dataclass
@@ -310,13 +311,13 @@ def guess_compression(filename) -> str | None:
     Returns:
 
     """
-    match get_file_extension(filename, depth=1):
-        case ".gz":
-            return "gzip"
-        case ".zst":
-            return "zst"
-        case _:
-            return None
+    extension = get_file_extension(filename, depth=1)
+    if extension == ".gz":
+        return "gzip"
+    elif extension == ".zst":
+        return "zst"
+    else:
+        return None
 
 
 @dataclass

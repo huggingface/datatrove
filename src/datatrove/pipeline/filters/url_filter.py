@@ -1,7 +1,7 @@
 import os
 import re
 import tarfile
-from typing import Iterable
+from typing import Iterable, Tuple, Union
 
 from tldextract import TLDExtract
 
@@ -72,7 +72,7 @@ class URLFilter(BaseFilter):
         self.soft_banned_words = self.get_list(ASSETS_PATH, "soft_banned_words.txt", self.soft_banned_words)
         self._downloaded = True
 
-    def filter(self, document: Document) -> bool | tuple[bool, str]:
+    def filter(self, document: Document) -> Union[bool, Tuple[bool, str]]:
         self.download_data()
         url = document.metadata.get("url")
 

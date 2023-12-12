@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import dataclasses
 import json
 import os
@@ -9,7 +7,7 @@ import tempfile
 import textwrap
 import time
 from copy import deepcopy
-from typing import Callable
+from typing import Callable, Dict, List, Optional, Union
 
 import dill
 from dill import CONTENTS_FMODE
@@ -28,7 +26,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def __init__(
         self,
-        pipeline: list[PipelineStep | Callable],
+        pipeline: List[Union[PipelineStep, Callable]],
         tasks: int,
         time: str,
         partition: str,
@@ -40,10 +38,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         env_command: str = None,
         condaenv: str = None,
         venv_path: str = None,
-        sbatch_args: dict | None = None,
+        sbatch_args: Optional[Dict] = None,
         max_array_size: int = 1001,
-        depends: SlurmPipelineExecutor | None = None,
-        logging_dir: str | BaseOutputDataFolder = None,
+        depends: Optional["SlurmPipelineExecutor"] = None,
+        logging_dir: Optional[Union[str, BaseOutputDataFolder]] = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,

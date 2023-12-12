@@ -1,4 +1,5 @@
 import re
+from typing import Tuple, Union
 
 from nltk import load
 from nltk.tokenize import sent_tokenize
@@ -39,7 +40,7 @@ class C4QualityFilter(BaseFilter):
         if len(line.split()) < self.min_words:
             return False
 
-    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+    def filter(self, doc: Document) -> Union[bool, Tuple[bool, str]]:
         """Args:
             doc
 

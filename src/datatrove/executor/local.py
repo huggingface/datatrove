@@ -1,6 +1,6 @@
 from copy import deepcopy
 from multiprocessing import Value
-from typing import Callable
+from typing import Callable, List, Optional, Union
 
 import multiprocess.pool
 from loguru import logger
@@ -27,12 +27,12 @@ def init_pool_processes(dl_sem, up_sem, ranks_q, completed_counter):
 class LocalPipelineExecutor(PipelineExecutor):
     def __init__(
         self,
-        pipeline: list[PipelineStep | Callable],
+        pipeline: List[Union[PipelineStep, Callable]],
         tasks: int = 1,
         workers: int = -1,
         max_concurrent_uploads: int = 20,
         max_concurrent_downloads: int = 50,
-        logging_dir: BaseOutputDataFolder | str = None,
+        logging_dir: Optional[Union[BaseOutputDataFolder, str]] = None,
         skip_completed: bool = True,
     ):
         """Execute a pipeline locally

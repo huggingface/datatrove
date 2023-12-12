@@ -1,6 +1,7 @@
 import os.path
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import List, Optional, Union
 
 import fsspec
 
@@ -72,7 +73,9 @@ class FSSpecInputDataFolder(BaseInputDataFolder):
             protocol = "file"
         self._fs = fsspec.filesystem(protocol, **(self.storage_options if self.storage_options else {}))
 
-    def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[BaseInputDataFile]:
+    def list_files(
+        self, extension: Optional[Union[str, List[str]]] = None, suffix: str = ""
+    ) -> List[BaseInputDataFile]:
         return [
             self._unchecked_get_file(os.path.relpath(path, self.path))
             for path in self._fs.ls(os.path.join(self.path, suffix), detail=False)

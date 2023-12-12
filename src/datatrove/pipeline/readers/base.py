@@ -38,7 +38,7 @@ class BaseReader(PipelineStep):
             "content": data.pop(self.content_key, ""),
             "data_id": data.pop(self.id_key, f"{path}/{id_in_file}"),
             "media": data.pop("media", []),
-            "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
+            "metadata": {**data.pop("metadata", {}), **data},  # remaining data goes into metadata
         }
 
     def get_document_from_dict(self, data: dict, source_file: BaseInputDataFile, id_in_file: int):
@@ -51,7 +51,7 @@ class BaseReader(PipelineStep):
         document = Document(**parsed_data)
         document.metadata.setdefault("file_path", source_file.path)
         if self.default_metadata:
-            document.metadata = self.default_metadata | document.metadata
+            document.metadata = {**self.default_metadata, **document.metadata}
         return document
 
     @abstractmethod

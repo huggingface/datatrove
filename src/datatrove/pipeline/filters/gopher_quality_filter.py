@@ -1,4 +1,5 @@
 import string
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from nltk.tokenize import word_tokenize
@@ -16,16 +17,16 @@ class GopherQualityFilter(BaseFilter):
 
     def __init__(
         self,
-        min_doc_words: int | None = 50,
-        max_doc_words: int | None = 100000,
-        min_avg_word_length: int | None = 3,
-        max_avg_word_length: int | None = 10,
-        max_symbol_word_ratio: float | None = 0.1,
-        max_bullet_lines_ratio: float | None = 0.9,
-        max_ellipsis_lines_ratio: float | None = 0.3,
-        max_non_alpha_words_ratio: float | None = 0.8,
-        min_stop_words: int | None = 2,
-        stop_words: list[str] | None = None,
+        min_doc_words: Optional[int] = 50,
+        max_doc_words: Optional[int] = 100000,
+        min_avg_word_length: Optional[int] = 3,
+        max_avg_word_length: Optional[int] = 10,
+        max_symbol_word_ratio: Optional[float] = 0.1,
+        max_bullet_lines_ratio: Optional[float] = 0.9,
+        max_ellipsis_lines_ratio: Optional[float] = 0.3,
+        max_non_alpha_words_ratio: Optional[float] = 0.8,
+        min_stop_words: Optional[int] = 2,
+        stop_words: Optional[List[str]] = None,
         exclusion_writer: DiskWriter = None,
     ):
         """
@@ -55,7 +56,7 @@ class GopherQualityFilter(BaseFilter):
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
 
-    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+    def filter(self, doc: Document) -> Union[bool, Tuple[bool, str]]:
         """
             Applies the heuristics rules to decide if a document should be REMOVED:
                 -

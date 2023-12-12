@@ -1,5 +1,6 @@
 import contextlib
 import math
+from typing import List
 
 import numpy as np
 from loguru import logger
@@ -108,18 +109,18 @@ class SingleBloomFilter(PipelineStep):
             dtype=np.uint64,
         )
 
-    def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
+    def get_indexes(self, shingles: np.ndarray) -> List[List[int]]:
         a, b = self.parameters
         phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, self.m_bytes)
         return phv.tolist()
 
-    def update_bf(self, indexes: list[int]):
+    def update_bf(self, indexes: List[int]):
         for index in indexes:
             byte_index, bit_index = divmod(index, 8)
             mask = 1 << bit_index
             self.bit_vector[byte_index] |= mask
 
-    def query(self, indexes: list[int]) -> bool:
+    def query(self, indexes: List[int]) -> bool:
         for idx in indexes:
             byte_index, bit_index = divmod(idx, 8)
             mask = 1 << bit_index

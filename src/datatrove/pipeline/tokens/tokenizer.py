@@ -1,5 +1,6 @@
 import mmap
 import struct
+from typing import List, Optional
 
 import humanize
 import numpy as np
@@ -73,7 +74,7 @@ class TokenizedFile:
         if self.save_loss_metadata:
             self.loss_file.write(l_bytes)
 
-    def write(self, tokens: list[int], loss_values: np.ndarray | None):
+    def write(self, tokens: List[int], loss_values: Optional[np.ndarray]):
         # get the bytes for uint16 (H)
         self.write_bytes(struct.pack("<%sH" % len(tokens), *tokens))
         if loss_values is not None:
@@ -102,7 +103,9 @@ class TokenizedFile:
             orig_loss.close()
         return new_file
 
-    def save_final_metadata(self, tokenizer_name: str | None = None, token_count: int = -1, filename: str = None):
+    def save_final_metadata(
+        self, tokenizer_name: Optional[str] = None, token_count: int = -1, filename: Optional[str] = None
+    ):
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"
         if filename is None:

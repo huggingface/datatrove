@@ -8,7 +8,7 @@ REQUIRED_PKGS = [
     "loguru==0.7.0",
     "multiprocess==0.70.14",
     "nltk==3.8.1",
-    "numpy==1.25.0",
+    "numpy==1.24.0",
     "python-magic==0.4.27",
     "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "trafilatura==1.6.1",
@@ -22,6 +22,7 @@ REQUIRED_PKGS = [
     "fsspec==2023.9.2",
     "humanize==4.8.0",
     "rich==13.7.0",
+    "importlib_resources==6.1.1;python_version<'3.9'",
 ]
 
 EXTRAS = {
@@ -49,7 +50,7 @@ setup(
     package_dir={"": "src"},
     package_data={"": ["assets/*"]},
     include_package_data=True,
-    python_requires=">=3.7.0",
+    python_requires=">=3.8.0",
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS,
     classifiers=[
@@ -59,7 +60,6 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",

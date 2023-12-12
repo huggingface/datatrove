@@ -11,7 +11,7 @@ import dataclasses
 import heapq
 import struct
 from dataclasses import dataclass
-from typing import Generator
+from typing import Generator, List, Optional, Union
 
 from loguru import logger
 from nltk import load, ngrams
@@ -66,7 +66,7 @@ class SentenceDedupSignature(PipelineStep):
             f.write(struct.pack("<I", hs.doc_id))
             f.write(struct.pack("<H", hs.sent_id))
 
-    def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
+    def get_hashes(self, doc: Document, doc_idx: int) -> Union[List[None], List[HashSig]]:
         # todo use language id metadata in sent_tokenize
         sentences = sent_tokenize(doc.content)
         if len(sentences) < self.n_sentences:
@@ -162,7 +162,7 @@ class SentenceFindDedups(PipelineStep):
             pq = [next(sig_reader) for sig_reader in sig_readers]
             heapq.heapify(pq)
 
-            last: HashSig | None = None
+            last: Optional[HashSig] = None
             while pq:
                 v: HashSig = heapq.heappop(pq)
                 if (

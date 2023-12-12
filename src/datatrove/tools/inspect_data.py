@@ -43,18 +43,17 @@ console = Console()
 
 
 def reader_class_from_name(reader_type):
-    match reader_type:
-        case "jsonl":
-            return JsonlReader
-        case "csv":
-            return CSVReader
-        case "parquet":
-            return ParquetReader
-        case "warc":
-            return WarcReader
-        case other:
-            console.log(f"[red]Unknwon reader type {other}")
-            sys.exit(-1)
+    if reader_type == "jsonl":
+        return JsonlReader
+    elif reader_type == "csv":
+        return CSVReader
+    elif reader_type == "parquet":
+        return ParquetReader
+    elif reader_type == "warc":
+        return WarcReader
+    else:
+        console.log(f"[red]Unknwon reader type {reader_type}")
+        sys.exit(-1)
 
 
 def reader_factory(data_folder: BaseInputDataFolder, reader_type: str = None, **kwargs):
@@ -64,18 +63,18 @@ def reader_factory(data_folder: BaseInputDataFolder, reader_type: str = None, **
         sys.exit(-1)
 
     if not reader_type:
-        match get_file_extension(data_files[0].path):
-            case ".jsonl.gz" | ".jsonl" | ".json":
-                reader_type = "jsonl"
-            case ".csv":
-                reader_type = "csv"
-            case ".parquet":
-                reader_type = "parquet"
-            case ".warc.gz" | "arc.gz" | ".warc":
-                reader_type = "warc"
-            case other:
-                console.log(f'[red]Could not find a matching reader for file extension "{other}"')
-                sys.exit(-1)
+        extension = get_file_extension(data_files[0].path)
+        if extension in [".jsonl.gz" | ".jsonl" | ".json"]:
+            reader_type = "jsonl"
+        elif extension in [".csv"]:
+            reader_type = "csv"
+        elif extension in [".parquet"]:
+            reader_type = "parquet"
+        elif extension in [".warc.gz" | "arc.gz" | ".warc"]:
+            reader_type = "warc"
+        else:
+            console.log(f'[red]Could not find a matching reader for file extension "{extension}"')
+            sys.exit(-1)
     return reader_class_from_name(reader_type)(data_folder, **kwargs)
 
 

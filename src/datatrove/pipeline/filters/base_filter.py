@@ -1,6 +1,6 @@
 import contextlib
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, Union
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
@@ -28,7 +28,7 @@ class BaseFilter(PipelineStep, ABC):
         self.exclusion_writer = exclusion_writer
 
     @abstractmethod
-    def filter(self, doc: Document) -> bool | Tuple[bool, str]:
+    def filter(self, doc: Document) -> Union[bool, Tuple[bool, str]]:
         """Filter modules main method.
         Returns true if a sample should be kept, false if it should be removed.
 

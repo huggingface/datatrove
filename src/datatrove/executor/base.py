@@ -3,7 +3,7 @@ import json
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Sequence
-from typing import Callable
+from typing import Callable, List, Optional, Union
 
 from loguru import logger
 
@@ -17,8 +17,8 @@ class PipelineExecutor(ABC):
     @abstractmethod
     def __init__(
         self,
-        pipeline: list[PipelineStep | Callable],
-        logging_dir: BaseOutputDataFolder = None,
+        pipeline: List[Union[PipelineStep, Callable]],
+        logging_dir: Optional[BaseOutputDataFolder] = None,
         skip_completed: bool = True,
     ):
         """
@@ -113,7 +113,7 @@ class ExecutorJSONEncoder(json.JSONEncoder):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)
         if isinstance(o, PipelineExecutor):
-            return o.__dict__ | {"world_size": o.world_size}
+            return {**o.__dict__, "world_size": o.world_size}
         if isinstance(o, PipelineStep):
             return {a: b for a, b in o.__dict__.items() if a != "stats"}
         return str(o)

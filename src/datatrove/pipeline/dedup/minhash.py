@@ -2,7 +2,7 @@ import contextlib
 import heapq
 import struct
 from dataclasses import dataclass
-from typing import Generator
+from typing import Generator, Optional, Tuple
 
 import numpy as np
 from loguru import logger
@@ -60,7 +60,7 @@ DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
 @dataclass(order=True)
 class HashSig:
-    sig: tuple[int]
+    sig: Tuple[int]
     file_id: int
     doc_id: int
     reader_id: int
@@ -212,7 +212,7 @@ class MinhashDedupBuckets(PipelineStep):
                 f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index", mode="wb"
             )
 
-        last: HashSig | None = None
+        last: Optional[HashSig] = None
         with self.track_time():
             while pq:
                 v: HashSig = heapq.heappop(pq)
@@ -400,7 +400,7 @@ class MinhashBuildIndex(PipelineStep):
         # writes all the sigs for the entire bucket, sequentially
         out_f = self.output_folder.open(f"bucket_{bucket:03d}/{self.index_name}.minhash.index", mode="wb")
 
-        last: HashSig | None = None
+        last: Optional[HashSig] = None
         with self.track_time():
             while pq:
                 v: HashSig = heapq.heappop(pq)

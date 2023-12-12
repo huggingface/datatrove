@@ -3,6 +3,7 @@ import os.path
 import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import List, Optional, Union
 
 from loguru import logger
 
@@ -166,7 +167,9 @@ class S3InputDataFolder(BaseInputDataFolder):
             return True
         return s3_file_exists(os.path.join(self.path, relative_path))
 
-    def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[BaseInputDataFile]:
+    def list_files(
+        self, extension: Optional[Union[str, List[str]]] = None, suffix: str = ""
+    ) -> List[BaseInputDataFile]:
         return [
             self._unchecked_get_file(os.path.join(suffix, path))
             for path in s3_get_file_list(

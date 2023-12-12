@@ -1,3 +1,5 @@
+from typing import Optional, Tuple, Union
+
 from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
@@ -8,12 +10,12 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 class ListFilter(BaseFilter):
     name = "🎅 List"
 
-    def __init__(self, new_line_ratio: float | None = 0.3, exclusion_writer: DiskWriter = None):  # TODO better tune
+    def __init__(self, new_line_ratio: Optional[float] = 0.3, exclusion_writer: DiskWriter = None):  # TODO better tune
         """ """
         super().__init__(exclusion_writer)
         self.new_line_ratio = new_line_ratio
 
-    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+    def filter(self, doc: Document) -> Union[bool, Tuple[bool, str]]:
         """Applies heuristic rules to decide if a document should be REMOVED
         Args:
             doc

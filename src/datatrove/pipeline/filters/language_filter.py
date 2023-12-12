@@ -1,5 +1,6 @@
 import os
 import urllib.request
+from typing import Tuple
 
 from loguru import logger
 
@@ -24,7 +25,7 @@ class LanguageFilter(BaseFilter):
 
     def __init__(
         self,
-        languages: tuple = (Languages.english,),
+        languages: Tuple = (Languages.english,),
         language_threshold: float = 0.65,
         model_local_path: str = os.path.join(DOWNLOAD_PATH, "language_id/lid.176.bin"),
         exclusion_writer: DiskWriter = None,

@@ -1,5 +1,6 @@
 import re
 from collections import Counter
+from typing import List, Optional, Tuple, Union
 
 from nltk.tokenize import word_tokenize
 
@@ -28,11 +29,11 @@ Table A1 from https://arxiv.org/pdf/2112.11446.pdf
 """
 
 
-def get_n_grams(words: list[str], n: int) -> list[str]:
+def get_n_grams(words: List[str], n: int) -> List[str]:
     return [" ".join(words[i : i + n]) for i in range(len(words) - n + 1)]
 
 
-def find_duplicates(x: list[str]) -> tuple[int, int]:
+def find_duplicates(x: List[str]) -> Tuple[int, int]:
     unique_x = set()
     duplicate_chars = 0
     duplicate_elements = 0
@@ -46,7 +47,7 @@ def find_duplicates(x: list[str]) -> tuple[int, int]:
     return duplicate_elements, duplicate_chars
 
 
-def find_top_duplicate(x: list[str]) -> int:
+def find_top_duplicate(x: List[str]) -> int:
     counter = Counter()
     for element in x:
         counter[element] += 1
@@ -54,7 +55,7 @@ def find_top_duplicate(x: list[str]) -> int:
     return len(top_n_gram[0]) * top_n_gram[1]
 
 
-def find_all_duplicate(words: list[str], n: int) -> int:
+def find_all_duplicate(words: List[str], n: int) -> int:
     n_words = len(words)
     unique = set()
     repeated_chars, idx = 0, 0
@@ -75,12 +76,12 @@ class GopherRepetitionFilter(BaseFilter):
 
     def __init__(
         self,
-        dup_line_frac: float | None = 0.3,
-        dup_para_frac: float | None = 0.3,
-        dup_line_char_frac: float | None = 0.2,
-        dup_para_char_frac: float | None = 0.2,
-        top_n_grams: tuple[tuple[int, float]] = ((2, 0.2), (3, 0.18), (4, 0.16)),
-        dup_n_grams: tuple[tuple[int, float]] = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10)),
+        dup_line_frac: Optional[float] = 0.3,
+        dup_para_frac: Optional[float] = 0.3,
+        dup_line_char_frac: Optional[float] = 0.2,
+        dup_para_char_frac: Optional[float] = 0.2,
+        top_n_grams: Tuple[Tuple[int, float]] = ((2, 0.2), (3, 0.18), (4, 0.16)),
+        dup_n_grams: Tuple[Tuple[int, float]] = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10)),
         exclusion_writer: DiskWriter = None,
     ):
         """
@@ -97,7 +98,7 @@ class GopherRepetitionFilter(BaseFilter):
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
 
-    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+    def filter(self, doc: Document) -> Union[bool, Tuple[bool, str]]:
         text = doc.content
 
         paragraphs = self.paragraph_exp.split(text.strip())

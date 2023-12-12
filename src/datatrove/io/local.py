@@ -2,6 +2,7 @@ import gzip as gzip_lib
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import List, Optional, Union
 
 from datatrove.io.base import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFile, BaseOutputDataFolder
 
@@ -64,7 +65,9 @@ class LocalInputDataFolder(BaseInputDataFolder):
 
     """
 
-    def list_files(self, extension: str | list[str] = None, suffix: str = "") -> list[LocalInputDataFile]:
+    def list_files(
+        self, extension: Optional[Union[str, List[str]]] = None, suffix: str = ""
+    ) -> List[LocalInputDataFile]:
         return [
             self._unchecked_get_file(os.path.relpath(path, self.path))
             for path in get_local_file_list(os.path.join(self.path, suffix), self.recursive)
@@ -91,7 +94,7 @@ class LocalInputDataFolder(BaseInputDataFolder):
         return LocalOutputDataFolder(path=self.path)
 
 
-def get_local_file_list(path: str, recursive: bool = True) -> list[str]:
+def get_local_file_list(path: str, recursive: bool = True) -> List[str]:
     """Get a list of absolute paths to all the files in a given local folder, sorted.
 
     Args:

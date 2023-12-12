@@ -1,4 +1,4 @@
-from typing import Callable, Literal
+from typing import Callable, Dict, Literal, Optional
 
 import cchardet
 import magic
@@ -15,7 +15,7 @@ class WarcReader(BaseReader):
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        compression: Optional[Literal["guess", "gzip", "zst"]] = "guess",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -39,7 +39,7 @@ class WarcReader(BaseReader):
                 yield document
 
 
-def process_record(record: ArcWarcRecord) -> dict | None:
+def process_record(record: ArcWarcRecord) -> Optional[Dict]:
     # record type
     if record.rec_type != "response":
         return
