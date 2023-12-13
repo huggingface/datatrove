@@ -31,10 +31,12 @@ class ParquetReader(BaseReader):
                 li = 0
                 columns = [self.content_key, self.id_key] if not self.read_metadata else None
                 for batch in pqf.iter_batches(batch_size=self.batch_size, columns=columns):
-                    with self.track_time():
+                    documents = []
+                    with self.track_time("batch"):
                         for line in batch.to_pylist():
                             document = self.get_document_from_dict(line, datafile, li)
                             if not document:
                                 continue
+                            documents.append(document)
                             li += 1
-                            yield document
+                    yield from documents
