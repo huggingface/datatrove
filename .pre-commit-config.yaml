@@ -1,10 +1,9 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.0.259
+  - repo: https://github.com/charliermarsh/ruff-pre-commit # https://github.com/charliermarsh/ruff#usage
+    rev: 'v0.1.5'
     hooks:
+      # Run the linter.
       - id: ruff
-        args: [./src, setup.py, --fix]
-  - repo: https://github.com/psf/black
-    rev: 23.3.0
-    hooks:
-      - id: black
+        args: [ --fix ]
+      # Run the formatter.
+      - id: ruff-format

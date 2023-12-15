@@ -101,9 +101,10 @@ class MinhashDedupSignature(PipelineStep):
             # that maps a 32-bit hash value to another 32-bit hash value.
             # http://en.wikipedia.org/wiki/Universal_hashing
             gen = np.random.RandomState(self.config.seed)
-            self._parameters = gen.randint(
-                1, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes)
-            ), gen.randint(0, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes))
+            self._parameters = (
+                gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes)),
+                gen.randint(0, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes)),
+            )
         return self._parameters
 
     def get_signature(self, shingles):

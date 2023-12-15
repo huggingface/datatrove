@@ -94,8 +94,9 @@ class SingleBloomFilter(PipelineStep):
             # that maps a 32-bit hash value to another 32-bit hash value.
             # http://en.wikipedia.org/wiki/Universal_hashing
             gen = np.random.RandomState(self.seed)
-            self._parameters = gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.k)), gen.randint(
-                0, _mersenne_prime, dtype=np.uint64, size=(1, self.k)
+            self._parameters = (
+                gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.k)),
+                gen.randint(0, _mersenne_prime, dtype=np.uint64, size=(1, self.k)),
             )
         return self._parameters
 
