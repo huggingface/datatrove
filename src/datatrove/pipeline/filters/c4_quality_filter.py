@@ -1,3 +1,4 @@
+import heapq
 import re
 
 from nltk import load
@@ -61,3 +62,41 @@ class C4QualityFilter(BaseFilter):
         # sent_dedup's remove_dup_sentences may be adapted for this
         lines = [line for line in lines if self.line_filter(line)]
         doc.content = " ".join(lines)
+
+
+class C4ParagraphFilter(BaseFilter):
+    """Applies paragraph filtering from mC4
+
+    https://github.com/tensorflow/datasets/blob/master/tensorflow_datasets/text/c4_utils.py#L551
+    """
+
+    name = "⛰ C4 Paragraph"
+
+    def __init__(self, exclusion_writer: DiskWriter = None):
+        super().__init__(exclusion_writer)
+
+        self.min_paragraphs = 3
+        self.min_paragraph_len = 200
+        self.line_delimiter = "\n"
+
+    def paragraph_filter(self, page):
+        """Returns False iff a page has too few or too short paragraphs."""
+        lines = page.split(self.line_delimiter)
+        # Filter out docs that don't have at least three "paragraphs"
+        # (lines >= `min_paragraph_len` chars).
+        if (
+            len(lines) < self.min_paragraphs
+            or min(heapq.nlargest(3, [len(l) for l in lines])) < self.min_paragraph_len
+        ):
+            return False
+        return True
+
+    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+        """Args:
+            doc
+
+        Returns:
+
+        """
+        if not self.paragraph_filter(doc.content):
+            return False, f"< {self.min_paragraphs} paragraphs"

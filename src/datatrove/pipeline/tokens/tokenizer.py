@@ -1,3 +1,4 @@
+import itertools
 import mmap
 import struct
 
@@ -17,6 +18,19 @@ try:
     from tokenizers.processors import TemplateProcessing
 except ImportError:
     TOKENIZERS_INSTALLED = False
+
+
+def batched(iterable, n):
+    """In python 3.12+ we could use itertools.batched instead
+
+    One difference with itertools.batched: we return a list instead of a tuple
+    """
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    if n < 1:
+        raise ValueError("n must be at least one")
+    it = iter(iterable)
+    while batch := list(itertools.islice(it, n)):
+        yield batch
 
 
 class TokenizedFile:
@@ -125,6 +139,7 @@ class DocumentTokenizer(PipelineStep):
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
         save_loss_metadata: bool = False,  # save the loss information
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
+        batch_size: int = 1000,  # batch size for tokenization
         seed: int = None,
         save_final_metadata: bool = True,
     ):
@@ -135,6 +150,7 @@ class DocumentTokenizer(PipelineStep):
         self.eos_token = eos_token
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle
+        self.batch_size = batch_size
         self._tokenizer = None
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
@@ -142,7 +158,7 @@ class DocumentTokenizer(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def get_loss_values(self, document: Document, encoded):
+    def get_loss_values(self, document: Document, encoded: Encoding):
         loss_values = None
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
@@ -156,23 +172,26 @@ class DocumentTokenizer(PipelineStep):
                         loss_values = loss_values[:t_start]
         return loss_values
 
-    def write_unshuffled(self, data, filename):
+    def write_unshuffled(self, data: DocumentsPipeline, filename: str):
         unshuff = TokenizedFile(
             self.output_folder, filename, save_index=not self.shuffle, save_loss_metadata=self.save_loss_metadata
         )
-        # tokenize each document's text and write its tokens sequentially to the output .ds
-        for document in data:
+        # tokenize document's text in batches to go faster – we compute loss values independently if needed
+        for batch in batched(data, self.batch_size):
             with self.track_time():
-                encoded: Encoding = self.tokenizer.encode(document.content)
-                tokens = encoded.ids
-                # loss values
-                loss_values = self.get_loss_values(document, encoded)
-                if loss_values is not None and len(loss_values) < len(tokens):
-                    tokens = tokens[: len(loss_values)]
-                # write bytes to disk
-                unshuff.write(tokens, loss_values)
-                # save stats
-                self.stat_update("tokens", value=len(tokens))
+                encoded_batch: Encoding = self.tokenizer.encode_batch([document.content for document in batch])
+                loss_values_batch = [
+                    self.get_loss_values(document, encoded) for document, encoded in zip(batch, encoded_batch)
+                ]
+            for encoded, loss_values in zip(encoded_batch, loss_values_batch):
+                with self.track_time():
+                    tokens = encoded.ids
+                    if loss_values is not None and len(loss_values) < len(tokens):
+                        tokens = tokens[: len(loss_values)]
+                    # write bytes to disk
+                    unshuff.write(tokens, loss_values)
+                    # save stats
+                    self.stat_update("tokens", value=len(tokens))
         return unshuff
 
     def get_output_filename(self, rank, name):
@@ -199,7 +218,7 @@ class DocumentTokenizer(PipelineStep):
         self.output_folder.close()
 
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> Tokenizer:
         if not self._tokenizer:
             if not TOKENIZERS_INSTALLED:
                 logger.error("`tokenizers` is required to run DocumentTokenizer")
