@@ -1,16 +1,15 @@
-[tool.black]
-line-length = 119
-target-version = ['py310']
-
 [tool.ruff]
-# Never enforce `E501` (line length violations).
-ignore = ["C901", "E501", "E741"]
+# Ignored rules:
+#   "E501" -> line length violation
+#   "C901" -> `function_name` is too complex
+ignore = ["C901", "E501"]
 select = ["C", "E", "F", "I", "W"]
 line-length = 119
 
-# Ignore import violations in all `__init__.py` files.
 [tool.ruff.per-file-ignores]
-"__init__.py" = ["E402", "F401", "F403", "F811"]
+# Ignored rules:
+#   "F401" -> module imported but unused
+"__init__.py" = ["F401"]
 
 [tool.ruff.isort]
 lines-after-imports = 2
