@@ -1,3 +1,4 @@
+from .c4_quality_filter import C4ParagraphFilter, C4QualityFilter
 from .gopher_quality_filter import GopherQualityFilter
 from .gopher_repetition_filter import GopherRepetitionFilter
 from .lambda_filter import LambdaFilter
