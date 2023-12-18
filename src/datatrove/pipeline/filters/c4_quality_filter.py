@@ -86,7 +86,7 @@ class C4ParagraphFilter(BaseFilter):
         # (lines >= `min_paragraph_len` chars).
         if (
             len(lines) < self.min_paragraphs
-            or min(heapq.nlargest(3, [len(l) for l in lines])) < self.min_paragraph_len
+            or min(heapq.nlargest(3, [len(line) for line in lines])) < self.min_paragraph_len
         ):
             return False
         return True
@@ -100,3 +100,4 @@ class C4ParagraphFilter(BaseFilter):
         """
         if not self.paragraph_filter(doc.content):
             return False, f"< {self.min_paragraphs} paragraphs"
+        return True
