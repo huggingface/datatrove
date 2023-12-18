@@ -66,6 +66,15 @@ executor = LocalPipelineExecutor(
 ```
 </details>
 
+### SlurmPipelineExecutor
+This executor will launch a pipeline on a slurm cluster, using slurm job arrays to group and manage tasks.
+Options:
+- `tasks` total number of tasks to run
+- `time` slurm time limit string. mandatory
+- `workers` how many tasks to run simultaneously. If `-1`, no limit. Slurm will run `workers` tasks at a time.
+- `cpus_per_task` how many cpus to give each task. `1` by default
+
+
 [WIP]
 
 ## Installation
