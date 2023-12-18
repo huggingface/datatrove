@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 
-REQUIRED_PKGS = [
+install_requires = [
     "boto3==1.28.78",
     "cchardet==2.1.7",
     "inscriptis==2.3.2",
@@ -24,16 +24,23 @@ REQUIRED_PKGS = [
     "rich==13.7.0",
 ]
 
-EXTRAS = {
-    "dev": [
-        "black~=23.1",
-        "pre-commit>=3.3.3",
-        "pytest>=7.2.0",
-        "pytest-timeout",
-        "pytest-xdist",
-        "ruff>=0.0.241,<=0.0.259",
-    ]
-}
+extras = {}
+
+extras["quality"] = [
+    "ruff>=0.1.5",
+]
+
+extras["tests"] = [
+    "pytest",
+    "pytest-timeout",
+    "pytest-xdist",
+    # Optional dependencies
+    "fasttext-wheel",
+]
+
+extras["all"] = extras["quality"] + extras["tests"]
+
+extras["dev"] = extras["all"]
 
 setup(
     name="datatrove",
@@ -50,8 +57,8 @@ setup(
     package_data={"": ["assets/*"]},
     include_package_data=True,
     python_requires=">=3.10.0",
-    install_requires=REQUIRED_PKGS,
-    extras_require=EXTRAS,
+    install_requires=install_requires,
+    extras_require=extras,
     classifiers=[
         "Intended Audience :: Developers",
         "Intended Audience :: Education",

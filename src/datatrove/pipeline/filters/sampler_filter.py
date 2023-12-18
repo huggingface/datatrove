@@ -9,7 +9,10 @@ class SamplerFilter(BaseFilter):
     name = "🎲 Sampler"
 
     def __init__(
-        self, rate: float | None = 0.5, seed: int = None, exclusion_writer: DiskWriter = None  # rate to KEEP
+        self,
+        rate: float | None = 0.5,
+        seed: int = None,
+        exclusion_writer: DiskWriter = None,  # rate to KEEP
     ):
         """ """
         super().__init__(exclusion_writer)
