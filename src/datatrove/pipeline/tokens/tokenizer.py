@@ -178,14 +178,11 @@ class DocumentTokenizer(PipelineStep):
         )
         # tokenize document's text in batches to go faster – we compute loss values independently if needed
         for batch in batched(data, self.batch_size):
-            with self.track_time():
-                encoded_batch: Encoding = self.tokenizer.encode_batch([document.content for document in batch])
-                loss_values_batch = [
-                    self.get_loss_values(document, encoded) for document, encoded in zip(batch, encoded_batch)
-                ]
-            for encoded, loss_values in zip(encoded_batch, loss_values_batch):
-                with self.track_time():
+            with self.track_time(unit="batch"):
+                encoded_batch: list[Encoding] = self.tokenizer.encode_batch([document.content for document in batch])
+                for document, encoded in zip(batch, encoded_batch):
                     tokens = encoded.ids
+                    loss_values = self.get_loss_values(document, encoded)
                     if loss_values is not None and len(loss_values) < len(tokens):
                         # crop final section without loss
                         tokens = tokens[: len(loss_values)]
