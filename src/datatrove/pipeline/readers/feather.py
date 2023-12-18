@@ -6,8 +6,8 @@ from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
-class ParquetReader(BaseReader):
-    name = "📒 Parquet"
+class FeatherReader(BaseReader):
+    name = "🪶 Feather"
 
     def __init__(
         self,
