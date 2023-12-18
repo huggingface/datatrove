@@ -12,8 +12,8 @@ class MediaType:
 class Media:
     type: int
     url: str
-    alt: str = None
-    local_path: str = None
+    alt: str | None = None
+    local_path: str | None = None
 
 
 @dataclass
