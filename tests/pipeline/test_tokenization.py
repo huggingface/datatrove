@@ -67,7 +67,9 @@ class TestTokenization(unittest.TestCase):
         TOKENS_DIR = os.path.join(self.test_dir, dir_name)
         MERGED_DIR = os.path.join(self.test_dir, dir_name + "_merged")
 
-        document_tokenizer = DocumentTokenizer(LocalOutputDataFolder(TOKENS_DIR), shuffle=seed is not None, seed=seed)
+        document_tokenizer = DocumentTokenizer(
+            LocalOutputDataFolder(TOKENS_DIR), shuffle=seed is not None, seed=seed, save_loss_metadata=True
+        )
         for worker, worker_data in enumerate(data):
             document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
         # general consistency check
@@ -83,6 +85,7 @@ class TestTokenization(unittest.TestCase):
             LocalOutputDataFolder(MERGED_DIR),
             save_filename="my_dataset",
             shuffle=seed is not None,
+            save_loss_metadata=True,
             seed=seed,
         )
         merger(None)

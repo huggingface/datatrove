@@ -187,6 +187,7 @@ class DocumentTokenizer(PipelineStep):
                 with self.track_time():
                     tokens = encoded.ids
                     if loss_values is not None and len(loss_values) < len(tokens):
+                        # crop final section without loss
                         tokens = tokens[: len(loss_values)]
                     # write bytes to disk
                     unshuff.write(tokens, loss_values)
