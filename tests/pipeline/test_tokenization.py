@@ -46,56 +46,56 @@ def get_texts_from_tokens(input_folder: BaseInputDataFolder):
     return texts_from_tokens
 
 
-def check_order_reconstruction(input_folder, mapping):
-    texts_from_tokens = get_texts_from_tokens(input_folder)
-    if not mapping:
-        mapping = range(len(texts))
-    for map, from_tokens in zip(mapping, texts_from_tokens):
-        assert texts[map] == from_tokens
-
-
 class TestTokenization(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
-        self.test_dir = tempfile.mkdtemp()
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree)
 
-    def tearDown(self):
-        # Remove the directory after the test
-        shutil.rmtree(self.test_dir)
+    def check_order_reconstruction(self, input_folder, mapping):
+        texts_from_tokens = get_texts_from_tokens(input_folder)
+        if not mapping:
+            mapping = range(len(texts))
+        for map, from_tokens in zip(mapping, texts_from_tokens):
+            self.assertEqual(texts[map], from_tokens)
 
-    def run_test(self, dir_name, seed=None, dist_mapping=None, merge_mapping=None):
-        TOKENS_DIR = os.path.join(self.test_dir, dir_name)
-        MERGED_DIR = os.path.join(self.test_dir, dir_name + "_merged")
+    def test_tokenizer(self):
+        for sub_test, args in [
+            ("tokenizer_unshuffled", (None, None, None)),
+            ("tokenizer_shuffled", (7383, [2, 0, 1, 4, 3, 5, 7, 6], [2, 4, 7, 0, 3, 1, 6, 5])),
+        ]:
+            with self.subTest(sub_test):
+                seed, dist_mapping, merge_mapping = args
 
-        document_tokenizer = DocumentTokenizer(LocalOutputDataFolder(TOKENS_DIR), shuffle=seed is not None, seed=seed)
-        for worker, worker_data in enumerate(data):
-            document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
-        # general consistency check
-        input_folder = LocalInputDataFolder(TOKENS_DIR)
-        check_dataset(input_folder)
+                TOKENS_DIR = os.path.join(self.tmp_dir, sub_test, "tokens")
+                MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
 
-        # check order/reconstruction
-        check_order_reconstruction(input_folder, dist_mapping)
+                document_tokenizer = DocumentTokenizer(
+                    LocalOutputDataFolder(TOKENS_DIR), shuffle=seed is not None, seed=seed, save_loss_metadata=True
+                )
+                for worker, worker_data in enumerate(data):
+                    document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
+                # general consistency check
+                input_folder = LocalInputDataFolder(TOKENS_DIR)
+                check_dataset(input_folder)
 
-        # testing merger
-        merger = DocumentTokenizerMerger(
-            LocalInputDataFolder(TOKENS_DIR),
-            LocalOutputDataFolder(MERGED_DIR),
-            save_filename="my_dataset",
-            shuffle=seed is not None,
-            seed=seed,
-        )
-        merger(None)
+                # check order/reconstruction
+                self.check_order_reconstruction(input_folder, dist_mapping)
 
-        # general consistency check
-        input_folder = LocalInputDataFolder(MERGED_DIR)
-        check_dataset(input_folder)
+                # testing merger
+                merger = DocumentTokenizerMerger(
+                    LocalInputDataFolder(TOKENS_DIR),
+                    LocalOutputDataFolder(MERGED_DIR),
+                    save_filename="my_dataset",
+                    shuffle=seed is not None,
+                    save_loss_metadata=True,
+                    seed=seed,
+                )
+                merger(None)
 
-        # check order/reconstruction
-        check_order_reconstruction(input_folder, merge_mapping)
+                # general consistency check
+                input_folder = LocalInputDataFolder(MERGED_DIR)
+                check_dataset(input_folder)
 
-    def test_tokenizer_unshuffled(self):
-        self.run_test("tokenized_unshuffled")
-
-    def test_tokenizer_shuffled(self):
-        self.run_test("tokenized_shuffled", 7383, [2, 0, 1, 4, 3, 5, 7, 6], [2, 4, 7, 0, 3, 1, 6, 5])
+                # check order/reconstruction
+                self.check_order_reconstruction(input_folder, merge_mapping)

@@ -130,18 +130,15 @@ TARGETS_WS2_1 = [
 class SentenceDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
-        self.test_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        # Remove the directory after the test
-        shutil.rmtree(self.test_dir)
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree)
 
     def test_sd(self):
-        signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.test_dir))
+        signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.tmp_dir))
         find_duplicates = SentenceFindDedups(
-            data_folder=LocalInputDataFolder(self.test_dir), output_folder=LocalOutputDataFolder(self.test_dir)
+            data_folder=LocalInputDataFolder(self.tmp_dir), output_folder=LocalOutputDataFolder(self.tmp_dir)
         )
-        dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.test_dir), min_doc_words=0)
+        dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.tmp_dir), min_doc_words=0)
 
         signature_creation(data=DOCS)
         find_duplicates(data=[])
@@ -149,12 +146,12 @@ class SentenceDedup(unittest.TestCase):
             self.assertEqual(doc.content, TARGETS[i])
 
     def test_sd_worker(self):
-        signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.test_dir))
+        signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.tmp_dir))
 
         find_duplicates = SentenceFindDedups(
-            data_folder=LocalInputDataFolder(self.test_dir), output_folder=LocalOutputDataFolder(self.test_dir)
+            data_folder=LocalInputDataFolder(self.tmp_dir), output_folder=LocalOutputDataFolder(self.tmp_dir)
         )
-        dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.test_dir), min_doc_words=0)
+        dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.tmp_dir), min_doc_words=0)
 
         signature_creation(data=DOCS, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)
