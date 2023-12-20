@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 install_requires = [
     "boto3==1.28.78",
-    "cchardet==2.1.7",
+    "faust-cchardet==2.1.19",
     "inscriptis==2.3.2",
     "loguru==0.7.0",
     "multiprocess==0.70.14",
@@ -14,7 +14,7 @@ install_requires = [
     "trafilatura==1.6.1",
     "warcio==1.7.4",
     "zstandard==0.21.0",
-    "pyarrow==12.0.1",
+    "pyarrow==14.0.0",
     "tokenizers==0.13.3",
     "tldextract==3.4.4",
     "pandas==2.0.3",
@@ -67,6 +67,7 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="data machine learning processing",
