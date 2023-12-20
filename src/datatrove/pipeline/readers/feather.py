@@ -28,7 +28,7 @@ class FeatherReader(BaseReader):
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(binary=True) as f:
             columns = [self.content_key, self.id_key] if not self.read_metadata else None
-            read_options = pa.ipc.IpcReadOptions(fields=columns)
+            read_options = pa.ipc.IpcReadOptions(included_fields=columns)
             with pa.ipc.open_file(f, read_options=read_options) as feather_reader:
                 li = 0
                 for batch in feather_reader:
