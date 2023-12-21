@@ -6,15 +6,13 @@ from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
-class FeatherReader(BaseReader):
-    name = "🪶 Feather"
+class IpcReader(BaseReader):
+    name = "🪶 Ipc"
 
     def __init__(
         self,
         data_folder: BaseInputDataFolder,
         limit: int = -1,
-        batch_size: int = 1000,
-        read_metadata: bool = True,
         progress: bool = False,
         adapter: Callable = None,
         content_key: str = "content",
@@ -22,16 +20,14 @@ class FeatherReader(BaseReader):
         default_metadata: dict = None,
     ):
         super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
-        self.batch_size = batch_size
-        self.read_metadata = read_metadata
+        # TODO: add option to disable reading metadata (https://github.com/apache/arrow/issues/13827 needs to be addressed first)
 
     def read_file(self, datafile: BaseInputDataFile):
         with datafile.open(binary=True) as f:
-            columns = [self.content_key, self.id_key] if not self.read_metadata else None
-            read_options = pa.ipc.IpcReadOptions(included_fields=columns)
-            with pa.ipc.open_file(f, read_options=read_options) as feather_reader:
+            with pa.ipc.open_file(f) as ipc_reader:
                 li = 0
-                for batch in feather_reader:
+                for i in range(ipc_reader.num_record_batches):
+                    batch = ipc_reader.get_batch(i)
                     documents = []
                     with self.track_time("batch"):
                         for line in batch.to_pylist():
