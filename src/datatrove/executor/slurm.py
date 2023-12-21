@@ -219,7 +219,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     def get_sbatch_args(self, max_array: int = 1) -> dict:
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
-        slurm_logfile = os.path.join(self.slurm_logs_folder, "%j.out")
+        slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
