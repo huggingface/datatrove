@@ -50,7 +50,7 @@ class TestTokenization(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree)
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def check_order_reconstruction(self, input_folder, mapping):
         texts_from_tokens = get_texts_from_tokens(input_folder)

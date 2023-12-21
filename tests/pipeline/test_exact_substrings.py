@@ -173,7 +173,7 @@ class TestExactSubstr(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree)
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def match_doc(self, sequence, size, reader, docs):
         for i, doc_content in enumerate(sequence_reader(sequence, size)):

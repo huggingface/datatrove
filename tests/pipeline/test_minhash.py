@@ -35,7 +35,7 @@ class TestMinhash(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree)
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_signatures(self):
         for use_64bit_hashes in (True, False):

@@ -89,7 +89,7 @@ class SentenceDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree)
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_sd(self):
         bloom_filter = SingleBloomFilter(
