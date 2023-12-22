@@ -170,47 +170,44 @@ TARGETS_2 = {0: "", 1: TEXT_2_0, 2: ""}
 
 
 class TestExactSubstr(unittest.TestCase):
+    def setUp(self):
+        # Create a temporary directory
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
+
     def match_doc(self, sequence, size, reader, docs):
         for i, doc_content in enumerate(sequence_reader(sequence, size)):
             self.assertEqual(docs[i].content, reader.tokenizer.decode(read_bytes(doc_content)))
 
-    def setUp(self):
-        # Create a temporary directory
-        self.test_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        # Remove the directory after the test
-        shutil.rmtree(self.test_dir)
-
     def test_signature_1_worker(self):
-        with open(self.test_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+        with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
             f.write(bytearange_file)
         data = copy.deepcopy(DATA)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.test_dir))
+        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.tmp_dir))
         merge_sequence = MergeSequences(
-            input_folder=LocalInputDataFolder(path=self.test_dir),
-            output_folder=LocalOutputDataFolder(path=self.test_dir),
+            input_folder=LocalInputDataFolder(path=self.tmp_dir),
+            output_folder=LocalOutputDataFolder(path=self.tmp_dir),
             tasks_stage_1=1,
         )
 
         dedup_reader = DedupReader(
-            data_folder=LocalInputDataFolder(path=self.test_dir),
-            sequence_folder=LocalInputDataFolder(path=self.test_dir),
+            data_folder=LocalInputDataFolder(path=self.tmp_dir),
+            sequence_folder=LocalInputDataFolder(path=self.tmp_dir),
             min_doc_words=0,
         )
 
         # test quality of stage 1, 2 output
         dataset_to_sequence(data=data)
         merge_sequence(data=[])
-        big_sequence_path = self.test_dir + "/dataset" + ExtensionHelperES.stage_2_big_sequence
+        big_sequence_path = self.tmp_dir + "/dataset" + ExtensionHelperES.stage_2_big_sequence
         self.assertTrue(os.path.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
         dedup_reader.get_sequence_bytes_offset()
         bytes_offset = dedup_reader.sequence_bytes_offset
-        with open(os.path.join(self.test_dir, "00000.es_sequence"), "rb") as f_s:
-            with open(os.path.join(self.test_dir, "dataset.big_sequence"), "rb") as f_b:
+        with open(os.path.join(self.tmp_dir, "00000.es_sequence"), "rb") as f_s:
+            with open(os.path.join(self.tmp_dir, "dataset.big_sequence"), "rb") as f_b:
                 sequence = f_s.read()
                 self.assertEqual(sequence, f_b.read())
                 self.assertEqual(len(sequence), bytes_offset[1])
@@ -228,19 +225,19 @@ class TestExactSubstr(unittest.TestCase):
     def test_signature_2_worker(self):
         data = copy.deepcopy(DATA)
 
-        with open(self.test_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+        with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
             f.write(bytearange_file_2)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.test_dir))
+        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.tmp_dir))
         merge_sequence = MergeSequences(
-            input_folder=LocalInputDataFolder(path=self.test_dir),
-            output_folder=LocalOutputDataFolder(path=self.test_dir),
+            input_folder=LocalInputDataFolder(path=self.tmp_dir),
+            output_folder=LocalOutputDataFolder(path=self.tmp_dir),
             tasks_stage_1=2,
         )
 
         dedup_reader = DedupReader(
-            data_folder=LocalInputDataFolder(path=self.test_dir),
-            sequence_folder=LocalInputDataFolder(path=self.test_dir),
+            data_folder=LocalInputDataFolder(path=self.tmp_dir),
+            sequence_folder=LocalInputDataFolder(path=self.tmp_dir),
             min_doc_words=0,
         )
 
@@ -249,15 +246,15 @@ class TestExactSubstr(unittest.TestCase):
         dataset_to_sequence(data=data_2, rank=1)
         merge_sequence(data=[])
 
-        big_sequence_path = self.test_dir + "/dataset" + ExtensionHelperES.stage_2_big_sequence
+        big_sequence_path = self.tmp_dir + "/dataset" + ExtensionHelperES.stage_2_big_sequence
         self.assertTrue(os.path.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
         dedup_reader.get_sequence_bytes_offset()
         bytes_offset = dedup_reader.sequence_bytes_offset
-        with open(os.path.join(self.test_dir, "00001.es_sequence"), "rb") as f_1:
-            with open(os.path.join(self.test_dir, "00000.es_sequence"), "rb") as f_0:
-                with open(os.path.join(self.test_dir, "dataset.big_sequence"), "rb") as f_b:
+        with open(os.path.join(self.tmp_dir, "00001.es_sequence"), "rb") as f_1:
+            with open(os.path.join(self.tmp_dir, "00000.es_sequence"), "rb") as f_0:
+                with open(os.path.join(self.tmp_dir, "dataset.big_sequence"), "rb") as f_b:
                     sequence_0 = f_0.read()
                     sequence_1 = f_1.read()
                     self.assertEqual(sequence_0 + sequence_1, f_b.read())

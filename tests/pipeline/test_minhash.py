@@ -34,23 +34,20 @@ Quisque et aliquet diam. Aenean euismod efficitur enim, non semper eros. Nullam 
 class TestMinhash(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
-        self.test_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        # Remove the directory after the test
-        shutil.rmtree(self.test_dir)
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_signatures(self):
         for use_64bit_hashes in (True, False):
             config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
             minhash = MinhashDedupSignature(
-                output_folder=LocalOutputDataFolder(os.path.join(self.test_dir, "signatures1")), config=config
+                output_folder=LocalOutputDataFolder(os.path.join(self.tmp_dir, "signatures1")), config=config
             )
             shingles = minhash.get_shingles(lorem_ipsum)
             sig = minhash.get_signature(shingles)
 
             minhash2 = MinhashDedupSignature(
-                output_folder=LocalOutputDataFolder(os.path.join(self.test_dir, "signatures2")), config=config
+                output_folder=LocalOutputDataFolder(os.path.join(self.tmp_dir, "signatures2")), config=config
             )
             # check consistency
             assert sig == minhash2.get_signature(shingles)
@@ -94,9 +91,9 @@ class TestMinhash(unittest.TestCase):
 
     def test_buckets_and_cluster(self):
         for use_64bit_hashes in (True, False):
-            sigs_folder = os.path.join(self.test_dir, "b_signatures")
-            buckets_folder = os.path.join(self.test_dir, "b_buckets")
-            clusters_folder = os.path.join(self.test_dir, "b_clusters")
+            sigs_folder = os.path.join(self.tmp_dir, "b_signatures")
+            buckets_folder = os.path.join(self.tmp_dir, "b_buckets")
+            clusters_folder = os.path.join(self.tmp_dir, "b_clusters")
             config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
 
             signatures_block = MinhashDedupSignature(output_folder=LocalOutputDataFolder(sigs_folder), config=config)
