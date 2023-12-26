@@ -46,14 +46,16 @@ def process_record(record: ArcWarcRecord) -> dict | None:
 
     # content type filtering
     mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
-    if mime_type is not None and mime_type != "text/html":
+    if mime_type is not None and (
+        mime_type != "text/html" and (record.rec_type != "conversion" or mime_type != "text/plain")
+    ):
         return
 
     content_bytes = record.content_stream().read()
     if mime_type is None:
         # fallback for older crawls without payload types
         mime_type = magic.from_buffer(content_bytes, mime=True)
-        if mime_type != "text/html":
+        if mime_type != "text/html" and (record.rec_type != "conversion" or mime_type != "text/plain"):
             return
 
     # Decode the response bytes
