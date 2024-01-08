@@ -11,7 +11,7 @@ from nltk import ngrams, word_tokenize
 from datatrove.data import DocumentsPipeline
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, sha1_hash64, simplify_content
+from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, sha1_hash64, simplify_text
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
@@ -123,7 +123,7 @@ class MinhashDedupSignature(PipelineStep):
         return np.array(
             [
                 [self._hash_func(" ".join(x).encode("utf-8"))]
-                for x in ngrams(word_tokenize(simplify_content(text)), self.config.n_grams)
+                for x in ngrams(word_tokenize(simplify_text(text)), self.config.n_grams)
             ],
             dtype=np.uint64,
         )
@@ -136,7 +136,7 @@ class MinhashDedupSignature(PipelineStep):
         for doc_idx, doc in enumerate(data):
             with self.track_time():
                 self.stat_update(StatHints.total)
-                shingles = self.get_shingles(doc.content)
+                shingles = self.get_shingles(doc.text)
                 if shingles.size != 0:
                     sig = self.get_signature(shingles)
                     for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):

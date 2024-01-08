@@ -53,7 +53,7 @@ class UnigramLogProbFilter(BaseFilter):
         return dict(zip(df["word"], df["count"]))
 
     def get_logprob(self, doc):
-        words = word_tokenize(doc.content)
+        words = word_tokenize(doc.text)
         freqs = [
             self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
         ]

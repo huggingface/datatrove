@@ -19,7 +19,7 @@ class BaseReader(PipelineStep):
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
-        content_key: str = "content",
+        text_key: str = "text",
         id_key: str = "data_id",
         default_metadata: dict = None,
     ):
@@ -27,7 +27,7 @@ class BaseReader(PipelineStep):
         self.data_folder = data_folder
         self.limit = limit
         self.progress = progress
-        self.content_key = content_key
+        self.text_key = text_key
         self.id_key = id_key
         self.adapter = adapter if adapter else self._default_adapter
         self._empty_warning = False
@@ -35,7 +35,7 @@ class BaseReader(PipelineStep):
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int):
         return {
-            "content": data.pop(self.content_key, ""),
+            "text": data.pop(self.text_key, ""),
             "data_id": data.pop(self.id_key, f"{path}/{id_in_file}"),
             "media": data.pop("media", []),
             "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
@@ -43,10 +43,10 @@ class BaseReader(PipelineStep):
 
     def get_document_from_dict(self, data: dict, source_file: BaseInputDataFile, id_in_file: int):
         parsed_data = self.adapter(data, source_file.relative_path, id_in_file)
-        if not parsed_data.get("content", None):
+        if not parsed_data.get("text", None):
             if not self._empty_warning:
                 self._empty_warning = True
-                logger.warning("Found document without content, skipping.")
+                logger.warning("Found document without text, skipping.")
             return None
         document = Document(**parsed_data)
         document.metadata.setdefault("file_path", source_file.path)

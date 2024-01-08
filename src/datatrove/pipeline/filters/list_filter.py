@@ -19,9 +19,9 @@ class ListFilter(BaseFilter):
             doc
 
         Returns:
-            False if sample.content is a list
+            False if sample.text is a list
         """
-        text = doc.content
+        text = doc.text
         words = word_tokenize(text)  # TODO we should use language id filter
         new_line = text.count("\n")
         if new_line / len(words) > self.new_line_ratio:

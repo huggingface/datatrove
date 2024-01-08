@@ -106,7 +106,7 @@ class TestMinhash(unittest.TestCase):
             clusters = [[0, 20, 50], [400, 420], [800, 810, 820, 840, 860], [1205, 1215, 1225, 1245], [1600], [2000]]
 
             cluster_samples = [
-                Document(content=lorem_ipsum[x : x + 300], data_id=f"{ci}_{xi}", metadata={"ci": ci, "xi": xi})
+                Document(text=lorem_ipsum[x : x + 300], data_id=f"{ci}_{xi}", metadata={"ci": ci, "xi": xi})
                 for ci, cluster in enumerate(clusters)
                 for xi, x in enumerate(cluster)
             ]

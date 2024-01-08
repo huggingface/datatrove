@@ -23,7 +23,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, simplify_content, str_hash
+from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, simplify_text, str_hash
 
 
 @dataclass(order=True)
@@ -68,11 +68,11 @@ class SentenceDedupSignature(PipelineStep):
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
         # todo use language id metadata in sent_tokenize
-        sentences = sent_tokenize(doc.content)
+        sentences = sent_tokenize(doc.text)
         if len(sentences) < self.n_sentences:
             return []
 
-        sentences_tokens = [simplify_content(sent) for sent in sentences]
+        sentences_tokens = [simplify_text(sent) for sent in sentences]
         n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.n_sentences)]
         hashes = [
             HashSig(
@@ -217,22 +217,22 @@ class SentenceDedupFilter(PipelineStep):
 
     def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> (str, str):
         if not du_lines:
-            return doc.content, None
-        sentence_spans = list(self._tokenizer.span_tokenize(doc.content))
+            return doc.text, None
+        sentence_spans = list(self._tokenizer.span_tokenize(doc.text))
         kept_sentences = []
         original_formatted = []
         last_s = 0
         in_removed_span = False
         for idx, s in enumerate(sentence_spans):
             if idx not in du_lines:
-                kept_sentences.append(doc.content[last_s : s[1]])
+                kept_sentences.append(doc.text[last_s : s[1]])
                 if in_removed_span:
                     original_formatted.append("<<<\u001b[0m")
                 in_removed_span = False
             elif not in_removed_span:
                 in_removed_span = True
                 original_formatted.append("\033[91m>>>")
-            original_formatted.append(doc.content[last_s : s[1]])
+            original_formatted.append(doc.text[last_s : s[1]])
             last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
         if in_removed_span:
             original_formatted.append("<<<\u001b[0m")
@@ -258,17 +258,17 @@ class SentenceDedupFilter(PipelineStep):
             for idx, doc in enumerate(data):
                 self.stat_update(StatHints.total)
                 with self.stats.time_stats:
-                    filtered_content, original_formatted = self.remove_dup_sentences(doc, du_lines=du_file.get(idx))
+                    filtered_text, original_formatted = self.remove_dup_sentences(doc, du_lines=du_file.get(idx))
                 if (
-                    filtered_content == doc.content or len(word_tokenize(filtered_content)) > self.min_doc_words
+                    filtered_text == doc.text or len(word_tokenize(filtered_text)) > self.min_doc_words
                 ):  # document is kept
                     self.update_doc_stats(doc)
-                    if not filtered_content == doc.content and writer:
-                        writer.write(dataclasses.replace(doc, content=original_formatted), rank=rank)
-                    doc.content = filtered_content
+                    if not filtered_text == doc.text and writer:
+                        writer.write(dataclasses.replace(doc, text=original_formatted), rank=rank)
+                    doc.text = filtered_text
                     yield doc
                 elif writer:
-                    doc.content = original_formatted
+                    doc.text = original_formatted
                     writer.write(doc, rank=rank)
 
 

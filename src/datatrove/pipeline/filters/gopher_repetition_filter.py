@@ -98,7 +98,7 @@ class GopherRepetitionFilter(BaseFilter):
         self.paragraph_exp = re.compile(r"\n{2,}")
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        text = doc.content
+        text = doc.text
 
         paragraphs = self.paragraph_exp.split(text.strip())
         paragraphs_duplicates, char_duplicates = find_duplicates(paragraphs)

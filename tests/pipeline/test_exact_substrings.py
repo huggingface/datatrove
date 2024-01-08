@@ -116,32 +116,32 @@ bytearange_file_2 = (
 )
 
 DATA = [
-    Document(content=TEXT_0, data_id="0"),
-    Document(content=TEXT_1, data_id="1"),
-    Document(content=TEXT_2, data_id="2"),
-    Document(content=TEXT_3, data_id="3"),
-    Document(content=TEXT_4, data_id="4"),
-    Document(content=TEXT_5, data_id="5"),
-    Document(content=TEXT_6, data_id="6"),
-    Document(content=TEXT_7, data_id="7"),
-    Document(content=TEXT_8, data_id="8"),
-    Document(content=TEXT_9, data_id="9"),
-    Document(content=TEXT_10, data_id="10"),
-    Document(content=TEXT_11, data_id="11"),
-    Document(content=TEXT_12, data_id="12"),
-    Document(content=TEXT_13, data_id="13"),
-    Document(content=TEXT_14, data_id="14"),
-    Document(content=TEXT_15, data_id="15"),
-    Document(content=TEXT_16, data_id="16"),
-    Document(content=TEXT_17, data_id="17"),
+    Document(text=TEXT_0, data_id="0"),
+    Document(text=TEXT_1, data_id="1"),
+    Document(text=TEXT_2, data_id="2"),
+    Document(text=TEXT_3, data_id="3"),
+    Document(text=TEXT_4, data_id="4"),
+    Document(text=TEXT_5, data_id="5"),
+    Document(text=TEXT_6, data_id="6"),
+    Document(text=TEXT_7, data_id="7"),
+    Document(text=TEXT_8, data_id="8"),
+    Document(text=TEXT_9, data_id="9"),
+    Document(text=TEXT_10, data_id="10"),
+    Document(text=TEXT_11, data_id="11"),
+    Document(text=TEXT_12, data_id="12"),
+    Document(text=TEXT_13, data_id="13"),
+    Document(text=TEXT_14, data_id="14"),
+    Document(text=TEXT_15, data_id="15"),
+    Document(text=TEXT_16, data_id="16"),
+    Document(text=TEXT_17, data_id="17"),
 ]
 
 TEXT_2_0 = "I am a really random text don't pay attention to me"
 
 data_2 = [
-    Document(content=TEXT_16, data_id="0"),
-    Document(content=TEXT_2_0, data_id="1"),
-    Document(content=TEXT_16, data_id="2"),
+    Document(text=TEXT_16, data_id="0"),
+    Document(text=TEXT_2_0, data_id="1"),
+    Document(text=TEXT_16, data_id="2"),
 ]
 
 
@@ -176,8 +176,8 @@ class TestExactSubstr(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def match_doc(self, sequence, size, reader, docs):
-        for i, doc_content in enumerate(sequence_reader(sequence, size)):
-            self.assertEqual(docs[i].content, reader.tokenizer.decode(read_bytes(doc_content)))
+        for i, doc_text in enumerate(sequence_reader(sequence, size)):
+            self.assertEqual(docs[i].text, reader.tokenizer.decode(read_bytes(doc_text)))
 
     def test_signature_1_worker(self):
         with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
@@ -213,14 +213,14 @@ class TestExactSubstr(unittest.TestCase):
                 self.assertEqual(len(sequence), bytes_offset[1])
 
         sequence_file, size_file = dedup_reader.get_all_files(0, 1)
-        for i, doc_content in enumerate(sequence_reader(sequence_file, size_file)):
-            self.assertEqual(data[i].content, dedup_reader.tokenizer.decode(read_bytes(doc_content)))
+        for i, doc_text in enumerate(sequence_reader(sequence_file, size_file)):
+            self.assertEqual(data[i].text, dedup_reader.tokenizer.decode(read_bytes(doc_text)))
 
         self.match_doc(sequence_file, size_file, dedup_reader, docs=data)
 
         # test if  deduplication actually works
         for i, doc in enumerate(dedup_reader(data=data)):
-            self.assertEqual(doc.content, TARGETS.get(i))
+            self.assertEqual(doc.text, TARGETS.get(i))
 
     def test_signature_2_worker(self):
         data = copy.deepcopy(DATA)
@@ -268,7 +268,7 @@ class TestExactSubstr(unittest.TestCase):
 
         # test if  deduplication actually works
         for i, doc in enumerate(dedup_reader(data=data, rank=0, world_size=2)):
-            self.assertEqual(doc.content, TARGETS.get(i))
+            self.assertEqual(doc.text, TARGETS.get(i))
 
         for i, doc in enumerate(dedup_reader(data=data_2, rank=1, world_size=2)):
-            self.assertEqual(doc.content, TARGETS_2.get(i))
+            self.assertEqual(doc.text, TARGETS_2.get(i))

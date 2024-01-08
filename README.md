@@ -7,7 +7,7 @@ DataTrove processing pipelines are platform-agnostic, running out of the box loc
 ## Pipeline
 ### DataTrove Document
 Each pipeline block processes data in the datatrove [`Document`](src/datatrove/data.py) format:
-- `content` the actual text content for each sample
+- `text` the actual text content for each sample
 - `data_id` a unique id (string) for this sample
 - `metadata` a dictionary where any additional info may be stored
 

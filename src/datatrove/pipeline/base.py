@@ -16,7 +16,7 @@ class PipelineStep(ABC):
             self.stats[label].update(value, unit)
 
     def update_doc_stats(self, document: Document):
-        self.stats["doc_len"] += len(document.content)
+        self.stats["doc_len"] += len(document.text)
         if token_count := document.metadata.get("token_count", None):
             self.stats["doc_len_tokens"] += token_count
 

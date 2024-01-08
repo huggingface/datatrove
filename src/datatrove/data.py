@@ -18,7 +18,7 @@ class Media:
 
 @dataclass
 class Document:
-    content: str
+    text: str
     data_id: str
     media: list[Media] = field(default_factory=list)
     metadata: dict[str, str | int | float | bool] = field(default_factory=dict)

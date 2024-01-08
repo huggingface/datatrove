@@ -46,7 +46,7 @@ def read_tuples_from_file(file: BaseInputDataFile, *formats):
             yield tuple(line)
 
 
-def simplify_content(text: str):
+def simplify_text(text: str) -> str:
     """Performs the following operations to increase recall when looking for matches between documents:
     - lowercase text
     - replace all whitespace with a single " "

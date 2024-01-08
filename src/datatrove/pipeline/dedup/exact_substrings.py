@@ -68,7 +68,7 @@ class DatasetToSequence(PipelineStep):
         f_sequence = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb")
         for i, doc in enumerate(data):
             with self.stats.time_stats:
-                b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.content, rank=rank, doc_id=i)
+                b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.text, rank=rank, doc_id=i)
                 doc_lens.append(len(b_doc))
                 f_sequence.write(b_doc)
 
@@ -302,15 +302,15 @@ class DedupReader(JsonlReader):
             duplicates.append(dup_sentence)
 
         if duplicates:
-            text = doc.content
+            text = doc.text
             # TODO improve
             for d in duplicates:
                 text = text.replace(d, "")
-            doc.content = text
+            doc.text = text
 
         self.bytes_counter += len(bytes_content)
 
-        if len(word_tokenize(doc.content)) < self.min_doc_words:
+        if len(word_tokenize(doc.text)) < self.min_doc_words:
             return False
 
         return True
@@ -327,9 +327,9 @@ class DedupReader(JsonlReader):
         for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
             with self.stats.time_stats:
                 # We check that the two generators are synced, meaning the docs sizes bytes are correct.
-                assert doc.content == self.tokenizer.decode(
+                assert doc.text == self.tokenizer.decode(
                     read_bytes(doc_content), skip_special_tokens=False
-                ), f"{doc.content}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
+                ), f"{doc.text}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
                 to_yield = self.remove_duplicate(doc, doc_content)
             if to_yield:
                 self.update_doc_stats(doc)
