@@ -85,20 +85,20 @@ rs_1 = get_random_string()
 rs_2 = get_random_string()
 
 DOCS = [
-    Document(text=TEXT_0, data_id="0"),
-    Document(text=TEXT_1, data_id="1"),
-    Document(text=" ".join([TEXT_0, rs_1]), data_id="2"),
-    Document(text=" ".join([rs_1, TEXT_0, rs_2]), data_id="3"),
-    Document(text=LOTR, data_id="4"),
-    Document(text=" ".join([LOTR, HPPS]), data_id="5"),
+    Document(text=TEXT_0, id="0"),
+    Document(text=TEXT_1, id="1"),
+    Document(text=" ".join([TEXT_0, rs_1]), id="2"),
+    Document(text=" ".join([rs_1, TEXT_0, rs_2]), id="3"),
+    Document(text=LOTR, id="4"),
+    Document(text=" ".join([LOTR, HPPS]), id="5"),
 ]
 
 DOCS_2 = [
-    Document(text=TEXT_0_1, data_id="0"),
-    Document(text=TEXT_1_1, data_id="1"),
-    Document(text=TEXT_2_1, data_id="2"),
-    Document(text=LOTR, data_id="3"),
-    Document(text=TEXT_3_1, data_id="4"),
+    Document(text=TEXT_0_1, id="0"),
+    Document(text=TEXT_1_1, id="1"),
+    Document(text=TEXT_2_1, id="2"),
+    Document(text=LOTR, id="3"),
+    Document(text=TEXT_3_1, id="4"),
 ]
 
 TARGETS = [

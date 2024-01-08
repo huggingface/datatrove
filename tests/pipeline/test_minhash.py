@@ -68,7 +68,7 @@ class TestMinhash(unittest.TestCase):
                 assert dec - 0.21 < simil < dec + 0.21
 
             # check output file format and order
-            samples = [Document(f"sample {i}, {lorem_ipsum[i:: 10]}", data_id="test") for i in range(100)]
+            samples = [Document(f"sample {i}, {lorem_ipsum[i:: 10]}", id="test") for i in range(100)]
             minhash(samples)
             for bi in range(config.num_buckets):
                 with open(
@@ -106,7 +106,7 @@ class TestMinhash(unittest.TestCase):
             clusters = [[0, 20, 50], [400, 420], [800, 810, 820, 840, 860], [1205, 1215, 1225, 1245], [1600], [2000]]
 
             cluster_samples = [
-                Document(text=lorem_ipsum[x : x + 300], data_id=f"{ci}_{xi}", metadata={"ci": ci, "xi": xi})
+                Document(text=lorem_ipsum[x : x + 300], id=f"{ci}_{xi}", metadata={"ci": ci, "xi": xi})
                 for ci, cluster in enumerate(clusters)
                 for xi, x in enumerate(cluster)
             ]
@@ -171,5 +171,5 @@ class TestMinhash(unittest.TestCase):
             # filtering
             filter_block = MinhashDedupFilter(cluster_results_folder)
             filtered = filter_block(cluster_samples)
-            filtered_ids = {x.data_id for x in filtered}
+            filtered_ids = {x.id for x in filtered}
             assert filtered_ids == kept

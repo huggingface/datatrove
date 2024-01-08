@@ -116,32 +116,32 @@ bytearange_file_2 = (
 )
 
 DATA = [
-    Document(text=TEXT_0, data_id="0"),
-    Document(text=TEXT_1, data_id="1"),
-    Document(text=TEXT_2, data_id="2"),
-    Document(text=TEXT_3, data_id="3"),
-    Document(text=TEXT_4, data_id="4"),
-    Document(text=TEXT_5, data_id="5"),
-    Document(text=TEXT_6, data_id="6"),
-    Document(text=TEXT_7, data_id="7"),
-    Document(text=TEXT_8, data_id="8"),
-    Document(text=TEXT_9, data_id="9"),
-    Document(text=TEXT_10, data_id="10"),
-    Document(text=TEXT_11, data_id="11"),
-    Document(text=TEXT_12, data_id="12"),
-    Document(text=TEXT_13, data_id="13"),
-    Document(text=TEXT_14, data_id="14"),
-    Document(text=TEXT_15, data_id="15"),
-    Document(text=TEXT_16, data_id="16"),
-    Document(text=TEXT_17, data_id="17"),
+    Document(text=TEXT_0, id="0"),
+    Document(text=TEXT_1, id="1"),
+    Document(text=TEXT_2, id="2"),
+    Document(text=TEXT_3, id="3"),
+    Document(text=TEXT_4, id="4"),
+    Document(text=TEXT_5, id="5"),
+    Document(text=TEXT_6, id="6"),
+    Document(text=TEXT_7, id="7"),
+    Document(text=TEXT_8, id="8"),
+    Document(text=TEXT_9, id="9"),
+    Document(text=TEXT_10, id="10"),
+    Document(text=TEXT_11, id="11"),
+    Document(text=TEXT_12, id="12"),
+    Document(text=TEXT_13, id="13"),
+    Document(text=TEXT_14, id="14"),
+    Document(text=TEXT_15, id="15"),
+    Document(text=TEXT_16, id="16"),
+    Document(text=TEXT_17, id="17"),
 ]
 
 TEXT_2_0 = "I am a really random text don't pay attention to me"
 
 data_2 = [
-    Document(text=TEXT_16, data_id="0"),
-    Document(text=TEXT_2_0, data_id="1"),
-    Document(text=TEXT_16, data_id="2"),
+    Document(text=TEXT_16, id="0"),
+    Document(text=TEXT_2_0, id="1"),
+    Document(text=TEXT_16, id="2"),
 ]
 
 

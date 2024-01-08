@@ -69,17 +69,17 @@ TEXT_6 = (
 TEXT_7 = "1 + 1 = 2, 2 + 2 = 4, 4 + 4 = 8, ..."
 
 DOCS = [
-    Document(text=TEXT_0, data_id="0"),
-    Document(text=TEXT_1, data_id="1"),
-    Document(text=TEXT_2, data_id="2"),
-    Document(text=TEXT_3, data_id="3"),
-    Document(text=TEXT_4, data_id="4"),
-    Document(text=TEXT_5, data_id="5"),
-    Document(text=TEXT_6, data_id="6"),
-    Document(text=TEXT_7, data_id="7"),
-    Document(text=TEXT_0, data_id="8"),
-    Document(text=TEXT_1, data_id="9"),
-    Document(text=TEXT_6[:-10], data_id="10"),
+    Document(text=TEXT_0, id="0"),
+    Document(text=TEXT_1, id="1"),
+    Document(text=TEXT_2, id="2"),
+    Document(text=TEXT_3, id="3"),
+    Document(text=TEXT_4, id="4"),
+    Document(text=TEXT_5, id="5"),
+    Document(text=TEXT_6, id="6"),
+    Document(text=TEXT_7, id="7"),
+    Document(text=TEXT_0, id="8"),
+    Document(text=TEXT_1, id="9"),
+    Document(text=TEXT_6[:-10], id="10"),
 ]
 
 TARGETS = [True] * 8 + [False] * 3

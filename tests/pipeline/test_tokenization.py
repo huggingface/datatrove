@@ -28,7 +28,7 @@ texts = [
 
 TOKENIZER = "gpt2"
 WORKERS = 3
-data = np.array_split([Document(text=text, data_id=id) for id, text in enumerate(texts)], WORKERS)
+data = np.array_split([Document(text=text, id=id) for id, text in enumerate(texts)], WORKERS)
 
 
 def get_texts_from_tokens(input_folder: BaseInputDataFolder):

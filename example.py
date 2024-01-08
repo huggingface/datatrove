@@ -17,7 +17,7 @@ Fusce quam tellus, placerat eget ullamcorper eleifend, varius non mauris. Phasel
 Donec orci lorem, cursus in urna eu, laoreet vulputate mauris. Aliquam ac urna vitae ante pretium gravida scelerisque eget nisl. Vestibulum id risus vitae libero luctus dignissim. Maecenas eget bibendum ligula, vel tristique leo. Nullam eu nisi sed dui condimentum faucibus. Pellentesque bibendum ligula non massa lacinia venenatis. Quisque sodales neque diam, vel tristique erat laoreet et. In sollicitudin ultricies pretium.
 
 Aenean eget volutpat metus. Integer vitae sollicitudin sapien. Phasellus finibus risus vel dolor pellentesque consequat. Sed non posuere felis. In tortor justo, aliquet a libero et, bibendum laoreet lectus. Quisque sit amet justo nibh. Mauris aliquet, dui laoreet suscipit finibus, metus libero vehicula libero, vitae commodo felis leo vel urna. Proin urna lacus, hendrerit ac mauris et, suscipit tempor odio. Nunc eu ultricies nunc, vel mattis odio. Quisque efficitur facilisis tortor. Aliquam feugiat odio non ex malesuada porttitor. Aliquam sit amet augue pellentesque, porttitor elit nec, faucibus neque. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Suspendisse potenti. """,
-        data_id=str(i),
+        id=str(i),
         metadata={"mid": i % 10},
     )
     for i, x in enumerate(["sample 1", "some text", "more text"] * 500)

@@ -10,7 +10,7 @@ def format_adapter(d: dict, path: str, li: int):
 
     return {
         "content": d["text"],
-        "data_id": f"{os.path.splitext(os.path.basename(path))[0]}_{li}",
+        "id": f"{os.path.splitext(os.path.basename(path))[0]}_{li}",
         "metadata": {
             "timestamp": d["timestamp"],
             "url": d["url"],

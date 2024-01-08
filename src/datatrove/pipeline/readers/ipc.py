@@ -17,7 +17,7 @@ class IpcReader(BaseReader):
         progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
-        id_key: str = "data_id",
+        id_key: str = "id",
         default_metadata: dict = None,
     ):
         super().__init__(data_folder, limit, progress, adapter, text_key, id_key, default_metadata)

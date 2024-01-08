@@ -20,7 +20,7 @@ class WarcReader(BaseReader):
         progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
-        id_key: str = "data_id",
+        id_key: str = "id",
         default_metadata: dict = None,
     ):
         self.compression = compression
@@ -73,7 +73,7 @@ def process_record(record: ArcWarcRecord) -> dict | None:
         except (UnicodeDecodeError, LookupError):
             return
 
-    data_id = record.rec_headers["WARC-Record-ID"]
+    id = record.rec_headers["WARC-Record-ID"]
     url = record.rec_headers.get("WARC-Target-URI", None)
     date = record.rec_headers.get("WARC-Date", None)
     # handle older formats
@@ -82,4 +82,4 @@ def process_record(record: ArcWarcRecord) -> dict | None:
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return {"text_key": html, "data_id": data_id, "url": url, "date": date}
+    return {"text_key": html, "id": id, "url": url, "date": date}

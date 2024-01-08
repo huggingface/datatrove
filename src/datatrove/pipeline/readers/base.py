@@ -20,7 +20,7 @@ class BaseReader(PipelineStep):
         progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
-        id_key: str = "data_id",
+        id_key: str = "id",
         default_metadata: dict = None,
     ):
         super().__init__()
@@ -36,7 +36,7 @@ class BaseReader(PipelineStep):
     def _default_adapter(self, data: dict, path: str, id_in_file: int):
         return {
             "text": data.pop(self.text_key, ""),
-            "data_id": data.pop(self.id_key, f"{path}/{id_in_file}"),
+            "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
             "media": data.pop("media", []),
             "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
