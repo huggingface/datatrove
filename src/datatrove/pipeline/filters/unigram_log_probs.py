@@ -45,7 +45,7 @@ class UnigramLogProbFilter(BaseFilter):
             library_name="datatrove", namespace="filters", subfolder="unigram_logprob_filter"
         )
         unigram_freq_file = os.path.join(download_dir, "unigram_freq.csv")
-        if not os.listdir(download_dir):
+        if not os.path.isfile(unigram_freq_file):
             logger.info("⬇️ Downloading unigram-frequencies ...")
             urllib.request.urlretrieve(UNIGRAM_DOWNLOAD, unigram_freq_file)
 

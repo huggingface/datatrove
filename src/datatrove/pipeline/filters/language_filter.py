@@ -48,9 +48,11 @@ class LanguageFilter(BaseFilter):
             if not FASTTEXT_INSTALLED:
                 logger.error("FastText is required to run LanguageFilter")
                 raise ImportError
-            download_dir = cached_assets_path("datatrove", "filters", "language_filter")
+            download_dir = cached_assets_path(
+                library_name="datatrove", namespace="filters", subfolder="language_filter"
+            )
             model_file = os.path.join(download_dir, "lid.176.bin")
-            if not os.listdir(download_dir):
+            if not os.path.isfile(model_file):
                 logger.info("⬇️ Downloading fast-text language identifier model ...")
                 urllib.request.urlretrieve(LANGUAGE_ID_MODEL_URL, model_file)
             self._model = _FastText(model_file)

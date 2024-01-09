@@ -56,7 +56,9 @@ class URLFilter(BaseFilter):
         if self._downloaded:
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
-        if not os.listdir(download_dir):
+        if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
+            os.path.join(download_dir, "adult", "urls")
+        ):
             with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
                 tar.extractall(download_dir)
         self.block_listed_domains = get_list(
