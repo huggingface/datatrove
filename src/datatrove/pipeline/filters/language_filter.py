@@ -1,6 +1,7 @@
 import os
 import urllib.request
 
+from huggingface_hub import cached_assets_path
 from loguru import logger
 
 from datatrove.data import Document
@@ -39,7 +40,6 @@ class LanguageFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
         self.languages = languages
-        self.model_local_path = model_local_path
         self._model = None
 
     @property
@@ -48,11 +48,14 @@ class LanguageFilter(BaseFilter):
             if not FASTTEXT_INSTALLED:
                 logger.error("FastText is required to run LanguageFilter")
                 raise ImportError
-            if not os.path.isfile(self.model_local_path):
-                os.makedirs(os.path.dirname(self.model_local_path), exist_ok=True)
+            download_dir = cached_assets_path(
+                library_name="datatrove", namespace="filters", subfolder="language_filter"
+            )
+            model_file = os.path.join(download_dir, "lid.176.bin")
+            if not os.path.isfile(model_file):
                 logger.info("⬇️ Downloading fast-text language identifier model ...")
-                urllib.request.urlretrieve(LANGUAGE_ID_MODEL_URL, self.model_local_path)
-            self._model = _FastText(self.model_local_path)
+                urllib.request.urlretrieve(LANGUAGE_ID_MODEL_URL, model_file)
+            self._model = _FastText(model_file)
         return self._model
 
     def filter(self, doc: Document) -> bool:
