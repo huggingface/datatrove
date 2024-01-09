@@ -3,10 +3,11 @@ import re
 import tarfile
 from typing import Iterable
 
+from huggingface_hub import cached_assets_path
 from tldextract import TLDExtract
 
 from datatrove.data import Document
-from datatrove.utils.assets import ASSETS_PATH, DOWNLOAD_PATH
+from datatrove.utils.assets import ASSETS_PATH
 
 from ..writers.disk_base import DiskWriter
 from .base_filter import BaseFilter
@@ -42,7 +43,6 @@ class URLFilter(BaseFilter):
         exclusion_writer: DiskWriter = None,
     ):
         super().__init__(exclusion_writer)
-        self.download_path = os.path.join(DOWNLOAD_PATH, "url_filter")
         self.soft_word_threshold = soft_word_threshold
         self.block_listed_domains = extra_domains
         self.block_listed_url = extra_urls
@@ -55,15 +55,14 @@ class URLFilter(BaseFilter):
     def download_data(self):
         if self._downloaded:
             return
-        if not os.path.isfile(f"{self.download_path}adult/domains") or not os.path.isfile(
-            f"{self.download_path}adult/urls"
-        ):
+        download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
+        if not os.listdir(download_dir):
             with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
-                tar.extractall(self.download_path)
+                tar.extractall(download_dir)
         self.block_listed_domains = get_list(
-            self.download_path, "adult/domains", self.block_listed_domains, do_normalize=False
+            download_dir, "adult/domains", self.block_listed_domains, do_normalize=False
         )
-        self.block_listed_url = get_list(self.download_path, "adult/urls", self.block_listed_url, do_normalize=False)
+        self.block_listed_url = get_list(download_dir, "adult/urls", self.block_listed_url, do_normalize=False)
         self.banned_words = get_list(ASSETS_PATH, "banned_words.txt", self.banned_words)
         self.banned_subwords = get_list(ASSETS_PATH, "banned_subwords.txt", self.banned_subwords)
         self.soft_banned_words = get_list(ASSETS_PATH, "soft_banned_words.txt", self.soft_banned_words)

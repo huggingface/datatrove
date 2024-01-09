@@ -2,6 +2,7 @@ from setuptools import find_packages, setup
 
 
 install_requires = [
+    "huggingface-hub>=0.17.0",
     "boto3==1.28.78",
     "faust-cchardet==2.1.19",
     "inscriptis==2.3.2",

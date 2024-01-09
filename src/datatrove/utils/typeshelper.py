@@ -25,10 +25,6 @@ class Languages:
     latin = "la"
 
 
-class LocalPaths:
-    download = "download/"
-
-
 class StatHints:
     total = "total"
     dropped = "dropped"
