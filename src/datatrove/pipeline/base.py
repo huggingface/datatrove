@@ -25,9 +25,6 @@ class PipelineStep(ABC):
             self.stats.time_stats.unit = unit
         return self.stats.time_stats
 
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        pass
-
     def __repr__(self):
         return f"{self.type}: {self.name}"
 

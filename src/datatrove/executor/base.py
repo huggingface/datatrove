@@ -7,7 +7,7 @@ from typing import Callable
 
 from loguru import logger
 
-from datatrove.io import BaseOutputDataFolder, LocalOutputDataFolder
+from datatrove.datafolder import ParsableDataFolder, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp, log_pipeline
 from datatrove.utils.stats import PipelineStats
@@ -18,7 +18,7 @@ class PipelineExecutor(ABC):
     def __init__(
         self,
         pipeline: list[PipelineStep | Callable],
-        logging_dir: BaseOutputDataFolder = None,
+        logging_dir: ParsableDataFolder = None,
         skip_completed: bool = True,
     ):
         """
@@ -31,11 +31,7 @@ class PipelineExecutor(ABC):
                 previous runs. default: True
         """
         self.pipeline: list[PipelineStep | Callable] = pipeline
-        if isinstance(logging_dir, str):
-            logging_dir = BaseOutputDataFolder.from_path(logging_dir)
-        self.logging_dir = (
-            logging_dir if logging_dir else LocalOutputDataFolder(f"logs/{get_timestamp()}_{get_random_str()}")
-        )
+        self.logging_dir = get_datafolder(logging_dir if logging_dir else f"logs/{get_timestamp()}_{get_random_str()}")
         self.skip_completed = skip_completed
 
     @abstractmethod
@@ -51,7 +47,7 @@ class PipelineExecutor(ABC):
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
-        add_task_logger(self.logging_dir, rank, local_rank)
+        logfile = add_task_logger(self.logging_dir, rank, local_rank)
         log_pipeline(self.pipeline)
         try:
             # pipe data from one step to the next
@@ -70,7 +66,8 @@ class PipelineExecutor(ABC):
 
             # stats
             stats = PipelineStats(self.pipeline)
-            stats.save_to_disk(self.logging_dir.open(f"stats/{rank:05d}.json"))
+            with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
+                stats.save_to_disk(f)
             logger.info(stats.get_repr(f"Task {rank}"))
             # completed
             self.mark_rank_as_completed(rank)
@@ -78,19 +75,17 @@ class PipelineExecutor(ABC):
             logger.exception(e)
             raise e
         finally:
-            close_task_logger(self.logging_dir, rank)
+            close_task_logger(logfile)
         return stats
 
     def is_rank_completed(self, rank: int):
-        return self.skip_completed and self.logging_dir.to_input_folder().file_exists(f"completions/{rank:05d}")
+        return self.skip_completed and self.logging_dir.isfile(f"completions/{rank:05d}")
 
     def mark_rank_as_completed(self, rank: int):
-        self.logging_dir.open(f"completions/{rank:05d}").close()
+        self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
     def get_incomplete_ranks(self):
-        completed = {
-            file.relative_path for file in self.logging_dir.to_input_folder().list_files(suffix="completions")
-        }
+        completed = {file.relative_path for file in self.logging_dir.ls("completions", detail=False)}
         return list(
             filter(
                 lambda rank: not self.skip_completed or f"completions/{rank:05d}" not in completed,
@@ -104,7 +99,7 @@ class PipelineExecutor(ABC):
         return json.dumps(data, indent=indent)
 
     def save_executor_as_json(self, indent: int = 4):
-        with self.logging_dir.open("executor.json") as f:
+        with self.logging_dir.open("executor.json", "w") as f:
             json.dump(self, f, cls=ExecutorJSONEncoder, indent=indent)
 
 

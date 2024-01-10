@@ -2,24 +2,21 @@ from copy import deepcopy
 from multiprocessing import Value
 from typing import Callable
 
-import multiprocess.pool
 from loguru import logger
-from multiprocess import Queue, Semaphore
+from multiprocess import Pool, Queue
 
+from datatrove.datafolder import ParsableDataFolder
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.stats import PipelineStats
 
 
 # multiprocessing vars
-download_semaphore, upload_semaphore, ranks_queue, completed = None, None, None, None
+ranks_queue, completed = None, None
 
 
-def init_pool_processes(dl_sem, up_sem, ranks_q, completed_counter):
-    global download_semaphore, upload_semaphore, ranks_queue, completed
-    download_semaphore = dl_sem
-    upload_semaphore = up_sem
+def init_pool_processes(ranks_q, completed_counter):
+    global ranks_queue, completed
     ranks_queue = ranks_q
     completed = completed_counter
 
@@ -30,9 +27,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         pipeline: list[PipelineStep | Callable],
         tasks: int = 1,
         workers: int = -1,
-        max_concurrent_uploads: int = 20,
-        max_concurrent_downloads: int = 50,
-        logging_dir: BaseOutputDataFolder | str = None,
+        logging_dir: ParsableDataFolder = None,
         skip_completed: bool = True,
     ):
         """Execute a pipeline locally
@@ -44,10 +39,6 @@ class LocalPipelineExecutor(PipelineExecutor):
             tasks: total number of tasks to run the pipeline on
             workers: how many tasks to run simultaneously. -1 for no
                 limit
-            max_concurrent_uploads: limit the number of files that may
-                be uploaded simultaneously to avoid rate limits
-            max_concurrent_downloads: limit the number of files that may
-                be downloaded simultaneously to avoid rate limits
             logging_dir: where to save logs, stats, etc. Should be an
                 OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert it
             skip_completed: whether to skip tasks that were completed in
@@ -56,14 +47,8 @@ class LocalPipelineExecutor(PipelineExecutor):
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
-        self.max_concurrent_uploads = max_concurrent_uploads
-        self.max_concurrent_downloads = max_concurrent_downloads
 
     def _run_for_rank(self, rank: int, local_rank: int = -1):
-        if self.workers > 1:
-            for pipeline_step in self.pipeline:
-                if isinstance(pipeline_step, PipelineStep):
-                    pipeline_step.set_up_dl_locks(download_semaphore, upload_semaphore)
         local_rank = ranks_queue.get()
         try:
             return super()._run_for_rank(rank, local_rank)
@@ -97,19 +82,15 @@ class LocalPipelineExecutor(PipelineExecutor):
                 self.pipeline = deepcopy(pipeline)
                 stats.append(self._run_for_rank(rank))
         else:
-            dl_sem = Semaphore(self.max_concurrent_downloads)
-            up_sem = Semaphore(self.max_concurrent_uploads)
             completed_counter = Value("i", skipped)
 
-            with multiprocess.Pool(
-                self.workers, initializer=init_pool_processes, initargs=(dl_sem, up_sem, ranks_q, completed_counter)
-            ) as pool:
+            with Pool(self.workers, initializer=init_pool_processes, initargs=(ranks_q, completed_counter)) as pool:
                 stats = list(pool.imap_unordered(self._run_for_rank, ranks_to_run))
         # merged stats
         stats = sum(stats, start=PipelineStats())
-        stats.save_to_disk(self.logging_dir.open("stats.json"))
+        with self.logging_dir.open("stats.json", "wt") as statsfile:
+            stats.save_to_disk(statsfile)
         logger.success(stats.get_repr(f"All {self.tasks} tasks"))
-        self.logging_dir.close()
         return stats
 
     @property

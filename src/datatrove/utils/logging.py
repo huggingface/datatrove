@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from datatrove.io import BaseOutputDataFolder
+from datatrove.datafolder import DataFolder
 
 
 def get_timestamp():
@@ -16,17 +16,19 @@ def get_random_str(length=5):
     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
-def add_task_logger(logging_dir: BaseOutputDataFolder, rank: int, local_rank: int = 0):
+def add_task_logger(logging_dir: DataFolder, rank: int, local_rank: int = 0):
     logger.remove()
+    logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "w")
     logger.add(sys.stderr, level="INFO" if local_rank == 0 else "ERROR")
-    logger.add(logging_dir.open(f"logs/task_{rank:05d}.log"), colorize=True, level="DEBUG")
+    logger.add(logfile, colorize=True, level="DEBUG")
     logger.info(f"Launching pipeline for {rank=}")
+    return logfile
 
 
-def close_task_logger(logging_dir: BaseOutputDataFolder, rank: int):
+def close_task_logger(logfile):
     logger.complete()
     logger.remove()
-    logging_dir.open(f"logs/task_{rank:05d}.log").close()
+    logfile.close()
     logger.add(sys.stderr)  # re-add default logger
 
 

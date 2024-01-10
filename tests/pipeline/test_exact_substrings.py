@@ -5,7 +5,6 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.dedup.exact_substrings import (
     DatasetToSequence,
     DedupReader,
@@ -184,16 +183,16 @@ class TestExactSubstr(unittest.TestCase):
             f.write(bytearange_file)
         data = copy.deepcopy(DATA)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.tmp_dir))
+        dataset_to_sequence = DatasetToSequence(output_folder=self.test_dir)
         merge_sequence = MergeSequences(
-            input_folder=LocalInputDataFolder(path=self.tmp_dir),
-            output_folder=LocalOutputDataFolder(path=self.tmp_dir),
+            input_folder=self.test_dir,
+            output_folder=self.test_dir,
             tasks_stage_1=1,
         )
 
         dedup_reader = DedupReader(
-            data_folder=LocalInputDataFolder(path=self.tmp_dir),
-            sequence_folder=LocalInputDataFolder(path=self.tmp_dir),
+            data_folder=self.test_dir,
+            sequence_folder=self.test_dir,
             min_doc_words=0,
         )
 
@@ -213,10 +212,20 @@ class TestExactSubstr(unittest.TestCase):
                 self.assertEqual(len(sequence), bytes_offset[1])
 
         sequence_file, size_file = dedup_reader.get_all_files(0, 1)
-        for i, doc_content in enumerate(sequence_reader(sequence_file, size_file)):
+        for i, doc_content in enumerate(
+            sequence_reader(
+                dedup_reader.sequence_folder.open(sequence_file, "rb"),
+                dedup_reader.sequence_folder.open(size_file, "rb"),
+            )
+        ):
             self.assertEqual(data[i].content, dedup_reader.tokenizer.decode(read_bytes(doc_content)))
 
-        self.match_doc(sequence_file, size_file, dedup_reader, docs=data)
+        self.match_doc(
+            dedup_reader.sequence_folder.open(sequence_file, "rb"),
+            dedup_reader.sequence_folder.open(size_file, "rb"),
+            dedup_reader,
+            docs=data,
+        )
 
         # test if  deduplication actually works
         for i, doc in enumerate(dedup_reader(data=data)):
@@ -228,16 +237,16 @@ class TestExactSubstr(unittest.TestCase):
         with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
             f.write(bytearange_file_2)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.tmp_dir))
+        dataset_to_sequence = DatasetToSequence(output_folder=self.test_dir)
         merge_sequence = MergeSequences(
-            input_folder=LocalInputDataFolder(path=self.tmp_dir),
-            output_folder=LocalOutputDataFolder(path=self.tmp_dir),
+            input_folder=self.test_dir,
+            output_folder=self.test_dir,
             tasks_stage_1=2,
         )
 
         dedup_reader = DedupReader(
-            data_folder=LocalInputDataFolder(path=self.tmp_dir),
-            sequence_folder=LocalInputDataFolder(path=self.tmp_dir),
+            data_folder=self.test_dir,
+            sequence_folder=self.test_dir,
             min_doc_words=0,
         )
 
@@ -263,8 +272,18 @@ class TestExactSubstr(unittest.TestCase):
         sequence_file_0, size_file_0 = dedup_reader.get_all_files(0, 2)
         sequence_file_1, size_file_1 = dedup_reader.get_all_files(1, 2)
 
-        self.match_doc(sequence_file_0, size_file_0, dedup_reader, data)
-        self.match_doc(sequence_file_1, size_file_1, dedup_reader, data_2)
+        self.match_doc(
+            dedup_reader.sequence_folder.open(sequence_file_0, "rb"),
+            dedup_reader.sequence_folder.open(size_file_0, "rb"),
+            dedup_reader,
+            data,
+        )
+        self.match_doc(
+            dedup_reader.sequence_folder.open(sequence_file_1, "rb"),
+            dedup_reader.sequence_folder.open(size_file_1, "rb"),
+            dedup_reader,
+            data_2,
+        )
 
         # test if  deduplication actually works
         for i, doc in enumerate(dedup_reader(data=data, rank=0, world_size=2)):

@@ -3,10 +3,9 @@ import re
 import struct
 import unicodedata
 from collections import defaultdict
+from typing import BinaryIO
 
 import numpy as np
-
-from datatrove.io import BaseInputDataFile
 
 
 class ExtensionHelperSD:
@@ -28,7 +27,7 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 )
 
 
-def read_tuples_from_file(file: BaseInputDataFile, *formats):
+def read_tuples_from_file(file: BinaryIO, *formats):
     """
         Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
@@ -36,7 +35,7 @@ def read_tuples_from_file(file: BaseInputDataFile, *formats):
     :param formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
     :return: tuples with data specified in formats
     """
-    with file.open(binary=True) as f:
+    with file as f:
         while True:
             line = []
             for F in formats:

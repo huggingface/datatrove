@@ -14,14 +14,14 @@ TLDR
 
 """
 import struct
-from typing import Generator, Literal
+from typing import BinaryIO, Generator, Literal
 
 import numpy as np
 import tokenizers
 from loguru import logger
 from nltk.tokenize import word_tokenize
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
+from datatrove.datafolder import ParsableDataFolder, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.pipeline.readers import JsonlReader
 
@@ -47,36 +47,32 @@ class DatasetToSequence(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
 
-    def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2"):
+    def __init__(self, output_folder: ParsableDataFolder, tokenizer_name: str = "gpt2"):
         """Args:
         output_folder: folder where sequences are saved
         tokenizer_name: name of tokenizer as in HF tokenizers.
         """
         super().__init__()
-        self.output_folder = output_folder
+        self.output_folder = get_datafolder(output_folder)
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
 
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
-
     def save_sizes(self, doc_lens: list[int], rank: int):
-        f_lens = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb")
-        f_lens.write(struct.pack("Q" * len(doc_lens), *doc_lens))
+        with self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence_size}", mode="wb") as f_lens:
+            f_lens.write(struct.pack("Q" * len(doc_lens), *doc_lens))
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         doc_lens = []
-        f_sequence = self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb")
-        for i, doc in enumerate(data):
-            with self.stats.time_stats:
-                b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.content, rank=rank, doc_id=i)
-                doc_lens.append(len(b_doc))
-                f_sequence.write(b_doc)
+        with self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb") as f_sequence:
+            for i, doc in enumerate(data):
+                with self.stats.time_stats:
+                    b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.content, rank=rank, doc_id=i)
+                    doc_lens.append(len(b_doc))
+                    f_sequence.write(b_doc)
 
         assert i < 2**32, "doc ID overflow"
         assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
 
         self.save_sizes(doc_lens, rank)
-        self.output_folder.close()
 
 
 class MergeSequences(PipelineStep):
@@ -90,8 +86,8 @@ class MergeSequences(PipelineStep):
 
     def __init__(
         self,
-        input_folder: BaseInputDataFolder,
-        output_folder: BaseOutputDataFolder,
+        input_folder: ParsableDataFolder,
+        output_folder: ParsableDataFolder,
         tasks_stage_1: int,
         bytes_per_batch: int = int(500e6),
     ):
@@ -102,35 +98,31 @@ class MergeSequences(PipelineStep):
         bytes_per_batch: number of bytes read per sequence
         """
         super().__init__()
-        self.input_folder = input_folder
-        self.output_folder = output_folder
+        self.input_folder = get_datafolder(input_folder)
+        self.output_folder = get_datafolder(output_folder)
         self.tasks_stage_1 = tasks_stage_1
         self.bytes_per_batch = bytes_per_batch
-
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         bytes_per_sequence = [0]
         with self.stats.time_stats:
             assert world_size == 1, f"{world_size=} can't be greater than 1!"
-            all_files: list[BaseInputDataFile] = self.input_folder.list_files(extension=EH.stage_1_sequence)
+            all_files: list[str] = self.input_folder.list_files(extension=EH.stage_1_sequence)
             assert len(all_files) == self.tasks_stage_1
-            f_sequence = self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb")
-            for file in all_files:
-                len_sequence = 0
-                with file.open(binary=True) as f:
-                    while True:
-                        sequence = f.read(self.bytes_per_batch)
-                        f_sequence.write(sequence)
-                        len_sequence += len(sequence)
-                        if len(sequence) != self.bytes_per_batch:
-                            break
-                    bytes_per_sequence.append(bytes_per_sequence[-1] + len_sequence)
+            with self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb") as f_sequence:
+                for file in all_files:
+                    len_sequence = 0
+                    with self.input_folder.open(file, "rb") as f:
+                        while True:
+                            sequence = f.read(self.bytes_per_batch)
+                            f_sequence.write(sequence)
+                            len_sequence += len(sequence)
+                            if len(sequence) != self.bytes_per_batch:
+                                break
+                        bytes_per_sequence.append(bytes_per_sequence[-1] + len_sequence)
 
-            f_bytes = self.output_folder.open(f"bytes_offsets{EH.stage_2_bytes_offset}", mode="wb")
-            f_bytes.write(np.array([bytes_per_sequence], np.uint32).tobytes())
-            self.output_folder.close()
+                with self.output_folder.open(f"bytes_offsets{EH.stage_2_bytes_offset}", mode="wb") as f_bytes:
+                    f_bytes.write(np.array([bytes_per_sequence], np.uint32).tobytes())
 
 
 def read_bytes(x):
@@ -138,9 +130,9 @@ def read_bytes(x):
     return np.frombuffer(x[SEPARATOR_BYTES:], dtype=np.uint16).tolist()
 
 
-def sequence_reader(file: BaseInputDataFile, size_file: BaseInputDataFile) -> Generator[list, None, None]:
-    with size_file.open(binary=True) as f_size:
-        with file.open(binary=True) as f:
+def sequence_reader(file: BinaryIO, size_file: BinaryIO) -> Generator[list, None, None]:
+    with size_file as f_size:
+        with file as f:
             while True:
                 n_bytes = f_size.read(struct.calcsize("<Q"))
                 if len(n_bytes) == 0:
@@ -156,14 +148,14 @@ class DedupReader(JsonlReader):
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
-        sequence_folder: BaseInputDataFolder,
+        data_folder: ParsableDataFolder,
+        sequence_folder: ParsableDataFolder,
         compression: Literal["guess", "gzip", "zst"] | None = "guess",
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
     ):
         super().__init__(data_folder=data_folder, compression=compression)
-        self.sequence_folder = sequence_folder
+        self.sequence_folder = get_datafolder(sequence_folder)
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
         self.min_doc_words = min_doc_words
         self.sequence_bytes_offset = None
@@ -182,17 +174,18 @@ class DedupReader(JsonlReader):
         self.rank = None
 
     def get_sequence_bytes_offset(self):
-        offset_array_file: BaseInputDataFile = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
-        with offset_array_file.open(binary=True) as f:
+        offset_array_file: str = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
+        with self.sequence_folder.open(offset_array_file, "rb") as f:
             offset_array = f.read()
         self.sequence_bytes_offset = np.frombuffer(offset_array, dtype=np.uint32)
         logger.info(f"{self.rank=}, -> {self.sequence_bytes_offset[self.rank]=}")
 
-    def get_bytearange(self, bytes_range_file: BaseInputDataFile):
-        with bytes_range_file.open(binary=False) as f:
+    def get_bytearange(self, bytes_range_file: BinaryIO):
+        with bytes_range_file as f:
             dup_ranges = f.read()
 
         dup_ranges = dup_ranges.split("\n")
+        i = 0
         for i, x in enumerate(dup_ranges):
             if x == "out":
                 break
@@ -213,8 +206,8 @@ class DedupReader(JsonlReader):
 
     def get_all_files(self, rank: int, world_size: int):
         self.get_sequence_bytes_offset()
-        sequence_file = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_1_sequence)
-        docs_sizes_file = self.sequence_folder.get_files_shard(rank, world_size, extension=EH.stage_1_sequence_size)
+        sequence_file = self.sequence_folder.get_shard(rank, world_size, extension=EH.stage_1_sequence)
+        docs_sizes_file = self.sequence_folder.get_shard(rank, world_size, extension=EH.stage_1_sequence_size)
         byte_range_file = self.sequence_folder.list_files(extension=EH.stage_3_bytes_ranges)
 
         assert all(
@@ -222,7 +215,7 @@ class DedupReader(JsonlReader):
         ), f"Need to run with n_tasks = n_files. {len(sequence_file)=}, {len(sequence_file)=}, {len(byte_range_file)=}"
         sequence_file, docs_sizes_file, byte_range_file = sequence_file[0], docs_sizes_file[0], byte_range_file[0]
 
-        self.get_bytearange(byte_range_file)
+        self.get_bytearange(self.sequence_folder.open(byte_range_file, "rt"))
         return sequence_file, docs_sizes_file
 
     def normalize_range(self, a, b, bytes_len):
@@ -315,7 +308,7 @@ class DedupReader(JsonlReader):
 
         return True
 
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         self.reset()
         self.rank = rank
         # loads the sequence file from stage 1, the size file from stage 1 and the bytearange file.
@@ -324,7 +317,12 @@ class DedupReader(JsonlReader):
         if not data:
             data = self.read_files_shard(self.data_folder.get_files_shard(self.rank, world_size))
         # data is still useful for the metadata lost in the sequence format.
-        for doc, doc_content in zip(data, sequence_reader(sequence_file, size_file)):
+        for doc, doc_content in zip(
+            data,
+            sequence_reader(
+                self.sequence_folder.open(sequence_file, "rb"), self.sequence_folder.open(size_file, "rb")
+            ),
+        ):
             with self.stats.time_stats:
                 # We check that the two generators are synced, meaning the docs sizes bytes are correct.
                 assert doc.content == self.tokenizer.decode(
@@ -336,7 +334,8 @@ class DedupReader(JsonlReader):
                 yield doc
 
         # we check bytes counter matches with the offset of the following rank
-        assert (
-            self.bytes_counter == self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]
-        ), f"got {self.bytes_counter=}, expected = {self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]}"
+        assert self.bytes_counter == self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank], (
+            f"got {self.bytes_counter=}, expected = "
+            f"{self.sequence_bytes_offset[rank + 1] - self.sequence_bytes_offset[rank]}"
+        )
         assert self.exhausted_ranges, "One or more duplicate ranges have not been used"

@@ -6,8 +6,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder
-from datatrove.io.base import get_file_extension
+from datatrove.datafolder import DataFolder, get_datafolder
 from datatrove.pipeline.filters import SamplerFilter
 from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
 from datatrove.pipeline.writers import JsonlWriter
@@ -57,14 +56,14 @@ def reader_class_from_name(reader_type):
             sys.exit(-1)
 
 
-def reader_factory(data_folder: BaseInputDataFolder, reader_type: str = None, **kwargs):
+def reader_factory(data_folder: DataFolder, reader_type: str = None, **kwargs):
     data_files = data_folder.list_files()
     if not data_files:
         console.log(f'[red]Could not find any files in "{data_folder.path}"')
         sys.exit(-1)
 
     if not reader_type:
-        match get_file_extension(data_files[0].path):
+        match data_files[0][data_files.index(".") :]:
             case ".jsonl.gz" | ".jsonl" | ".json":
                 reader_type = "jsonl"
             case ".csv":
@@ -86,8 +85,8 @@ def get_filter_expr(text=None):
 def main():
     args, extra_args = parser.parse_known_args()
     kwargs = dict(extra_arg.split("=") for extra_arg in extra_args)
-    data_folder = BaseInputDataFolder.from_path(args.path)
-    label_folder_path = BaseOutputDataFolder.from_path(args.label) if args.label else None
+    data_folder = get_datafolder(args.path)
+    label_folder = get_datafolder(args.label) if args.label else None
 
     reader = reader_factory(data_folder, args.reader, **kwargs)
 
@@ -122,9 +121,10 @@ def main():
                     )
                 )
                 console.print(sample.content)
-            if label_folder_path:
+            if label_folder:
                 result = Prompt.ask(
-                    "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next sample. Enter 'e' (exit) to leave:",
+                    "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next "
+                    "sample. Enter 'e' (exit) to leave:",
                     console=console,
                     choices=["g", "b", "e", "q"],
                 )
@@ -137,17 +137,14 @@ def main():
     except Exception:
         console.print_exception()
     finally:
-        if good_samples and label_folder_path:
-            with JsonlWriter(label_folder_path, "good_samples.jsonl", gzip=False) as writer:
+        if good_samples and label_folder:
+            with JsonlWriter(label_folder, "good_samples.jsonl", compression=None) as writer:
                 for sample in good_samples:
                     writer.write(sample)
-        if bad_samples and label_folder_path:
-            with JsonlWriter(label_folder_path, "bad_samples.jsonl", gzip=False) as writer:
+        if bad_samples and label_folder:
+            with JsonlWriter(label_folder, "bad_samples.jsonl", compression=None) as writer:
                 for sample in bad_samples:
                     writer.write(sample)
-
-        if label_folder_path:
-            label_folder_path.close()
 
 
 if __name__ == "__main__":

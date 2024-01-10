@@ -6,11 +6,9 @@ import math
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable
+from typing import IO, Callable, TextIO
 
 import humanize
-
-from datatrove.io import BaseOutputDataFile
 
 
 INDENT = " " * 4
@@ -83,8 +81,8 @@ class Stats:
     def to_json(self):
         return json.dumps(self.to_dict(), indent=4)
 
-    def save_to_disk(self, file: BaseOutputDataFile | str):
-        dump_json_to_outputfile(self.to_json(), file)
+    def save_to_disk(self, file: TextIO):
+        file.write(self.to_json())
 
     @classmethod
     def from_dict(cls, data):
@@ -139,8 +137,8 @@ class PipelineStats:
     def from_json(cls, data):
         return PipelineStats([Stats.from_dict(stat) for stat in data])
 
-    def save_to_disk(self, file: BaseOutputDataFile | str):
-        dump_json_to_outputfile(self.to_json(), file)
+    def save_to_disk(self, file: IO):
+        file.write(self.to_json())
 
 
 @dataclass
@@ -360,10 +358,3 @@ class TimingStats(MetricStats):
         else:
             res.global_mean = res.global_min = res.global_max = res.total
         return res
-
-
-def dump_json_to_outputfile(json_data, file: BaseOutputDataFile | str):
-    if isinstance(file, str):
-        file = BaseOutputDataFile.from_path(file)
-    file.write(json_data)
-    file.close()

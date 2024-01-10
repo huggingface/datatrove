@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
 import json
 import os
 import random
@@ -138,9 +137,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launch_job()
 
     def launch_merge_stats(self):
-        stats_json_file = self.logging_dir.create_new_file("stats.json")
-        # dump outputfile
-        options = [f"{k}={v}" for k, v in dataclasses.asdict(stats_json_file).items() if not k.startswith("_")]
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
@@ -149,7 +145,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     "mem-per-cpu": "1G",
                     "dependency": f"afterok:{self.job_id}",
                 },
-                f'merge_stats {os.path.join(self.logging_dir.path, "stats")} {" ".join(options)}',
+                f'merge_stats {os.path.join(self.logging_dir.to_absolute_paths("stats.json"), "stats")}',
             )
         )
 
@@ -187,7 +183,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
 
-        with self.logging_dir.open("ranks_to_run.json") as ranks_to_run_file:
+        with self.logging_dir.open("ranks_to_run.json", "w") as ranks_to_run_file:
             # we actually save this (only once) to avoid race conditions
             json.dump(ranks_to_run, ranks_to_run_file)
 
@@ -197,7 +193,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.get_sbatch_args(max_array),
             f"srun -l launch_pickled_pipeline {executor_f.path}",
         )
-        with self.logging_dir.open("launch_script.slurm") as launchscript_f:
+        with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
             launchscript_f.write(launch_file_contents)
         logger.info(
             f"Launching Slurm job {self.job_name} ({len(ranks_to_run)} tasks) with launch script "
@@ -215,7 +211,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
             launched_jobs += 1
         logger.info(f"Slurm job launched successfully with (last) id={self.job_id}.")
         self.launch_merge_stats()
-        self.logging_dir.close()
 
     def get_sbatch_args(self, max_array: int = 1) -> dict:
         os.makedirs(self.slurm_logs_folder, exist_ok=True)

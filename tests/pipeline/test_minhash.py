@@ -9,7 +9,7 @@ from math import floor
 import numpy as np
 
 from datatrove.data import Document
-from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
+from datatrove.datafolder import get_datafolder
 from datatrove.pipeline.dedup.minhash import (
     MinhashConfig,
     MinhashDedupBuckets,
@@ -40,15 +40,10 @@ class TestMinhash(unittest.TestCase):
     def test_signatures(self):
         for use_64bit_hashes in (True, False):
             config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
-            minhash = MinhashDedupSignature(
-                output_folder=LocalOutputDataFolder(os.path.join(self.tmp_dir, "signatures1")), config=config
-            )
+            minhash = MinhashDedupSignature(output_folder=os.path.join(self.test_dir, "signatures1"), config=config)
             shingles = minhash.get_shingles(lorem_ipsum)
             sig = minhash.get_signature(shingles)
-
-            minhash2 = MinhashDedupSignature(
-                output_folder=LocalOutputDataFolder(os.path.join(self.tmp_dir, "signatures2")), config=config
-            )
+            minhash2 = MinhashDedupSignature(output_folder=os.path.join(self.test_dir, "signatures2"), config=config)
             # check consistency
             assert sig == minhash2.get_signature(shingles)
 
@@ -96,10 +91,10 @@ class TestMinhash(unittest.TestCase):
             clusters_folder = os.path.join(self.tmp_dir, "b_clusters")
             config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
 
-            signatures_block = MinhashDedupSignature(output_folder=LocalOutputDataFolder(sigs_folder), config=config)
+            signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config)
             buckets_block = MinhashDedupBuckets(
-                input_folder=LocalInputDataFolder(sigs_folder),
-                output_folder=LocalOutputDataFolder(buckets_folder),
+                input_folder=sigs_folder,
+                output_folder=buckets_folder,
                 config=config,
             )
 
@@ -115,7 +110,7 @@ class TestMinhash(unittest.TestCase):
             # test file read
             for fi, file in enumerate(buckets_block.input_folder.list_files()):
                 last = None
-                for sig in read_sigs(file, fi, config):
+                for sig in read_sigs(buckets_block.input_folder.open(file, "rb"), fi, config):
                     assert 0 <= sig.doc_id < 100
                     assert last is None or sig.sig >= last
                     assert len(sig.sig) == config.hashes_per_bucket
@@ -124,11 +119,11 @@ class TestMinhash(unittest.TestCase):
             # test duplicate pairs
             for b in range(config.num_buckets):
                 buckets_block(None, rank=b, world_size=config.num_buckets)
-            bucket_results_folder = LocalInputDataFolder(buckets_folder)
+            bucket_results_folder = get_datafolder(buckets_folder)
             dup_files = bucket_results_folder.list_files(extension=".dups")
             pairs = defaultdict(set)
             for dup_file in dup_files:
-                with dup_file.open(binary=True) as df:
+                with bucket_results_folder.open(dup_file, "rb") as df:
                     while data := df.read(4 * struct.calcsize("I")):
                         f1, d1, f2, d2 = struct.unpack("<4I", data)
                         assert f1 == f2 == 0
@@ -146,14 +141,12 @@ class TestMinhash(unittest.TestCase):
                 doc_id += len(cluster)
 
             # clustering
-            cluster_block = MinhashDedupCluster(
-                bucket_results_folder, LocalOutputDataFolder(clusters_folder), config=config
-            )
+            cluster_block = MinhashDedupCluster(bucket_results_folder, clusters_folder, config=config)
             cluster_block(None)
 
-            cluster_results_folder = LocalInputDataFolder(clusters_folder)
+            cluster_results_folder = get_datafolder(clusters_folder)
             remove_ids = set()
-            with cluster_results_folder.list_files()[0].open_binary() as df:
+            with cluster_results_folder.open(cluster_results_folder.list_files()[0], "rb") as df:
                 while data := df.read(struct.calcsize("I")):
                     remove_ids.add(struct.unpack("<I", data)[0])
             doc_id = 0

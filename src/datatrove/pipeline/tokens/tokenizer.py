@@ -8,7 +8,7 @@ from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
+from datatrove.datafolder import ParsableDataFolder, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -36,12 +36,12 @@ def batched(iterable, n):
 class TokenizedFile:
     def __init__(
         self,
-        output_folder: BaseOutputDataFolder,
+        output_folder: ParsableDataFolder,
         filename: str,
         save_index: bool = True,
         save_loss_metadata: bool = False,
     ):
-        self.output_folder = output_folder
+        self.output_folder = get_datafolder(output_folder)
         self.filename = filename
         self.save_index = save_index
         self.save_loss_metadata = save_loss_metadata
@@ -49,7 +49,7 @@ class TokenizedFile:
         self.doc_ends = []
 
         self.tokens_file = self.output_folder.open(self.filename, mode="wb")
-        self.loss_file: BaseOutputDataFile | None = None
+        self.loss_file: ParsableDataFolder | None = None
         if self.save_loss_metadata:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb")
 
@@ -72,9 +72,9 @@ class TokenizedFile:
 
     def cleanup(self):
         self.doc_ends = []
-        self.tokens_file.delete()
+        self.output_folder.rm_file(self.filename)
         if self.loss_file:
-            self.loss_file.delete()
+            self.output_folder.rm_file(f"{self.filename}.loss")
 
     def write_bytes(self, tk_bytes: bytes):
         self.tokens_file.write(tk_bytes)
@@ -95,12 +95,13 @@ class TokenizedFile:
 
     def copy(self, destination: str, ordering: np.ndarray = None):
         # open original file in read mode
+        self.close()
         tokens_file = self.output_folder.open(self.filename, mode="r+b")
         loss_file = None if not self.loss_file else self.output_folder.open(f"{self.filename}.loss", mode="r+b")
         new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
         # mmap the original file
-        orig_tokens = mmap.mmap(tokens_file._file_handler.fileno(), 0)
-        orig_loss = mmap.mmap(loss_file._file_handler.fileno(), 0) if loss_file else None
+        orig_tokens = mmap.mmap(tokens_file.fileno(), 0)
+        orig_loss = mmap.mmap(loss_file.fileno(), 0) if loss_file else None
         # shuffle doc_id
         for doc_id in ordering:
             # get start and end from the boundaries
@@ -121,7 +122,7 @@ class TokenizedFile:
             tokenizer_name = "Unknown Tokenizer"
         if filename is None:
             filename = self.filename
-        with self.output_folder.open(f"{filename}.metadata") as f:
+        with self.output_folder.open(f"{filename}.metadata", "wt") as f:
             if token_count == -1:
                 token_count = self.write_idx
             f.write("\n".join([tokenizer_name, str(token_count), humanize.metric(token_count, unit="T")]))
@@ -133,7 +134,7 @@ class DocumentTokenizer(PipelineStep):
 
     def __init__(
         self,
-        output_folder: BaseOutputDataFolder,
+        output_folder: ParsableDataFolder,
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
@@ -144,7 +145,7 @@ class DocumentTokenizer(PipelineStep):
         save_final_metadata: bool = True,
     ):
         super().__init__()
-        self.output_folder = output_folder
+        self.output_folder = get_datafolder(output_folder)
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
         self.eos_token = eos_token
@@ -154,9 +155,6 @@ class DocumentTokenizer(PipelineStep):
         self._tokenizer = None
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
-
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
 
     def get_loss_values(self, document: Document, encoded: Encoding):
         loss_values = None
@@ -200,7 +198,6 @@ class DocumentTokenizer(PipelineStep):
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
         if len(outputfile) == 0:
-            self.output_folder.close()
             logger.warning("No data saved.")
             return
         if self.shuffle:
@@ -213,7 +210,6 @@ class DocumentTokenizer(PipelineStep):
         outputfile.close()
         if self.save_final_metadata:
             outputfile.save_final_metadata(self.tokenizer_name)
-        self.output_folder.close()
 
     @property
     def tokenizer(self) -> Tokenizer:
