@@ -53,7 +53,7 @@ class DataFolder(DirFileSystem):
         """
         super().__init__(path=path, fs=fs if fs else url_to_fs(path, **storage_options)[0])
         self.recursive = recursive
-        self.glob = glob
+        self.pattern = glob
         if not self.isdir("/"):
             self.mkdirs("/", exist_ok=True)
 
@@ -62,7 +62,11 @@ class DataFolder(DirFileSystem):
             extension = [extension]
         return [
             f
-            for f in self.find(suffix, maxdepth=0 if not self.recursive else None)
+            for f in (
+                self.find(suffix, maxdepth=0 if not self.recursive else None)
+                if not self.pattern
+                else self.glob(self.fs.sep.join([self.pattern, suffix]), maxdepth=0 if not self.recursive else None)
+            )
             if not extension or any(f.endswith(ext) for ext in extension)
         ]
 

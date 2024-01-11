@@ -133,9 +133,9 @@ class SentenceDedup(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_sd(self):
-        signature_creation = SentenceDedupSignature(output_folder=self.test_dir)
-        find_duplicates = SentenceFindDedups(data_folder=self.test_dir, output_folder=self.test_dir)
-        dedup_filter = SentenceDedupFilter(data_folder=self.test_dir, min_doc_words=0)
+        signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
+        find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, min_doc_words=0)
 
         signature_creation(data=DOCS)
         find_duplicates(data=[])
@@ -143,10 +143,10 @@ class SentenceDedup(unittest.TestCase):
             self.assertEqual(doc.content, TARGETS[i])
 
     def test_sd_worker(self):
-        signature_creation = SentenceDedupSignature(output_folder=self.test_dir)
+        signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
 
-        find_duplicates = SentenceFindDedups(data_folder=self.test_dir, output_folder=self.test_dir)
-        dedup_filter = SentenceDedupFilter(data_folder=self.test_dir, min_doc_words=0)
+        find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, min_doc_words=0)
 
         signature_creation(data=DOCS, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)

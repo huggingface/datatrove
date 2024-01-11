@@ -183,16 +183,16 @@ class TestExactSubstr(unittest.TestCase):
             f.write(bytearange_file)
         data = copy.deepcopy(DATA)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=self.test_dir)
+        dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=self.test_dir,
-            output_folder=self.test_dir,
+            input_folder=self.tmp_dir,
+            output_folder=self.tmp_dir,
             tasks_stage_1=1,
         )
 
         dedup_reader = DedupReader(
-            data_folder=self.test_dir,
-            sequence_folder=self.test_dir,
+            data_folder=self.tmp_dir,
+            sequence_folder=self.tmp_dir,
             min_doc_words=0,
         )
 
@@ -237,16 +237,16 @@ class TestExactSubstr(unittest.TestCase):
         with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
             f.write(bytearange_file_2)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=self.test_dir)
+        dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=self.test_dir,
-            output_folder=self.test_dir,
+            input_folder=self.tmp_dir,
+            output_folder=self.tmp_dir,
             tasks_stage_1=2,
         )
 
         dedup_reader = DedupReader(
-            data_folder=self.test_dir,
-            sequence_folder=self.test_dir,
+            data_folder=self.tmp_dir,
+            sequence_folder=self.tmp_dir,
             min_doc_words=0,
         )
 

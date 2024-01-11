@@ -40,10 +40,10 @@ class TestMinhash(unittest.TestCase):
     def test_signatures(self):
         for use_64bit_hashes in (True, False):
             config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
-            minhash = MinhashDedupSignature(output_folder=os.path.join(self.test_dir, "signatures1"), config=config)
+            minhash = MinhashDedupSignature(output_folder=os.path.join(self.tmp_dir, "signatures1"), config=config)
             shingles = minhash.get_shingles(lorem_ipsum)
             sig = minhash.get_signature(shingles)
-            minhash2 = MinhashDedupSignature(output_folder=os.path.join(self.test_dir, "signatures2"), config=config)
+            minhash2 = MinhashDedupSignature(output_folder=os.path.join(self.tmp_dir, "signatures2"), config=config)
             # check consistency
             assert sig == minhash2.get_signature(shingles)
 
