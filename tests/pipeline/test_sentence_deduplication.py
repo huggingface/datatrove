@@ -9,6 +9,8 @@ from datatrove.data import Document
 from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.dedup.sentence_dedup import SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
 
+from ..utils import require_nltk
+
 
 def get_random_string(n: int = 20):
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "."
@@ -127,6 +129,7 @@ TARGETS_WS2_1 = [
 ]
 
 
+@require_nltk
 class SentenceDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory

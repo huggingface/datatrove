@@ -15,6 +15,8 @@ from datatrove.pipeline.dedup.exact_substrings import (
 )
 from datatrove.pipeline.dedup.utils import ExtensionHelperES
 
+from ..utils import require_nltk, require_tokenizers
+
 
 TEXT_0 = (
     "Nuclear fusion is a reaction in which two or more atomic nuclei, usually deuterium and tritium "
@@ -169,6 +171,8 @@ TARGETS = {
 TARGETS_2 = {0: "", 1: TEXT_2_0, 2: ""}
 
 
+@require_nltk
+@require_tokenizers
 class TestExactSubstr(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
