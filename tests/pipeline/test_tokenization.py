@@ -50,6 +50,7 @@ class TestTokenization(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
+        # self.tmp_dir = "s3://fineweb-data-processing-tmp-us-east-1/iotest"
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def check_order_reconstruction(self, input_folder, mapping):

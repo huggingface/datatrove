@@ -66,9 +66,7 @@ class TestMinhash(unittest.TestCase):
             samples = [Document(f"sample {i}, {lorem_ipsum[i:: 10]}", data_id="test") for i in range(100)]
             minhash(samples)
             for bi in range(config.num_buckets):
-                with open(
-                    os.path.join(minhash.output_folder.path, f"bucket_{bi:03d}", "00000.minhash.sig"), "rb"
-                ) as f:
+                with minhash.output_folder.open(f"bucket_{bi:03d}/00000.minhash.sig", "rb") as f:
                     prev = None
                     doc_ids = set()
                     S = np.dtype(config.hash_dtype).itemsize

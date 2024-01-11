@@ -85,7 +85,7 @@ class PipelineExecutor(ABC):
         self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
     def get_incomplete_ranks(self):
-        completed = {file.relative_path for file in self.logging_dir.ls("completions", detail=False)}
+        completed = {self.logging_dir.ls("completions", detail=False)}
         return list(
             filter(
                 lambda rank: not self.skip_completed or f"completions/{rank:05d}" not in completed,

@@ -3,6 +3,7 @@ import re
 import struct
 import unicodedata
 from collections import defaultdict
+from functools import partial
 from typing import BinaryIO
 
 import numpy as np
@@ -35,14 +36,9 @@ def read_tuples_from_file(file: BinaryIO, *formats):
     :param formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
     :return: tuples with data specified in formats
     """
+    fstring = "<" + "".join(formats)
     with file as f:
-        while True:
-            line = []
-            for F in formats:
-                if not (data := f.read(struct.calcsize(F))):
-                    return
-                line.extend(struct.unpack(f"<{F}", data))
-            yield tuple(line)
+        yield from map(partial(struct.unpack, fstring), iter(partial(f.read, struct.calcsize(fstring)), b""))
 
 
 def simplify_content(text: str):
