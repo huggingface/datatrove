@@ -60,7 +60,7 @@ def _raise_error_for_missing_dependencies(
     packages = [dependency if not isinstance(dependency, tuple) else dependency[0] for dependency in dependencies]
     pip_packages = [dependency if not isinstance(dependency, tuple) else dependency[1] for dependency in dependencies]
     if len(packages) > 1:
-        packages = f"{','.join('`' + package_name + '`' for package_name in packages[:-1])}` and `{packages[-1]}"
+        packages = f"{','.join('`' + package_name + '`' for package_name in packages[:-1])} and `{packages[-1]}`"
     else:
         packages = f"`{packages[0]}`"
     raise ImportError(
