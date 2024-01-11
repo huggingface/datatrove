@@ -11,6 +11,11 @@ from datatrove.io.base import get_file_extension
 from datatrove.pipeline.filters import SamplerFilter
 from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
 from datatrove.pipeline.writers import JsonlWriter
+from datatrove.utils._import_utils import is_rich_available
+
+
+if not is_rich_available():
+    raise ImportError("Please install `rich` to run this command (`pip install rich`).")
 
 
 parser = argparse.ArgumentParser(

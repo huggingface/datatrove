@@ -1,6 +1,7 @@
 import itertools
 import mmap
 import struct
+from typing import TYPE_CHECKING
 
 import humanize
 import numpy as np
@@ -12,12 +13,8 @@ from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 
 
-TOKENIZERS_INSTALLED = True
-try:
+if TYPE_CHECKING:
     from tokenizers import Encoding, Tokenizer
-    from tokenizers.processors import TemplateProcessing
-except ImportError:
-    TOKENIZERS_INSTALLED = False
 
 
 def batched(iterable, n):
@@ -130,6 +127,7 @@ class TokenizedFile:
 class DocumentTokenizer(PipelineStep):
     name = "✍️ Writer"
     type = "🔢 - TOKENIZER"
+    requires_dependencies = ["tokenizers"]
 
     def __init__(
         self,
@@ -158,7 +156,7 @@ class DocumentTokenizer(PipelineStep):
     def set_up_dl_locks(self, dl_lock, up_lock):
         self.output_folder.set_lock(up_lock)
 
-    def get_loss_values(self, document: Document, encoded: Encoding):
+    def get_loss_values(self, document: Document, encoded: "Encoding"):
         loss_values = None
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
@@ -173,6 +171,8 @@ class DocumentTokenizer(PipelineStep):
         return loss_values
 
     def write_unshuffled(self, data: DocumentsPipeline, filename: str):
+        from tokenizers import Encoding
+
         unshuff = TokenizedFile(
             self.output_folder, filename, save_index=not self.shuffle, save_loss_metadata=self.save_loss_metadata
         )
@@ -216,11 +216,11 @@ class DocumentTokenizer(PipelineStep):
         self.output_folder.close()
 
     @property
-    def tokenizer(self) -> Tokenizer:
+    def tokenizer(self) -> "Tokenizer":
         if not self._tokenizer:
-            if not TOKENIZERS_INSTALLED:
-                logger.error("`tokenizers` is required to run DocumentTokenizer")
-                raise ImportError
+            from tokenizers import Tokenizer
+            from tokenizers.processors import TemplateProcessing
+
             self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
             if self.eos_token:
                 self._tokenizer.post_processor = TemplateProcessing(

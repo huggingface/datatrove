@@ -3,7 +3,6 @@ import math
 
 import numpy as np
 from loguru import logger
-from nltk import ngrams, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseOutputDataFolder
@@ -33,6 +32,7 @@ def get_false_positive_prob(size_in_bytes: int, n: int, k: int) -> float:
 class SingleBloomFilter(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "🪷 Bloom-filter"
+    requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -101,6 +101,8 @@ class SingleBloomFilter(PipelineStep):
         return self._parameters
 
     def get_shingles(self, text: str) -> np.ndarray:
+        from nltk import ngrams, word_tokenize
+
         return np.array(
             [
                 [sha1_hash32(" ".join(x).encode("utf-8"))]

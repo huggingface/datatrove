@@ -1,19 +1,17 @@
-from loguru import logger
+from typing import TYPE_CHECKING
 
 from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
 
 
-TOKENIZERS_INSTALLED = True
-try:
+if TYPE_CHECKING:
     from tokenizers import Tokenizer
-except ImportError:
-    TOKENIZERS_INSTALLED = False
 
 
 class TokensCounter(PipelineStep):
     name = "📊 Counter"
     type = "🔢 - TOKENIZER"
+    requires_dependencies = ["tokenizers"]
 
     def __init__(
         self,
@@ -33,11 +31,10 @@ class TokensCounter(PipelineStep):
             yield document
 
     @property
-    def tokenizer(self) -> Tokenizer:
+    def tokenizer(self) -> "Tokenizer":
         if not self._tokenizer:
-            if not TOKENIZERS_INSTALLED:
-                logger.error("`tokenizers` is required to run DocumentTokenizer")
-                raise ImportError
+            from tokenizers import Tokenizer
+
             self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
         return self._tokenizer
 

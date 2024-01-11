@@ -19,7 +19,6 @@ from typing import Generator, Literal
 import numpy as np
 import tokenizers
 from loguru import logger
-from nltk.tokenize import word_tokenize
 
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
@@ -46,6 +45,7 @@ class DatasetToSequence(PipelineStep):
 
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
+    requires_dependencies = ["tokenizers"]
 
     def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2"):
         """Args:
@@ -153,6 +153,7 @@ def sequence_reader(file: BaseInputDataFile, size_file: BaseInputDataFile) -> Ge
 class DedupReader(JsonlReader):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
+    requires_dependencies = ["nltk", "tokenizers"]
 
     def __init__(
         self,
@@ -294,6 +295,8 @@ class DedupReader(JsonlReader):
         return ranges
 
     def remove_duplicate(self, doc, bytes_content):
+        from nltk import word_tokenize
+
         n_bytes = len(bytes_content)
         duplicates_ranges = self.get_duplicate_range(n_bytes)
         duplicates = []

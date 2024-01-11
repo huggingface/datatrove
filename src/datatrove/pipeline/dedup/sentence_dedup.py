@@ -14,8 +14,6 @@ from dataclasses import dataclass
 from typing import Generator
 
 from loguru import logger
-from nltk import load, ngrams
-from nltk.tokenize import sent_tokenize, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder, BaseOutputDataFolder
@@ -43,6 +41,7 @@ class HashSig:
 class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
+    requires_dependencies = ["nltk"]
 
     def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3):
         """Args:
@@ -68,6 +67,9 @@ class SentenceDedupSignature(PipelineStep):
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
         # todo use language id metadata in sent_tokenize
+        from nltk import ngrams
+        from nltk.tokenize import sent_tokenize
+
         sentences = sent_tokenize(doc.content)
         if len(sentences) < self.n_sentences:
             return []
@@ -208,6 +210,8 @@ class SentenceDedupFilter(PipelineStep):
         data_folder: data folder to get duplicate files.
         min_doc_words: min amount of words for each document
         """
+        from nltk import load
+
         super().__init__()
         self.data_folder: BaseInputDataFolder = data_folder
         self.n_sentences = n_sentences
@@ -247,6 +251,8 @@ class SentenceDedupFilter(PipelineStep):
 
         SentenceDedupFilter reads a DocumentPipeline and removes duplicated sentences found at stage 2
         """
+        from nltk.tokenize import word_tokenize
+
         files = self.data_folder.get_files_shard(rank, world_size, extension=ExtensionHelperSD.stage_2_duplicates)
         assert len(files) == 1, (
             f"n_files / n_tasks should be equal to n_workers, instead {len(files)=}\n{files}.\n"

@@ -4,10 +4,9 @@ import tarfile
 from typing import Iterable
 
 from huggingface_hub import cached_assets_path
-from tldextract import TLDExtract
 
 from datatrove.data import Document
-from datatrove.utils.assets import ASSETS_PATH
+from datatrove.utils._import_utils import ASSETS_PATH
 
 from ..writers.disk_base import DiskWriter
 from .base_filter import BaseFilter
@@ -31,6 +30,7 @@ def get_list(abs_path: str, file_name: str, extra: set = None, do_normalize: boo
 
 class URLFilter(BaseFilter):
     name = "😈 Url-filter"
+    requires_dependencies = ["tldextract"]
 
     def __init__(
         self,
@@ -42,6 +42,8 @@ class URLFilter(BaseFilter):
         soft_banned_words: Iterable = None,
         exclusion_writer: DiskWriter = None,
     ):
+        from tldextract import TLDExtract
+
         super().__init__(exclusion_writer)
         self.soft_word_threshold = soft_word_threshold
         self.block_listed_domains = extra_domains

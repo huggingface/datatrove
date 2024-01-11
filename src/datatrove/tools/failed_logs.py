@@ -8,6 +8,11 @@ from rich.console import Console
 from rich.prompt import Confirm
 
 from datatrove.io import BaseInputDataFolder
+from datatrove.utils._import_utils import is_rich_available
+
+
+if not is_rich_available():
+    raise ImportError("Please install `rich` to run this command (`pip install rich`).")
 
 
 parser = argparse.ArgumentParser("Fetch the log files of failed tasks.")

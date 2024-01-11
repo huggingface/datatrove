@@ -1,27 +1,22 @@
+import csv
 import os
 import urllib.request
 
 import numpy as np
 from huggingface_hub import cached_assets_path
 from loguru import logger
-from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
-PANDAS_INSTALLED = True
-try:
-    import pandas as pd
-except ImportError:
-    PANDAS_INSTALLED = False
-
 UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lucas/google-1T-unigram/unigram_freq.csv"
 
 
 class UnigramLogProbFilter(BaseFilter):
     name = "🧑‍🍳 Unigram log-prob filter"
+    requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -39,8 +34,6 @@ class UnigramLogProbFilter(BaseFilter):
         self.unigram_frequencies = self.get_frequencies()
 
     def get_frequencies(self):
-        if not PANDAS_INSTALLED:
-            raise ImportError("Pandas need to be installed to use unigram filter")
         download_dir = cached_assets_path(
             library_name="datatrove", namespace="filters", subfolder="unigram_logprob_filter"
         )
@@ -49,11 +42,19 @@ class UnigramLogProbFilter(BaseFilter):
             logger.info("⬇️ Downloading unigram-frequencies ...")
             urllib.request.urlretrieve(UNIGRAM_DOWNLOAD, unigram_freq_file)
 
-        df = pd.read_csv(unigram_freq_file)
-        df["count"] = df["count"] / df["count"].sum()
-        return dict(zip(df["word"], df["count"]))
+        words = []
+        counts = []
+        with open(unigram_freq_file, encoding="utf-8", newline="") as f:
+            csv_reader = csv.DictReader(f)
+            for row in csv_reader:
+                words.append(row["word"])
+                counts.append(int(row["count"]))
+        total_count = sum(counts)
+        return {word: count / total_count for word, count in zip(words, counts)}
 
     def get_logprob(self, doc):
+        from nltk.tokenize import word_tokenize
+
         words = word_tokenize(doc.content)
         freqs = [
             self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())

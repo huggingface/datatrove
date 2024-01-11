@@ -1,7 +1,5 @@
 import json
 
-from tldextract import tldextract
-
 from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.utils.stats import MetricStatsDict
@@ -10,6 +8,7 @@ from datatrove.utils.stats import MetricStatsDict
 class URLStats(PipelineStep):
     type = "📊 - STATS"
     name = "🌐 URLs"
+    requires_dependencies = ["tldextract"]
 
     def __init__(
         self,
@@ -45,6 +44,8 @@ class URLStats(PipelineStep):
                 doc_counter = doc_counter.topk(self.topk)
                 tokens_counter = tokens_counter.topk(self.topk)
         else:
+            from tldextract import tldextract
+
             # map and produce one output file per rank
             for doc in data:
                 url = tldextract.extract(doc.metadata.get(self.url_field)).fqdn

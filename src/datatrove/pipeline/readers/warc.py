@@ -1,16 +1,16 @@
-from typing import Callable, Literal
-
-import cchardet
-import magic
-from warcio.archiveiterator import ArchiveIterator
-from warcio.recordloader import ArcWarcRecord
+from typing import TYPE_CHECKING, Callable, Literal
 
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
+if TYPE_CHECKING:
+    from warcio.recordloader import ArcWarcRecord
+
+
 class WarcReader(BaseReader):
     name = "🕷 Warc"
+    requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
 
     def __init__(
         self,
@@ -27,6 +27,8 @@ class WarcReader(BaseReader):
         super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
 
     def read_file(self, datafile: BaseInputDataFile):
+        from warcio.archiveiterator import ArchiveIterator
+
         with datafile.open(compression=self.compression, binary=True) as f:
             for ri, record in enumerate(ArchiveIterator(f)):
                 with self.track_time():
@@ -39,7 +41,10 @@ class WarcReader(BaseReader):
                 yield document
 
 
-def process_record(record: ArcWarcRecord) -> dict | None:
+def process_record(record: "ArcWarcRecord") -> dict | None:
+    import cchardet
+    import magic
+
     # record type
     if record.rec_type != "response" and record.rec_type != "conversion":  # wet files have "conversion" type
         return

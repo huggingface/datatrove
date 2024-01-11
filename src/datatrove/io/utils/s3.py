@@ -1,8 +1,9 @@
 import os
+import time
 from collections import deque
 from fnmatch import fnmatch
 
-import backoff as backoff
+from loguru import logger
 
 
 try:
@@ -67,11 +68,22 @@ def s3_download_file(cloud_path, local_path):
     bucket.download_file(prefix, local_path)
 
 
-@backoff.on_exception(backoff.expo, ClientError, max_time=10 * 60, giveup=lambda e: "SlowDown" not in str(e))
 def s3_get_file_stream(cloud_path):
     bucket_name, prefix = _get_s3_path_components(cloud_path)
     s3_client = boto3.client("s3")
-    return s3_client.get_object(Bucket=bucket_name, Key=prefix)["Body"]
+
+    # exponential backoff
+    max_wait_time = 10 * 60
+    sleep_time = 1
+    while True:
+        try:
+            return s3_client.get_object(Bucket=bucket_name, Key=prefix)["Body"]
+        except ClientError as exc:
+            if "SlowDown" not in str(exc):
+                raise exc
+        logger.warning(f"Retrying in {sleep_time}s.")
+        time.sleep(sleep_time)
+        sleep_time = min(max_wait_time, sleep_time * 2)
 
 
 def _match_prefix(base_prefix, prefix, match_pattern=None):

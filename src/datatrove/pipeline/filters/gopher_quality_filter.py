@@ -1,7 +1,6 @@
 import string
 
 import numpy as np
-from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
@@ -13,6 +12,7 @@ STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
 class GopherQualityFilter(BaseFilter):
     name = "🥇 Gopher Quality"
+    requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -63,6 +63,8 @@ class GopherQualityFilter(BaseFilter):
         :param doc
         :return: False if sample.content does not pass any of the the heuristic tests
         """
+        from nltk.tokenize import word_tokenize
+
         text = doc.content
         words = word_tokenize(text)  # TODO we should use language id filter
 

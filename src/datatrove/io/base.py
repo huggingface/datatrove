@@ -9,11 +9,11 @@ from io import TextIOWrapper
 from typing import Literal
 
 import numpy as np
-import zstandard
 from loguru import logger
 from multiprocess.synchronize import SemLock
 
 from datatrove.io.utils.fsspec import valid_fsspec_path
+from datatrove.utils._import_utils import is_zstandard_available
 
 
 @dataclass
@@ -92,6 +92,11 @@ class BaseInputDataFile:
         Returns:
             stream
         """
+        if not is_zstandard_available():
+            raise ImportError("Please install `zstandard` to read `.zst` files (`pip install zstandard`).")
+
+        import zstandard
+
         with self.open_binary() as fo:
             dctx = zstandard.ZstdDecompressor(max_window_size=2**31)
             stream_reader = dctx.stream_reader(fo)

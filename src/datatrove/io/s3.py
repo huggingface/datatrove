@@ -15,6 +15,12 @@ from datatrove.io.utils.s3 import (
     s3_get_file_stream,
     s3_upload_file,
 )
+from datatrove.utils._import_utils import is_boto3_available
+
+
+def _require_boto3():
+    if not is_boto3_available():
+        raise ImportError("Please install `boto3` to read/write S3 files (`pip install boto3`).")
 
 
 @dataclass
@@ -30,6 +36,7 @@ class S3OutputDataFolder(BaseOutputDataFolder):
     cleanup: bool = True
 
     def __post_init__(self):
+        _require_boto3()
         if not self.path.startswith("s3://"):
             raise ValueError("S3OutputDataFolder path must start with s3://")
         self._tmpdir = None
@@ -63,6 +70,7 @@ class S3OutputDataFile(BaseOutputDataFile):
     cleanup: bool = True
 
     def __post_init__(self):
+        _require_boto3()
         if not self.path.startswith("s3://"):
             raise ValueError("S3OutputDataFile path must start with s3://")
         assert self.local_path is not None, "S3OutputDataFile must have a local_path"
@@ -100,6 +108,7 @@ class S3InputDataFile(BaseInputDataFile):
     cleanup: bool = True
 
     def __post_init__(self):
+        _require_boto3()
         if self.stream is None:
             self.stream = self.local_path is None
 
@@ -142,6 +151,7 @@ class S3InputDataFolder(BaseInputDataFolder):
     cleanup: bool = True
 
     def __post_init__(self):
+        _require_boto3()
         if not self.path.startswith("s3://"):
             raise ValueError("S3InputDataFolder path must start with s3://")
         self._tmpdir = None

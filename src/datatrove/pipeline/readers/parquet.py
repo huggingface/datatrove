@@ -1,13 +1,12 @@
 from typing import Callable
 
-import pyarrow.parquet as pq
-
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
 class ParquetReader(BaseReader):
     name = "📒 Parquet"
+    requires_dependencies = ["pyarrow"]
 
     def __init__(
         self,
@@ -26,6 +25,8 @@ class ParquetReader(BaseReader):
         self.read_metadata = read_metadata
 
     def read_file(self, datafile: BaseInputDataFile):
+        import pyarrow.parquet as pq
+
         with datafile.open(binary=True) as f:
             with pq.ParquetFile(f) as pqf:
                 li = 0

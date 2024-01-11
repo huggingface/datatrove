@@ -1,13 +1,12 @@
 from typing import Callable
 
-import pyarrow as pa
-
 from datatrove.io import BaseInputDataFile, BaseInputDataFolder
 from datatrove.pipeline.readers.base import BaseReader
 
 
 class IpcReader(BaseReader):
     name = "🪶 Ipc"
+    requires_dependencies = ["pyarrow"]
 
     def __init__(
         self,
@@ -26,6 +25,8 @@ class IpcReader(BaseReader):
 
     @staticmethod
     def _iter_file_batches(datafile: BaseInputDataFile):
+        import pyarrow as pa
+
         with datafile.open(binary=True) as f:
             with pa.ipc.open_file(f) as ipc_reader:
                 for i in range(ipc_reader.num_record_batches):
@@ -33,6 +34,8 @@ class IpcReader(BaseReader):
 
     @staticmethod
     def _iter_stream_batches(datafile: BaseInputDataFile):
+        import pyarrow as pa
+
         with datafile.open(binary=True) as f:
             with pa.ipc.open_stream(f) as ipc_stream_reader:
                 for batch in ipc_stream_reader:
