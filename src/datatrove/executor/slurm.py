@@ -137,7 +137,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if self.randomize_start:
                 time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)
-            self.logging_dir.close()  # make sure everything is properly saved (logs etc)
         else:
             self.launch_job()
 
