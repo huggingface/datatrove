@@ -175,6 +175,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 self.depends_job_id = self.depends.job_id
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
+        self.logging_dir.makedirs("completions", exist_ok=True)
         ranks_to_run = self.get_incomplete_ranks()
         if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
