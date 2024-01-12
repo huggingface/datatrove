@@ -109,7 +109,7 @@ class TokenizedFile:
                     f"{self.filename}.loss",
                     mode="rb",
                     cache_type=SHUFFLING_CACHE_TYPE,
-                    block_size=SHUFFLING_READ_BLOCK_SIZE // 2,
+                    block_size=SHUFFLING_READ_BLOCK_SIZE // 2,  # this one is half the size
                 )
             )
             new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
@@ -118,10 +118,12 @@ class TokenizedFile:
                 # get start and end from the boundaries
                 start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
                 # copy the bytes. each token is 2 bytes
-                new_file.write_bytes(tokens_file.read_block(start * 2, (end - start) * 2))
+                tokens_file.seek(start * 2)
+                new_file.write_bytes(tokens_file.read((end - start) * 2))
                 # copy loss values (1 byte per token)
                 if loss_file:
-                    new_file.write_loss_bytes(loss_file.read_block(start, end - start))
+                    loss_file.seek(start)
+                    new_file.write_loss_bytes(loss_file.read(end - start))
             if loss_file:
                 loss_file.close()
             return new_file
