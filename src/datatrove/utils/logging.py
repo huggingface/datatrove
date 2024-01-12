@@ -18,6 +18,7 @@ def get_random_str(length=5):
 
 def add_task_logger(logging_dir: DataFolder, rank: int, local_rank: int = 0):
     logger.remove()
+    logging_dir.makedirs("logs", exist_ok=True)
     logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "w")
     logger.add(sys.stderr, level="INFO" if local_rank == 0 else "ERROR")
     logger.add(logfile, colorize=True, level="DEBUG")
