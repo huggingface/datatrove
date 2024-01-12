@@ -45,7 +45,7 @@ class DatasetToSequence(PipelineStep):
 
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
-    requires_dependencies = ["tokenizers"]
+    _requires_dependencies = ["tokenizers"]
 
     def __init__(self, output_folder=BaseOutputDataFolder, tokenizer_name: str = "gpt2"):
         """Args:
@@ -153,7 +153,7 @@ def sequence_reader(file: BaseInputDataFile, size_file: BaseInputDataFile) -> Ge
 class DedupReader(JsonlReader):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
-    requires_dependencies = ["nltk", "tokenizers"]
+    _requires_dependencies = ["nltk", "tokenizers"]
 
     def __init__(
         self,

@@ -18,7 +18,7 @@ class C4QualityFilter(BaseFilter):
     """
 
     name = "⛰ C4 Quality"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(self, exclusion_writer: DiskWriter = None):
         from nltk import load

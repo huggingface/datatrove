@@ -4,7 +4,7 @@ from datatrove.pipeline.base import PipelineStep
 
 
 class DummyPipelineStep(PipelineStep):
-    requires_dependencies = [
+    _requires_dependencies = [
         "numpy",
         "non_existent_dependency1",
         ("non_existent_dependency2", "non_existent_dependency2-wheel"),

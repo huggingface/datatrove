@@ -30,7 +30,7 @@ def get_list(abs_path: str, file_name: str, extra: set = None, do_normalize: boo
 
 class URLFilter(BaseFilter):
     name = "😈 Url-filter"
-    requires_dependencies = ["tldextract"]
+    _requires_dependencies = ["tldextract"]
 
     def __init__(
         self,

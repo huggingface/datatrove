@@ -41,7 +41,7 @@ class HashSig:
 class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(self, output_folder: BaseOutputDataFolder, n_sentences: int = 3):
         """Args:

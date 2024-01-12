@@ -6,7 +6,7 @@ from datatrove.pipeline.readers.base import BaseReader
 
 class IpcReader(BaseReader):
     name = "🪶 Ipc"
-    requires_dependencies = ["pyarrow"]
+    _requires_dependencies = ["pyarrow"]
 
     def __init__(
         self,

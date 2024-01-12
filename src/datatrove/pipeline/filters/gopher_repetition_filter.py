@@ -70,7 +70,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
 
 class GopherRepetitionFilter(BaseFilter):
     name = "👯 Gopher Repetition"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,

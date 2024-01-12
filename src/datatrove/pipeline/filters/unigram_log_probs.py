@@ -16,7 +16,7 @@ UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lu
 
 class UnigramLogProbFilter(BaseFilter):
     name = "🧑‍🍳 Unigram log-prob filter"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,

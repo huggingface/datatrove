@@ -32,7 +32,7 @@ def get_false_positive_prob(size_in_bytes: int, n: int, k: int) -> float:
 class SingleBloomFilter(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "🪷 Bloom-filter"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,

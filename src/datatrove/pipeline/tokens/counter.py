@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class TokensCounter(PipelineStep):
     name = "📊 Counter"
     type = "🔢 - TOKENIZER"
-    requires_dependencies = ["tokenizers"]
+    _requires_dependencies = ["tokenizers"]
 
     def __init__(
         self,

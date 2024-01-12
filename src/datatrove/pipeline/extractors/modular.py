@@ -8,7 +8,7 @@ class ReadabilityInscriptis(BaseExtractor):
     Extracts the text from the HTML document using readability and inscriptis.
     """
 
-    requires_dependencies = [
+    _requires_dependencies = [
         "inscriptis",
         ("readability", "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup"),
     ]

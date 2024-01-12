@@ -5,7 +5,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 class ListFilter(BaseFilter):
     name = "🎅 List"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(self, new_line_ratio: float | None = 0.3, exclusion_writer: DiskWriter = None):  # TODO better tune
         """ """

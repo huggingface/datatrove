@@ -12,7 +12,7 @@ STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
 class GopherQualityFilter(BaseFilter):
     name = "🥇 Gopher Quality"
-    requires_dependencies = ["nltk"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,

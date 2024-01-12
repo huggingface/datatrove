@@ -8,7 +8,7 @@ from datatrove.utils.stats import MetricStatsDict
 class URLStats(PipelineStep):
     type = "📊 - STATS"
     name = "🌐 URLs"
-    requires_dependencies = ["tldextract"]
+    _requires_dependencies = ["tldextract"]
 
     def __init__(
         self,

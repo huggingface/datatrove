@@ -127,7 +127,7 @@ class TokenizedFile:
 class DocumentTokenizer(PipelineStep):
     name = "✍️ Writer"
     type = "🔢 - TOKENIZER"
-    requires_dependencies = ["tokenizers"]
+    _requires_dependencies = ["tokenizers"]
 
     def __init__(
         self,

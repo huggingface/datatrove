@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class WarcReader(BaseReader):
     name = "🕷 Warc"
-    requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
+    _requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
 
     def __init__(
         self,
