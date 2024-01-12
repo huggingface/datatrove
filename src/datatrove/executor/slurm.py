@@ -124,7 +124,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
             )
-            with self.logging_dir.to_input_folder().get_file("ranks_to_run.json").open() as ranks_to_run_file:
+            with self.logging_dir.open("ranks_to_run.json", "r") as ranks_to_run_file:
                 all_ranks = json.load(ranks_to_run_file)
             if slurm_rank >= len(all_ranks):
                 return
