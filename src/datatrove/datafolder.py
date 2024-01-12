@@ -4,6 +4,7 @@ from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
 from fsspec.core import url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
+from fsspec.implementations.local import LocalFileSystem
 
 
 class OutputFileManager:
@@ -83,6 +84,11 @@ class DataFolder(DirFileSystem):
             a list of file paths
         """
         return self.list_files(**kwargs)[rank::world_size]
+
+    def unstrip_protocol(self, name: str) -> str:
+        if isinstance(self.fs, LocalFileSystem):
+            return name
+        return super().unstrip_protocol(name)
 
     def to_absolute_paths(self, paths) -> list[str] | str:
         if isinstance(paths, str):
