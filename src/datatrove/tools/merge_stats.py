@@ -24,18 +24,17 @@ parser.add_argument(
 
 
 def main():
-    args, file_args = parser.parse_known_args()
+    args = parser.parse_args()
     stats_folder = get_datafolder(args.path)
     # output file
-    extra_args = dict(extra_arg.split("=") for extra_arg in file_args)
-    path = extra_args.pop("path", os.path.abspath(args.output))
+    path = os.path.abspath(args.output)
 
     stats = []
     for file in tqdm(stats_folder.list_files()):
         with stats_folder.open(file, "rt") as f:
             stats.append(PipelineStats.from_json(json.load(f)))
     merged = sum(tqdm(stats), start=PipelineStats())
-    with get_file(path, **extra_args) as f:
+    with get_file(path, mode="wt") as f:
         merged.save_to_disk(f)
     logger.info(f"Processing complete. Results saved to {path}.")
     logger.info(merged)
