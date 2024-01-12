@@ -1,5 +1,4 @@
 import argparse
-import mmap
 import os
 import struct
 from typing import IO
@@ -24,13 +23,16 @@ parser.add_argument("--eos", type=str, help="eos token", default="<|endoftext|>"
 
 def load_doc_ends(file: IO):
     with file as f:
-        return np.frombuffer(f.read(), dtype=np.uint64)
+        return np.frombuffer(f.read(), dtype=np.uint64).tolist()
 
 
-def load_input_mmap(file: IO):
+def load_dataset_bytes(file, doc_ends, bytes_per_value: int = 2):
     with file as f:
-        # todo: alternative to memmapping
-        return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+        for start, end in zip([0] + doc_ends[:-1], doc_ends):
+            data = f.read((end - start) * bytes_per_value)
+            assert len(data) == (end - start) * bytes_per_value, "Could not read correct number of bytes"
+            yield data
+        assert f.read(1) == b"", "Dataset should be exhausted but there is more data to read"
 
 
 def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>"):
@@ -50,21 +52,18 @@ def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: 
     )
 
     doc_ends = [load_doc_ends(open_file(file)) for file in datafiles_index]
-    token_inputs = list(map(load_input_mmap, map(open_file, datafiles)))
+    token_inputs = [load_dataset_bytes(open_file(path), ends) for path, ends in zip(datafiles, doc_ends)]
     loss_inputs = (
-        list(map(load_input_mmap, map(open_file, datafiles_loss))) if check_loss else [None] * len(token_inputs)
+        [load_dataset_bytes(open_file(path), ends, bytes_per_value=1) for path, ends in zip(datafiles_loss, doc_ends)]
+        if check_loss
+        else [None] * len(token_inputs)
     )
     for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
         zip(doc_ends, token_inputs, loss_inputs)
     ):
-        assert (
-            not check_loss or file_token_inputs.size() == file_loss_inputs.size() * 2
-        ), "Mismatch between loss and tokens file sizes"
-        assert file_token_inputs.size() == file_doc_ends[-1] * 2, "Size of .ds does not match last doc_end"
-        for doci, doc_end in tqdm(enumerate(file_doc_ends), total=len(file_doc_ends)):
-            last_token = struct.unpack("<H", file_token_inputs[(doc_end.item() - 1) * 2 : doc_end.item() * 2])[0]
+        for doci, tokens in tqdm(enumerate(file_token_inputs), total=len(file_doc_ends)):
+            last_token = struct.unpack("<H", tokens[-2:])[0]
             assert last_token == eos_token, f"no EOS at doc end of doc {doci}"
-        file_token_inputs.close()
 
 
 if __name__ == "__main__":

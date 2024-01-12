@@ -46,7 +46,9 @@ class DocumentTokenizerMerger(PipelineStep):
         datafiles = self.input_folder.list_files(extension=".ds")
         datafiles_index = self.input_folder.list_files(extension=".ds.index")
         datafiles_loss = (
-            self.input_folder.list_files(extension=".ds.loss") if self.save_loss_metadata else [None] * len(datafiles)
+            self.input_folder.list_files(extension=".ds.loss")
+            if self.save_loss_metadata
+            else ([None] * len(datafiles))
         )
         assert len(datafiles) == len(datafiles_index) == len(datafiles_loss), (
             f"Mismatch between number of .ds, "

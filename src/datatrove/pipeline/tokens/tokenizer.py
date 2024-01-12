@@ -1,5 +1,4 @@
 import itertools
-import mmap
 import struct
 
 import humanize
@@ -96,26 +95,23 @@ class TokenizedFile:
     def copy(self, destination: str, ordering: np.ndarray = None):
         # open original file in read mode
         self.close()
-        tokens_file = self.output_folder.open(self.filename, mode="r+b")
-        loss_file = None if not self.loss_file else self.output_folder.open(f"{self.filename}.loss", mode="r+b")
-        new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
-        # mmap the original file
-        orig_tokens = mmap.mmap(tokens_file.fileno(), 0)
-        orig_loss = mmap.mmap(loss_file.fileno(), 0) if loss_file else None
-        # shuffle doc_id
-        for doc_id in ordering:
-            # get start and end from the boundaries
-            start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
-            # copy the bytes. each token is 2 bytes
-            new_file.write_bytes(orig_tokens[start * 2 : end * 2])
-            # copy loss values (1 byte per token)
-            if orig_loss:
-                new_file.write_loss_bytes(orig_loss[start:end])
-        # close mmaps
-        orig_tokens.close()
-        if orig_loss:
-            orig_loss.close()
-        return new_file
+        with self.output_folder.open(self.filename, mode="rb", cache_type="readahead") as tokens_file:
+            loss_file = None if not self.loss_file else self.output_folder.open(f"{self.filename}.loss", mode="rb")
+            new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
+            # shuffle doc_id
+            for doc_id in ordering:
+                # get start and end from the boundaries
+                start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
+                # copy the bytes. each token is 2 bytes
+                tokens_file.seek(start * 2)
+                new_file.write_bytes(tokens_file.read((end - start) * 2))
+                # copy loss values (1 byte per token)
+                if loss_file:
+                    loss_file.seek(start)
+                    new_file.write_loss_bytes(loss_file.read(end - start))
+            if loss_file:
+                loss_file.close()
+            return new_file
 
     def save_final_metadata(self, tokenizer_name: str | None = None, token_count: int = -1, filename: str = None):
         if not tokenizer_name:
@@ -157,7 +153,6 @@ class DocumentTokenizer(PipelineStep):
         self.save_final_metadata = save_final_metadata
 
     def get_loss_values(self, document: Document, encoded: Encoding):
-        loss_values = None
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
             if no_loss := document.metadata.get("no_loss_ranges", None):
@@ -168,7 +163,7 @@ class DocumentTokenizer(PipelineStep):
                     if t_end is None or t_end >= len(encoded.ids):
                         # drop this last section
                         loss_values = loss_values[:t_start]
-        return loss_values
+            return loss_values
 
     def write_unshuffled(self, data: DocumentsPipeline, filename: str):
         unshuff = TokenizedFile(

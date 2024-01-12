@@ -11,7 +11,7 @@ from datatrove.data import Document
 from datatrove.datafolder import DataFolder, get_datafolder
 from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
-from datatrove.tools.check_dataset import check_dataset, load_doc_ends, load_input_mmap
+from datatrove.tools.check_dataset import check_dataset, load_doc_ends
 
 
 texts = [
@@ -37,12 +37,12 @@ def get_texts_from_tokens(input_folder: DataFolder):
     for tokens_file, index_file in zip(
         input_folder.list_files(extension=".ds"), input_folder.list_files(extension=".ds.index")
     ):
-        doc_ends = load_doc_ends(input_folder.open(index_file, "rb")).tolist()
-        tokens_bytes = load_input_mmap(input_folder.open(tokens_file, "rb"))
-        for start, end in zip([0] + doc_ends[:-1], doc_ends):
-            texts_from_tokens.append(
-                tokenizer.decode(struct.unpack("<%sH" % (end - start), tokens_bytes[start * 2 : end * 2]))
-            )
+        doc_ends = load_doc_ends(input_folder.open(index_file, "rb"))
+        with input_folder.open(tokens_file, "rb") as f:
+            for start, end in zip([0] + doc_ends[:-1], doc_ends):
+                texts_from_tokens.append(
+                    tokenizer.decode(struct.unpack("<%sH" % (end - start), f.read((end - start) * 2)))
+                )
     return texts_from_tokens
 
 
