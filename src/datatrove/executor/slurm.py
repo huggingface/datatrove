@@ -12,10 +12,11 @@ from typing import Callable
 
 import dill
 from dill import CONTENTS_FMODE
+from fsspec.implementations.local import LocalFileSystem
 from loguru import logger
 
+from datatrove.datafolder import ParsableDataFolder
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import BaseOutputDataFolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp
 
@@ -42,7 +43,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
-        logging_dir: str | BaseOutputDataFolder = None,
+        logging_dir: ParsableDataFolder = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,
@@ -116,7 +117,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
-            else f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
+            else (
+                f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
+                if not isinstance(self.logging_dir.fs, LocalFileSystem)
+                else self.logging_dir.to_absolute_paths("slurm_logs")
+            )
         )
 
     def run(self):
