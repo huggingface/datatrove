@@ -11,6 +11,10 @@ from datatrove.datafolder import ParsableDataFolder, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
+SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas for final filtered common crawl docs)
+# at a time to avoid reading a lot of data into cache and then not using it when jumping again
+SHUFFLING_CACHE_TYPE = "none"  # do not cache as we are only jumping around and not reading sequentially
+
 TOKENIZERS_INSTALLED = True
 try:
     from tokenizers import Encoding, Tokenizer
@@ -95,20 +99,29 @@ class TokenizedFile:
     def copy(self, destination: str, ordering: np.ndarray = None):
         # open original file in read mode
         self.close()
-        with self.output_folder.open(self.filename, mode="rb", cache_type="readahead") as tokens_file:
-            loss_file = None if not self.loss_file else self.output_folder.open(f"{self.filename}.loss", mode="rb")
+        with self.output_folder.open(
+            self.filename, mode="rb", cache_type=SHUFFLING_CACHE_TYPE, block_size=SHUFFLING_READ_BLOCK_SIZE
+        ) as tokens_file:
+            loss_file = (
+                None
+                if not self.loss_file
+                else self.output_folder.open(
+                    f"{self.filename}.loss",
+                    mode="rb",
+                    cache_type=SHUFFLING_CACHE_TYPE,
+                    block_size=SHUFFLING_READ_BLOCK_SIZE // 2,
+                )
+            )
             new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
             # shuffle doc_id
             for doc_id in ordering:
                 # get start and end from the boundaries
                 start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
                 # copy the bytes. each token is 2 bytes
-                tokens_file.seek(start * 2)
-                new_file.write_bytes(tokens_file.read((end - start) * 2))
+                new_file.write_bytes(tokens_file.read_block(start * 2, (end - start) * 2))
                 # copy loss values (1 byte per token)
                 if loss_file:
-                    loss_file.seek(start)
-                    new_file.write_loss_bytes(loss_file.read(end - start))
+                    new_file.write_loss_bytes(loss_file.read_block(start, end - start))
             if loss_file:
                 loss_file.close()
             return new_file
