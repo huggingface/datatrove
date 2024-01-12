@@ -1,10 +1,9 @@
 from copy import deepcopy
-from multiprocessing import Value
 from typing import Callable
 
 import multiprocess.pool
 from loguru import logger
-from multiprocess import Queue, Semaphore
+from multiprocess import Queue, Semaphore, Value
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import BaseOutputDataFolder
