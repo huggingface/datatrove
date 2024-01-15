@@ -46,7 +46,7 @@ class BaseExtractor(PipelineStep):
             return self.extract(doc.text)
 
         except TimeoutError:
-            logger.warning("⏰ Timeout while cleaning record tex.t Skipping record.")
+            logger.warning("⏰ Timeout while cleaning record text. Skipping record.")
 
         except Exception as e:
             logger.warning(f'❌ Error "{e}" while cleaning record text. Skipping record.')

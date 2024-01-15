@@ -82,4 +82,4 @@ def process_record(record: ArcWarcRecord) -> dict | None:
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return {"text_key": html, "id": id, "url": url, "date": date}
+    return {"text": html, "id": id, "url": url, "date": date}
