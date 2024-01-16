@@ -5,7 +5,7 @@ import numpy as np
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 
@@ -16,8 +16,8 @@ class DocumentTokenizerMerger(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
         save_filename: str,  # if defined, the final output filename will be this
         max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
         max_tokens: int = -1,  # max number of tokens to process
@@ -58,12 +58,10 @@ class DocumentTokenizerMerger(PipelineStep):
 
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
         token_inputs = list(
-            map(partial(get_data_reader, nb_bytes=2), self.input_folder.bulk_open_files(datafiles), doc_ends)
+            map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
         )
         loss_inputs = (
-            list(
-                map(partial(get_data_reader, nb_bytes=1), self.input_folder.bulk_open_files(datafiles_loss), doc_ends)
-            )
+            list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
             if self.save_loss_metadata
             else None
         )

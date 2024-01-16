@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from string import Template
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -11,9 +11,7 @@ class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
 
-    def __init__(
-        self, output_folder: ParsableDataFolder, output_filename: str = None, compression: str | None = "infer"
-    ):
+    def __init__(self, output_folder: DataFolderLike, output_filename: str = None, compression: str | None = "infer"):
         super().__init__()
         self.compression = compression
         self.output_folder = get_datafolder(output_folder)
@@ -21,7 +19,7 @@ class DiskWriter(PipelineStep, ABC):
         if self.compression == "gzip" and not output_filename.endswith(".gz"):
             output_filename += ".gz"
         self.output_filename = Template(output_filename)
-        self.output_mg = self.output_folder.get_outputfile_manager(mode="wt", compression=compression)
+        self.output_mg = self.output_folder.get_output_file_manager(mode="wt", compression=compression)
 
     def __enter__(self):
         return self

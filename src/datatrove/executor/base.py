@@ -7,7 +7,7 @@ from typing import Callable
 
 from loguru import logger
 
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp, log_pipeline
 from datatrove.utils.stats import PipelineStats
@@ -18,7 +18,7 @@ class PipelineExecutor(ABC):
     def __init__(
         self,
         pipeline: list[PipelineStep | Callable],
-        logging_dir: ParsableDataFolder = None,
+        logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
     ):
         """

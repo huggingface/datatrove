@@ -18,7 +18,7 @@ from nltk import load, ngrams
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -44,7 +44,7 @@ class SentenceDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
 
-    def __init__(self, output_folder: ParsableDataFolder, n_sentences: int = 3):
+    def __init__(self, output_folder: DataFolderLike, n_sentences: int = 3):
         """Args:
         output_folder: folder where signatures are saved
         n_sentences: n_sentences where duplicates are checked.
@@ -118,15 +118,15 @@ class SentenceFindDedups(PipelineStep):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
-        index_folder: ParsableDataFolder = None,
+        data_folder: DataFolderLike,
+        output_folder: DataFolderLike,
+        index_folder: DataFolderLike = None,
         only_dedup_in_index: bool = True,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
         self.output_folder = get_datafolder(output_folder)
-        self.index_folder = get_datafolder(index_folder)
+        self.index_folder = get_datafolder(index_folder) if index_folder else None
         self.only_dedup_in_index = only_dedup_in_index
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
@@ -145,7 +145,7 @@ class SentenceFindDedups(PipelineStep):
         with self.stats.time_stats:
             sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
-                read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.bulk_open_files(sig_files))
+                read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
             index_files = self.index_folder.list_files() if self.index_folder else None
             if index_files:
@@ -153,14 +153,14 @@ class SentenceFindDedups(PipelineStep):
                 sig_readers.extend(
                     [
                         read_sigs(file, len(sig_readers) + file_i, index_file=True)
-                        for file_i, file in enumerate(self.data_folder.bulk_open_files(index_files))
+                        for file_i, file in enumerate(self.data_folder.open_files(index_files))
                     ]
                 )
 
             pq = [next(sig_reader) for sig_reader in sig_readers]
             heapq.heapify(pq)
 
-            output_mg = self.output_folder.get_outputfile_manager(mode="wb")
+            output_mg = self.output_folder.get_output_file_manager(mode="wb")
 
             last: HashSig | None = None
             while pq:
@@ -199,7 +199,7 @@ class SentenceDedupFilter(PipelineStep):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
         n_sentences: int = 3,
         min_doc_words: int = 50,
         exclusion_writer: DiskWriter = None,
@@ -278,8 +278,8 @@ class SentenceDedupBuildIndex(PipelineStep):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
+        output_folder: DataFolderLike,
         index_name: str,
     ):
         super().__init__()
@@ -292,22 +292,20 @@ class SentenceDedupBuildIndex(PipelineStep):
         with self.stats.time_stats:
             sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
-                read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.bulk_open_files(sig_files))
+                read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
 
             pq = [next(sig_reader) for sig_reader in sig_readers]
             heapq.heapify(pq)
 
-            out_f = self.output_folder.open(f"{self.index_name}.{ExtensionHelperSD.index}", mode="wb")
+            with self.output_folder.open(f"{self.index_name}.{ExtensionHelperSD.index}", mode="wb") as out_f:
+                last = None
+                while pq:
+                    v: HashSig = heapq.heappop(pq)
+                    if last != v.hash_value:
+                        out_f.write(struct.pack("<Q", v.hash_value))
+                    last = v.hash_value
+                    new_v = next(sig_readers[v.file_id], None)
 
-            last = None
-            while pq:
-                v: HashSig = heapq.heappop(pq)
-                if last != v.hash_value:
-                    out_f.write(struct.pack("<Q", v.hash_value))
-                last = v.hash_value
-                new_v = next(sig_readers[v.file_id], None)
-
-                if new_v:
-                    heapq.heappush(pq, new_v)
-            out_f.close()
+                    if new_v:
+                        heapq.heappush(pq, new_v)

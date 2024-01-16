@@ -7,7 +7,7 @@ from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -39,7 +39,7 @@ def batched(iterable, n):
 class TokenizedFile:
     def __init__(
         self,
-        output_folder: ParsableDataFolder,
+        output_folder: DataFolderLike,
         filename: str,
         save_index: bool = True,
         save_loss_metadata: bool = False,
@@ -52,7 +52,7 @@ class TokenizedFile:
         self.doc_ends = []
 
         self.tokens_file = self.output_folder.open(self.filename, mode="wb")
-        self.loss_file: ParsableDataFolder | None = None
+        self.loss_file: DataFolderLike | None = None
         if self.save_loss_metadata:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb")
 
@@ -145,7 +145,7 @@ class DocumentTokenizer(PipelineStep):
 
     def __init__(
         self,
-        output_folder: ParsableDataFolder,
+        output_folder: DataFolderLike,
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document

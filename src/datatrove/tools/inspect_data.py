@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
-from datatrove.datafolder import DataFolder, get_datafolder
+from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.filters import SamplerFilter
 from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
 from datatrove.pipeline.writers import JsonlWriter

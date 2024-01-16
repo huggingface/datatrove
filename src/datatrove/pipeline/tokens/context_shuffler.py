@@ -5,7 +5,7 @@ from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.merger import load_doc_ends
 
@@ -16,8 +16,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
         window_size: int = 2048 + 1,
         seed: int = None,
     ):

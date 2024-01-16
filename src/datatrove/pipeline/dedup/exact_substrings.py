@@ -21,7 +21,7 @@ import tokenizers
 from loguru import logger
 from nltk.tokenize import word_tokenize
 
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.pipeline.readers import JsonlReader
 
@@ -47,7 +47,7 @@ class DatasetToSequence(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
 
-    def __init__(self, output_folder: ParsableDataFolder, tokenizer_name: str = "gpt2"):
+    def __init__(self, output_folder: DataFolderLike, tokenizer_name: str = "gpt2"):
         """Args:
         output_folder: folder where sequences are saved
         tokenizer_name: name of tokenizer as in HF tokenizers.
@@ -86,8 +86,8 @@ class MergeSequences(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
         tasks_stage_1: int,
         bytes_per_batch: int = int(500e6),
     ):
@@ -148,8 +148,8 @@ class DedupReader(JsonlReader):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
-        sequence_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
+        sequence_folder: DataFolderLike,
         compression: Literal["guess", "gzip", "zst"] | None = "guess",
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,

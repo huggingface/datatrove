@@ -5,8 +5,8 @@ from typing import Callable
 from loguru import logger
 from multiprocess import Pool, Queue
 
-from datatrove.datafolder import ParsableDataFolder
 from datatrove.executor.base import PipelineExecutor
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.stats import PipelineStats
 
@@ -27,7 +27,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         pipeline: list[PipelineStep | Callable],
         tasks: int = 1,
         workers: int = -1,
-        logging_dir: ParsableDataFolder = None,
+        logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
     ):
         """Execute a pipeline locally

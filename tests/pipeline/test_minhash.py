@@ -9,7 +9,7 @@ from math import floor
 import numpy as np
 
 from datatrove.data import Document
-from datatrove.datafolder import get_datafolder
+from datatrove.io import get_datafolder
 from datatrove.pipeline.dedup.minhash import (
     MinhashConfig,
     MinhashDedupBuckets,

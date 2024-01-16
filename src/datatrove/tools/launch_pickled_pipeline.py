@@ -2,8 +2,8 @@ import argparse
 
 import dill
 
-from datatrove.datafolder import get_file
 from datatrove.executor.base import PipelineExecutor
+from datatrove.io import get_file
 
 
 parser = argparse.ArgumentParser("Loads a pickled pipeline executor and launches it.")

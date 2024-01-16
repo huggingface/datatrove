@@ -8,7 +8,7 @@ import numpy as np
 from tokenizers import Tokenizer
 
 from datatrove.data import Document
-from datatrove.datafolder import DataFolder, get_datafolder
+from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends

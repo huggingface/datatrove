@@ -7,7 +7,7 @@ from loguru import logger
 from rich.console import Console
 from rich.prompt import Confirm
 
-from datatrove.datafolder import get_datafolder
+from datatrove.io import get_datafolder
 
 
 parser = argparse.ArgumentParser("Fetch the log files of failed tasks.")

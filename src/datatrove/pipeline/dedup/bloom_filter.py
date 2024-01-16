@@ -6,7 +6,7 @@ from loguru import logger
 from nltk import ngrams, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -36,7 +36,7 @@ class SingleBloomFilter(PipelineStep):
 
     def __init__(
         self,
-        output_folder: ParsableDataFolder,
+        output_folder: DataFolderLike,
         m_bytes: int,
         k: int = None,
         expected_elements: int = None,

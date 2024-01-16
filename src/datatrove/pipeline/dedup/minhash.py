@@ -9,7 +9,7 @@ from loguru import logger
 from nltk import ngrams, word_tokenize
 
 from datatrove.data import DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, sha1_hash64, simplify_content
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -84,7 +84,7 @@ class MinhashDedupSignature(PipelineStep):
 
     def __init__(
         self,
-        output_folder: ParsableDataFolder,
+        output_folder: DataFolderLike,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
     ):
         super().__init__()
@@ -172,9 +172,9 @@ class MinhashDedupBuckets(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
-        index_folder: ParsableDataFolder = None,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
+        index_folder: DataFolderLike = None,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         only_dedup_in_index: bool = True,
         create_index_name: str = None,
@@ -182,7 +182,7 @@ class MinhashDedupBuckets(PipelineStep):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
-        self.index_folder = get_datafolder(index_folder)
+        self.index_folder = get_datafolder(index_folder) if index_folder else None
         self.config = config
         self.only_dedup_in_index = only_dedup_in_index
         self.create_index_name = create_index_name
@@ -190,18 +190,18 @@ class MinhashDedupBuckets(PipelineStep):
     def run(self, data: DocumentsPipeline = None, bucket: int = 0, world_size: int = 1):
         assert data is None, "You should not use an input block before MinhashDedupBuckets"
         assert world_size == self.config.num_buckets, "You must run exactly one task per bucket"
-        sig_files = self.input_folder.list_files(suffix=f"bucket_{bucket:03d}")
+        sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
         sig_readers = [
             read_sigs(file, file_i, self.config)
-            for file_i, file in enumerate(self.input_folder.bulk_open_files(sig_files, mode="rb"))
+            for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
         ]
-        index_files = self.index_folder.list_files(suffix=f"bucket_{bucket:03d}") if self.index_folder else None
+        index_files = self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}") if self.index_folder else None
         if index_files:
             logger.info(f"Found index file(s): {', '.join(index_files)}")
             sig_readers.extend(
                 [
                     read_sigs(file, len(sig_readers) + file_i, self.config, index_file=True)
-                    for file_i, file in enumerate(self.index_folder.bulk_open_files(index_files, mode="rb"))
+                    for file_i, file in enumerate(self.index_folder.open_files(index_files, mode="rb"))
                     # exclude "itself" if the index was partially uploaded/ended midway
                     if not self.create_index_name
                     or file != f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index"
@@ -253,8 +253,8 @@ class MinhashDedupCluster(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         save_cluster_id: bool = False,
     ):
@@ -284,23 +284,21 @@ class MinhashDedupCluster(PipelineStep):
 
             ci = 0
             cluster_ids = {}
-            output_mg = self.output_folder.get_outputfile_manager(mode="wb")
-
-            for node in sorted(union_set.keys()):
-                self.stat_update("duplicates")
-                file, doc = node
-                p = parent(node)
-                if node != p:
-                    output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
-                    self.stat_update("to_remove")
-                if self.save_cluster_id:
-                    if p not in cluster_ids:
-                        cluster_ids[p] = ci
-                        ci += 1
-                        self.stat_update("clusters")
-                    output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
-                    output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
-            output_mg.close()
+            with self.output_folder.get_output_file_manager(mode="wb") as output_mg:
+                for node in sorted(union_set.keys()):
+                    self.stat_update("duplicates")
+                    file, doc = node
+                    p = parent(node)
+                    if node != p:
+                        output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
+                        self.stat_update("to_remove")
+                    if self.save_cluster_id:
+                        if p not in cluster_ids:
+                            cluster_ids[p] = ci
+                            ci += 1
+                            self.stat_update("clusters")
+                        output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
+                        output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
 
 
 class MinhashDedupFilter(PipelineStep):
@@ -309,7 +307,7 @@ class MinhashDedupFilter(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
+        input_folder: DataFolderLike,
         exclusion_writer: DiskWriter = None,
         load_cluster_ids: bool = False,
     ):
@@ -373,8 +371,8 @@ class MinhashBuildIndex(PipelineStep):
 
     def __init__(
         self,
-        input_folder: ParsableDataFolder,
-        output_folder: ParsableDataFolder,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
         index_name: str,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
     ):
@@ -387,10 +385,10 @@ class MinhashBuildIndex(PipelineStep):
     def run(self, data: DocumentsPipeline = None, bucket: int = 0, world_size: int = 1):
         assert data is None, "You should not use an input block before MinhashBuildIndex"
         assert world_size == self.config.num_buckets, "You must run exactly one task per bucket"
-        sig_files = self.input_folder.list_files(suffix=f"bucket_{bucket:03d}")
+        sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
         sig_readers = [
             read_sigs(file, file_i, self.config)
-            for file_i, file in enumerate(self.input_folder.bulk_open_files(sig_files, mode="rb"))
+            for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
         ]
 
         pq = [next(sig_reader) for sig_reader in sig_readers]

@@ -6,7 +6,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.datafolder import ParsableDataFolder, get_datafolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -15,7 +15,7 @@ class BaseReader(PipelineStep):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,

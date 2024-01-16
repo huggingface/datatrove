@@ -15,8 +15,8 @@ from dill import CONTENTS_FMODE
 from fsspec.implementations.local import LocalFileSystem
 from loguru import logger
 
-from datatrove.datafolder import ParsableDataFolder
 from datatrove.executor.base import PipelineExecutor
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp
 
@@ -43,7 +43,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
-        logging_dir: ParsableDataFolder = None,
+        logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,

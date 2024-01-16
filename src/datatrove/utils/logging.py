@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from datatrove.datafolder import DataFolder
+from datatrove.io import DataFolder
 
 
 def get_timestamp():

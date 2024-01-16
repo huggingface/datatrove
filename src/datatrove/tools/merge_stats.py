@@ -5,7 +5,7 @@ import os.path
 from loguru import logger
 from tqdm import tqdm
 
-from datatrove.datafolder import get_datafolder, get_file
+from datatrove.io import get_datafolder, get_file
 from datatrove.utils.stats import PipelineStats
 
 

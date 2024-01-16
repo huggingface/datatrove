@@ -2,7 +2,7 @@ from typing import Callable
 
 import pyarrow.parquet as pq
 
-from datatrove.datafolder import ParsableDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -11,7 +11,7 @@ class ParquetReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
         limit: int = -1,
         batch_size: int = 1000,
         read_metadata: bool = True,

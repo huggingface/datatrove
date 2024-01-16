@@ -39,6 +39,7 @@ class DataFolder(DirFileSystem):
         self,
         path: str,
         fs: AbstractFileSystem | None = None,
+        # auto_mkdir: bool = True,
         recursive: bool = True,
         glob: str | None = None,
         **storage_options,
@@ -53,22 +54,23 @@ class DataFolder(DirFileSystem):
             **storage_options:
         """
         super().__init__(path=path, fs=fs if fs else url_to_fs(path, **storage_options)[0])
+        # self.fs.auto_mkdir = True
         self.recursive = recursive
         self.pattern = glob
         if not self.isdir("/"):
             self.mkdirs("/", exist_ok=True)
 
-    def list_files(self, suffix: str = "", extension: str | list[str] = None) -> list[str]:
+    def list_files(self, subdirectory: str = "", extension: str | list[str] = None) -> list[str]:
         if extension and isinstance(extension, str):
             extension = [extension]
         return sorted(
             [
                 f
                 for f in (
-                    self.find(suffix, maxdepth=0 if not self.recursive else None)
+                    self.find(subdirectory, maxdepth=0 if not self.recursive else None)
                     if not self.pattern
                     else self.glob(
-                        self.fs.sep.join([self.pattern, suffix]), maxdepth=0 if not self.recursive else None
+                        self.fs.sep.join([self.pattern, subdirectory]), maxdepth=0 if not self.recursive else None
                     )
                 )
                 if not extension or any(f.endswith(ext) for ext in extension)
@@ -102,13 +104,11 @@ class DataFolder(DirFileSystem):
     def get_output_file_manager(self, **kwargs) -> OutputFileManager:
         return OutputFileManager(self, **kwargs)
 
-    def bulk_open_files(self, paths, mode="rb", **kwargs):
+    def open_files(self, paths, mode="rb", **kwargs):
         return [self.open(path, mode=mode, **kwargs) for path in paths]
 
 
-def get_datafolder(data: DataFolder | str) -> DataFolder | None:
-    if data is None:
-        return None
+def get_datafolder(data: DataFolder | str | tuple[str, dict]) -> DataFolder:
     if isinstance(data, str):
         return DataFolder(data)
     if isinstance(data, DataFolder):
@@ -124,4 +124,4 @@ def get_file(file: IO | str, mode="rt", **kwargs):
     return file
 
 
-ParsableDataFolder: TypeAlias = str | tuple[str, dict] | DataFolder
+DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

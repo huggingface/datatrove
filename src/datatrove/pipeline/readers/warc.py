@@ -5,7 +5,7 @@ import magic
 from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArcWarcRecord
 
-from datatrove.datafolder import ParsableDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -14,7 +14,7 @@ class WarcReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
         compression: Literal["guess", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,

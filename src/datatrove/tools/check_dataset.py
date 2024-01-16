@@ -7,7 +7,7 @@ import numpy as np
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from datatrove.datafolder import DataFolder, get_datafolder
+from datatrove.io import DataFolder, get_datafolder
 
 
 parser = argparse.ArgumentParser()

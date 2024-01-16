@@ -2,7 +2,7 @@ from typing import Callable
 
 import pyarrow as pa
 
-from datatrove.datafolder import ParsableDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -11,7 +11,7 @@ class IpcReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: ParsableDataFolder,
+        data_folder: DataFolderLike,
         limit: int = -1,
         stream: bool = False,
         progress: bool = False,
