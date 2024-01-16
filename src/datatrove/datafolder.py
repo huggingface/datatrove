@@ -99,7 +99,7 @@ class DataFolder(DirFileSystem):
             return self.unstrip_protocol(self._join(paths))
         return list(map(self.unstrip_protocol, self._join(paths)))
 
-    def get_outputfile_manager(self, **kwargs) -> OutputFileManager:
+    def get_output_file_manager(self, **kwargs) -> OutputFileManager:
         return OutputFileManager(self, **kwargs)
 
     def bulk_open_files(self, paths, mode="rb", **kwargs):
