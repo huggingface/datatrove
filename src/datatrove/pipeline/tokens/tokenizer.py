@@ -3,11 +3,12 @@ import struct
 
 import humanize
 import numpy as np
+from fsspec.implementations.local import LocalFileSystem
 from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import DataFolderLike, get_datafolder
+from datatrove.io import DataFolder, DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -96,7 +97,7 @@ class TokenizedFile:
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
-    def copy(self, destination: str, ordering: np.ndarray = None):
+    def copy(self, destination: str, ordering: np.ndarray = None, new_output_folder: DataFolder = None):
         # open original file in read mode
         self.close()
         with self.output_folder.open(
@@ -112,7 +113,11 @@ class TokenizedFile:
                     block_size=SHUFFLING_READ_BLOCK_SIZE // 2,  # this one is half the size
                 )
             )
-            new_file = TokenizedFile(self.output_folder, destination, save_loss_metadata=self.save_loss_metadata)
+            new_file = TokenizedFile(
+                self.output_folder if not new_output_folder else new_output_folder,
+                destination,
+                save_loss_metadata=self.save_loss_metadata,
+            )
             # shuffle doc_id
             for doc_id in ordering:
                 # get start and end from the boundaries
@@ -146,6 +151,7 @@ class DocumentTokenizer(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
+        local_working_dir: str | None = None,
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
@@ -157,6 +163,9 @@ class DocumentTokenizer(PipelineStep):
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
+        self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
+        if self.local_working_dir and not isinstance(self.local_working_dir, LocalFileSystem):
+            raise ValueError("local_working_dir must be a local path")
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
         self.eos_token = eos_token
@@ -182,7 +191,10 @@ class DocumentTokenizer(PipelineStep):
 
     def write_unshuffled(self, data: DocumentsPipeline, filename: str):
         unshuff = TokenizedFile(
-            self.output_folder, filename, save_index=not self.shuffle, save_loss_metadata=self.save_loss_metadata
+            self.output_folder if not self.shuffle or not self.local_working_dir else self.local_working_dir,
+            filename,
+            save_index=not self.shuffle,
+            save_loss_metadata=self.save_loss_metadata,
         )
         # tokenize document's text in batches to go faster – we compute loss values independently if needed
         for batch in batched(data, self.batch_size):
@@ -213,7 +225,9 @@ class DocumentTokenizer(PipelineStep):
         if self.shuffle:
             shuffled_filename = self.get_output_filename(rank, "shuffled")
             # get new TokenizedFile, shuffling docs from original one
-            new_outputfile = outputfile.copy(shuffled_filename, self.rand.permutation(len(outputfile.doc_ends)))
+            new_outputfile = outputfile.copy(
+                shuffled_filename, self.rand.permutation(len(outputfile.doc_ends)), self.output_folder
+            )
             # remove and replace original file
             outputfile.cleanup()
             outputfile = new_outputfile
