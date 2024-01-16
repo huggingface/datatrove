@@ -61,15 +61,19 @@ class DataFolder(DirFileSystem):
     def list_files(self, suffix: str = "", extension: str | list[str] = None) -> list[str]:
         if extension and isinstance(extension, str):
             extension = [extension]
-        return [
-            f
-            for f in (
-                self.find(suffix, maxdepth=0 if not self.recursive else None)
-                if not self.pattern
-                else self.glob(self.fs.sep.join([self.pattern, suffix]), maxdepth=0 if not self.recursive else None)
-            )
-            if not extension or any(f.endswith(ext) for ext in extension)
-        ]
+        return sorted(
+            [
+                f
+                for f in (
+                    self.find(suffix, maxdepth=0 if not self.recursive else None)
+                    if not self.pattern
+                    else self.glob(
+                        self.fs.sep.join([self.pattern, suffix]), maxdepth=0 if not self.recursive else None
+                    )
+                )
+                if not extension or any(f.endswith(ext) for ext in extension)
+            ]
+        )
 
     def get_shard(self, rank: int, world_size: int, **kwargs) -> list[str]:
         """Fetch a shard (set of files) for a given rank, assuming there are a total of `world_size` shards.
