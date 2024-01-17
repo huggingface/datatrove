@@ -39,7 +39,7 @@ class DataFolder(DirFileSystem):
         self,
         path: str,
         fs: AbstractFileSystem | None = None,
-        # auto_mkdir: bool = True,
+        auto_mkdir: bool = True,
         recursive: bool = True,
         glob: str | None = None,
         **storage_options,
@@ -54,11 +54,9 @@ class DataFolder(DirFileSystem):
             **storage_options:
         """
         super().__init__(path=path, fs=fs if fs else url_to_fs(path, **storage_options)[0])
-        # self.fs.auto_mkdir = True
+        self.auto_mkdir = auto_mkdir
         self.recursive = recursive
         self.pattern = glob
-        if not self.isdir("/"):
-            self.mkdirs("/", exist_ok=True)
 
     def list_files(self, subdirectory: str = "", extension: str | list[str] = None) -> list[str]:
         if extension and isinstance(extension, str):
@@ -106,6 +104,11 @@ class DataFolder(DirFileSystem):
 
     def open_files(self, paths, mode="rb", **kwargs):
         return [self.open(path, mode=mode, **kwargs) for path in paths]
+
+    def open(self, path, mode="rb", *args, **kwargs):
+        if self.auto_mkdir and "w" in mode:
+            self.fs.makedirs(self.fs._parent(self._join(path)), exist_ok=True)
+        return super().open(path, mode=mode, *args, **kwargs)
 
 
 def get_datafolder(data: DataFolder | str | tuple[str, dict]) -> DataFolder:
