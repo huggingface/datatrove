@@ -36,6 +36,7 @@ extras["tests"] = [
     "pytest-xdist",
     # Optional dependencies
     "fasttext-wheel",
+    "moto",
 ]
 
 extras["all"] = extras["quality"] + extras["tests"]

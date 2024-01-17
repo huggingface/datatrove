@@ -120,7 +120,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             else (
                 f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
                 if not isinstance(self.logging_dir.fs, LocalFileSystem)
-                else self.logging_dir.to_absolute_paths("slurm_logs")
+                else self.logging_dir.resolve_paths("slurm_logs")
             )
         )
 
@@ -149,8 +149,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     "mem-per-cpu": "1G",
                     "dependency": f"afterok:{self.job_id}",
                 },
-                f'merge_stats {self.logging_dir.to_absolute_paths("stats")} '
-                f'-o {self.logging_dir.to_absolute_paths("stats.json")}',
+                f'merge_stats {self.logging_dir.resolve_paths("stats")} '
+                f'-o {self.logging_dir.resolve_paths("stats.json")}',
             )
         )
 
@@ -197,13 +197,13 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
-            f"srun -l launch_pickled_pipeline {self.logging_dir.to_absolute_paths('executor.pik')}",
+            f"srun -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
             launchscript_f.write(launch_file_contents)
         logger.info(
             f"Launching Slurm job {self.job_name} ({len(ranks_to_run)} tasks) with launch script "
-            f'"{self.logging_dir.to_absolute_paths("launch_script.slurm")}"'
+            f'"{self.logging_dir.resolve_paths("launch_script.slurm")}"'
         )
 
         launched_jobs = 0

@@ -49,7 +49,7 @@ class BaseReader(PipelineStep):
                 logger.warning("Found document without content, skipping.")
             return None
         document = Document(**parsed_data)
-        document.metadata.setdefault("file_path", self.data_folder.to_absolute_paths(source_file))
+        document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata
         return document

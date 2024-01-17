@@ -89,15 +89,14 @@ class DataFolder(DirFileSystem):
         """
         return self.list_files(**kwargs)[rank::world_size]
 
-    def unstrip_protocol(self, name: str) -> str:
-        if isinstance(self.fs, LocalFileSystem):
-            return name
-        return super().unstrip_protocol(name)
-
-    def to_absolute_paths(self, paths) -> list[str] | str:
+    def resolve_paths(self, paths) -> list[str] | str:
         if isinstance(paths, str):
-            return self.unstrip_protocol(self._join(paths))
-        return list(map(self.unstrip_protocol, self._join(paths)))
+            if isinstance(self.fs, LocalFileSystem):
+                # make sure we strip file:// and similar
+                return self.fs._strip_protocol(self._join(paths))
+            # otherwise explicitly add back the protocol
+            return self.fs.unstrip_protocol(self._join(paths))
+        return list(map(self.resolve_paths, paths))
 
     def get_output_file_manager(self, **kwargs) -> OutputFileManager:
         return OutputFileManager(self, **kwargs)
@@ -111,7 +110,7 @@ class DataFolder(DirFileSystem):
         return super().open(path, mode=mode, *args, **kwargs)
 
 
-def get_datafolder(data: DataFolder | str | tuple[str, dict]) -> DataFolder:
+def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]) -> DataFolder:
     # fully initialized DataFolder object
     if isinstance(data, DataFolder):
         return data
