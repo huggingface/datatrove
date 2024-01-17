@@ -37,6 +37,7 @@ extras["tests"] = [
     # Optional dependencies
     "fasttext-wheel",
     "moto",
+    "s3fs",
 ]
 
 extras["all"] = extras["quality"] + extras["tests"]
