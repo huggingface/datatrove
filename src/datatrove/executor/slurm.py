@@ -175,7 +175,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 self.depends_job_id = self.depends.job_id
             self.depends = None  # avoid pickling the entire dependency and possibly its dependencies
 
-        self.logging_dir.makedirs("completions", exist_ok=True)
         ranks_to_run = self.get_incomplete_ranks()
         if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
@@ -219,6 +218,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.launch_merge_stats()
 
     def get_sbatch_args(self, max_array: int = 1) -> dict:
+        # this one we actually have to create as slurm will be writing here
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
         return {

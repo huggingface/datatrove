@@ -126,8 +126,6 @@ class MinhashDedupSignature(PipelineStep):
         )
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        for bi in range(self.config.num_buckets):
-            self.output_folder.mkdirs(f"bucket_{bi:03d}", exist_ok=True)
         buckets = [
             self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
             for bi in range(self.config.num_buckets)

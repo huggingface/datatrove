@@ -88,7 +88,6 @@ class LocalPipelineExecutor(PipelineExecutor):
                 stats = list(pool.imap_unordered(self._run_for_rank, ranks_to_run))
         # merged stats
         stats = sum(stats, start=PipelineStats())
-        self.logging_dir.makedirs("stats", exist_ok=True)
         with self.logging_dir.open("stats.json", "wt") as statsfile:
             stats.save_to_disk(statsfile)
         logger.success(stats.get_repr(f"All {self.tasks} tasks"))

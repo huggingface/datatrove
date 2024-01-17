@@ -66,7 +66,6 @@ class PipelineExecutor(ABC):
 
             # stats
             stats = PipelineStats(self.pipeline)
-            self.logging_dir.makedirs("stats", exist_ok=True)
             with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
                 stats.save_to_disk(f)
             logger.info(stats.get_repr(f"Task {rank}"))
