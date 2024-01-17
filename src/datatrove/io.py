@@ -109,13 +109,21 @@ class DataFolder(DirFileSystem):
 
 
 def get_datafolder(data: DataFolder | str | tuple[str, dict]) -> DataFolder:
-    if isinstance(data, str):
-        return DataFolder(data)
+    # fully initialized DataFolder object
     if isinstance(data, DataFolder):
         return data
-    if isinstance(data, tuple) and list(map(type, data)) == [str, dict]:
+    # simple string path
+    if isinstance(data, str):
+        return DataFolder(data)
+    # (str path, fs init options dict)
+    if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], dict):
         return DataFolder(data[0], **data[1])
-    raise ValueError("You must pass a DataFolder or a str path")
+    # (str path, initialized fs object)
+    if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], AbstractFileSystem):
+        return DataFolder(data[0], fs=data[1])
+    raise ValueError(
+        "You must pass a DataFolder instance, a str path, a (str path, fs_init_kwargs) or (str path, fs object)"
+    )
 
 
 def get_file(file: IO | str, mode="rt", **kwargs):
