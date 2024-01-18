@@ -6,7 +6,6 @@ from typing import BinaryIO, Generator
 
 import numpy as np
 from loguru import logger
-from nltk import ngrams, word_tokenize
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -81,6 +80,7 @@ def read_sigs(file: BinaryIO, reader_id: int, config: MinhashConfig, index_file:
 class MinhashDedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -117,6 +117,8 @@ class MinhashDedupSignature(PipelineStep):
         ]
 
     def get_shingles(self, text):
+        from nltk import ngrams, word_tokenize
+
         return np.array(
             [
                 [self._hash_func(" ".join(x).encode("utf-8"))]

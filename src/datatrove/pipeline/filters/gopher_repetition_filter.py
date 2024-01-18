@@ -1,8 +1,6 @@
 import re
 from collections import Counter
 
-from nltk.tokenize import word_tokenize
-
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -72,6 +70,7 @@ def find_all_duplicate(words: list[str], n: int) -> int:
 
 class GopherRepetitionFilter(BaseFilter):
     name = "👯 Gopher Repetition"
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -98,6 +97,8 @@ class GopherRepetitionFilter(BaseFilter):
         self.paragraph_exp = re.compile(r"\n{2,}")
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
+        from nltk.tokenize import word_tokenize
+
         text = doc.text
 
         paragraphs = self.paragraph_exp.split(text.strip())

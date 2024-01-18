@@ -19,6 +19,8 @@ from datatrove.pipeline.dedup.minhash import (
     read_sigs,
 )
 
+from ..utils import require_nltk
+
 
 lorem_ipsum = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam euismod vel ante vitae rhoncus. Curabitur eu lectus et magna maximus facilisis eu non magna. Maecenas sed velit vitae est ornare placerat. Vestibulum quis consectetur nunc, a feugiat lorem. Cras in ipsum fringilla, vestibulum urna sit amet, viverra tortor. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Morbi euismod vestibulum elit id placerat. Fusce malesuada ultricies condimentum. Cras tincidunt eget lorem nec hendrerit. Aenean mattis arcu dolor, id semper velit ullamcorper malesuada. Aliquam non ipsum et eros venenatis aliquet. Proin eleifend interdum scelerisque. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris nunc sapien, molestie eget convallis at, maximus nec ipsum. Morbi quam diam, blandit ut mollis at, varius eu tellus. Maecenas sem justo, porttitor at odio nec, interdum posuere ex.
 
@@ -31,6 +33,7 @@ Suspendisse potenti. Ut feugiat nibh ex. Nunc eget ligula ut massa tempus pretiu
 Quisque et aliquet diam. Aenean euismod efficitur enim, non semper eros. Nullam molestie vehicula eros, nec porttitor justo feugiat nec. Maecenas fringilla eleifend augue, eu mollis arcu vulputate ac. Quisque ullamcorper turpis sed tristique dapibus. Etiam imperdiet pulvinar fringilla. Nulla sed est eget odio dictum pretium. Cras ultricies nibh libero, efficitur consequat neque semper id. Donec porttitor lacus nunc, vitae gravida lorem consectetur sit amet. Pellentesque mollis, dui nec molestie consectetur, massa enim tempus ipsum, quis pretium felis massa congue felis. Donec efficitur pretium diam, quis elementum felis eleifend quis. Nullam vehicula tortor et quam eleifend, maximus dignissim nisi feugiat. """
 
 
+@require_nltk
 class TestMinhash(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory

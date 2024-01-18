@@ -1,5 +1,3 @@
-from trafilatura import extract
-
 from .base import BaseExtractor
 
 
@@ -7,6 +5,7 @@ class Trafilatura(BaseExtractor):
     """Trafilatura extractor, it uses https://trafilatura.readthedocs.io/en/latest/index.html"""
 
     name = "⛏ Trafilatura"
+    _requires_dependencies = ["trafilatura"]
 
     def __init__(
         self,
@@ -32,6 +31,8 @@ class Trafilatura(BaseExtractor):
             raise NotImplementedError
 
     def extract(self, text: str) -> str:
+        from trafilatura import extract
+
         return extract(
             text,
             favor_precision=self.favour_precision,

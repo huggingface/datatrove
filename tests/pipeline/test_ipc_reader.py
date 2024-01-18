@@ -7,8 +7,17 @@ import pyarrow as pa
 import pyarrow.feather as feather
 
 from datatrove.pipeline.readers.ipc import IpcReader
+from datatrove.utils._import_utils import is_pyarrow_available
+
+from ..utils import require_pyarrow
 
 
+if is_pyarrow_available():
+    import pyarrow as pa  # noqa: F811
+    import pyarrow.feather as feather  # noqa: F811
+
+
+@require_pyarrow
 class TestIpcReader(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory

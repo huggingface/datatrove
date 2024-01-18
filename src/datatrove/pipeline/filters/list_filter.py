@@ -1,5 +1,3 @@
-from nltk.tokenize import word_tokenize
-
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -7,6 +5,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 class ListFilter(BaseFilter):
     name = "🎅 List"
+    _requires_dependencies = ["nltk"]
 
     def __init__(self, new_line_ratio: float | None = 0.3, exclusion_writer: DiskWriter = None):  # TODO better tune
         """ """
@@ -21,6 +20,8 @@ class ListFilter(BaseFilter):
         Returns:
             False if sample.text is a list
         """
+        from nltk.tokenize import word_tokenize
+
         text = doc.text
         words = word_tokenize(text)  # TODO we should use language id filter
         new_line = text.count("\n")

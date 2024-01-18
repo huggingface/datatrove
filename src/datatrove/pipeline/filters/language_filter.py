@@ -7,27 +7,20 @@ from loguru import logger
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.assets import DOWNLOAD_PATH
 from datatrove.utils.typeshelper import Languages
 
 
 LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
 
-FASTTEXT_INSTALLED = True
-try:
-    from fasttext.FastText import _FastText
-except ImportError:
-    FASTTEXT_INSTALLED = False
-
 
 class LanguageFilter(BaseFilter):
     name = "🌍 Language ID"
+    _requires_dependencies = [("fasttext", "fasttext-wheel")]
 
     def __init__(
         self,
         languages: tuple = (Languages.english,),
         language_threshold: float = 0.65,
-        model_local_path: str = os.path.join(DOWNLOAD_PATH, "language_id/lid.176.bin"),
         exclusion_writer: DiskWriter = None,
     ):
         """
@@ -45,9 +38,8 @@ class LanguageFilter(BaseFilter):
     @property
     def model(self):
         if not self._model:
-            if not FASTTEXT_INSTALLED:
-                logger.error("FastText is required to run LanguageFilter")
-                raise ImportError
+            from fasttext.FastText import _FastText
+
             download_dir = cached_assets_path(
                 library_name="datatrove", namespace="filters", subfolder="language_filter"
             )

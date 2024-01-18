@@ -1,13 +1,12 @@
 from typing import Callable
 
-import pyarrow as pa
-
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class IpcReader(BaseDiskReader):
     name = "🪶 Ipc"
+    _requires_dependencies = ["pyarrow"]
 
     def __init__(
         self,
@@ -25,12 +24,16 @@ class IpcReader(BaseDiskReader):
         # TODO: add option to disable reading metadata (https://github.com/apache/arrow/issues/13827 needs to be addressed first)
 
     def _iter_file_batches(self, filepath: str):
+        import pyarrow as pa
+
         with self.data_folder.open(filepath, "rb") as f:
             with pa.ipc.open_file(f) as ipc_reader:
                 for i in range(ipc_reader.num_record_batches):
                     yield ipc_reader.get_batch(i)
 
     def _iter_stream_batches(self, filepath: str):
+        import pyarrow as pa
+
         with self.data_folder.open(filepath, "rb") as f:
             with pa.ipc.open_stream(f) as ipc_stream_reader:
                 for batch in ipc_stream_reader:

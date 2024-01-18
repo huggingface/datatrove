@@ -1,9 +1,6 @@
 import heapq
 import re
 
-from nltk import load
-from nltk.tokenize import sent_tokenize
-
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -21,8 +18,11 @@ class C4QualityFilter(BaseFilter):
     """
 
     name = "⛰ C4 Quality"
+    _requires_dependencies = ["nltk"]
 
     def __init__(self, exclusion_writer: DiskWriter = None):
+        from nltk import load
+
         super().__init__(exclusion_writer)
 
         self.lorem_ipsum = re.compile(r"(?i)lorem ipsum")
@@ -47,6 +47,7 @@ class C4QualityFilter(BaseFilter):
         Returns:
 
         """
+        from nltk.tokenize import sent_tokenize
 
         lines = sent_tokenize(doc.text)
         if len(lines) < self.min_lines:
