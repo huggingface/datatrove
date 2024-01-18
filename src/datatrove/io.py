@@ -64,14 +64,16 @@ class DataFolder(DirFileSystem):
         return sorted(
             [
                 f
-                for f in (
-                    self.find(subdirectory, maxdepth=0 if not self.recursive else None)
+                for f, info in (
+                    self.find(subdirectory, maxdepth=0 if not self.recursive else None, detail=True)
                     if not self.pattern
                     else self.glob(
-                        self.fs.sep.join([self.pattern, subdirectory]), maxdepth=0 if not self.recursive else None
+                        self.fs.sep.join([self.pattern, subdirectory]),
+                        maxdepth=0 if not self.recursive else None,
+                        detail=True,
                     )
-                )
-                if not extension or any(f.endswith(ext) for ext in extension)
+                ).items()
+                if info["type"] != "directory" and not extension or any(f.endswith(ext) for ext in extension)
             ]
         )
 
