@@ -6,7 +6,6 @@ import unittest
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from datatrove.io import LocalInputDataFolder
 from datatrove.pipeline.readers.parquet import ParquetReader
 
 
@@ -37,11 +36,11 @@ class TestParquetReader(unittest.TestCase):
                     self.assertEqual(document.metadata[key], row[key])
 
     def test_read(self):
-        reader = ParquetReader(LocalInputDataFolder(self.tmp_dir))
+        reader = ParquetReader(self.tmp_dir)
         documents = list(reader.run())
         self.check_same_data(documents)
 
     def test_read_no_metadata(self):
-        reader = ParquetReader(LocalInputDataFolder(self.tmp_dir), read_metadata=False)
+        reader = ParquetReader(self.tmp_dir, read_metadata=False)
         documents = list(reader.run())
         self.check_same_data(documents, check_metadata=False)

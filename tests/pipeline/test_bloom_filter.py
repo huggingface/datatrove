@@ -3,7 +3,6 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.io import LocalInputDataFolder
 from datatrove.pipeline.dedup.bloom_filter import SingleBloomFilter
 
 
@@ -92,9 +91,7 @@ class SentenceDedup(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_sd(self):
-        bloom_filter = SingleBloomFilter(
-            output_folder=LocalInputDataFolder(self.tmp_dir), m_bytes=2**10 - 1, k=7, expected_elements=866
-        )
+        bloom_filter = SingleBloomFilter(output_folder=self.tmp_dir, m_bytes=2**10 - 1, k=7, expected_elements=866)
 
         for doc_idx, doc in enumerate(DOCS):
             is_unique = bloom_filter.step(doc)

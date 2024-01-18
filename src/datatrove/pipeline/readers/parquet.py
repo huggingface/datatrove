@@ -2,7 +2,7 @@ from typing import Callable
 
 import pyarrow.parquet as pq
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -11,7 +11,7 @@ class ParquetReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
+        data_folder: DataFolderLike,
         limit: int = -1,
         batch_size: int = 1000,
         read_metadata: bool = True,
@@ -25,8 +25,8 @@ class ParquetReader(BaseReader):
         self.batch_size = batch_size
         self.read_metadata = read_metadata
 
-    def read_file(self, datafile: BaseInputDataFile):
-        with datafile.open(binary=True) as f:
+    def read_file(self, filepath: str):
+        with self.data_folder.open(filepath, "rb") as f:
             with pq.ParquetFile(f) as pqf:
                 li = 0
                 columns = [self.content_key, self.id_key] if not self.read_metadata else None
@@ -34,7 +34,7 @@ class ParquetReader(BaseReader):
                     documents = []
                     with self.track_time("batch"):
                         for line in batch.to_pylist():
-                            document = self.get_document_from_dict(line, datafile, li)
+                            document = self.get_document_from_dict(line, filepath, li)
                             if not document:
                                 continue
                             documents.append(document)

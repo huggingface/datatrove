@@ -1,11 +1,9 @@
 import copy
-import os
 import shutil
 import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.dedup.exact_substrings import (
     DatasetToSequence,
     DedupReader,
@@ -180,43 +178,54 @@ class TestExactSubstr(unittest.TestCase):
             self.assertEqual(docs[i].content, reader.tokenizer.decode(read_bytes(doc_content)))
 
     def test_signature_1_worker(self):
-        with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
-            f.write(bytearange_file)
         data = copy.deepcopy(DATA)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.tmp_dir))
+        dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=LocalInputDataFolder(path=self.tmp_dir),
-            output_folder=LocalOutputDataFolder(path=self.tmp_dir),
+            input_folder=self.tmp_dir,
+            output_folder=self.tmp_dir,
             tasks_stage_1=1,
         )
 
         dedup_reader = DedupReader(
-            data_folder=LocalInputDataFolder(path=self.tmp_dir),
-            sequence_folder=LocalInputDataFolder(path=self.tmp_dir),
+            data_folder=self.tmp_dir,
+            sequence_folder=self.tmp_dir,
             min_doc_words=0,
         )
+
+        with merge_sequence.input_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+            f.write(bytearange_file)
 
         # test quality of stage 1, 2 output
         dataset_to_sequence(data=data)
         merge_sequence(data=[])
-        big_sequence_path = self.tmp_dir + "/dataset" + ExtensionHelperES.stage_2_big_sequence
-        self.assertTrue(os.path.isfile(big_sequence_path))
+        big_sequence_path = "dataset" + ExtensionHelperES.stage_2_big_sequence
+        self.assertTrue(merge_sequence.input_folder.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
         dedup_reader.get_sequence_bytes_offset()
         bytes_offset = dedup_reader.sequence_bytes_offset
-        with open(os.path.join(self.tmp_dir, "00000.es_sequence"), "rb") as f_s:
-            with open(os.path.join(self.tmp_dir, "dataset.big_sequence"), "rb") as f_b:
+        with merge_sequence.input_folder.open("00000.es_sequence", "rb") as f_s:
+            with merge_sequence.input_folder.open("dataset.big_sequence", "rb") as f_b:
                 sequence = f_s.read()
                 self.assertEqual(sequence, f_b.read())
                 self.assertEqual(len(sequence), bytes_offset[1])
 
         sequence_file, size_file = dedup_reader.get_all_files(0, 1)
-        for i, doc_content in enumerate(sequence_reader(sequence_file, size_file)):
+        for i, doc_content in enumerate(
+            sequence_reader(
+                dedup_reader.sequence_folder.open(sequence_file, "rb"),
+                dedup_reader.sequence_folder.open(size_file, "rb"),
+            )
+        ):
             self.assertEqual(data[i].content, dedup_reader.tokenizer.decode(read_bytes(doc_content)))
 
-        self.match_doc(sequence_file, size_file, dedup_reader, docs=data)
+        self.match_doc(
+            dedup_reader.sequence_folder.open(sequence_file, "rb"),
+            dedup_reader.sequence_folder.open(size_file, "rb"),
+            dedup_reader,
+            docs=data,
+        )
 
         # test if  deduplication actually works
         for i, doc in enumerate(dedup_reader(data=data)):
@@ -225,36 +234,36 @@ class TestExactSubstr(unittest.TestCase):
     def test_signature_2_worker(self):
         data = copy.deepcopy(DATA)
 
-        with open(self.tmp_dir + "/test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
-            f.write(bytearange_file_2)
-
-        dataset_to_sequence = DatasetToSequence(output_folder=LocalOutputDataFolder(path=self.tmp_dir))
+        dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=LocalInputDataFolder(path=self.tmp_dir),
-            output_folder=LocalOutputDataFolder(path=self.tmp_dir),
+            input_folder=self.tmp_dir,
+            output_folder=self.tmp_dir,
             tasks_stage_1=2,
         )
 
         dedup_reader = DedupReader(
-            data_folder=LocalInputDataFolder(path=self.tmp_dir),
-            sequence_folder=LocalInputDataFolder(path=self.tmp_dir),
+            data_folder=self.tmp_dir,
+            sequence_folder=self.tmp_dir,
             min_doc_words=0,
         )
+
+        with merge_sequence.input_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+            f.write(bytearange_file_2)
 
         # test quality of stage 1, 2 output
         dataset_to_sequence(data=DATA, rank=0)
         dataset_to_sequence(data=data_2, rank=1)
         merge_sequence(data=[])
 
-        big_sequence_path = self.tmp_dir + "/dataset" + ExtensionHelperES.stage_2_big_sequence
-        self.assertTrue(os.path.isfile(big_sequence_path))
+        big_sequence_path = "dataset" + ExtensionHelperES.stage_2_big_sequence
+        self.assertTrue(merge_sequence.input_folder.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
         dedup_reader.get_sequence_bytes_offset()
         bytes_offset = dedup_reader.sequence_bytes_offset
-        with open(os.path.join(self.tmp_dir, "00001.es_sequence"), "rb") as f_1:
-            with open(os.path.join(self.tmp_dir, "00000.es_sequence"), "rb") as f_0:
-                with open(os.path.join(self.tmp_dir, "dataset.big_sequence"), "rb") as f_b:
+        with merge_sequence.input_folder.open("00001.es_sequence", "rb") as f_1:
+            with merge_sequence.input_folder.open("00000.es_sequence", "rb") as f_0:
+                with merge_sequence.input_folder.open("dataset.big_sequence", "rb") as f_b:
                     sequence_0 = f_0.read()
                     sequence_1 = f_1.read()
                     self.assertEqual(sequence_0 + sequence_1, f_b.read())
@@ -263,8 +272,18 @@ class TestExactSubstr(unittest.TestCase):
         sequence_file_0, size_file_0 = dedup_reader.get_all_files(0, 2)
         sequence_file_1, size_file_1 = dedup_reader.get_all_files(1, 2)
 
-        self.match_doc(sequence_file_0, size_file_0, dedup_reader, data)
-        self.match_doc(sequence_file_1, size_file_1, dedup_reader, data_2)
+        self.match_doc(
+            dedup_reader.sequence_folder.open(sequence_file_0, "rb"),
+            dedup_reader.sequence_folder.open(size_file_0, "rb"),
+            dedup_reader,
+            data,
+        )
+        self.match_doc(
+            dedup_reader.sequence_folder.open(sequence_file_1, "rb"),
+            dedup_reader.sequence_folder.open(size_file_1, "rb"),
+            dedup_reader,
+            data_2,
+        )
 
         # test if  deduplication actually works
         for i, doc in enumerate(dedup_reader(data=data, rank=0, world_size=2)):
