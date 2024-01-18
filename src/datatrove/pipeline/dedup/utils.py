@@ -41,7 +41,7 @@ def read_tuples_from_file(file: BinaryIO, *formats):
         yield from map(partial(struct.unpack, fstring), iter(partial(f.read, struct.calcsize(fstring)), b""))
 
 
-def simplify_content(text: str):
+def simplify_text(text: str) -> str:
     """Performs the following operations to increase recall when looking for matches between documents:
     - lowercase text
     - replace all whitespace with a single " "

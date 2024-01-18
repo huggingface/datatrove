@@ -8,7 +8,7 @@ from nltk import ngrams, word_tokenize
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
+from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_text
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
@@ -101,7 +101,7 @@ class SingleBloomFilter(PipelineStep):
         return np.array(
             [
                 [sha1_hash32(" ".join(x).encode("utf-8"))]
-                for x in ngrams(word_tokenize(simplify_content(text)), self.n_grams)
+                for x in ngrams(word_tokenize(simplify_text(text)), self.n_grams)
             ],
             dtype=np.uint64,
         )
@@ -127,7 +127,7 @@ class SingleBloomFilter(PipelineStep):
         return True
 
     def step(self, doc: Document) -> bool:
-        shingles = self.get_shingles(doc.content)
+        shingles = self.get_shingles(doc.text)
         self.total_shingles += shingles.size
         if shingles.size == 0:
             return True

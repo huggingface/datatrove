@@ -31,9 +31,9 @@ class Trafilatura(BaseExtractor):
         if self.include_images:
             raise NotImplementedError
 
-    def extract(self, content: str) -> str:
+    def extract(self, text: str) -> str:
         return extract(
-            content,
+            text,
             favor_precision=self.favour_precision,
             include_comments=False,
             deduplicate=self.deduplicate,

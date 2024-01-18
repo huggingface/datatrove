@@ -22,7 +22,7 @@ class BaseExtractor(PipelineStep):
         self.timeout = timeout
 
     @abstractmethod
-    def extract(self, content: str) -> str:
+    def extract(self, text: str) -> str:
         """abstract method that actually implements the extraction, e.g. trafilatura."""
         pass
 
@@ -43,13 +43,13 @@ class BaseExtractor(PipelineStep):
         signal.signal(signal.SIGALRM, signal_handler)
         signal.setitimer(signal.ITIMER_REAL, self.timeout)
         try:
-            return self.extract(doc.content)
+            return self.extract(doc.text)
 
         except TimeoutError:
-            logger.warning("⏰ Timeout while cleaning record content. Skipping record.")
+            logger.warning("⏰ Timeout while cleaning record text. Skipping record.")
 
         except Exception as e:
-            logger.warning(f'❌ Error "{e}" while cleaning record content. Skipping record.')
+            logger.warning(f'❌ Error "{e}" while cleaning record text. Skipping record.')
 
         finally:
             signal.setitimer(signal.ITIMER_REAL, 0)
@@ -58,8 +58,8 @@ class BaseExtractor(PipelineStep):
         for doc in data:
             self.stat_update(StatHints.total)
             with self.track_time():
-                doc.content = self.timeout_extract(doc)
-            if doc.content:
+                doc.text = self.timeout_extract(doc)
+            if doc.text:
                 self.stat_update(StatHints.forwarded)
                 self.update_doc_stats(doc)
                 yield doc

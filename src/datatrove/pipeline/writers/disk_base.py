@@ -32,7 +32,7 @@ class DiskWriter(PipelineStep, ABC):
 
     def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs):
         return self.output_filename.substitute(
-            {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata, **kwargs}
+            {"rank": str(rank).zfill(5), "id": document.id, **document.metadata, **kwargs}
         )
 
     @abstractmethod

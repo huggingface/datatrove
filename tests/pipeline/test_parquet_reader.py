@@ -17,22 +17,20 @@ class TestParquetReader(unittest.TestCase):
 
         # Create a dummy parquet file
         self.parquet_file = os.path.join(self.tmp_dir, "data.parquet")
-        pa_table = pa.table(
-            {"content": ["good", "bad", "equisite"], "data_id": [2, 3, 4], "content_length": [4, 3, 8]}
-        )
+        pa_table = pa.table({"text": ["good", "bad", "equisite"], "id": [2, 3, 4], "text_length": [4, 3, 8]})
         pq.write_table(pa_table, self.parquet_file)
 
     def check_same_data(self, documents, check_metadata=True):
         rows = pq.read_table(self.parquet_file).to_pylist()
         self.assertEqual(len(documents), len(rows))
         for document, row in zip(documents, rows):
-            self.assertEqual(document.content, row["content"])
-            data_id = row.get("data_id", None)
-            if data_id:
-                self.assertEqual(document.data_id, data_id)
+            self.assertEqual(document.text, row["text"])
+            id = row.get("id", None)
+            if id:
+                self.assertEqual(document.id, id)
             if check_metadata:
                 self.assertIsNotNone(document.metadata)
-                for key in row.keys() - {"content", "data_id"}:
+                for key in row.keys() - {"text", "id"}:
                     self.assertEqual(document.metadata[key], row[key])
 
     def test_read(self):

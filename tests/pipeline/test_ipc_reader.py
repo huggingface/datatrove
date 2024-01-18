@@ -17,16 +17,12 @@ class TestIpcReader(unittest.TestCase):
 
         # Create a dummy ipc/feather file
         self.ipc_file = os.path.join(self.tmp_dir, "data.feather")
-        pa_table = pa.table(
-            {"content": ["good", "bad", "equisite"], "data_id": [2, 3, 4], "content_length": [4, 3, 8]}
-        )
+        pa_table = pa.table({"text": ["good", "bad", "equisite"], "id": [2, 3, 4], "text_length": [4, 3, 8]})
         feather.write_feather(pa_table, self.ipc_file)
 
         # Create a dummy ipc stream file
         self.ipc_stream_file = os.path.join(self.tmp_dir, "data.arrow")
-        pa_table = pa.table(
-            {"content": ["good", "bad", "equisite"], "data_id": [2, 3, 4], "content_length": [4, 3, 8]}
-        )
+        pa_table = pa.table({"text": ["good", "bad", "equisite"], "id": [2, 3, 4], "text_length": [4, 3, 8]})
         with pa.ipc.new_stream(self.ipc_stream_file, pa_table.schema) as writer:
             writer.write_table(pa_table)
 
@@ -38,13 +34,13 @@ class TestIpcReader(unittest.TestCase):
                 rows = ipc_stream_reader.read_all().to_pylist()
         self.assertEqual(len(documents), len(rows))
         for document, row in zip(documents, rows):
-            self.assertEqual(document.content, row["content"])
-            data_id = row.get("data_id", None)
-            if data_id:
-                self.assertEqual(document.data_id, data_id)
+            self.assertEqual(document.text, row["text"])
+            id = row.get("id", None)
+            if id:
+                self.assertEqual(document.id, id)
             if check_metadata:
                 self.assertIsNotNone(document.metadata)
-                for key in row.keys() - {"content", "data_id"}:
+                for key in row.keys() - {"text", "id"}:
                     self.assertEqual(document.metadata[key], row[key])
 
     def test_ipc_reader(self):

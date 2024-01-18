@@ -27,7 +27,7 @@ class TokensCounter(PipelineStep):
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         for document in data:
-            count = len(self.tokenizer.encode(document.content).ids)
+            count = len(self.tokenizer.encode(document.text).ids)
             self.stat_update("tokens", value=count)
             document.metadata["token_count"] = count
             yield document

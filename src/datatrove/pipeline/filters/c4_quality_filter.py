@@ -48,20 +48,20 @@ class C4QualityFilter(BaseFilter):
 
         """
 
-        lines = sent_tokenize(doc.content)
+        lines = sent_tokenize(doc.text)
         if len(lines) < self.min_lines:
             return False, f"< {self.min_lines} lines"
 
-        if "{" or "}" in doc.content:
+        if "{" or "}" in doc.text:
             return False, "curly brackets"
 
-        if self.lorem_ipsum.search(doc.content):
+        if self.lorem_ipsum.search(doc.text):
             return False, "lorem ipsum"
 
         # TODO find a way to track skip lines to re-insert them when joining lines.
         # sent_dedup's remove_dup_sentences may be adapted for this
         lines = [line for line in lines if self.line_filter(line)]
-        doc.content = " ".join(lines)
+        doc.text = " ".join(lines)
 
 
 class C4ParagraphFilter(BaseFilter):
@@ -98,6 +98,6 @@ class C4ParagraphFilter(BaseFilter):
         Returns:
 
         """
-        if not self.paragraph_filter(doc.content):
+        if not self.paragraph_filter(doc.text):
             return False, f"< {self.min_paragraphs} paragraphs"
         return True
