@@ -82,7 +82,7 @@ class PipelineExecutor(ABC):
         return self.skip_completed and self.logging_dir.isfile(f"completions/{rank:05d}")
 
     def mark_rank_as_completed(self, rank: int):
-        self.logging_dir.touch(f"completions/{rank:05d}")
+        self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
     def get_incomplete_ranks(self):
         completed = set(self.logging_dir.list_files("completions"))

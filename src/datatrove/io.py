@@ -105,7 +105,7 @@ class DataFolder(DirFileSystem):
         return [self.open(path, mode=mode, **kwargs) for path in paths]
 
     def open(self, path, mode="rb", *args, **kwargs):
-        if self.auto_mkdir and "w" in mode:
+        if self.auto_mkdir and ("w" in mode or "a" in mode):
             self.fs.makedirs(self.fs._parent(self._join(path)), exist_ok=True)
         return super().open(path, mode=mode, *args, **kwargs)
 

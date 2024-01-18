@@ -1,24 +1,14 @@
 from copy import deepcopy
-from multiprocessing import Value
+from functools import partial
 from typing import Callable
 
+import multiprocess
 from loguru import logger
-from multiprocess import Pool, Queue
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.stats import PipelineStats
-
-
-# multiprocessing vars
-ranks_queue, completed = None, None
-
-
-def init_pool_processes(ranks_q, completed_counter):
-    global ranks_queue, completed
-    ranks_queue = ranks_q
-    completed = completed_counter
 
 
 class LocalPipelineExecutor(PipelineExecutor):
@@ -29,6 +19,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         workers: int = -1,
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
+        start_method: str = "forkserver",
     ):
         """Execute a pipeline locally
 
@@ -43,21 +34,23 @@ class LocalPipelineExecutor(PipelineExecutor):
                 OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert it
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
+            start_method: method to use to spawn a multiprocessing Pool
         """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
+        self.start_method = start_method
 
-    def _run_for_rank(self, rank: int, local_rank: int = -1):
-        local_rank = ranks_queue.get()
+    def _launch_run_for_rank(self, rank: int, ranks_q, completed=None, completed_lock=None):
+        local_rank = ranks_q.get()
         try:
-            return super()._run_for_rank(rank, local_rank)
+            return self._run_for_rank(rank, local_rank)
         finally:
-            if completed:
-                with completed.get_lock():
+            if completed and completed_lock:
+                with completed_lock:
                     completed.value += 1
                     logger.info(f"{completed.value}/{self.world_size} tasks completed.")
-            ranks_queue.put(local_rank)  # free up used rank
+            ranks_q.put(local_rank)  # free up used rank
 
     def run(self):
         if all(map(self.is_rank_completed, range(self.tasks))):
@@ -65,7 +58,8 @@ class LocalPipelineExecutor(PipelineExecutor):
             return
 
         self.save_executor_as_json()
-        ranks_q = Queue()
+        mg = multiprocess.Manager()
+        ranks_q = mg.Queue()
         for i in range(self.workers):
             ranks_q.put(i)
 
@@ -74,18 +68,27 @@ class LocalPipelineExecutor(PipelineExecutor):
             logger.info(f"Skipping {skipped} already completed tasks")
 
         if self.workers == 1:
-            global ranks_queue
-            ranks_queue = ranks_q
             pipeline = self.pipeline
             stats = []
             for rank in ranks_to_run:
                 self.pipeline = deepcopy(pipeline)
-                stats.append(self._run_for_rank(rank))
+                stats.append(self._launch_run_for_rank(rank, ranks_q))
         else:
-            completed_counter = Value("i", skipped)
-
-            with Pool(self.workers, initializer=init_pool_processes, initargs=(ranks_q, completed_counter)) as pool:
-                stats = list(pool.imap_unordered(self._run_for_rank, ranks_to_run))
+            completed_counter = mg.Value("i", skipped)
+            completed_lock = mg.Lock()
+            ctx = multiprocess.get_context(self.start_method)
+            with ctx.Pool(self.workers) as pool:
+                stats = list(
+                    pool.imap_unordered(
+                        partial(
+                            self._launch_run_for_rank,
+                            ranks_q=ranks_q,
+                            completed=completed_counter,
+                            completed_lock=completed_lock,
+                        ),
+                        ranks_to_run,
+                    )
+                )
         # merged stats
         stats = sum(stats, start=PipelineStats())
         with self.logging_dir.open("stats.json", "wt") as statsfile:

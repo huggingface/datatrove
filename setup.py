@@ -36,7 +36,7 @@ extras["tests"] = [
     "pytest-xdist",
     # Optional dependencies
     "fasttext-wheel",
-    "moto",
+    "moto[s3,server]",
     "s3fs",
 ]
 
