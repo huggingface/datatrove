@@ -6,7 +6,7 @@ from loguru import logger
 from nltk import ngrams, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseOutputDataFolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_text
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -36,7 +36,7 @@ class SingleBloomFilter(PipelineStep):
 
     def __init__(
         self,
-        output_folder: BaseOutputDataFolder,
+        output_folder: DataFolderLike,
         m_bytes: int,
         k: int = None,
         expected_elements: int = None,
@@ -61,10 +61,10 @@ class SingleBloomFilter(PipelineStep):
         """
 
         super().__init__()
-        self.output_folder = output_folder
+        self.output_folder = get_datafolder(output_folder)
         self.m_bytes = m_bytes  # size in bits
-        self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
         self.m = m_bytes * 8  # (self.m + 7) // 8  # size in bytes
+        self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
         self.duplicate_threshold = duplicate_threshold
         self.n_grams = n_grams
         self.bit_vector = bytearray(([0] * self.m_bytes))
@@ -83,9 +83,6 @@ class SingleBloomFilter(PipelineStep):
                 logger.warning(f"False probability = {fp:.3}")
             else:
                 logger.info(f"False probability = {fp:.3}")
-
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
 
     @property
     def parameters(self):

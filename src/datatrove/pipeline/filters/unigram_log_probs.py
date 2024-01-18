@@ -2,13 +2,13 @@ import os
 import urllib.request
 
 import numpy as np
+from huggingface_hub import cached_assets_path
 from loguru import logger
 from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.typeshelper import LocalPaths
 
 
 PANDAS_INSTALLED = True
@@ -26,7 +26,6 @@ class UnigramLogProbFilter(BaseFilter):
     def __init__(
         self,
         logprobs_threshold: float = -10,
-        model_local_path: str = os.path.join(LocalPaths.download, "logprob_filter/"),
         exclusion_writer: DiskWriter = None,
     ):
         """
@@ -37,18 +36,20 @@ class UnigramLogProbFilter(BaseFilter):
         """
         super().__init__(exclusion_writer)
         self.logprobs_threshold = logprobs_threshold
-        self.model_local_path = model_local_path
         self.unigram_frequencies = self.get_frequencies()
 
     def get_frequencies(self):
         if not PANDAS_INSTALLED:
             raise ImportError("Pandas need to be installed to use unigram filter")
-        if not os.path.isfile(self.model_local_path + "unigram_freq.csv"):
-            os.makedirs(os.path.dirname(self.model_local_path), exist_ok=True)
+        download_dir = cached_assets_path(
+            library_name="datatrove", namespace="filters", subfolder="unigram_logprob_filter"
+        )
+        unigram_freq_file = os.path.join(download_dir, "unigram_freq.csv")
+        if not os.path.isfile(unigram_freq_file):
             logger.info("⬇️ Downloading unigram-frequencies ...")
-            urllib.request.urlretrieve(UNIGRAM_DOWNLOAD, self.model_local_path + "unigram_freq.csv")
+            urllib.request.urlretrieve(UNIGRAM_DOWNLOAD, unigram_freq_file)
 
-        df = pd.read_csv(self.model_local_path + "unigram_freq.csv")
+        df = pd.read_csv(unigram_freq_file)
         df["count"] = df["count"] / df["count"].sum()
         return dict(zip(df["word"], df["count"]))
 

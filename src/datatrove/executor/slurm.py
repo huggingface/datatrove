@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
 import json
 import os
 import random
@@ -13,10 +12,11 @@ from typing import Callable
 
 import dill
 from dill import CONTENTS_FMODE
+from fsspec.implementations.local import LocalFileSystem
 from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import BaseOutputDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp
 
@@ -43,7 +43,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
-        logging_dir: str | BaseOutputDataFolder = None,
+        logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
         max_array_launch_parallel: bool = False,
@@ -117,7 +117,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
-            else f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
+            else (
+                f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
+                if not isinstance(self.logging_dir.fs, LocalFileSystem)
+                else self.logging_dir.resolve_paths("slurm_logs")
+            )
         )
 
     def run(self):
@@ -125,7 +129,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
             )
-            with self.logging_dir.to_input_folder().get_file("ranks_to_run.json").open() as ranks_to_run_file:
+            with self.logging_dir.open("ranks_to_run.json", "r") as ranks_to_run_file:
                 all_ranks = json.load(ranks_to_run_file)
             if slurm_rank >= len(all_ranks):
                 return
@@ -133,14 +137,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if self.randomize_start:
                 time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)
-            self.logging_dir.close()  # make sure everything is properly saved (logs etc)
         else:
             self.launch_job()
 
     def launch_merge_stats(self):
-        stats_json_file = self.logging_dir.create_new_file("stats.json")
-        # dump outputfile
-        options = [f"{k}={v}" for k, v in dataclasses.asdict(stats_json_file).items() if not k.startswith("_")]
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
@@ -149,7 +149,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     "mem-per-cpu": "1G",
                     "dependency": f"afterok:{self.job_id}",
                 },
-                f'merge_stats {os.path.join(self.logging_dir.path, "stats")} {" ".join(options)}',
+                f'merge_stats {self.logging_dir.resolve_paths("stats")} '
+                f'-o {self.logging_dir.resolve_paths("stats.json")}',
             )
         )
 
@@ -187,7 +188,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
 
-        with self.logging_dir.open("ranks_to_run.json") as ranks_to_run_file:
+        with self.logging_dir.open("ranks_to_run.json", "w") as ranks_to_run_file:
             # we actually save this (only once) to avoid race conditions
             json.dump(ranks_to_run, ranks_to_run_file)
 
@@ -195,13 +196,13 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
-            f"srun -l launch_pickled_pipeline {executor_f.path}",
+            f"srun -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
-        with self.logging_dir.open("launch_script.slurm") as launchscript_f:
+        with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
             launchscript_f.write(launch_file_contents)
         logger.info(
             f"Launching Slurm job {self.job_name} ({len(ranks_to_run)} tasks) with launch script "
-            f'"{launchscript_f.path}"'
+            f'"{self.logging_dir.resolve_paths("launch_script.slurm")}"'
         )
 
         launched_jobs = 0
@@ -215,9 +216,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
             launched_jobs += 1
         logger.info(f"Slurm job launched successfully with (last) id={self.job_id}.")
         self.launch_merge_stats()
-        self.logging_dir.close()
 
     def get_sbatch_args(self, max_array: int = 1) -> dict:
+        # this one we actually have to create as slurm will be writing here
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
         return {

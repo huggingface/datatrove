@@ -6,7 +6,6 @@ import unittest
 import pyarrow as pa
 import pyarrow.feather as feather
 
-from datatrove.io import LocalInputDataFolder
 from datatrove.pipeline.readers.ipc import IpcReader
 
 
@@ -45,13 +44,11 @@ class TestIpcReader(unittest.TestCase):
                     self.assertEqual(document.metadata[key], row[key])
 
     def test_ipc_reader(self):
-        reader = IpcReader(LocalInputDataFolder(self.tmp_dir, extension=os.path.splitext(self.ipc_file)[1]))
+        reader = IpcReader((self.tmp_dir, {"glob": "*.feather"}))
         documents = list(reader.run())
         self.check_same_data(documents)
 
     def test_ipc_stream_reader(self):
-        reader = IpcReader(
-            LocalInputDataFolder(self.tmp_dir, extension=os.path.splitext(self.ipc_stream_file)[1]), stream=True
-        )
+        reader = IpcReader((self.tmp_dir, {"glob": "*.arrow"}), stream=True)
         documents = list(reader.run())
         self.check_same_data(documents)

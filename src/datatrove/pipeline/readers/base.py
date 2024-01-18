@@ -6,7 +6,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
@@ -15,7 +15,7 @@ class BaseReader(PipelineStep):
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
+        data_folder: DataFolderLike,
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -24,7 +24,7 @@ class BaseReader(PipelineStep):
         default_metadata: dict = None,
     ):
         super().__init__()
-        self.data_folder = data_folder
+        self.data_folder = get_datafolder(data_folder)
         self.limit = limit
         self.progress = progress
         self.text_key = text_key
@@ -41,34 +41,31 @@ class BaseReader(PipelineStep):
             "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
 
-    def get_document_from_dict(self, data: dict, source_file: BaseInputDataFile, id_in_file: int):
-        parsed_data = self.adapter(data, source_file.relative_path, id_in_file)
+    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
+        parsed_data = self.adapter(data, source_file, id_in_file)
         if not parsed_data.get("text", None):
             if not self._empty_warning:
                 self._empty_warning = True
                 logger.warning("Found document without text, skipping.")
             return None
         document = Document(**parsed_data)
-        document.metadata.setdefault("file_path", source_file.path)
+        document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata
         return document
 
     @abstractmethod
-    def read_file(self, datafile: BaseInputDataFile):
+    def read_file(self, filepath: str):
         raise NotImplementedError
-
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.data_folder.set_lock(dl_lock)
 
     def read_files_shard(self, shard):
         li = 0
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
-            for datafile in shard:
+            for filepath in shard:
                 self.stat_update("input_files")
-                logger.info(f"Reading input file {datafile.path}")
+                logger.info(f"Reading input file {filepath}")
                 di = 0
-                for di, document in enumerate(self.read_file(datafile)):
+                for di, document in enumerate(self.read_file(filepath)):
                     if self.limit != -1 and li >= self.limit:
                         break
                     yield document
@@ -82,7 +79,7 @@ class BaseReader(PipelineStep):
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data
-        files_shard = self.data_folder.get_files_shard(rank, world_size)
+        files_shard = self.data_folder.get_shard(rank, world_size)
         if len(files_shard) == 0:
             if rank == 0:
                 raise RuntimeError(f"No files found on {self.data_folder.path}!")

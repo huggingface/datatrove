@@ -8,10 +8,10 @@ import numpy as np
 from tokenizers import Tokenizer
 
 from datatrove.data import Document
-from datatrove.io import BaseInputDataFolder, LocalInputDataFolder, LocalOutputDataFolder
+from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
-from datatrove.tools.check_dataset import check_dataset, load_doc_ends, load_input_mmap
+from datatrove.tools.check_dataset import check_dataset, load_doc_ends
 
 
 texts = [
@@ -31,18 +31,18 @@ WORKERS = 3
 data = np.array_split([Document(text=text, id=id) for id, text in enumerate(texts)], WORKERS)
 
 
-def get_texts_from_tokens(input_folder: BaseInputDataFolder):
+def get_texts_from_tokens(input_folder: DataFolder):
     tokenizer = Tokenizer.from_pretrained(TOKENIZER)
     texts_from_tokens = []
     for tokens_file, index_file in zip(
         input_folder.list_files(extension=".ds"), input_folder.list_files(extension=".ds.index")
     ):
-        doc_ends = load_doc_ends(index_file).tolist()
-        tokens_bytes = load_input_mmap(tokens_file)
-        for start, end in zip([0] + doc_ends[:-1], doc_ends):
-            texts_from_tokens.append(
-                tokenizer.decode(struct.unpack("<%sH" % (end - start), tokens_bytes[start * 2 : end * 2]))
-            )
+        doc_ends = load_doc_ends(input_folder.open(index_file, "rb"))
+        with input_folder.open(tokens_file, "rb") as f:
+            for start, end in zip([0] + doc_ends[:-1], doc_ends):
+                texts_from_tokens.append(
+                    tokenizer.decode(struct.unpack("<%sH" % (end - start), f.read((end - start) * 2)))
+                )
     return texts_from_tokens
 
 
@@ -71,12 +71,12 @@ class TestTokenization(unittest.TestCase):
                 MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
 
                 document_tokenizer = DocumentTokenizer(
-                    LocalOutputDataFolder(TOKENS_DIR), shuffle=seed is not None, seed=seed, save_loss_metadata=True
+                    TOKENS_DIR, shuffle=seed is not None, seed=seed, save_loss_metadata=True
                 )
                 for worker, worker_data in enumerate(data):
                     document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
                 # general consistency check
-                input_folder = LocalInputDataFolder(TOKENS_DIR)
+                input_folder = get_datafolder(TOKENS_DIR)
                 check_dataset(input_folder)
 
                 # check order/reconstruction
@@ -84,8 +84,8 @@ class TestTokenization(unittest.TestCase):
 
                 # testing merger
                 merger = DocumentTokenizerMerger(
-                    LocalInputDataFolder(TOKENS_DIR),
-                    LocalOutputDataFolder(MERGED_DIR),
+                    TOKENS_DIR,
+                    MERGED_DIR,
                     save_filename="my_dataset",
                     shuffle=seed is not None,
                     save_loss_metadata=True,
@@ -94,7 +94,7 @@ class TestTokenization(unittest.TestCase):
                 merger(None)
 
                 # general consistency check
-                input_folder = LocalInputDataFolder(MERGED_DIR)
+                input_folder = get_datafolder(MERGED_DIR)
                 check_dataset(input_folder)
 
                 # check order/reconstruction

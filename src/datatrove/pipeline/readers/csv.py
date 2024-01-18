@@ -1,7 +1,7 @@
 import csv
 from typing import Callable, Literal
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -10,8 +10,8 @@ class CsvReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        data_folder: DataFolderLike,
+        compression: Literal["guess", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -23,12 +23,12 @@ class CsvReader(BaseReader):
         self.compression = compression
         self.empty_warning = False
 
-    def read_file(self, datafile: BaseInputDataFile):
-        with datafile.open(compression=self.compression) as f:
+    def read_file(self, filepath: str):
+        with self.data_folder.open(filepath, "r", compression=self.compression) as f:
             csv_reader = csv.DictReader(f)
             for di, d in enumerate(csv_reader):
                 with self.track_time():
-                    document = self.get_document_from_dict(d, datafile, di)
+                    document = self.get_document_from_dict(d, filepath, di)
                     if not document:
                         continue
                 yield document

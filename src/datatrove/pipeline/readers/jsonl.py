@@ -4,7 +4,7 @@ from typing import Callable, Literal
 
 from loguru import logger
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -13,8 +13,8 @@ class JsonlReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        data_folder: DataFolderLike,
+        compression: Literal["guess", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -25,15 +25,15 @@ class JsonlReader(BaseReader):
         super().__init__(data_folder, limit, progress, adapter, text_key, id_key, default_metadata)
         self.compression = compression
 
-    def read_file(self, datafile: BaseInputDataFile):
-        with datafile.open(compression=self.compression) as f:
+    def read_file(self, filepath: str):
+        with self.data_folder.open(filepath, "r", compression=self.compression) as f:
             for li, line in enumerate(f):
                 with self.track_time():
                     try:
-                        document = self.get_document_from_dict(json.loads(line), datafile, li)
+                        document = self.get_document_from_dict(json.loads(line), filepath, li)
                         if not document:
                             continue
                     except (EOFError, JSONDecodeError) as e:
-                        logger.warning(f"Error when reading `{datafile.path}`: {e}")
+                        logger.warning(f"Error when reading `{filepath}`: {e}")
                         continue
                 yield document

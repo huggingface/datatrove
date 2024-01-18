@@ -2,26 +2,26 @@ from setuptools import find_packages, setup
 
 
 install_requires = [
-    "boto3==1.28.78",
-    "faust-cchardet==2.1.19",
-    "inscriptis==2.3.2",
-    "loguru==0.7.0",
-    "multiprocess==0.70.14",
-    "nltk==3.8.1",
+    "huggingface-hub>=0.17.0",
+    "boto3>=1.33.13",
+    "faust-cchardet>=2.1.19",
+    "inscriptis>=2.3.2",
+    "loguru>=0.7.0",
+    "multiprocess>=0.70.14",
+    "nltk>=3.8.1",
     "numpy>=1.25.0",
-    "python-magic==0.4.27",
+    "python-magic>=0.4.27",
     "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
-    "trafilatura==1.6.1",
-    "warcio==1.7.4",
-    "zstandard==0.21.0",
+    "trafilatura>=1.6.1",
+    "warcio>=1.7.4",
     "pyarrow>=12.0.1",
     "tokenizers>=0.13.3",
-    "tldextract==3.4.4",
-    "pandas==2.0.3",
-    "backoff==2.2.1",
-    "fsspec==2023.9.2",
-    "humanize==4.8.0",
-    "rich==13.7.0",
+    "tldextract>=3.4.4",
+    "pandas>=2.0.3",
+    "backoff>=2.2.1",
+    "fsspec>=2023.9.2",
+    "humanize>=4.8.0",
+    "rich>=13.7.0",
 ]
 
 extras = {}
@@ -36,6 +36,8 @@ extras["tests"] = [
     "pytest-xdist",
     # Optional dependencies
     "fasttext-wheel",
+    "moto[s3,server]",
+    "s3fs>=2023.12.2",
 ]
 
 extras["all"] = extras["quality"] + extras["tests"]
