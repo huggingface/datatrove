@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from itertools import chain
+from typing import NoReturn
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.utils._import_utils import _is_package_available
@@ -10,9 +12,16 @@ class PipelineStep(ABC):
     type: str = None
 
     def __new__(cls, *args, **kwargs):
-        required_dependencies = getattr(cls, "_requires_dependencies", None)
+        required_dependencies = chain.from_iterable(getattr(t, "_requires_dependencies", []) for t in cls.mro())
         if required_dependencies:
-            cls._check_if_required_dependencies_are_available(required_dependencies)
+            missing_dependencies: dict[str, str] = {}
+            for dependency in required_dependencies:
+                dependency = dependency if isinstance(dependency, tuple) else (dependency, dependency)
+                package_name, pip_name = dependency
+                if not _is_package_available(package_name):
+                    missing_dependencies[package_name] = pip_name
+            if missing_dependencies:
+                _raise_error_for_missing_dependencies(cls.__name__, missing_dependencies)
         return super().__new__(cls)
 
     def __init__(self):
@@ -43,29 +52,16 @@ class PipelineStep(ABC):
     def __call__(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         return self.run(data, rank, world_size)
 
-    @classmethod
-    def _check_if_required_dependencies_are_available(cls, required_dependencies):
-        missing_dependencies = [
-            dependency
-            for dependency in required_dependencies
-            if not _is_package_available(dependency if not isinstance(dependency, tuple) else dependency[0])
-        ]
-        if missing_dependencies:
-            packages = [
-                dependency if not isinstance(dependency, tuple) else dependency[0]
-                for dependency in missing_dependencies
-            ]
-            pip_packages = [
-                dependency if not isinstance(dependency, tuple) else dependency[1]
-                for dependency in missing_dependencies
-            ]
 
-            if len(packages) > 1:
-                packages = (
-                    f"{','.join('`' + package_name + '`' for package_name in packages[:-1])} and `{packages[-1]}`"
-                )
-            else:
-                packages = f"`{packages[0]}`"
-            raise ImportError(
-                f"Please install {packages} to use pipeline step {type(cls.__name__)} (`pip install {' '.join(pip_packages)}`)."
-            )
+def _raise_error_for_missing_dependencies(step_name: str, dependencies: dict[str, str]) -> NoReturn:
+    dependencies = dict(sorted(dependencies.items()))
+    package_names = list(dependencies)
+    if len(dependencies) > 1:
+        package_names = (
+            f"{','.join('`' + package_name + '`' for package_name in package_names[:-1])} and `{package_names[-1]}`"
+        )
+    else:
+        package_names = f"`{package_names[0]}`"
+    raise ImportError(
+        f"Please install {package_names} to use {step_name} (`pip install {' '.join(list(dependencies.values()))}`)."
+    )
