@@ -78,7 +78,7 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
         except (UnicodeDecodeError, LookupError):
             return
 
-    id = record.rec_headers["WARC-Record-ID"]
+    id_ = record.rec_headers["WARC-Record-ID"]
     url = record.rec_headers.get("WARC-Target-URI", None)
     date = record.rec_headers.get("WARC-Date", None)
     # handle older formats
@@ -87,4 +87,4 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return {"text": html, "id": id, "url": url, "date": date}
+    return {"text": html, "id": id_, "url": url, "date": date}

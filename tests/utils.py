@@ -63,3 +63,27 @@ def require_tldextract(test_case):
     except ImportError:
         test_case = unittest.skip("test requires tldextract")(test_case)
     return test_case
+
+
+def require_boto3(test_case):
+    try:
+        import boto3  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires boto3")(test_case)
+    return test_case
+
+
+def require_moto(test_case):
+    try:
+        import moto  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires moto")(test_case)
+    return test_case
+
+
+def require_s3fs(test_case):
+    try:
+        import s3fs  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires s3fs")(test_case)
+    return test_case
