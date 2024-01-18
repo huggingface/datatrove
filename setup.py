@@ -23,7 +23,6 @@ extras["io"] = [
     "pyarrow",
     "python-magic",
     "warcio",
-    "zstandard",
     "s3fs>=2023.12.2",
 ]
 

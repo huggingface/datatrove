@@ -11,10 +11,6 @@ def _is_package_available(package_name):
     return importlib.util.find_spec(package_name) is not None
 
 
-def is_boto3_available():
-    return _is_package_available("boto3")
-
-
 def is_rich_available():
     return _is_package_available("rich")
 
@@ -25,7 +21,3 @@ def is_pyarrow_available():
 
 def is_tokenizers_available():
     return _is_package_available("tokenizers")
-
-
-def is_zstandard_available():
-    return _is_package_available("zstandard")
