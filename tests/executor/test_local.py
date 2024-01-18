@@ -1,3 +1,4 @@
+import os
 import shutil
 import tempfile
 import unittest
@@ -26,6 +27,7 @@ class TestLocalExecutor(unittest.TestCase):
     def setUp(self):
         self.server = ThreadedMotoServer(ip_address="127.0.0.1", port=port)
         self.server.start()
+        os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["AWS_ACCESS_KEY_ID"] = "foo"
 
         self.tmp_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp_dir)
