@@ -2,45 +2,61 @@ from setuptools import find_packages, setup
 
 
 install_requires = [
+    "dill>=0.3.0",
+    "fsspec>=2023.6.0",
     "huggingface-hub>=0.17.0",
-    "boto3>=1.33.13",
-    "faust-cchardet>=2.1.19",
-    "inscriptis>=2.3.2",
+    "humanize",
     "loguru>=0.7.0",
-    "multiprocess>=0.70.14",
-    "nltk>=3.8.1",
+    "multiprocess",
     "numpy>=1.25.0",
-    "python-magic>=0.4.27",
-    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
-    "trafilatura>=1.6.1",
-    "warcio>=1.7.4",
-    "pyarrow>=12.0.1",
-    "tokenizers>=0.13.3",
-    "tldextract>=3.4.4",
-    "pandas>=2.0.3",
-    "backoff>=2.2.1",
-    "fsspec>=2023.9.2",
-    "humanize>=4.8.0",
-    "rich>=13.7.0",
+    "tqdm",
 ]
 
 extras = {}
+
+extras["cli"] = [
+    "rich",
+]
+
+extras["io"] = [
+    "faust-cchardet",
+    "pyarrow",
+    "python-magic",
+    "warcio",
+]
+
+extras["s3"] = [
+    "s3fs>=2023.12.2",
+]
+
+extras["processing"] = [
+    "fasttext-wheel",
+    "nltk",
+    "inscriptis",
+    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+    "tldextract",
+    "trafilatura",
+    "tokenizers",
+]
 
 extras["quality"] = [
     "ruff>=0.1.5",
 ]
 
-extras["tests"] = [
-    "pytest",
-    "pytest-timeout",
-    "pytest-xdist",
-    # Optional dependencies
-    "fasttext-wheel",
-    "moto[s3,server]",
-    "s3fs>=2023.12.2",
-]
+extras["testing"] = (
+    extras["cli"]
+    + extras["io"]
+    + extras["processing"]
+    + extras["s3"]
+    + [
+        "pytest",
+        "pytest-timeout",
+        "pytest-xdist",
+        "moto[s3,server]",
+    ]
+)
 
-extras["all"] = extras["quality"] + extras["tests"]
+extras["all"] = extras["quality"] + extras["testing"]
 
 extras["dev"] = extras["all"]
 

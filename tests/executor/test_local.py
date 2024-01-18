@@ -3,12 +3,11 @@ import shutil
 import tempfile
 import unittest
 
-import boto3
-from moto.moto_server.threaded_moto_server import ThreadedMotoServer
-from s3fs import S3FileSystem
-
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.io import get_datafolder
+from datatrove.utils._import_utils import is_boto3_available, is_moto_available, is_s3fs_available
+
+from ..utils import require_boto3, require_moto, require_s3fs
 
 
 EXAMPLE_DIRS = ("/home/testuser/somedir", "file:///home/testuser2/somedir", "s3://test-bucket/somedir")
@@ -23,6 +22,17 @@ port = 5555
 endpoint_uri = "http://127.0.0.1:%s/" % port
 
 
+if is_boto3_available():
+    import boto3  # noqa: F811
+
+if is_moto_available():
+    from moto.moto_server.threaded_moto_server import ThreadedMotoServer  # noqa: F811
+
+if is_s3fs_available():
+    from s3fs import S3FileSystem  # noqa: F811
+
+
+@require_moto
 class TestLocalExecutor(unittest.TestCase):
     def setUp(self):
         self.server = ThreadedMotoServer(ip_address="127.0.0.1", port=port)
@@ -33,6 +43,8 @@ class TestLocalExecutor(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
         self.addCleanup(self.server.stop)
 
+    @require_boto3
+    @require_s3fs
     def test_executor(self):
         s3fs = S3FileSystem(client_kwargs={"endpoint_url": endpoint_uri})
         s3 = boto3.client("s3", region_name="us-east-1", endpoint_url=endpoint_uri)
