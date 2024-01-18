@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from string import Template
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseOutputDataFile, BaseOutputDataFolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
@@ -11,16 +11,21 @@ class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
 
-    def __init__(self, output_folder: BaseOutputDataFolder, output_filename: str = None):
+    def __init__(self, output_folder: DataFolderLike, output_filename: str = None, compression: str | None = "infer"):
         super().__init__()
-        self.output_folder = output_folder
-        self.output_filename = Template(output_filename or self.default_output_filename)
+        self.compression = compression
+        self.output_folder = get_datafolder(output_folder)
+        output_filename = output_filename or self.default_output_filename
+        if self.compression == "gzip" and not output_filename.endswith(".gz"):
+            output_filename += ".gz"
+        self.output_filename = Template(output_filename)
+        self.output_mg = self.output_folder.get_output_file_manager(mode="wt", compression=compression)
 
     def __enter__(self):
         return self
 
     def close(self):
-        self.output_folder.close()
+        self.output_mg.close()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
@@ -30,19 +35,13 @@ class DiskWriter(PipelineStep, ABC):
             {"rank": str(rank).zfill(5), "data_id": document.data_id, **document.metadata, **kwargs}
         )
 
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
-
     @abstractmethod
     def _write(self, document: Document, file_handler):
         raise NotImplementedError
 
-    def open(self, output_filename):
-        return self.output_folder.open(output_filename)
-
     def write(self, document: Document, rank: int = 0, **kwargs):
-        output_file: BaseOutputDataFile = self.open(self._get_output_filename(document, rank, **kwargs))
-        self._write(document, output_file)
+        output_filename = self._get_output_filename(document, rank, **kwargs)
+        self._write(document, self.output_mg.get_file(output_filename))
         self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
         self.update_doc_stats(document)

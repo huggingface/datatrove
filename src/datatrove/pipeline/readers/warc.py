@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable, Literal
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
+from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
@@ -14,8 +14,8 @@ class WarcReader(BaseReader):
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        data_folder: DataFolderLike,
+        compression: Literal["guess", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -26,16 +26,16 @@ class WarcReader(BaseReader):
         self.compression = compression
         super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
 
-    def read_file(self, datafile: BaseInputDataFile):
+    def read_file(self, filepath: str):
         from warcio.archiveiterator import ArchiveIterator
 
-        with datafile.open(compression=self.compression, binary=True) as f:
+        with self.data_folder.open(filepath, "rb", compression=self.compression) as f:
             for ri, record in enumerate(ArchiveIterator(f)):
                 with self.track_time():
                     extracted_data = process_record(record)
                     if not extracted_data:
                         continue
-                    document = self.get_document_from_dict(extracted_data, datafile, ri)
+                    document = self.get_document_from_dict(extracted_data, filepath, ri)
                     if not document:
                         continue
                 yield document

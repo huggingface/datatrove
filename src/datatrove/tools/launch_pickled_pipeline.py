@@ -3,7 +3,7 @@ import argparse
 import dill
 
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import BaseInputDataFile
+from datatrove.io import get_file
 
 
 parser = argparse.ArgumentParser("Loads a pickled pipeline executor and launches it.")
@@ -13,8 +13,7 @@ parser.add_argument("path", type=str, help="Path to the pickled file (usually a 
 
 def main():
     args = parser.parse_args()
-    executor_path = BaseInputDataFile.from_path(args.path)
-    with executor_path.open_binary() as f:
+    with get_file(args.path, "rb") as f:
         executor: PipelineExecutor = dill.load(f)
     executor.run()
 

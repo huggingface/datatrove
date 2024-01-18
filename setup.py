@@ -19,12 +19,12 @@ extras["cli"] = [
 ]
 
 extras["io"] = [
-    "boto3>=1.28.0",
     "faust-cchardet",
     "pyarrow",
     "python-magic",
     "warcio",
     "zstandard",
+    "s3fs>=2023.12.2",
 ]
 
 extras["processing"] = [
@@ -49,6 +49,7 @@ extras["testing"] = (
         "pytest",
         "pytest-timeout",
         "pytest-xdist",
+        "moto[s3,server]",
     ]
 )
 
