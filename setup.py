@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 install_requires = [
     "huggingface-hub>=0.17.0",
-    "boto3>=1.28.78",
+    "boto3>=1.33.13",
     "faust-cchardet>=2.1.19",
     "inscriptis>=2.3.2",
     "loguru>=0.7.0",
@@ -37,7 +37,7 @@ extras["tests"] = [
     # Optional dependencies
     "fasttext-wheel",
     "moto[s3,server]",
-    "s3fs",
+    "s3fs>=2023.12.2",
 ]
 
 extras["all"] = extras["quality"] + extras["tests"]
