@@ -23,6 +23,9 @@ extras["io"] = [
     "pyarrow",
     "python-magic",
     "warcio",
+]
+
+extras["s3"] = [
     "s3fs>=2023.12.2",
 ]
 
@@ -44,6 +47,7 @@ extras["testing"] = (
     extras["cli"]
     + extras["io"]
     + extras["processing"]
+    + extras["s3"]
     + [
         "pytest",
         "pytest-timeout",
