@@ -1,6 +1,7 @@
 from contextlib import nullcontext
 from typing import Callable
 
+# TODO: move to optional dependencies once that PR is merged
 from datasets import load_dataset
 from tqdm import tqdm
 
