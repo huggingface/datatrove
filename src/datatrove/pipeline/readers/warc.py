@@ -6,10 +6,10 @@ from warcio.archiveiterator import ArchiveIterator
 from warcio.recordloader import ArcWarcRecord
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class WarcReader(BaseReader):
+class WarcReader(BaseDiskReader):
     name = "🕷 Warc"
 
     def __init__(

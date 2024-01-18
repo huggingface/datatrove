@@ -3,10 +3,10 @@ from typing import Callable
 import pyarrow as pa
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class IpcReader(BaseReader):
+class IpcReader(BaseDiskReader):
     name = "🪶 Ipc"
 
     def __init__(

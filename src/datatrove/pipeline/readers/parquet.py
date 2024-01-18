@@ -3,10 +3,10 @@ from typing import Callable
 import pyarrow.parquet as pq
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class ParquetReader(BaseReader):
+class ParquetReader(BaseDiskReader):
     name = "📒 Parquet"
 
     def __init__(

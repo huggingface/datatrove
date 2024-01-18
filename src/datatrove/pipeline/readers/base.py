@@ -15,7 +15,6 @@ class BaseReader(PipelineStep):
 
     def __init__(
         self,
-        data_folder: DataFolderLike,
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -24,7 +23,6 @@ class BaseReader(PipelineStep):
         default_metadata: dict = None,
     ):
         super().__init__()
-        self.data_folder = get_datafolder(data_folder)
         self.limit = limit
         self.progress = progress
         self.text_key = text_key
@@ -33,7 +31,7 @@ class BaseReader(PipelineStep):
         self._empty_warning = False
         self.default_metadata = default_metadata
 
-    def _default_adapter(self, data: dict, path: str, id_in_file: int):
+    def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
@@ -41,7 +39,7 @@ class BaseReader(PipelineStep):
             "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
 
-    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
+    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
         parsed_data = self.adapter(data, source_file, id_in_file)
         if not parsed_data.get("text", None):
             if not self._empty_warning:
@@ -49,9 +47,33 @@ class BaseReader(PipelineStep):
                 logger.warning("Found document without text, skipping.")
             return None
         document = Document(**parsed_data)
-        document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata
+        return document
+
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        raise NotImplementedError
+
+
+class BaseDiskReader(BaseReader):
+    type = "📖 - READER"
+
+    def __init__(
+        self,
+        data_folder: DataFolderLike,
+        limit: int = -1,
+        progress: bool = False,
+        adapter: Callable = None,
+        text_key: str = "text",
+        id_key: str = "id",
+        default_metadata: dict = None,
+    ):
+        super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
+        self.data_folder = get_datafolder(data_folder)
+
+    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
+        document = super().get_document_from_dict(data, source_file, id_in_file)
+        document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
         return document
 
     @abstractmethod

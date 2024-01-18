@@ -2,10 +2,10 @@ import csv
 from typing import Callable, Literal
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class CsvReader(BaseReader):
+class CsvReader(BaseDiskReader):
     name = "🔢 Csv"
 
     def __init__(
