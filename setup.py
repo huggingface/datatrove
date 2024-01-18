@@ -18,12 +18,7 @@ extras["cli"] = [
     "rich",
 ]
 
-extras["io"] = [
-    "faust-cchardet",
-    "pyarrow",
-    "python-magic",
-    "warcio",
-]
+extras["io"] = ["faust-cchardet", "pyarrow", "python-magic", "warcio", "datasets"]
 
 extras["s3"] = [
     "s3fs>=2023.12.2",

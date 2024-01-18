@@ -1,8 +1,6 @@
 from contextlib import nullcontext
 from typing import Callable
 
-# TODO: move to optional dependencies once that PR is merged
-from datasets import load_dataset
 from tqdm import tqdm
 
 from datatrove.data import DocumentsPipeline
@@ -10,6 +8,9 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class HuggingFaceReader(BaseReader):
+    name = "🤗 HuggingFace"
+    _requires_dependencies = ["datasets"]
+
     def __init__(
         self,
         dataset: str,
@@ -31,6 +32,8 @@ class HuggingFaceReader(BaseReader):
         return document
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        from datasets import load_dataset
+
         if data:
             yield from data
         # sadly sharding in this way with streaming is not supported by HF datasets yet, so no streaming
@@ -46,6 +49,7 @@ class HuggingFaceReader(BaseReader):
                     if not document:
                         continue
                 self.update_doc_stats(document)
+                self.stat_update("documents")
                 yield document
                 if self.progress:
                     pbar.update()
