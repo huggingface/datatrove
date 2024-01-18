@@ -61,11 +61,11 @@ class GopherQualityFilter(BaseFilter):
                 -
 
         :param doc
-        :return: False if sample.content does not pass any of the the heuristic tests
+        :return: False if sample.text does not pass any of the the heuristic tests
         """
         from nltk.tokenize import word_tokenize
 
-        text = doc.content
+        text = doc.text
         words = word_tokenize(text)  # TODO we should use language id filter
 
         # words < min_doc_words or words > max_doc_words

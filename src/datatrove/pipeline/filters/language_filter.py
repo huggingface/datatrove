@@ -58,7 +58,7 @@ class LanguageFilter(BaseFilter):
             is_filter
         """
 
-        language, score = self.model.predict(doc.content.replace("\n", ""))
+        language, score = self.model.predict(doc.text.replace("\n", ""))
         # language label is given in the form __label__<language_id>
         language = language[0].split("__")[2]
         doc.metadata["language"] = language

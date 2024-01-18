@@ -5,8 +5,8 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
-class CSVReader(BaseReader):
-    name = "🔢 CSV"
+class CsvReader(BaseReader):
+    name = "🔢 Csv"
 
     def __init__(
         self,
@@ -15,11 +15,11 @@ class CSVReader(BaseReader):
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
-        content_key: str = "content",
-        id_key: str = "data_id",
+        text_key: str = "text",
+        id_key: str = "id",
         default_metadata: dict = None,
     ):
-        super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
+        super().__init__(data_folder, limit, progress, adapter, text_key, id_key, default_metadata)
         self.compression = compression
         self.empty_warning = False
 
@@ -32,3 +32,6 @@ class CSVReader(BaseReader):
                     if not document:
                         continue
                 yield document
+
+
+CSVReader = CsvReader

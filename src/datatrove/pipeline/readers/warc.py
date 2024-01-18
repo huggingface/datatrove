@@ -19,12 +19,12 @@ class WarcReader(BaseReader):
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
-        content_key: str = "content",
-        id_key: str = "data_id",
+        text_key: str = "text",
+        id_key: str = "id",
         default_metadata: dict = None,
     ):
         self.compression = compression
-        super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
+        super().__init__(data_folder, limit, progress, adapter, text_key, id_key, default_metadata)
 
     def read_file(self, filepath: str):
         from warcio.archiveiterator import ArchiveIterator
@@ -78,7 +78,7 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
         except (UnicodeDecodeError, LookupError):
             return
 
-    data_id = record.rec_headers["WARC-Record-ID"]
+    id = record.rec_headers["WARC-Record-ID"]
     url = record.rec_headers.get("WARC-Target-URI", None)
     date = record.rec_headers.get("WARC-Date", None)
     # handle older formats
@@ -87,4 +87,4 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return {"content": html, "data_id": data_id, "url": url, "date": date}
+    return {"text": html, "id": id, "url": url, "date": date}

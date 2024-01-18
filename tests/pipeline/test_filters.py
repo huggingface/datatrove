@@ -35,7 +35,7 @@ TEXT_LF_4 = (
 
 
 def get_doc(text, url=None):
-    return Document(text, data_id="0", metadata={"url": url})
+    return Document(text, id="0", metadata={"url": url})
 
 
 class TestFilters(unittest.TestCase):
@@ -74,7 +74,7 @@ class TestFilters(unittest.TestCase):
         self.assertTrue(gopher_quality(get_doc(TEXT_LF_1)))
 
     def test_lambda(self):
-        doc = Document(content=TEXT_LF_1, data_id="0", metadata={"test": 1})
+        doc = Document(text=TEXT_LF_1, id="0", metadata={"test": 1})
         lambda_filter = LambdaFilter(filter_function=lambda doc: doc.metadata["test"] > 0)
         self.assertTrue(lambda_filter.filter(doc))
         doc.metadata["test"] = -1
@@ -84,10 +84,10 @@ class TestFilters(unittest.TestCase):
     def test_language(self):
         language_filter = LanguageFilter(languages=("en", "it"))
 
-        self.assertTrue(language_filter.filter(Document(content=TEXT_LF_1, data_id="0")))
-        self.assertFalse(language_filter.filter(Document(content=TEXT_LF_2, data_id="0")))
-        self.assertFalse(language_filter.filter(Document(content=TEXT_LF_3, data_id="0")))
-        self.assertTrue(language_filter.filter(Document(content=TEXT_LF_4, data_id="0")))
+        self.assertTrue(language_filter.filter(Document(text=TEXT_LF_1, id="0")))
+        self.assertFalse(language_filter.filter(Document(text=TEXT_LF_2, id="0")))
+        self.assertFalse(language_filter.filter(Document(text=TEXT_LF_3, id="0")))
+        self.assertTrue(language_filter.filter(Document(text=TEXT_LF_4, id="0")))
 
     def test_regex(self):
         regex_filter = RegexFilter(regex_exp=r"(?i)copyright")
@@ -97,8 +97,8 @@ class TestFilters(unittest.TestCase):
     @require_nltk
     def test_unigram_prob(self):
         unigram_filter = UnigramLogProbFilter(logprobs_threshold=-10)
-        self.assertTrue(unigram_filter.filter(Document(content=TEXT_LF_1, data_id="0")))
-        self.assertFalse(unigram_filter.filter(Document(content="Cacophony Pareidolia Serendipity", data_id="0")))
+        self.assertTrue(unigram_filter.filter(Document(text=TEXT_LF_1, id="0")))
+        self.assertFalse(unigram_filter.filter(Document(text="Cacophony Pareidolia Serendipity", id="0")))
 
     @require_tldextract
     def test_url(self):

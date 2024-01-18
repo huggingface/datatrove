@@ -32,12 +32,12 @@ class ReadabilityInscriptis(BaseExtractor):
         self.regex_excessive_lines = re.compile(r"(" + self.new_line_chars + "\n+)")
         self._parser_config = ParserConfig(css=CSS_PROFILES["strict"])
 
-    def extract(self, content: str) -> str:
+    def extract(self, text: str) -> str:
         from inscriptis import get_text
         from readability import Document as _Document
 
-        parsed_doc = _Document(content, min_text_length=self.min_text_length, min_text_score=self.min_text_score)
+        parsed_doc = _Document(text, min_text_length=self.min_text_length, min_text_score=self.min_text_score)
         clean_html = parsed_doc.summary(html_partial=True)
-        content = get_text(clean_html, self._parser_config).strip()
+        text = get_text(clean_html, self._parser_config).strip()
         # remove excessive empty lines
-        return self.regex_excessive_lines.sub(self.new_line_chars, content)
+        return self.regex_excessive_lines.sub(self.new_line_chars, text)

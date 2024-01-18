@@ -9,8 +9,8 @@ def format_adapter(d: dict, path: str, li: int):
     import os.path
 
     return {
-        "content": d["text"],
-        "data_id": f"{os.path.splitext(os.path.basename(path))[0]}_{li}",
+        "text": d["text"],
+        "id": f"{os.path.splitext(os.path.basename(path))[0]}_{li}",
         "metadata": {
             "timestamp": d["timestamp"],
             "url": d["url"],

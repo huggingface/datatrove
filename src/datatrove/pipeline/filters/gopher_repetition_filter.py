@@ -99,7 +99,7 @@ class GopherRepetitionFilter(BaseFilter):
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         from nltk.tokenize import word_tokenize
 
-        text = doc.content
+        text = doc.text
 
         paragraphs = self.paragraph_exp.split(text.strip())
         paragraphs_duplicates, char_duplicates = find_duplicates(paragraphs)

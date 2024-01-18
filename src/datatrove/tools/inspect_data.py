@@ -19,7 +19,7 @@ if not is_rich_available():
 
 parser = argparse.ArgumentParser(
     "Manually inspect some RefinedWeb samples. "
-    "Any unknown parameters will be passed to the reader (example: 'content_key=text')."
+    "Any unknown parameters will be passed to the reader (example: 'text_key=text')."
 )
 
 parser.add_argument(
@@ -125,7 +125,7 @@ def main():
                         + "\n".join(f"- [blue]{field}: [reset] {value}" for field, value in sample.metadata.items())
                     )
                 )
-                console.print(sample.content)
+                console.print(sample.text)
             if label_folder:
                 result = Prompt.ask(
                     "To label as good/bad example enter 'g'/'b'. Enter 'q' to skip labelling and move to the next "

@@ -55,7 +55,7 @@ class UnigramLogProbFilter(BaseFilter):
     def get_logprob(self, doc):
         from nltk.tokenize import word_tokenize
 
-        words = word_tokenize(doc.content)
+        words = word_tokenize(doc.text)
         freqs = [
             self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
         ]
