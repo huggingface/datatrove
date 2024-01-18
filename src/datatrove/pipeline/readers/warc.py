@@ -1,16 +1,16 @@
-from typing import Callable, Literal
-
-import cchardet
-import magic
-from warcio.archiveiterator import ArchiveIterator
-from warcio.recordloader import ArcWarcRecord
+from typing import TYPE_CHECKING, Callable, Literal
 
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseReader
 
 
+if TYPE_CHECKING:
+    from warcio.recordloader import ArcWarcRecord
+
+
 class WarcReader(BaseReader):
     name = "🕷 Warc"
+    _requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
 
     def __init__(
         self,
@@ -27,6 +27,8 @@ class WarcReader(BaseReader):
         super().__init__(data_folder, limit, progress, adapter, text_key, id_key, default_metadata)
 
     def read_file(self, filepath: str):
+        from warcio.archiveiterator import ArchiveIterator
+
         with self.data_folder.open(filepath, "rb", compression=self.compression) as f:
             for ri, record in enumerate(ArchiveIterator(f)):
                 with self.track_time():
@@ -39,7 +41,10 @@ class WarcReader(BaseReader):
                 yield document
 
 
-def process_record(record: ArcWarcRecord) -> dict | None:
+def process_record(record: "ArcWarcRecord") -> dict | None:
+    import cchardet
+    import magic
+
     # record type
     if record.rec_type != "response" and record.rec_type != "conversion":  # wet files have "conversion" type
         return
@@ -73,7 +78,7 @@ def process_record(record: ArcWarcRecord) -> dict | None:
         except (UnicodeDecodeError, LookupError):
             return
 
-    id = record.rec_headers["WARC-Record-ID"]
+    id_ = record.rec_headers["WARC-Record-ID"]
     url = record.rec_headers.get("WARC-Target-URI", None)
     date = record.rec_headers.get("WARC-Date", None)
     # handle older formats
@@ -82,4 +87,4 @@ def process_record(record: ArcWarcRecord) -> dict | None:
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return {"text": html, "id": id, "url": url, "date": date}
+    return {"text": html, "id": id_, "url": url, "date": date}

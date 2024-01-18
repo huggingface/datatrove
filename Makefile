@@ -11,4 +11,4 @@ style:
 	ruff format $(check_dirs) # formatter
 
 test:
-	pytest ./tests/
+	pytest -sv ./tests/

@@ -7,8 +7,17 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from datatrove.pipeline.readers.parquet import ParquetReader
+from datatrove.utils._import_utils import is_pyarrow_available
+
+from ..utils import require_pyarrow
 
 
+if is_pyarrow_available():
+    import pyarrow as pa  # noqa: F811
+    import pyarrow.parquet as pq  # noqa: F811
+
+
+@require_pyarrow
 class TestParquetReader(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory

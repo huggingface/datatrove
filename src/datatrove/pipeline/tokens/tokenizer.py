@@ -1,5 +1,6 @@
 import itertools
 import struct
+from typing import TYPE_CHECKING
 
 import humanize
 import numpy as np
@@ -16,12 +17,8 @@ SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas f
 # at a time to avoid reading a lot of data into cache and then not using it when jumping again
 SHUFFLING_CACHE_TYPE = "none"  # do not cache as we are only jumping around and not reading sequentially
 
-TOKENIZERS_INSTALLED = True
-try:
+if TYPE_CHECKING:
     from tokenizers import Encoding, Tokenizer
-    from tokenizers.processors import TemplateProcessing
-except ImportError:
-    TOKENIZERS_INSTALLED = False
 
 
 def batched(iterable, n):
@@ -147,6 +144,7 @@ class TokenizedFile:
 class DocumentTokenizer(PipelineStep):
     name = "✍️ Writer"
     type = "🔢 - TOKENIZER"
+    _requires_dependencies = ["tokenizers"]
 
     def __init__(
         self,
@@ -176,7 +174,7 @@ class DocumentTokenizer(PipelineStep):
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
 
-    def get_loss_values(self, document: Document, encoded: Encoding):
+    def get_loss_values(self, document: Document, encoded: "Encoding"):
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
             if no_loss := document.metadata.get("no_loss_ranges", None):
@@ -190,6 +188,8 @@ class DocumentTokenizer(PipelineStep):
             return loss_values
 
     def write_unshuffled(self, data: DocumentsPipeline, filename: str):
+        from tokenizers import Encoding
+
         unshuff = TokenizedFile(
             self.output_folder if not self.shuffle or not self.local_working_dir else self.local_working_dir,
             filename,
@@ -236,11 +236,11 @@ class DocumentTokenizer(PipelineStep):
             outputfile.save_final_metadata(self.tokenizer_name)
 
     @property
-    def tokenizer(self) -> Tokenizer:
+    def tokenizer(self) -> "Tokenizer":
         if not self._tokenizer:
-            if not TOKENIZERS_INSTALLED:
-                logger.error("`tokenizers` is required to run DocumentTokenizer")
-                raise ImportError
+            from tokenizers import Tokenizer
+            from tokenizers.processors import TemplateProcessing
+
             self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
             if self.eos_token:
                 self._tokenizer.post_processor = TemplateProcessing(

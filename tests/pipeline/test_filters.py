@@ -11,6 +11,8 @@ from datatrove.pipeline.filters import (
     URLFilter,
 )
 
+from ..utils import require_fasttext, require_nltk, require_tldextract
+
 
 TEXT_LF_1 = (
     "I wish it need not have happened in my time,' said Frodo. 'So do I,' said Gandalf, 'and so do all who live to "
@@ -42,6 +44,7 @@ class TestFilters(unittest.TestCase):
         self.assertEqual(type(filter_result), tuple)
         self.assertEqual(filter_result[1], filter_reason)
 
+    @require_nltk
     def test_gopher_repetition(self):
         gopher_repetition = GopherRepetitionFilter()
 
@@ -77,6 +80,7 @@ class TestFilters(unittest.TestCase):
         doc.metadata["test"] = -1
         self.assertFalse(lambda_filter.filter(doc))
 
+    @require_fasttext
     def test_language(self):
         language_filter = LanguageFilter(languages=("en", "it"))
 
@@ -90,11 +94,13 @@ class TestFilters(unittest.TestCase):
         self.assertFalse(regex_filter.filter(get_doc(TEXT_LF_1 + "\n\nCoPyRiGhT")))
         self.assertTrue(regex_filter.filter(get_doc(TEXT_LF_1)))
 
+    @require_nltk
     def test_unigram_prob(self):
         unigram_filter = UnigramLogProbFilter(logprobs_threshold=-10)
         self.assertTrue(unigram_filter.filter(Document(text=TEXT_LF_1, id="0")))
         self.assertFalse(unigram_filter.filter(Document(text="Cacophony Pareidolia Serendipity", id="0")))
 
+    @require_tldextract
     def test_url(self):
         url_filter = URLFilter(extra_domains=("blocked.com", "danger.org", "badsubdomain.nice.com"))
 

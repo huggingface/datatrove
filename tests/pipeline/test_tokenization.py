@@ -5,13 +5,19 @@ import tempfile
 import unittest
 
 import numpy as np
-from tokenizers import Tokenizer
 
 from datatrove.data import Document
 from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends
+from datatrove.utils._import_utils import is_tokenizers_available
+
+from ..utils import require_tokenizers
+
+
+if is_tokenizers_available():
+    from tokenizers import Tokenizer
 
 
 texts = [
@@ -46,6 +52,7 @@ def get_texts_from_tokens(input_folder: DataFolder):
     return texts_from_tokens
 
 
+@require_tokenizers
 class TestTokenization(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory

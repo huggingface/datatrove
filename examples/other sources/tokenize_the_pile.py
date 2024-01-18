@@ -9,7 +9,7 @@ from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 pipeline = [
     JsonlReader(
         S3InputDataFolder("s3://bigcode-experiments/the-pile-sharded/", stream=True),
-        content_key="text",
+        text_key="text",
         limit=100,
     ),
     DocumentTokenizer(
