@@ -1,5 +1,5 @@
 from .csv import CSVReader
-from .huggingface import HuggingFaceReader
+from .huggingface import HuggingFaceDatasetReader
 from .ipc import IpcReader
 from .jsonl import JsonlReader
 from .parquet import ParquetReader

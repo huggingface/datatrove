@@ -7,7 +7,7 @@ from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.readers.base import BaseReader
 
 
-class HuggingFaceReader(BaseReader):
+class HuggingFaceDatasetReader(BaseReader):
     name = "🤗 HuggingFace"
     _requires_dependencies = ["datasets"]
 
@@ -16,6 +16,7 @@ class HuggingFaceReader(BaseReader):
         dataset: str,
         dataset_options: dict | None = None,
         limit: int = -1,
+        batch_size: int = 1000,
         progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
@@ -25,6 +26,7 @@ class HuggingFaceReader(BaseReader):
         super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
         self.dataset_options = dataset_options
+        self.batch_size = batch_size
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
         document = super().get_document_from_dict(data, source, id_in_file)
@@ -40,16 +42,22 @@ class HuggingFaceReader(BaseReader):
         ds = load_dataset(self.dataset, **self.dataset_options)
         shard = ds.shard(world_size, rank, contiguous=True)
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
-            for di, document in enumerate(shard):
-                if self.limit != -1 and di >= self.limit:
+            li = 0
+            for batch in shard.iter(self.batch_size):
+                if self.limit != -1 and li >= self.limit:
                     break
-
-                with self.track_time():
-                    document = self.get_document_from_dict(document, self.dataset, f"{rank:05d}/{di}")
-                    if not document:
-                        continue
-                self.update_doc_stats(document)
-                self.stat_update("documents")
-                yield document
-                if self.progress:
-                    pbar.update()
+                documents = []
+                with self.track_time("batch"):
+                    for line in batch.to_pylist():
+                        if self.limit != -1 and li >= self.limit:
+                            break
+                        document = self.get_document_from_dict(line, self.dataset, f"{rank:05d}/{li}")
+                        if not document:
+                            continue
+                        documents.append(document)
+                        self.update_doc_stats(document)
+                        self.stat_update("documents")
+                        li += 1
+                        if self.progress:
+                            pbar.update()
+                yield from documents
