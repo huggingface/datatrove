@@ -22,6 +22,8 @@ class BaseReader(PipelineStep):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
+        recursive: bool = True,
+        glob_pattern: str | None = None,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
@@ -32,6 +34,8 @@ class BaseReader(PipelineStep):
         self.adapter = adapter if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
+        self.recursive = recursive
+        self.glob_pattern = glob_pattern
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int):
         return {
@@ -79,7 +83,9 @@ class BaseReader(PipelineStep):
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         if data:
             yield from data
-        files_shard = self.data_folder.get_shard(rank, world_size)
+        files_shard = self.data_folder.get_shard(
+            rank, world_size, recursive=self.recursive, glob_pattern=self.glob_pattern
+        )
         if len(files_shard) == 0:
             if rank == 0:
                 raise RuntimeError(f"No files found on {self.data_folder.path}!")
