@@ -18,8 +18,12 @@ class IpcReader(BaseReader):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
+        recursive: bool = True,
+        glob_pattern: str | None = None,
     ):
-        super().__init__(data_folder, limit, progress, adapter, text_key, id_key, default_metadata)
+        super().__init__(
+            data_folder, limit, progress, adapter, text_key, id_key, default_metadata, recursive, glob_pattern
+        )
         self.stream = stream
         # TODO: add option to disable reading metadata (https://github.com/apache/arrow/issues/13827 needs to be addressed first)
 

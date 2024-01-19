@@ -43,10 +43,10 @@ class DocumentTokenizerMerger(PipelineStep):
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         assert world_size == 1, "world_size must be 1 for DocumentTokenizerMerger"
-        datafiles = self.input_folder.list_files(extension=".ds")
-        datafiles_index = self.input_folder.list_files(extension=".ds.index")
+        datafiles = self.input_folder.list_files(glob_pattern="*.ds")
+        datafiles_index = self.input_folder.list_files(glob_pattern="*.ds.index")
         datafiles_loss = (
-            self.input_folder.list_files(extension=".ds.loss")
+            self.input_folder.list_files(glob_pattern="*.ds.loss")
             if self.save_loss_metadata
             else ([None] * len(datafiles))
         )

@@ -107,7 +107,7 @@ class MergeSequences(PipelineStep):
         bytes_per_sequence = [0]
         with self.stats.time_stats:
             assert world_size == 1, f"{world_size=} can't be greater than 1!"
-            all_files: list[str] = self.input_folder.list_files(extension=EH.stage_1_sequence)
+            all_files: list[str] = self.input_folder.list_files(glob_pattern=EH.stage_1_sequence)
             assert len(all_files) == self.tasks_stage_1
             with self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb") as f_sequence:
                 for file in all_files:
@@ -175,7 +175,7 @@ class DedupReader(JsonlReader):
         self.rank = None
 
     def get_sequence_bytes_offset(self):
-        offset_array_file: str = self.sequence_folder.list_files(extension=EH.stage_2_bytes_offset)[0]
+        offset_array_file: str = self.sequence_folder.list_files(glob_pattern=EH.stage_2_bytes_offset)[0]
         with self.sequence_folder.open(offset_array_file, "rb") as f:
             offset_array = f.read()
         self.sequence_bytes_offset = np.frombuffer(offset_array, dtype=np.uint32)
@@ -207,9 +207,9 @@ class DedupReader(JsonlReader):
 
     def get_all_files(self, rank: int, world_size: int):
         self.get_sequence_bytes_offset()
-        sequence_file = self.sequence_folder.get_shard(rank, world_size, extension=EH.stage_1_sequence)
-        docs_sizes_file = self.sequence_folder.get_shard(rank, world_size, extension=EH.stage_1_sequence_size)
-        byte_range_file = self.sequence_folder.list_files(extension=EH.stage_3_bytes_ranges)
+        sequence_file = self.sequence_folder.get_shard(rank, world_size, glob_pattern=EH.stage_1_sequence)
+        docs_sizes_file = self.sequence_folder.get_shard(rank, world_size, glob_pattern=EH.stage_1_sequence_size)
+        byte_range_file = self.sequence_folder.list_files(glob_pattern=EH.stage_3_bytes_ranges)
 
         assert all(
             [len(sequence_file) == 1, len(docs_sizes_file) == 1, len(byte_range_file) == 1]

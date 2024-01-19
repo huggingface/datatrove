@@ -265,7 +265,7 @@ class MinhashDedupCluster(PipelineStep):
         self.save_cluster_id = save_cluster_id
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
-        dup_files = self.input_folder.list_files(extension=".dups")
+        dup_files = self.input_folder.list_files(glob_pattern="*.dups")
         assert len(dup_files) == self.config.num_buckets, "There should be exactly one .dups file per bucket"
         assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
@@ -317,7 +317,7 @@ class MinhashDedupFilter(PipelineStep):
         self.load_cluster_ids = load_cluster_ids
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        clusters_data = self.data_folder.get_shard(rank, world_size, extension=".clusters")
+        clusters_data = self.data_folder.get_shard(rank, world_size, glob_pattern="*.clusters")
         assert (
             not self.load_cluster_ids or len(clusters_data) <= 1
         ), f"Must have exactly one .clusters file per task. Found {len(clusters_data)} files."
