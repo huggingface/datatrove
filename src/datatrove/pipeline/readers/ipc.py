@@ -1,10 +1,10 @@
 from typing import Callable
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class IpcReader(BaseReader):
+class IpcReader(BaseDiskReader):
     name = "🪶 Ipc"
     _requires_dependencies = ["pyarrow"]
 

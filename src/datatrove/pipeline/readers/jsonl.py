@@ -5,10 +5,10 @@ from typing import Callable, Literal
 from loguru import logger
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class JsonlReader(BaseReader):
+class JsonlReader(BaseDiskReader):
     name = "🐿 Jsonl"
 
     def __init__(

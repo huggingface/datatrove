@@ -1,14 +1,14 @@
 from typing import TYPE_CHECKING, Callable, Literal
 
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 if TYPE_CHECKING:
     from warcio.recordloader import ArcWarcRecord
 
 
-class WarcReader(BaseReader):
+class WarcReader(BaseDiskReader):
     name = "🕷 Warc"
     _requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
 
