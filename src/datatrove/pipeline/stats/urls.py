@@ -1,6 +1,6 @@
 import json
 
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.utils.stats import MetricStatsDict
 
@@ -12,16 +12,16 @@ class URLStats(PipelineStep):
 
     def __init__(
         self,
-        output_folder: BaseOutputDataFolder,
+        output_folder: DataFolderLike,
         url_field: str = "url",
-        input_folder: BaseInputDataFolder = None,
+        input_folder: DataFolderLike = None,
         topk: int = None,
         min_doc_count_to_save: int = 1,
     ):
         super().__init__()
         self.url_field = url_field
-        self.output_folder = output_folder
-        self.input_folder = input_folder
+        self.output_folder = get_datafolder(output_folder)
+        self.input_folder = get_datafolder(input_folder)
         self.topk = topk
         self.min_doc_count_to_save = min_doc_count_to_save
 
@@ -33,8 +33,8 @@ class URLStats(PipelineStep):
         if self.input_folder:
             # reduce the map results
             assert world_size == 1, "world_size must be 1 when getting the input from an input_folder"
-            for file in self.input_folder.list_files(extension="json"):
-                with file.open() as f:
+            for file in self.input_folder.list_files(glob_pattern="json"):
+                with self.input_folder.open(file, "rt") as f:
                     file_data = json.load(f)
                     doc_counter += MetricStatsDict(init=file_data["doc_counter"])
                     tokens_counter += MetricStatsDict(init=file_data["tokens_counter"])
@@ -62,7 +62,9 @@ class URLStats(PipelineStep):
                     del doc_counter[url]
                     if url in tokens_counter:
                         del tokens_counter[url]
-        with self.output_folder.open(f"{rank:05d}_url_stats.json" if not self.input_folder else "url_stats.json") as f:
+        with self.output_folder.open(
+            f"{rank:05d}_url_stats.json" if not self.input_folder else "url_stats.json", "wt"
+        ) as f:
             json.dump(
                 {
                     "total_docs": total_docs,

@@ -53,11 +53,11 @@ class TestIpcReader(unittest.TestCase):
                     self.assertEqual(document.metadata[key], row[key])
 
     def test_ipc_reader(self):
-        reader = IpcReader((self.tmp_dir, {"glob": "*.feather"}))
+        reader = IpcReader(self.tmp_dir, glob_pattern="*.feather")
         documents = list(reader.run())
         self.check_same_data(documents)
 
     def test_ipc_stream_reader(self):
-        reader = IpcReader((self.tmp_dir, {"glob": "*.arrow"}), stream=True)
+        reader = IpcReader(self.tmp_dir, glob_pattern="*.arrow", stream=True)
         documents = list(reader.run())
         self.check_same_data(documents)

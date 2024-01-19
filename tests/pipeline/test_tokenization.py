@@ -41,7 +41,7 @@ def get_texts_from_tokens(input_folder: DataFolder):
     tokenizer = Tokenizer.from_pretrained(TOKENIZER)
     texts_from_tokens = []
     for tokens_file, index_file in zip(
-        input_folder.list_files(extension=".ds"), input_folder.list_files(extension=".ds.index")
+        input_folder.list_files(glob_pattern="*.ds"), input_folder.list_files(glob_pattern="*.ds.index")
     ):
         doc_ends = load_doc_ends(input_folder.open(index_file, "rb"))
         with input_folder.open(tokens_file, "rb") as f:

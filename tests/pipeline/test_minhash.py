@@ -121,7 +121,7 @@ class TestMinhash(unittest.TestCase):
             for b in range(config.num_buckets):
                 buckets_block(None, rank=b, world_size=config.num_buckets)
             bucket_results_folder = get_datafolder(buckets_folder)
-            dup_files = bucket_results_folder.list_files(extension=".dups")
+            dup_files = bucket_results_folder.list_files(glob_pattern="*.dups")
             pairs = defaultdict(set)
             for dup_file in dup_files:
                 with bucket_results_folder.open(dup_file, "rb") as df:

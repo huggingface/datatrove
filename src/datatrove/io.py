@@ -1,3 +1,4 @@
+from glob import has_magic
 from typing import IO, TypeAlias
 
 from fsspec import AbstractFileSystem
@@ -40,40 +41,40 @@ class DataFolder(DirFileSystem):
         path: str,
         fs: AbstractFileSystem | None = None,
         auto_mkdir: bool = True,
-        recursive: bool = True,
-        glob: str | None = None,
         **storage_options,
     ):
         """
-            `recursive` and `glob` will only affect the listing operation
         Args:
             path:
             fs:
-            recursive:
-            glob:
+            auto_mkdir:
             **storage_options:
         """
         super().__init__(path=path, fs=fs if fs else url_to_fs(path, **storage_options)[0])
         self.auto_mkdir = auto_mkdir
-        self.recursive = recursive
-        self.pattern = glob
 
-    def list_files(self, subdirectory: str = "", extension: str | list[str] = None) -> list[str]:
-        if extension and isinstance(extension, str):
-            extension = [extension]
+    def list_files(
+        self,
+        subdirectory: str = "",
+        recursive: bool = True,
+        glob_pattern: str | None = None,
+    ) -> list[str]:
+        if glob_pattern and not has_magic(glob_pattern):
+            # makes it slightly easier for file extensions
+            glob_pattern = f"*{glob_pattern}"
         return sorted(
             [
                 f
                 for f, info in (
-                    self.find(subdirectory, maxdepth=0 if not self.recursive else None, detail=True)
-                    if not self.pattern
+                    self.find(subdirectory, maxdepth=0 if not recursive else None, detail=True)
+                    if not glob_pattern
                     else self.glob(
-                        self.fs.sep.join([self.pattern, subdirectory]),
-                        maxdepth=0 if not self.recursive else None,
+                        self.fs.sep.join([glob_pattern, subdirectory]),
+                        maxdepth=0 if not recursive else None,
                         detail=True,
                     )
                 ).items()
-                if info["type"] != "directory" and not extension or any(f.endswith(ext) for ext in extension)
+                if info["type"] != "directory"
             ]
         )
 
