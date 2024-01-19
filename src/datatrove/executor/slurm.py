@@ -79,8 +79,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 launched
             depends: another SlurmPipelineExecutor that should run
                 before this one
-            logging_dir: where to save logs, stats, etc. Should be an
-                OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert
+            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
             slurm_logs_folder: where to store the raw slurm log files.

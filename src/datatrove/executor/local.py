@@ -30,8 +30,7 @@ class LocalPipelineExecutor(PipelineExecutor):
             tasks: total number of tasks to run the pipeline on
             workers: how many tasks to run simultaneously. -1 for no
                 limit
-            logging_dir: where to save logs, stats, etc. Should be an
-                OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert it
+            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
             start_method: method to use to spawn a multiprocessing Pool

@@ -186,8 +186,7 @@ class TestExactSubstr(unittest.TestCase):
 
         dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=self.tmp_dir,
-            output_folder=self.tmp_dir,
+            data_folder=self.tmp_dir,
             tasks_stage_1=1,
         )
 
@@ -197,20 +196,20 @@ class TestExactSubstr(unittest.TestCase):
             min_doc_words=0,
         )
 
-        with merge_sequence.input_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+        with merge_sequence.data_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
             f.write(bytearange_file)
 
         # test quality of stage 1, 2 output
         dataset_to_sequence(data=data)
         merge_sequence(data=[])
         big_sequence_path = "dataset" + ExtensionHelperES.stage_2_big_sequence
-        self.assertTrue(merge_sequence.input_folder.isfile(big_sequence_path))
+        self.assertTrue(merge_sequence.data_folder.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
         dedup_reader.get_sequence_bytes_offset()
         bytes_offset = dedup_reader.sequence_bytes_offset
-        with merge_sequence.input_folder.open("00000.es_sequence", "rb") as f_s:
-            with merge_sequence.input_folder.open("dataset.big_sequence", "rb") as f_b:
+        with merge_sequence.data_folder.open("00000.es_sequence", "rb") as f_s:
+            with merge_sequence.data_folder.open("dataset.big_sequence", "rb") as f_b:
                 sequence = f_s.read()
                 self.assertEqual(sequence, f_b.read())
                 self.assertEqual(len(sequence), bytes_offset[1])
@@ -240,8 +239,7 @@ class TestExactSubstr(unittest.TestCase):
 
         dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=self.tmp_dir,
-            output_folder=self.tmp_dir,
+            data_folder=self.tmp_dir,
             tasks_stage_1=2,
         )
 
@@ -251,7 +249,7 @@ class TestExactSubstr(unittest.TestCase):
             min_doc_words=0,
         )
 
-        with merge_sequence.input_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+        with merge_sequence.data_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
             f.write(bytearange_file_2)
 
         # test quality of stage 1, 2 output
@@ -260,14 +258,14 @@ class TestExactSubstr(unittest.TestCase):
         merge_sequence(data=[])
 
         big_sequence_path = "dataset" + ExtensionHelperES.stage_2_big_sequence
-        self.assertTrue(merge_sequence.input_folder.isfile(big_sequence_path))
+        self.assertTrue(merge_sequence.data_folder.isfile(big_sequence_path))
 
         dedup_reader.rank = 0
         dedup_reader.get_sequence_bytes_offset()
         bytes_offset = dedup_reader.sequence_bytes_offset
-        with merge_sequence.input_folder.open("00001.es_sequence", "rb") as f_1:
-            with merge_sequence.input_folder.open("00000.es_sequence", "rb") as f_0:
-                with merge_sequence.input_folder.open("dataset.big_sequence", "rb") as f_b:
+        with merge_sequence.data_folder.open("00001.es_sequence", "rb") as f_1:
+            with merge_sequence.data_folder.open("00000.es_sequence", "rb") as f_0:
+                with merge_sequence.data_folder.open("dataset.big_sequence", "rb") as f_b:
                     sequence_0 = f_0.read()
                     sequence_1 = f_1.read()
                     self.assertEqual(sequence_0 + sequence_1, f_b.read())

@@ -25,8 +25,7 @@ class PipelineExecutor(ABC):
         Args:
             pipeline: a list of PipelineStep and/or custom functions
                 with arguments (data: DocumentsPipeline, rank: int, world_size: int)
-            logging_dir: where to save logs, stats, etc. Should be an
-                OutputDataFolder or a str. If str, BaseOutputDataFolder.from_path(value) will be used to convert it
+            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
         """

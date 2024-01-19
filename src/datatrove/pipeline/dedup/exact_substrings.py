@@ -86,20 +86,17 @@ class MergeSequences(PipelineStep):
 
     def __init__(
         self,
-        input_folder: DataFolderLike,
-        output_folder: DataFolderLike,
+        data_folder: DataFolderLike,
         tasks_stage_1: int,
         bytes_per_batch: int = int(500e6),
     ):
         """Args:
-        input_folder: folder where sequences were saved in stage 1
-        output_folder: folder where the big sequence will be saved
+        data_folder: folder where sequences were saved in stage 1 and where the big sequence will be saved
         tasks_stage_1: number of tasks used in stage 1
         bytes_per_batch: number of bytes read per sequence
         """
         super().__init__()
-        self.input_folder = get_datafolder(input_folder)
-        self.output_folder = get_datafolder(output_folder)
+        self.data_folder = get_datafolder(data_folder)
         self.tasks_stage_1 = tasks_stage_1
         self.bytes_per_batch = bytes_per_batch
 
@@ -107,12 +104,12 @@ class MergeSequences(PipelineStep):
         bytes_per_sequence = [0]
         with self.stats.time_stats:
             assert world_size == 1, f"{world_size=} can't be greater than 1!"
-            all_files: list[str] = self.input_folder.list_files(glob_pattern=EH.stage_1_sequence)
+            all_files: list[str] = self.data_folder.list_files(glob_pattern=EH.stage_1_sequence)
             assert len(all_files) == self.tasks_stage_1
-            with self.output_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb") as f_sequence:
+            with self.data_folder.open(f"dataset{EH.stage_2_big_sequence}", mode="wb") as f_sequence:
                 for file in all_files:
                     len_sequence = 0
-                    with self.input_folder.open(file, "rb") as f:
+                    with self.data_folder.open(file, "rb") as f:
                         while True:
                             sequence = f.read(self.bytes_per_batch)
                             f_sequence.write(sequence)
@@ -121,7 +118,7 @@ class MergeSequences(PipelineStep):
                                 break
                         bytes_per_sequence.append(bytes_per_sequence[-1] + len_sequence)
 
-                with self.output_folder.open(f"bytes_offsets{EH.stage_2_bytes_offset}", mode="wb") as f_bytes:
+                with self.data_folder.open(f"bytes_offsets{EH.stage_2_bytes_offset}", mode="wb") as f_bytes:
                     f_bytes.write(np.array([bytes_per_sequence], np.uint32).tobytes())
 
 
