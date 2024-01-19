@@ -1,8 +1,5 @@
-import os
-
 from datatrove.executor.base import PipelineExecutor
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.dedup import SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
 from datatrove.pipeline.extractors import Trafilatura
 from datatrove.pipeline.filters import GopherQualityFilter, LanguageFilter
@@ -30,37 +27,31 @@ pipeline 3:
 
 def run_example():
     pipeline_1 = [
-        WarcReader(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/warc/"), limit=1000),
+        WarcReader(data_folder="warc/", limit=1000),
         Trafilatura(),
         GopherQualityFilter(min_stop_words=0),
         LanguageFilter(language_threshold=0.5, languages=(Languages.english,)),
-        JsonlWriter(LocalOutputDataFolder(path=f"{os.getcwd()}/intermediate/")),
-        SentenceDedupSignature(output_folder=LocalOutputDataFolder(path=f"{os.getcwd()}/c4/")),
+        JsonlWriter("intermediate/"),
+        SentenceDedupSignature(output_folder="c4/"),
     ]
 
     pipeline_2 = [
         SentenceFindDedups(
-            data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/c4/"),
-            output_folder=LocalOutputDataFolder(path=f"{os.getcwd()}/c4/"),
+            data_folder="c4/",
+            output_folder="c4/",
         )
     ]
 
     pipeline_3 = [
-        JsonlReader(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/intermediate/")),
-        SentenceDedupFilter(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/c4/")),
+        JsonlReader(data_folder="intermediate/"),
+        SentenceDedupFilter(data_folder="c4/"),
     ]
 
-    executor_1: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_1, workers=4, max_concurrent_uploads=1, tasks=4
-    )
+    executor_1: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_1, workers=4, tasks=4)
 
-    executor_2: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_2, workers=1, max_concurrent_uploads=1, tasks=1
-    )
+    executor_2: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_2, workers=1, tasks=1)
 
-    executor_3: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_3, workers=4, max_concurrent_uploads=1, tasks=4
-    )
+    executor_3: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_3, workers=4, tasks=4)
 
     print(executor_1.run())
     print(executor_2.run())

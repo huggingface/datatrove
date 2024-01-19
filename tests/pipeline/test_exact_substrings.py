@@ -186,8 +186,7 @@ class TestExactSubstr(unittest.TestCase):
 
         dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
         merge_sequence = MergeSequences(
-            input_folder=self.tmp_dir,
-            output_folder=self.tmp_dir,
+            data_folder=self.tmp_dir,
             tasks_stage_1=1,
         )
 

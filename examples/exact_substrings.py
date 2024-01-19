@@ -2,7 +2,6 @@ import os
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.dedup import DatasetToSequence, DedupReader, MergeSequences
 from datatrove.pipeline.extractors import Trafilatura
 from datatrove.pipeline.filters import GopherQualityFilter, LanguageFilter
@@ -36,47 +35,39 @@ The steps
 """
 
 
-def run_stage_1_2():
+def run_step_1_and_2():
     pipeline_1 = [
-        WarcReader(data_folder=LocalInputDataFolder(path=f"{os.getcwd()}/warc/"), limit=1000),
+        WarcReader(data_folder="warc/", limit=1000),
         Trafilatura(),
         GopherQualityFilter(min_stop_words=0),
         LanguageFilter(language_threshold=0.5, languages=(Languages.english,)),
-        JsonlWriter(LocalOutputDataFolder(path=f"{os.getcwd()}/intermediate/")),
-        DatasetToSequence(output_folder=LocalOutputDataFolder(path=f"{os.getcwd()}/es/")),
+        JsonlWriter("intermediate/"),
+        DatasetToSequence(output_folder="es/"),
     ]
 
     pipeline_2 = [
         MergeSequences(
-            input_folder=LocalInputDataFolder(path=f"{os.getcwd()}/es"),
-            output_folder=LocalOutputDataFolder(path=f"{os.getcwd()}/es/"),
+            data_folder="es",
             tasks_stage_1=4,
         )
     ]
 
-    executor_1: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_1, workers=4, max_concurrent_uploads=1, tasks=4
-    )
+    executor_1: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_1, workers=4, tasks=4)
 
-    executor_2: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_2, workers=1, max_concurrent_uploads=1, tasks=1
-    )
+    executor_2: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_2, workers=1, tasks=1)
 
     print(executor_1.run())
     print(executor_2.run())
 
 
-def run_stage_3():
+def run_step_3():
     pipeline_3 = [
         DedupReader(
-            LocalInputDataFolder(path=f"{os.getcwd()}/intermediate/"),
-            sequence_folder=LocalInputDataFolder(path=f"{os.getcwd()}/es/"),
-            test=False,
+            f"{os.getcwd()}/intermediate/",
+            sequence_folder=f"{os.getcwd()}/es/",
         )
     ]
 
-    executor_3: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_3, workers=4, max_concurrent_uploads=1, tasks=4
-    )
+    executor_3: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_3, workers=4, tasks=4)
 
     print(executor_3.run())
