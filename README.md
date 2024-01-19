@@ -13,6 +13,7 @@ git clone git@github.com:huggingface/datatrove.git && cd datatrove
 pip install -e ".[FLAVOUR]"
 ```
 Available flavours (combine them with `,` i.e. `[processing,s3]`:
+- `all` installs everything
 - `io` dependencies to read `warc/arc/wet` files and arrow/parquet formats
 - `processing` dependencies for text extraction, filtering and tokenization
 - `s3` s3 support
