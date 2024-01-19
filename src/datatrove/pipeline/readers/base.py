@@ -21,8 +21,6 @@ class BaseReader(PipelineStep):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
-        recursive: bool = True,
-        glob_pattern: str | None = None,
     ):
         super().__init__()
         self.limit = limit
@@ -32,8 +30,6 @@ class BaseReader(PipelineStep):
         self.adapter = adapter if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
-        self.recursive = recursive
-        self.glob_pattern = glob_pattern
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
         return {
@@ -71,9 +67,13 @@ class BaseDiskReader(BaseReader):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
+        recursive: bool = True,
+        glob_pattern: str | None = None,
     ):
         super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
+        self.recursive = recursive
+        self.glob_pattern = glob_pattern
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
