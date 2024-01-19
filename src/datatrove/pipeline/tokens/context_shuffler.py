@@ -32,8 +32,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         return self.rand.permutation(doc_ids)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        datafiles = self.input_folder.get_shard(rank, world_size, extension=".ds")
-        datafiles_index = self.input_folder.get_shard(rank, world_size, extension=".ds.index")
+        datafiles = self.input_folder.get_shard(rank, world_size, glob_pattern="*.ds")
+        datafiles_index = self.input_folder.get_shard(rank, world_size, glob_pattern="*.ds.index")
         for datafile, index in zip(datafiles, datafiles_index):
             logger.info(f"Context shuffling {datafile.path} with a {self.window_size} token window")
             total_len = load_doc_ends(index)[-1]

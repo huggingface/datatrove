@@ -1,3 +1,4 @@
+from glob import has_magic
 from typing import IO, TypeAlias
 
 from fsspec import AbstractFileSystem
@@ -55,12 +56,12 @@ class DataFolder(DirFileSystem):
     def list_files(
         self,
         subdirectory: str = "",
-        extension: str | list[str] = None,
         recursive: bool = True,
         glob_pattern: str | None = None,
     ) -> list[str]:
-        if extension and isinstance(extension, str):
-            extension = [extension]
+        if glob_pattern and not has_magic(glob_pattern):
+            # makes it slightly easier for file extensions
+            glob_pattern = f"*{glob_pattern}"
         return sorted(
             [
                 f
@@ -73,7 +74,7 @@ class DataFolder(DirFileSystem):
                         detail=True,
                     )
                 ).items()
-                if info["type"] != "directory" and not extension or any(f.endswith(ext) for ext in extension)
+                if info["type"] != "directory"
             ]
         )
 

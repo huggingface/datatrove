@@ -145,7 +145,7 @@ class SentenceFindDedups(PipelineStep):
         assert world_size == 1, "SentenceFindDedups can only run on a single worker."
         files_with_duplicates = set()
         with self.stats.time_stats:
-            sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)
+            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
                 read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
@@ -253,7 +253,7 @@ class SentenceDedupFilter(PipelineStep):
         """
         from nltk.tokenize import word_tokenize
 
-        files = self.data_folder.get_shard(rank, world_size, extension=ExtensionHelperSD.stage_2_duplicates)
+        files = self.data_folder.get_shard(rank, world_size, glob_pattern=ExtensionHelperSD.stage_2_duplicates)
         assert len(files) == 1, (
             f"n_files / n_tasks should be equal to n_workers, instead {len(files)=}\n{files}.\n"
             f"{world_size=} {rank}"
@@ -296,7 +296,7 @@ class SentenceDedupBuildIndex(PipelineStep):
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
         with self.stats.time_stats:
-            sig_files = self.data_folder.list_files(extension=ExtensionHelperSD.stage_1_signature)
+            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
                 read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]

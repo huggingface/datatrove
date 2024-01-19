@@ -43,9 +43,9 @@ def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: 
     def open_file(path):
         return input_folder.open(path, "rb")
 
-    datafiles = input_folder.list_files(extension=".ds")
-    datafiles_index = input_folder.list_files(extension=".ds.index")
-    datafiles_loss = input_folder.list_files(extension=".ds.loss")
+    datafiles = input_folder.list_files(glob_pattern="*.ds")
+    datafiles_index = input_folder.list_files(glob_pattern="*.ds.index")
+    datafiles_loss = input_folder.list_files(glob_pattern="*.ds.loss")
     check_loss = not not datafiles_loss
     assert len(datafiles) == len(datafiles_index) and (not check_loss or len(datafiles) == len(datafiles_loss)), (
         "Mismatch between number of .ds, " ".ds.index and/or .ds.loss files"
