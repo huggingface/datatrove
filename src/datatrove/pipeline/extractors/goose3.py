@@ -1,6 +1,6 @@
-// Goose3 extractor for DataTrove - extract text with goose3
-// mrfakename (www.mrfake.name)
-// Apache License 2.0
+# Goose3 extractor for DataTrove - extract text with goose3
+# mrfakename (www.mrfake.name)
+# Apache License 2.0
 from .base import BaseExtractor
 
 
