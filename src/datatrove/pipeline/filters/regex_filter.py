@@ -24,4 +24,4 @@ class RegexFilter(BaseFilter):
         Returns:
             is_filter
         """
-        return not len(self.regex.findall(doc.text)) > 0
+        return not self.regex.search(doc.text)
