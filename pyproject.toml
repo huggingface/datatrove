@@ -90,11 +90,11 @@ inspect_data = "datatrove.tools.inspect_data:main"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-include-package-data = true
-
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+datatrove = ["assets/*"]
 
 [tool.ruff]
 ignore = [
