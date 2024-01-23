@@ -95,8 +95,8 @@ datatrove = ["assets/*"]
 
 [tool.ruff]
 ignore = [
-  "C901", # line length violation
-  "E501", # `function_name` is too complex
+  "C901", # `function_name` is too complex
+  "E501", # line length violation
 ]
 select = [
   "C",
