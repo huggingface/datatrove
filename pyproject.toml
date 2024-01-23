@@ -1,10 +1,6 @@
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "datatrove"
-version = "1.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+version = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
@@ -90,8 +86,15 @@ launch_pickled_pipeline = "datatrove.tools.launch_pickled_pipeline:main"
 failed_logs = "datatrove.tools.failed_logs:main"
 inspect_data = "datatrove.tools.inspect_data:main"
 
-[tool.setuptools.package-data]
-datatrove = ["assets/*"]
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.ruff]
 ignore = [
