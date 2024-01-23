@@ -44,7 +44,9 @@ class BaseReader(PipelineStep):
         if not parsed_data.get("text", None):
             if not self._empty_warning:
                 self._empty_warning = True
-                logger.warning("Found document without text, skipping.")
+                logger.warning(
+                    f"Found document without text, skipping. " f'Is your `text_key` ("{self.text_key}") correct?'
+                )
             return None
         document = Document(**parsed_data)
         if self.default_metadata:
@@ -77,7 +79,8 @@ class BaseDiskReader(BaseReader):
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
-        document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
+        if document:
+            document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
         return document
 
     @abstractmethod

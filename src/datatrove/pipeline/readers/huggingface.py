@@ -30,7 +30,8 @@ class HuggingFaceDatasetReader(BaseReader):
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
         document = super().get_document_from_dict(data, source, id_in_file)
-        document.metadata.setdefault("dataset", source)
+        if document:
+            document.metadata.setdefault("dataset", source)
         return document
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
