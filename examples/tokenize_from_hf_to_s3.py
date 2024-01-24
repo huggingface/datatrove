@@ -13,7 +13,8 @@ LOGS_FOLDER = "my_tokenization_logs"
 WORKING_DIR = "s3://my-s3-bucket/openwebtext/tokenized-tasks/"  # where to save the tokenized individual files
 LOCAL_WORKING_DIR = "/scratch/my-local-working-dir"  # if your WORKING_DIR is a local path, you won't need this one
 # and can set it to `None`
-FINAL_OUTPUT_DIR = "s3://my-s3-bucket/openwebtext/dataset/"  # where to save the final merged tokenized dataset
+FINAL_OUTPUT_DIR = "s3://my-s3-bucket/openwebtext/dataset/"  # where to save the final merged tokenized dataset.
+# This is the path you will pass to your training library so that it can read the tokenized data.
 
 DATASET_NAME = "openwebtext"  # name for the final dataset files
 
