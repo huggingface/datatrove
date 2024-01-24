@@ -58,4 +58,5 @@ def run_example():
     print(executor_3.run())
 
 
-run_example()
+if __name__ == "__main__":
+    run_example()
