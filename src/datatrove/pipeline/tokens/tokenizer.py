@@ -162,7 +162,7 @@ class DocumentTokenizer(PipelineStep):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
-        if self.local_working_dir and not isinstance(self.local_working_dir, LocalFileSystem):
+        if self.local_working_dir and not isinstance(self.local_working_dir.fs, LocalFileSystem):
             raise ValueError("local_working_dir must be a local path")
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
