@@ -22,8 +22,11 @@ from datatrove.utils.logging import get_random_str, get_timestamp
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
-    """Executor to run pipelines on Slurm.
+    """
+    Executor to run pipelines on Slurm.
     Creates and calls a sbatch launch script.
+
+    [!] do not launch tasks from within a compute node/from another slurm task!
     """
 
     def __init__(
@@ -124,7 +127,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
         )
 
     def run(self):
+        """
+            This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
+
+            On a SlurmPipelineExecutor, we first check if we are already running on a slurm task and, if not, we launch it.
+        Returns:
+
+        """
         if "SLURM_ARRAY_TASK_ID" in os.environ:
+            # we are already "inside" the slurm task, get our rank from env vars and run pipeline
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
             )
@@ -137,9 +148,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)
         else:
+            # we still have to launch the job
             self.launch_job()
 
     def launch_merge_stats(self):
+        """
+            Launch a slurm task to merge the stats of each individual task into one big stats summary file.
+        Returns:
+
+        """
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
@@ -154,7 +171,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
         )
 
     @property
-    def dependency(self):
+    def dependency(self) -> str:
+        """
+            Resolve list of jobs we depend on and return it as a slurm string.
+        Returns:
+
+        """
         dependency = []
         if self.depends_job_id:
             dependency.append(f"{'afterany' if self.run_on_dependency_fail else 'afterok'}:" f"{self.depends_job_id}")
@@ -163,10 +185,16 @@ class SlurmPipelineExecutor(PipelineExecutor):
         return ",".join(dependency)
 
     def launch_job(self):
+        """
+            Takes care of creating a sbatch script for this pipeline and launching it.
+        Returns:
+
+        """
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor)
         ), "depends= must be a SlurmPipelineExecutor"
         if self.depends:
+            # take care of launching any unlaunched dependencies and getting their slurm job ids
             if not self.depends.job_id:
                 logger.info(f'Launching dependency job "{self.depends.job_name}"')
                 self.depends.launch_job()
@@ -182,7 +210,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         executor = deepcopy(self)
 
-        # pickle
+        # pickle. The slurm job will load the executor from this pik file
         with self.logging_dir.open("executor.pik", "wb") as executor_f:
             dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
@@ -193,10 +221,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
         max_array = min(len(ranks_to_run), self.max_array_size) if self.max_array_size != -1 else len(ranks_to_run)
 
+        # create the actual sbatch script
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
             f"srun -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
+        # save it
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
             launchscript_f.write(launch_file_contents)
         logger.info(
@@ -204,6 +234,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             f'"{self.logging_dir.resolve_paths("launch_script.slurm")}"'
         )
 
+        # launch (possibly multiple) jobs
         launched_jobs = 0
         while launched_jobs * max_array < len(ranks_to_run):
             if launched_jobs and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
@@ -217,6 +248,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.launch_merge_stats()
 
     def get_sbatch_args(self, max_array: int = 1) -> dict:
+        """
+            Get a dictionary with all the sbatch directives we want to include
+        Args:
+            max_array: max array size
+
+        Returns: a dictionary with all the sbatch directives
+
+        """
         # this one we actually have to create as slurm will be writing here
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
@@ -234,7 +273,16 @@ class SlurmPipelineExecutor(PipelineExecutor):
             **self._sbatch_args,
         }
 
-    def get_launch_file_contents(self, sbatch_args: dict, run_script: str):
+    def get_launch_file_contents(self, sbatch_args: dict, run_script: str) -> str:
+        """
+            Actually generate the sbatch script
+        Args:
+            sbatch_args: dictionary with all the sbatch directives to include
+            run_script: command to be invoked by this slurm job
+
+        Returns:
+
+        """
         args = "\n".join([f"#SBATCH --{k}={v}" if v else f"#SBATCH --{k}" for k, v in sbatch_args.items()])
 
         env_command = (
@@ -264,11 +312,20 @@ class SlurmPipelineExecutor(PipelineExecutor):
         )
 
     @property
-    def world_size(self):
+    def world_size(self) -> int:
         return self.tasks
 
 
 def launch_slurm_job(launch_file_contents, *args):
+    """
+        Small helper function to save a sbatch script and call it.
+    Args:
+        launch_file_contents: Contents of the sbatch script
+        *args: any other arguments to pass to the sbatch command
+
+    Returns: the id of the launched slurm job
+
+    """
     with tempfile.NamedTemporaryFile("w") as f:
         f.write(launch_file_contents)
         f.flush()

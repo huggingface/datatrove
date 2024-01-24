@@ -40,7 +40,18 @@ class LocalPipelineExecutor(PipelineExecutor):
         self.workers = workers if workers != -1 else tasks
         self.start_method = start_method
 
-    def _launch_run_for_rank(self, rank: int, ranks_q, completed=None, completed_lock=None):
+    def _launch_run_for_rank(self, rank: int, ranks_q, completed=None, completed_lock=None) -> PipelineStats:
+        """
+            Small wrapper around _run_for_rank with a queue of available local ranks.
+        Args:
+            rank: rank to run pipeline for
+            ranks_q: queue of local ranks
+            completed: counter with the number of complete tasks
+            completed_lock: lock to synchronize completed counter
+
+        Returns: the stats for this task
+
+        """
         local_rank = ranks_q.get()
         try:
             return self._run_for_rank(rank, local_rank)
@@ -52,6 +63,14 @@ class LocalPipelineExecutor(PipelineExecutor):
             ranks_q.put(local_rank)  # free up used rank
 
     def run(self):
+        """
+            This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
+
+            On a LocalPipelineExecutor, this method will spawn a multiprocess pool if workers != 1.
+            Otherwise, ranks will be run sequentially in a loop.
+        Returns:
+
+        """
         if all(map(self.is_rank_completed, range(self.tasks))):
             logger.info(f"Not doing anything as all {self.tasks} tasks have already been completed.")
             return
@@ -96,5 +115,10 @@ class LocalPipelineExecutor(PipelineExecutor):
         return stats
 
     @property
-    def world_size(self):
+    def world_size(self) -> int:
+        """
+            Simply the number of tasks
+        Returns:
+
+        """
         return self.tasks
