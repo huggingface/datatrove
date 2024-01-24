@@ -33,7 +33,8 @@ dist_executor = LocalPipelineExecutor(
             save_filename=f"{DATASET_NAME}_tokenized",
         ),
     ],
-    tasks=1000,  # or as many as you want
+    # If you have a very small dataset, feel free to set this to "1" and remove the merge_executor
+    tasks=1000,  # or as many as you want.
     workers=16,  # set this to the number of cpus that you have available
     logging_dir=f"{LOGS_FOLDER}/tokenization",
 )
