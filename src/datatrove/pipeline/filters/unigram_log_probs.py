@@ -15,6 +15,11 @@ UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lu
 
 
 class UnigramLogProbFilter(BaseFilter):
+    """
+    https://www.kaggle.com/datasets/rtatman/english-word-frequency
+
+    """
+
     name = "🧑‍🍳 Unigram log-prob filter"
     _requires_dependencies = ["nltk"]
 
@@ -63,9 +68,11 @@ class UnigramLogProbFilter(BaseFilter):
 
     def filter(self, doc: Document) -> bool:
         """
+            Checks if the unigram probability is above the threshold. This assumes the text is in english.
+        Args:
+            doc:
 
-        :param doc: document
-        :return: is_filter
+        Returns:
+
         """
-
         return self.get_logprob(doc) > self.logprobs_threshold
