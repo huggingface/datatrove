@@ -16,8 +16,10 @@ UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lu
 
 class UnigramLogProbFilter(BaseFilter):
     """
+    Computes average unigram log probability based on word frequencies from
     https://www.kaggle.com/datasets/rtatman/english-word-frequency
 
+    Idea taken from https://huggingface.co/datasets/allenai/peS2o
     """
 
     name = "🧑‍🍳 Unigram log-prob filter"
@@ -31,7 +33,7 @@ class UnigramLogProbFilter(BaseFilter):
         """
 
         Args:
-            logprobs_threshold:
+            logprobs_threshold: the minimum average unigram logprobs needed to keep a document
             exclusion_writer:
         """
         super().__init__(exclusion_writer)
@@ -68,7 +70,7 @@ class UnigramLogProbFilter(BaseFilter):
 
     def filter(self, doc: Document) -> bool:
         """
-            Checks if the unigram probability is above the threshold. This assumes the text is in english.
+            Checks if the average unigram probability is above the threshold. This assumes the text is in english.
         Args:
             doc:
 
