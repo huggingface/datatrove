@@ -16,14 +16,23 @@ class BaseExtractor(PipelineStep):
     @abstractmethod
     def __init__(self, timeout: float = 0.1):
         """
-        :param timeout: the timeout for extraction, per document, in seconds
+
+        Args:
+            timeout: the timeout for extraction, per document, in seconds
         """
         super().__init__()
         self.timeout = timeout
 
     @abstractmethod
     def extract(self, text: str) -> str:
-        """abstract method that actually implements the extraction, e.g. trafilatura."""
+        """abstract method that actually implements the extraction, e.g. trafilatura.
+
+        Args:
+          text: str: non-plain text
+
+        Returns: extracted plain text
+
+        """
         pass
 
     def timeout_extract(self, doc: Document):
@@ -31,7 +40,7 @@ class BaseExtractor(PipelineStep):
         This is the main entrypoint for this class.
 
         Args:
-            doc: Document
+          doc: Document:
 
         Returns:
 
@@ -55,12 +64,12 @@ class BaseExtractor(PipelineStep):
             signal.setitimer(signal.ITIMER_REAL, 0)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        """
-            Iterates through each document in data and calls `timeout_extract` on it.
+        """Iterates through each document in data and calls `timeout_extract` on it.
+
         Args:
-            data:
-            rank:
-            world_size:
+          data: DocumentsPipeline:
+          rank: int:  (Default value = 0)
+          world_size: int:  (Default value = 1)
 
         Returns:
 

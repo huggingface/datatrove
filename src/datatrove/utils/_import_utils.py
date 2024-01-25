@@ -8,6 +8,14 @@ ASSETS_PATH = os.path.join(importlib.resources.files(__package__.split(".")[0]),
 
 @lru_cache
 def _is_package_available(package_name):
+    """
+
+    Args:
+      package_name:
+
+    Returns:
+
+    """
     return importlib.util.find_spec(package_name) is not None
 
 

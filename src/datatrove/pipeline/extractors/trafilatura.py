@@ -31,6 +31,14 @@ class Trafilatura(BaseExtractor):
             raise NotImplementedError
 
     def extract(self, text: str) -> str:
+        """
+
+        Args:
+          text: str: html content
+
+        Returns: plain text extracted text
+
+        """
         from trafilatura import extract
 
         return extract(

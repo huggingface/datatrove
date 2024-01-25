@@ -11,6 +11,8 @@ from datatrove.pipeline.tokens.tokenizer import TokenizedFile
 
 
 class DocumentTokenizerMerger(PipelineStep):
+    """ """
+
     name = "🗃 Merger"
     type = "🔢 - TOKENIZER"
 
@@ -38,10 +40,28 @@ class DocumentTokenizerMerger(PipelineStep):
         self.save_final_metadata = save_final_metadata
 
     def get_ordering(self, all_doc_ends):
+        """
+
+        Args:
+          all_doc_ends:
+
+        Returns:
+
+        """
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+
+        Args:
+          data: DocumentsPipeline:  (Default value = None)
+          rank: int:  (Default value = 0)
+          world_size: int:  (Default value = 1)
+
+        Returns:
+
+        """
         assert world_size == 1, "world_size must be 1 for DocumentTokenizerMerger"
         datafiles = self.input_folder.list_files(glob_pattern="*.ds")
         datafiles_index = self.input_folder.list_files(glob_pattern="*.ds.index")

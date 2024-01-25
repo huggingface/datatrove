@@ -10,6 +10,10 @@ class MediaType:
 
 @dataclass
 class Media:
+    """
+    For possible future versions of datatrove
+    """
+
     type: int
     url: str
     alt: str | None = None
@@ -18,6 +22,14 @@ class Media:
 
 @dataclass
 class Document:
+    """
+    Base datatrove data format.
+    - `text` the actual text content for each sample
+    - `id` a unique id (string) for this sample
+    - `metadata` a dictionary where any additional info may be stored
+
+    """
+
     text: str
     id: str
     media: list[Media] = field(default_factory=list)

@@ -25,6 +25,13 @@ def batched(iterable, n):
     """In python 3.12+ we could use itertools.batched instead
 
     One difference with itertools.batched: we return a list instead of a tuple
+
+    Args:
+      iterable:
+      n:
+
+    Returns:
+
     """
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
@@ -78,6 +85,14 @@ class TokenizedFile:
             self.output_folder.rm_file(f"{self.filename}.loss")
 
     def write_bytes(self, tk_bytes: bytes):
+        """
+
+        Args:
+          tk_bytes: bytes:
+
+        Returns:
+
+        """
         self.tokens_file.write(tk_bytes)
         # 1 token = 2 bytes (uint16)
         self.write_idx += len(tk_bytes) // 2
@@ -85,16 +100,43 @@ class TokenizedFile:
         self.doc_ends.append(self.write_idx)
 
     def write_loss_bytes(self, l_bytes: bytes):
+        """
+
+        Args:
+          l_bytes: bytes:
+
+        Returns:
+
+        """
         if self.save_loss_metadata:
             self.loss_file.write(l_bytes)
 
     def write(self, tokens: list[int], loss_values: np.ndarray | None):
+        """
+
+        Args:
+          tokens: list[int]:
+          loss_values: np.ndarray | None:
+
+        Returns:
+
+        """
         # get the bytes for uint16 (H)
         self.write_bytes(struct.pack("<%sH" % len(tokens), *tokens))
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
     def copy(self, destination: str, ordering: np.ndarray = None, new_output_folder: DataFolder = None):
+        """
+
+        Args:
+          destination: str:
+          ordering: np.ndarray:  (Default value = None)
+          new_output_folder: DataFolder:  (Default value = None)
+
+        Returns:
+
+        """
         # open original file in read mode
         self.close()
         with self.output_folder.open(
@@ -131,6 +173,16 @@ class TokenizedFile:
             return new_file
 
     def save_final_metadata(self, tokenizer_name: str | None = None, token_count: int = -1, filename: str = None):
+        """
+
+        Args:
+          tokenizer_name: str | None:  (Default value = None)
+          token_count: int:  (Default value = -1)
+          filename: str:  (Default value = None)
+
+        Returns:
+
+        """
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"
         if filename is None:
@@ -175,6 +227,15 @@ class DocumentTokenizer(PipelineStep):
         self.save_final_metadata = save_final_metadata
 
     def get_loss_values(self, document: Document, encoded: "Encoding"):
+        """
+
+        Args:
+          document: Document:
+          encoded: "Encoding":
+
+        Returns:
+
+        """
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
             if no_loss := document.metadata.get("no_loss_ranges", None):
@@ -188,6 +249,15 @@ class DocumentTokenizer(PipelineStep):
             return loss_values
 
     def write_unshuffled(self, data: DocumentsPipeline, filename: str):
+        """
+
+        Args:
+          data: DocumentsPipeline:
+          filename: str:
+
+        Returns:
+
+        """
         from tokenizers import Encoding
 
         unshuff = TokenizedFile(
@@ -213,9 +283,28 @@ class DocumentTokenizer(PipelineStep):
         return unshuff
 
     def get_output_filename(self, rank, name):
+        """
+
+        Args:
+          rank:
+          name:
+
+        Returns:
+
+        """
         return "_".join([x for x in [self.save_filename, f"{rank:05d}", f"{name}.ds"] if x])
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+
+        Args:
+          data: DocumentsPipeline:
+          rank: int:  (Default value = 0)
+          world_size: int:  (Default value = 1)
+
+        Returns:
+
+        """
         unshuf_filename = self.get_output_filename(rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
