@@ -12,7 +12,9 @@ class RegexFilter(BaseFilter):
         """
         filters if regex find at least one match
 
-        @param regex_exp: regex expression
+        Args:
+            regex_exp: regex expression
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.regex = re.compile(regex_exp)

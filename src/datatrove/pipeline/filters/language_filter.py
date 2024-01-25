@@ -27,8 +27,10 @@ class LanguageFilter(BaseFilter):
         filters if the predicted language is not among given language or if the language score is below language
         language_threshold
 
-        @param regex_exp: language_threshold minimum score to accept a document.
-        @param languages: list of languages to not filter out.
+        Args:
+            languages: list of languages to keep
+            language_threshold: language_threshold minimum score to accept a document
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold

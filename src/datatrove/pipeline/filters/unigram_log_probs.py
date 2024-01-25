@@ -27,7 +27,9 @@ class UnigramLogProbFilter(BaseFilter):
         filters if the predicted language is not among given language or if the language score is below language
         language_threshold
 
-        @param languages: list of languages to not filter out.
+        Args:
+            logprobs_threshold:
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.logprobs_threshold = logprobs_threshold

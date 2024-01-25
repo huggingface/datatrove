@@ -3,9 +3,6 @@ import shutil
 import tempfile
 import unittest
 
-import pyarrow as pa
-import pyarrow.feather as feather
-
 from datatrove.pipeline.readers.ipc import IpcReader
 from datatrove.utils._import_utils import is_pyarrow_available
 
