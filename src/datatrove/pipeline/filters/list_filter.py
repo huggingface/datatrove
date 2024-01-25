@@ -4,6 +4,12 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class ListFilter(BaseFilter):
+    """
+    Checks the ratio of number of lines to number of words.
+    Equivalent to around a min of 3.333 words per line
+
+    """
+
     name = "🎅 List"
     _requires_dependencies = ["nltk"]
 

@@ -24,8 +24,6 @@ class UnigramLogProbFilter(BaseFilter):
         exclusion_writer: DiskWriter = None,
     ):
         """
-        filters if the predicted language is not among given language or if the language score is below language
-        language_threshold
 
         Args:
             logprobs_threshold:
