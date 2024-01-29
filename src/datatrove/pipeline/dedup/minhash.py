@@ -1,10 +1,13 @@
 import contextlib
 import heapq
+import os
 import struct
 from dataclasses import dataclass
-from typing import BinaryIO, Generator
+from functools import cache
+from typing import Generator
 
 import numpy as np
+from fsspec.spec import AbstractBufferedFile
 from loguru import logger
 
 from datatrove.data import DocumentsPipeline
@@ -68,13 +71,53 @@ class HashSig:
         return self.reader_id != self.file_id
 
 
-def read_sigs(file: BinaryIO, reader_id: int, config: MinhashConfig, index_file: bool = False) -> Generator:
-    if index_file:
-        for data in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}"):
-            yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
-    else:
-        for data in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}", "I"):
-            yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
+def seek_to_start(f: AbstractBufferedFile, start_hash: int, config: MinhashConfig, index_file: bool = False):
+    if start_hash == 0:
+        return
+    line_size = struct.calcsize(f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}")
+    nr_lines = f.size // line_size
+
+    @cache
+    def read_line_start(line):
+        f.seek(line * line_size, os.SEEK_SET)
+        return struct.unpack(config.hash_format, f.read(struct.calcsize(config.hash_format)))[0]
+
+    # binary search to find start line
+    start_line, hi = 0, nr_lines
+    # Note, the comparison uses "<" to match the
+    # __lt__() logic in list.sort() and in heapq.
+    while start_line < hi:
+        mid = (start_line + hi) // 2
+        if read_line_start(mid) < start_hash:
+            start_line = mid + 1
+        else:
+            hi = mid
+
+    if start_line >= nr_lines:
+        raise ValueError
+    f.seek(start_line * line_size, os.SEEK_SET)
+
+
+def read_sigs(
+    file: AbstractBufferedFile,
+    reader_id: int,
+    config: MinhashConfig,
+    index_file: bool = False,
+    min_hash: int = 0,
+    max_hash: int = _mersenne_prime,
+) -> Generator:
+    with file as f:
+        seek_to_start(f, min_hash, config, index_file)
+        if index_file:
+            for data in read_tuples_from_file(f, f"{config.hashes_per_bucket}{config.hash_format}"):
+                if data[0] >= max_hash:
+                    break
+                yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
+        else:
+            for data in read_tuples_from_file(f, f"{config.hashes_per_bucket}{config.hash_format}", "I"):
+                if data[0] >= max_hash:
+                    break
+                yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
 
 
 class MinhashDedupSignature(PipelineStep):
@@ -187,12 +230,43 @@ class MinhashDedupBuckets(PipelineStep):
         self.only_dedup_in_index = only_dedup_in_index
         self.create_index_name = create_index_name
 
-    def run(self, data: DocumentsPipeline = None, bucket: int = 0, world_size: int = 1):
+    def get_worker_hash_range(self, sig_files, rank, world_size):
+        workers_per_bucket = world_size // self.config.num_buckets
+        bucket, bucket_worker = divmod(rank, workers_per_bucket)
+        hash_min, hash_max = 0, _mersenne_prime if self.config.use_64bit_hashes else _max_hash_32b
+        if workers_per_bucket > 1 and len(sig_files):
+            # take the first file and find bucket_worker boundaries. all workers in a bucket process the same set of
+            # files, so this should be consistent across workers (and span the entire range of hashes)
+            with self.input_folder.open(sig_files[0], mode="rb") as f:
+                line_size = struct.calcsize(f"{self.config.hashes_per_bucket}{self.config.hash_format}I")
+                L, rem = divmod(f.size, line_size)
+                assert rem == 0, "file size not divisible by line size"
+                assert L >= workers_per_bucket, f"tried to use {workers_per_bucket=} but there are only {L} lines"
+                if bucket_worker > 0:
+                    # not first
+                    f.seek(line_size * (L // workers_per_bucket) * bucket_worker, os.SEEK_SET)
+                    hash_min = struct.unpack(
+                        self.config.hash_format, f.read(struct.calcsize(self.config.hash_format))
+                    )[0]
+                if bucket_worker + 1 < workers_per_bucket:
+                    # not last
+                    f.seek(line_size * (L // workers_per_bucket) * (bucket_worker + 1), os.SEEK_SET)
+                    hash_max = struct.unpack(
+                        self.config.hash_format, f.read(struct.calcsize(self.config.hash_format))
+                    )[0]
+        return hash_min, hash_max
+
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert data is None, "You should not use an input block before MinhashDedupBuckets"
-        assert world_size == self.config.num_buckets, "You must run exactly one task per bucket"
+        assert (world_size % self.config.num_buckets) == 0, "Number of tasks must be divisible by num_buckets"
+        workers_per_bucket = world_size // self.config.num_buckets
+        bucket, bucket_worker = divmod(rank, workers_per_bucket)
+
         sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
+        hash_min, hash_max = self.get_worker_hash_range(sig_files, rank, world_size)
+
         sig_readers = [
-            read_sigs(file, file_i, self.config)
+            read_sigs(file, file_i, self.config, min_hash=hash_min, max_hash=hash_max)
             for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
         ]
         index_files = self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}") if self.index_folder else None
@@ -200,25 +274,32 @@ class MinhashDedupBuckets(PipelineStep):
             logger.info(f"Found index file(s): {', '.join(index_files)}")
             sig_readers.extend(
                 [
-                    read_sigs(file, len(sig_readers) + file_i, self.config, index_file=True)
+                    read_sigs(
+                        file,
+                        len(sig_readers) + file_i,
+                        self.config,
+                        index_file=True,
+                        min_hash=hash_min,
+                        max_hash=hash_max,
+                    )
                     for file_i, file in enumerate(self.index_folder.open_files(index_files, mode="rb"))
                     # exclude "itself" if the index was partially uploaded/ended midway
                     if not self.create_index_name
-                    or file != f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index"
+                    or file != f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index"
                 ]
             )
 
-        pq = [next(sig_reader) for sig_reader in sig_readers]
+        pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
         heapq.heapify(pq)
 
         # out index file
         out_index = None
         if self.index_folder and self.create_index_name:
             out_index = self.index_folder.open(
-                f"bucket_{bucket:03d}/{self.create_index_name}.minhash.index", mode="wb"
+                f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index", mode="wb"
             )
 
-        with self.output_folder.open(f"{bucket:05d}.dups", mode="wb") as out_f:
+        with self.output_folder.open(f"{bucket:05d}_{bucket_worker:02d}.dups", mode="wb") as out_f:
             last: HashSig | None = None
             with self.track_time():
                 while pq:
@@ -266,7 +347,9 @@ class MinhashDedupCluster(PipelineStep):
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(glob_pattern="*.dups")
-        assert len(dup_files) == self.config.num_buckets, "There should be exactly one .dups file per bucket"
+        assert (
+            len(dup_files) % self.config.num_buckets
+        ) == 0, "Number of .dups files should be divisible by number of buckets"
         assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
 
@@ -278,9 +361,10 @@ class MinhashDedupCluster(PipelineStep):
 
         with self.track_time():
             for dup_file in dup_files:
-                for f1, d1, f2, d2 in read_tuples_from_file(self.input_folder.open(dup_file, "rb"), "4I"):
-                    a, b = (f1, d1), (f2, d2)
-                    union_set[parent(b)] = parent(a)
+                with self.input_folder.open(dup_file, "rb") as dupf:
+                    for f1, d1, f2, d2 in read_tuples_from_file(dupf, "4I"):
+                        a, b = (f1, d1), (f2, d2)
+                        union_set[parent(b)] = parent(a)
 
             ci = 0
             cluster_ids = {}
