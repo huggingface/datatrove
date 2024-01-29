@@ -16,7 +16,7 @@ FULL_PATHS = (
 )
 
 
-@moto.mock_s3
+@moto.mock_aws
 class TestIO(unittest.TestCase):
     def setUp(self):
         s3 = boto3.client("s3", region_name="us-east-1")
