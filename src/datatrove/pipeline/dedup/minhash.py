@@ -282,7 +282,7 @@ class MinhashDedupBuckets(PipelineStep):
                         min_hash=hash_min,
                         max_hash=hash_max,
                     )
-                    for file_i, file, filename in enumerate(
+                    for file_i, (file, filename) in enumerate(
                         zip(self.index_folder.open_files(index_files, mode="rb"), index_files)
                     )
                     # exclude "itself" if the index was partially uploaded/ended midway
