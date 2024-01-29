@@ -87,3 +87,11 @@ def require_s3fs(test_case):
     except ImportError:
         test_case = unittest.skip("test requires s3fs")(test_case)
     return test_case
+
+
+def require_datasets(test_case):
+    try:
+        import datasets  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires datasets")(test_case)
+    return test_case

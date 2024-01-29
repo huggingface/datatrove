@@ -49,7 +49,7 @@ class HuggingFaceDatasetReader(BaseReader):
                     break
                 documents = []
                 with self.track_time("batch"):
-                    for line in batch.to_pylist():
+                    for line in (dict(zip(batch, t)) for t in zip(*batch.values())):
                         if self.limit != -1 and li >= self.limit:
                             break
                         document = self.get_document_from_dict(line, self.dataset, f"{rank:05d}/{li}")
