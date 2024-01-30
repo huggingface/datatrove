@@ -57,7 +57,7 @@ class UnigramLogProbFilter(BaseFilter):
 
         words = word_tokenize(doc.text)
         freqs = [
-            self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
+            self.unigram_frequencies.get(word.lower(), 0) for word in words
         ]
 
         if len(freqs) == 0:
