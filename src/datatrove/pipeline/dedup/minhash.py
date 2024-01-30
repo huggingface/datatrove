@@ -283,7 +283,7 @@ class MinhashDedupBuckets(PipelineStep):
                 filename
                 for filename in self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
                 # exclude "itself" if the index was partially uploaded/ended midway + other workers
-                if not self.create_index_name or own_index_regex.fullmatch(filename)
+                if not self.create_index_name or not own_index_regex.fullmatch(filename)
             ]
             if self.index_folder
             else None
