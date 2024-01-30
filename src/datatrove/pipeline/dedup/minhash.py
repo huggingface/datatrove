@@ -1,6 +1,7 @@
 import contextlib
 import heapq
 import os
+import re
 import struct
 from dataclasses import dataclass
 from functools import cache
@@ -93,8 +94,9 @@ def seek_to_start(f: AbstractBufferedFile, start_hash: int, config: MinhashConfi
         else:
             hi = mid
 
-    if start_line >= nr_lines:
+    if start_line > nr_lines:
         raise ValueError
+    # possibly seek to the end
     f.seek(start_line * line_size, os.SEEK_SET)
 
 
@@ -272,6 +274,7 @@ class MinhashDedupBuckets(PipelineStep):
         index_files = self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}") if self.index_folder else None
         if index_files:
             logger.info(f"Found index file(s): {', '.join(index_files)}")
+            own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
             sig_readers.extend(
                 [
                     read_sigs(
@@ -285,9 +288,8 @@ class MinhashDedupBuckets(PipelineStep):
                     for file_i, (file, filename) in enumerate(
                         zip(self.index_folder.open_files(index_files, mode="rb"), index_files)
                     )
-                    # exclude "itself" if the index was partially uploaded/ended midway
-                    if not self.create_index_name
-                    or filename != f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index"
+                    # exclude "itself" if the index was partially uploaded/ended midway + other workers
+                    if not self.create_index_name or own_index_regex.fullmatch(filename)
                 ]
             )
 
