@@ -271,10 +271,20 @@ class MinhashDedupBuckets(PipelineStep):
             read_sigs(file, file_i, self.config, min_hash=hash_min, max_hash=hash_max)
             for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
         ]
-        index_files = self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}") if self.index_folder else None
+
+        own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
+        index_files = (
+            [
+                filename
+                for filename in self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
+                # exclude "itself" if the index was partially uploaded/ended midway + other workers
+                if not self.create_index_name or own_index_regex.fullmatch(filename)
+            ]
+            if self.index_folder
+            else None
+        )
         if index_files:
-            logger.info(f"Found index file(s): {', '.join(index_files)}")
-            own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
+            logger.info(f"Found {len(index_files)} index file(s): {', '.join(index_files)}")
             sig_readers.extend(
                 [
                     read_sigs(
@@ -285,11 +295,7 @@ class MinhashDedupBuckets(PipelineStep):
                         min_hash=hash_min,
                         max_hash=hash_max,
                     )
-                    for file_i, (file, filename) in enumerate(
-                        zip(self.index_folder.open_files(index_files, mode="rb"), index_files)
-                    )
-                    # exclude "itself" if the index was partially uploaded/ended midway + other workers
-                    if not self.create_index_name or own_index_regex.fullmatch(filename)
+                    for file_i, file in enumerate(self.index_folder.open_files(index_files, mode="rb"))
                 ]
             )
 
