@@ -267,6 +267,11 @@ class MinhashDedupBuckets(PipelineStep):
         sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
         hash_min, hash_max = self.get_worker_hash_range(sig_files, rank, world_size)
 
+        logger.info(
+            f"Running worker {bucket_worker + 1}/{workers_per_bucket} on bucket {bucket:03d}. "
+            f"Hash range: {[hash_min, hash_max]}"
+        )
+
         sig_readers = [
             read_sigs(file, file_i, self.config, min_hash=hash_min, max_hash=hash_max)
             for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
