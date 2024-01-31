@@ -306,6 +306,7 @@ class MinhashDedupBuckets(PipelineStep):
 
         pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
         heapq.heapify(pq)
+        logger.info("Finished initializing signatures priority queue.")
 
         # out index file
         out_index = None
