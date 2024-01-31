@@ -69,8 +69,8 @@ class DatasetToSequence(PipelineStep):
                     doc_lens.append(len(b_doc))
                     f_sequence.write(b_doc)
 
-        assert i < 2**32, "doc ID overflow"
-        assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
+                assert i < 2**32, "doc ID overflow"
+                assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
 
         self.save_sizes(doc_lens, rank)
 
