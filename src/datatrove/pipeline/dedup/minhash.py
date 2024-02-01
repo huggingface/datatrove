@@ -345,6 +345,7 @@ class MinhashDedupBuckets(PipelineStep):
                 last: HashSig | None = None
                 while pq:
                     v: HashSig = heapq.heappop(pq)
+                    assert last is None or v >= last, f"Sig queue sort error. {v=} < {last=}"
                     if not v.is_from_index():
                         if last and last.sig == v.sig:
                             # write (file_id1, doc_id1, file_id2, doc_id2)
