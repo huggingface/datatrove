@@ -125,18 +125,22 @@ def read_sigs(
 ) -> Generator:
     with file as f:
         seek_to_start(f, min_hash, config, index_file)
-        if index_file:
-            for data in read_tuples_from_file(f, f"{config.hashes_per_bucket}{config.hash_format}"):
-                assert data[0] >= min_hash, "Start hash error"
-                if data[0] >= max_hash:
-                    break
-                yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
-        else:
-            for data in read_tuples_from_file(f, f"{config.hashes_per_bucket}{config.hash_format}", "I"):
-                assert data[0] >= min_hash, "Start hash error"
-                if data[0] >= max_hash:
-                    break
-                yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
+        last = None
+        for data in read_tuples_from_file(
+            f, f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}"
+        ):
+            sigdata = data if index_file else data[:-1]
+            assert sigdata[0] >= min_hash and (
+                last is None or sigdata >= last
+            ), f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
+            if sigdata[0] >= max_hash:
+                break
+            last = sigdata
+            yield (
+                HashSig(sig=sigdata, doc_id=-1, file_id=-1, reader_id=reader_id)
+                if index_file
+                else HashSig(sig=sigdata, doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
+            )
 
 
 class MinhashDedupSignature(PipelineStep):
