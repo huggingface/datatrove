@@ -364,6 +364,7 @@ class MinhashDedupBuckets(PipelineStep):
                     last = v
                     next_sig = next(sig_readers[v.reader_id], None)
                     if next_sig:
+                        assert next_sig >= v, f"Next sig sort error. {next_sig=} < {v=}"
                         heapq.heappush(pq, next_sig)
                 if out_index:
                     out_index.close()
