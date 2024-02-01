@@ -122,6 +122,7 @@ def read_sigs(
     index_file: bool = False,
     min_hash: int = 0,
     max_hash: int = _mersenne_prime,
+    ensure_order: bool = True,
 ) -> Generator:
     with file as f:
         seek_to_start(f, min_hash, config, index_file)
@@ -131,7 +132,7 @@ def read_sigs(
         ):
             sigdata = data if index_file else data[:-1]
             assert sigdata[0] >= min_hash and (
-                last is None or sigdata >= last
+                ensure_order is False or last is None or sigdata >= last
             ), f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
             if sigdata[0] >= max_hash:
                 break
@@ -220,7 +221,10 @@ class MinhashDedupSignature(PipelineStep):
                 # read one by one, sort and write back
                 sigs = sorted(
                     read_sigs(
-                        self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb"), -1, self.config
+                        self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb"),
+                        -1,
+                        self.config,
+                        ensure_order=False,
                     )
                 )
                 with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb") as fo:
