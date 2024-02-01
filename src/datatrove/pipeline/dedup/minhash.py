@@ -80,8 +80,20 @@ def seek_to_start(f: AbstractBufferedFile, start_hash: int, config: MinhashConfi
 
     @cache
     def read_line_start(line):
+        assert line >= 0 and line < nr_lines
         f.seek(line * line_size, os.SEEK_SET)
         return struct.unpack(config.hash_format, f.read(struct.calcsize(config.hash_format)))[0]
+
+    # save some time with binary search
+    # this file is strictly bigger
+    if read_line_start(0) >= start_hash:
+        f.seek(0, os.SEEK_SET)
+        return
+
+    # this file is strictly smaller, ignore it completely
+    if read_line_start(nr_lines - 1) < start_hash:
+        f.seek(0, os.SEEK_END)
+        return
 
     # binary search to find start line
     start_line, hi = 0, nr_lines
@@ -96,7 +108,10 @@ def seek_to_start(f: AbstractBufferedFile, start_hash: int, config: MinhashConfi
 
     if start_line > nr_lines:
         raise ValueError
-    # possibly seek to the end
+
+    # verification check. we know start_line > 0 from the check above
+    if (prev_hash := read_line_start(start_line - 1)) >= start_hash:
+        raise ValueError(f"Wrong bsearch start line: {prev_hash=} >= {start_hash=}")
     f.seek(start_line * line_size, os.SEEK_SET)
 
 
@@ -112,11 +127,13 @@ def read_sigs(
         seek_to_start(f, min_hash, config, index_file)
         if index_file:
             for data in read_tuples_from_file(f, f"{config.hashes_per_bucket}{config.hash_format}"):
+                assert data[0] >= min_hash, "Start hash error"
                 if data[0] >= max_hash:
                     break
                 yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
         else:
             for data in read_tuples_from_file(f, f"{config.hashes_per_bucket}{config.hash_format}", "I"):
+                assert data[0] >= min_hash, "Start hash error"
                 if data[0] >= max_hash:
                     break
                 yield HashSig(sig=data[:-1], doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
@@ -264,60 +281,60 @@ class MinhashDedupBuckets(PipelineStep):
         workers_per_bucket = world_size // self.config.num_buckets
         bucket, bucket_worker = divmod(rank, workers_per_bucket)
 
-        sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
-        hash_min, hash_max = self.get_worker_hash_range(sig_files, rank, world_size)
+        with self.track_time():
+            sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
+            hash_min, hash_max = self.get_worker_hash_range(sig_files, rank, world_size)
 
-        logger.info(
-            f"Running worker {bucket_worker + 1}/{workers_per_bucket} on bucket {bucket:03d}. "
-            f"Hash range: {[hash_min, hash_max]}"
-        )
+            logger.info(
+                f"Running worker {bucket_worker + 1}/{workers_per_bucket} on bucket {bucket:03d}. "
+                f"Hash range: {[hash_min, hash_max]}"
+            )
 
-        sig_readers = [
-            read_sigs(file, file_i, self.config, min_hash=hash_min, max_hash=hash_max)
-            for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
-        ]
-
-        own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
-        index_files = (
-            [
-                filename
-                for filename in self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
-                # exclude "itself" if the index was partially uploaded/ended midway + other workers
-                if not self.create_index_name or not own_index_regex.fullmatch(filename)
+            sig_readers = [
+                read_sigs(file, file_i, self.config, min_hash=hash_min, max_hash=hash_max)
+                for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
             ]
-            if self.index_folder
-            else None
-        )
-        if index_files:
-            logger.info(f"Found {len(index_files)} index file(s): {', '.join(index_files)}")
-            sig_readers.extend(
+
+            own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
+            index_files = (
                 [
-                    read_sigs(
-                        file,
-                        len(sig_readers) + file_i,
-                        self.config,
-                        index_file=True,
-                        min_hash=hash_min,
-                        max_hash=hash_max,
-                    )
-                    for file_i, file in enumerate(self.index_folder.open_files(index_files, mode="rb"))
+                    filename
+                    for filename in self.index_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
+                    # exclude "itself" if the index was partially uploaded/ended midway + other workers
+                    if not self.create_index_name or not own_index_regex.fullmatch(filename)
                 ]
+                if self.index_folder
+                else None
             )
+            if index_files:
+                logger.info(f"Found {len(index_files)} index file(s): {', '.join(index_files)}")
+                sig_readers.extend(
+                    [
+                        read_sigs(
+                            file,
+                            len(sig_readers) + file_i,
+                            self.config,
+                            index_file=True,
+                            min_hash=hash_min,
+                            max_hash=hash_max,
+                        )
+                        for file_i, file in enumerate(self.index_folder.open_files(index_files, mode="rb"))
+                    ]
+                )
 
-        pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
-        heapq.heapify(pq)
-        logger.info("Finished initializing signatures priority queue.")
+            pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
+            heapq.heapify(pq)
+            logger.info("Finished initializing signatures priority queue.")
 
-        # out index file
-        out_index = None
-        if self.index_folder and self.create_index_name:
-            out_index = self.index_folder.open(
-                f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index", mode="wb"
-            )
+            # out index file
+            out_index = None
+            if self.index_folder and self.create_index_name:
+                out_index = self.index_folder.open(
+                    f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index", mode="wb"
+                )
 
-        with self.output_folder.open(f"{bucket:05d}_{bucket_worker:02d}.dups", mode="wb") as out_f:
-            last: HashSig | None = None
-            with self.track_time():
+            with self.output_folder.open(f"{bucket:05d}_{bucket_worker:02d}.dups", mode="wb") as out_f:
+                last: HashSig | None = None
                 while pq:
                     v: HashSig = heapq.heappop(pq)
                     if not v.is_from_index():
@@ -340,8 +357,8 @@ class MinhashDedupBuckets(PipelineStep):
                     next_sig = next(sig_readers[v.reader_id], None)
                     if next_sig:
                         heapq.heappush(pq, next_sig)
-            if out_index:
-                out_index.close()
+                if out_index:
+                    out_index.close()
 
 
 class MinhashDedupCluster(PipelineStep):
