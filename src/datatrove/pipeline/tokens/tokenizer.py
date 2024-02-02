@@ -41,18 +41,20 @@ class TokenizedFile:
         filename: str,
         save_index: bool = True,
         save_loss_metadata: bool = False,
+        upload_block_size: int | None = None,
     ):
         self.output_folder = get_datafolder(output_folder)
         self.filename = filename
         self.save_index = save_index
         self.save_loss_metadata = save_loss_metadata
+        self.upload_block_size = upload_block_size
         self.write_idx = 0
         self.doc_ends = []
 
-        self.tokens_file = self.output_folder.open(self.filename, mode="wb")
+        self.tokens_file = self.output_folder.open(self.filename, mode="wb", block_size=upload_block_size)
         self.loss_file: DataFolderLike | None = None
         if self.save_loss_metadata:
-            self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb")
+            self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb", block_size=upload_block_size)
 
     def __len__(self):
         return self.doc_ends[-1] if self.doc_ends else 0
@@ -114,6 +116,7 @@ class TokenizedFile:
                 self.output_folder if not new_output_folder else new_output_folder,
                 destination,
                 save_loss_metadata=self.save_loss_metadata,
+                upload_block_size=self.upload_block_size,
             )
             # shuffle doc_id
             for doc_id in ordering:
@@ -158,6 +161,9 @@ class DocumentTokenizer(PipelineStep):
         batch_size: int = 1000,  # batch size for tokenization
         seed: int = None,
         save_final_metadata: bool = True,
+        upload_block_size: int | None = None,
+        # you can set this if your s3 uploads are failing because of "Part
+        # number must be an integer between 1 and 10000, inclusive". Example: 20 * 2**20 (20MB)
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -173,6 +179,7 @@ class DocumentTokenizer(PipelineStep):
         self._tokenizer = None
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
+        self.upload_block_size = upload_block_size
 
     def get_loss_values(self, document: Document, encoded: "Encoding"):
         if self.save_loss_metadata:
@@ -195,6 +202,7 @@ class DocumentTokenizer(PipelineStep):
             filename,
             save_index=not self.shuffle,
             save_loss_metadata=self.save_loss_metadata,
+            upload_block_size=self.upload_block_size,
         )
         # tokenize document's text in batches to go faster – we compute loss values independently if needed
         for batch in batched(data, self.batch_size):
