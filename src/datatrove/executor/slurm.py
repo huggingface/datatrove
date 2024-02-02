@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import random
+import signal
 import subprocess
+import sys
 import tempfile
 import textwrap
 import time
@@ -19,6 +21,13 @@ from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp
+
+
+def requeue_handler(signum, _frame):
+    signame = signal.Signals(signum).name
+    logger.warning(f"Received signal {signame} ({signame}). Requeueing and exiting...")
+    subprocess.run(["scontrol", "requeue", "${SLURM_JOB_ID}"])
+    sys.exit(15)
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
@@ -137,6 +146,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if slurm_rank >= len(all_ranks):
                 return
             rank = all_ranks[slurm_rank]
+
+            for ss in self.requeue_signals:
+                signal.signal(signal.Signals[ss], requeue_handler)
+
             if self.randomize_start:
                 time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)
@@ -253,19 +266,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
             )
         )
 
-        trap_signals = (
-            "trap 'echo \"Requeueing and exiting...\"; scontrol requeue ${SLURM_JOB_ID}; exit 15' "
-            + " ".join(self.requeue_signals)
-            if self.requeue_signals
-            else ""
-        )
-
         return (
             "#!/bin/bash\n"
             + args
             + textwrap.dedent(
                 f"""
-        {trap_signals}
         echo "Starting data processing job {self.job_name}"
         {env_command}
         set -xe
