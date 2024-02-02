@@ -147,7 +147,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 return
             rank = all_ranks[slurm_rank]
 
-            for ss in self.requeue_signals:
+            for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
             if self.randomize_start:
