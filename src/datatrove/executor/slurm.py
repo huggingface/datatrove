@@ -50,6 +50,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         stagger_max_array_jobs: int = 0,
         run_on_dependency_fail: bool = False,
         randomize_start: bool = False,
+        requeue_signals: tuple[str] | None = ("SIGUSR1",),
     ):
         """Execute a pipeline on a slurm cluster
 
@@ -91,6 +92,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 between launching each of the parallel jobs
             run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
             randomize_start: randomize the start of each task in a job in a ~3 min window
+            requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance
+            is being reclaimed and jobs must be stopped for example. Set to None to disable
         """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
@@ -113,6 +116,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.randomize_start = randomize_start
         self.job_id = None
         self.depends_job_id = None
+        self.requeue_signals = requeue_signals
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
@@ -249,11 +253,19 @@ class SlurmPipelineExecutor(PipelineExecutor):
             )
         )
 
+        trap_signals = (
+            "trap 'echo \"Requeueing and exiting...\"; scontrol requeue ${SLURM_JOB_ID}; exit 15' "
+            + " ".join(self.requeue_signals)
+            if self.requeue_signals
+            else ""
+        )
+
         return (
             "#!/bin/bash\n"
             + args
             + textwrap.dedent(
                 f"""
+        {trap_signals}
         echo "Starting data processing job {self.job_name}"
         {env_command}
         set -xe
