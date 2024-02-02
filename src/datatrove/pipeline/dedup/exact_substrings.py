@@ -63,14 +63,15 @@ class DatasetToSequence(PipelineStep):
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         doc_lens = []
         with self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb") as f_sequence:
+            i = -1
             for i, doc in enumerate(data):
                 with self.stats.time_stats:
                     b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.text, rank=rank, doc_id=i)
                     doc_lens.append(len(b_doc))
                     f_sequence.write(b_doc)
 
-                assert i < 2**32, "doc ID overflow"
-                assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
+            assert i < 2**32, "doc ID overflow"
+            assert i + 1 == len(doc_lens), f"{i=} but {len(doc_lens)=}"
 
         self.save_sizes(doc_lens, rank)
 
