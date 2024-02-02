@@ -254,7 +254,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         )
 
         trap_signals = (
-            "trap 'scontrol requeue ${SLURM_JOB_ID}; exit 15' " + " ".join(self.requeue_signals)
+            "trap 'echo \"Requeueing and exiting...\"; scontrol requeue ${SLURM_JOB_ID}; exit 15' "
+            + " ".join(self.requeue_signals)
             if self.requeue_signals
             else ""
         )
