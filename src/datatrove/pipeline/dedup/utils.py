@@ -37,8 +37,7 @@ def read_tuples_from_file(file: BinaryIO, *formats):
     :return: tuples with data specified in formats
     """
     fstring = "<" + "".join(formats)
-    with file as f:
-        yield from map(partial(struct.unpack, fstring), iter(partial(f.read, struct.calcsize(fstring)), b""))
+    yield from map(partial(struct.unpack, fstring), iter(partial(file.read, struct.calcsize(fstring)), b""))
 
 
 def simplify_text(text: str) -> str:
