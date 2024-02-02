@@ -92,8 +92,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 between launching each of the parallel jobs
             run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
             randomize_start: randomize the start of each task in a job in a ~3 min window
-            requeue_signals: requeue the job and exit when this signal is received. Useful for when an instance is
-            being reclaimed and jobs must be stopped for example
+            requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance is
+            being reclaimed and jobs must be stopped for example. Set to None to disable
         """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
