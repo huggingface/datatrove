@@ -45,6 +45,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mem_per_cpu_gb: int = 2,
         workers: int = -1,
         job_name: str = "data_processing",
+        logs_prefix : str = "",
         qos: str = "normal",
         env_command: str = None,
         condaenv: str = None,
@@ -77,6 +78,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             workers: how many tasks to run simultaneously. -1 for no
                 limit
             job_name: slurm job name
+            logs_prefix: a prefix to add to the slurm logs
             env_command: command to activate a python environment, if
                 needed
             condaenv: name of a conda environment to activate
@@ -112,6 +114,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.time = time
         self.job_name = job_name
+        self.logs_prefix = logs_prefix
         self.qos = qos
         self.env_command = env_command
         self.condaenv = condaenv
@@ -147,7 +150,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 return
             rank = all_ranks[slurm_rank]
 
-            for ss in self.requeue_signals or []:
+            for ss in self.requeue_signals:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
             if self.randomize_start:
@@ -160,7 +163,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
-                    **self.get_sbatch_args(),
+                    **self.get_sbatch_args(prefix=self.logs_prefix),
                     "cpus-per-task": 1,
                     "mem-per-cpu": "1G",
                     "dependency": f"afterok:{self.job_id}",
@@ -211,7 +214,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         max_array = min(len(ranks_to_run), self.max_array_size) if self.max_array_size != -1 else len(ranks_to_run)
 
         launch_file_contents = self.get_launch_file_contents(
-            self.get_sbatch_args(max_array),
+            self.get_sbatch_args(max_array, prefix=self.logs_prefix),
             f"srun -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
@@ -233,10 +236,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         logger.info(f"Slurm job launched successfully with (last) id={self.job_id}.")
         self.launch_merge_stats()
 
-    def get_sbatch_args(self, max_array: int = 1) -> dict:
+    def get_sbatch_args(self, max_array: int = 1, prefix: str = "") -> dict:
         # this one we actually have to create as slurm will be writing here
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
-        slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
+        slurm_logfile = os.path.join(self.slurm_logs_folder, f"{prefix}%A_%a.out")
         return {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
