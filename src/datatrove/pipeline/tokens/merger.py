@@ -97,6 +97,7 @@ class DocumentTokenizerMerger(PipelineStep):
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
+                    upload_block_size=self.upload_block_size,
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
