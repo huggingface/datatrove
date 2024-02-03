@@ -45,7 +45,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mem_per_cpu_gb: int = 2,
         workers: int = -1,
         job_name: str = "data_processing",
-        logs_prefix : str = "",
+        logs_prefix: str = "",
         qos: str = "normal",
         env_command: str = None,
         condaenv: str = None,
