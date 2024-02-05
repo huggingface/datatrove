@@ -83,12 +83,12 @@ class PipelineExecutor(ABC):
     def mark_rank_as_completed(self, rank: int):
         self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
-    def get_incomplete_ranks(self):
+    def get_incomplete_ranks(self, ranks=None):
         completed = set(self.logging_dir.list_files("completions"))
         return list(
             filter(
                 lambda rank: not self.skip_completed or f"completions/{rank:05d}" not in completed,
-                range(self.world_size),
+                ranks if ranks is not None else range(self.world_size),
             )
         )
 

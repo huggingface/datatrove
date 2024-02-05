@@ -95,6 +95,17 @@ executor.run()
 ```
 </details>
 
+<details>
+  <summary>Multi-node parallelism</summary>
+
+You can have different nodes/machines process different parts of the total tasks by using the `local_tasks` and `local_rank_offset`. For each node/instance/machine, launch with the following options:
+- `tasks` the total tasks to be executed (across all machines). **This value must be the same on each machine or the input file distribution may overlap!** Example: 500
+- `local_tasks` how many tasks of the total will be executed on this particular machine. Note that you can use different values for each machine. Example: 100
+- `local_rank_offset` the rank of the first task to be executed on this machine. If this is the 3rd machine where you are launching a job, and the 2 previous machines each ran 250 and 150 jobs, this would be `400` for the current machine.
+
+To get final merged stats you will have to invoke the `merge_stats` script manually on a path containing the stats from all machines.
+</details>
+
 ### SlurmPipelineExecutor
 This executor will launch a pipeline on a slurm cluster, using slurm job arrays to group and manage tasks.
 Options:
