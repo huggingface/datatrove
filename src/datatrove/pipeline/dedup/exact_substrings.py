@@ -63,6 +63,7 @@ class DatasetToSequence(PipelineStep):
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         doc_lens = []
         with self.output_folder.open(f"{rank:05d}{EH.stage_1_sequence}", mode="wb") as f_sequence:
+            i = -1
             for i, doc in enumerate(data):
                 with self.stats.time_stats:
                     b_doc = prepare_doc(tokenizer=self.tokenizer, doc=doc.text, rank=rank, doc_id=i)
@@ -313,9 +314,11 @@ class DedupReader(JsonlReader):
         self.rank = rank
         # loads the sequence file from stage 1, the size file from stage 1 and the bytearange file.
         sequence_file, size_file = self.get_all_files(rank=self.rank, world_size=world_size)
+        if not self.dup_ranges:
+            return
         # data is given only during tests.
         if not data:
-            data = self.read_files_shard(self.data_folder.get_files_shard(self.rank, world_size))
+            data = self.read_files_shard(self.data_folder.get_shard(self.rank, world_size))
         # data is still useful for the metadata lost in the sequence format.
         for doc, doc_content in zip(
             data,
