@@ -315,7 +315,7 @@ class DedupReader(JsonlReader):
         # loads the sequence file from stage 1, the size file from stage 1 and the bytearange file.
         sequence_file, size_file = self.get_all_files(rank=self.rank, world_size=world_size)
         if not self.dup_ranges:
-            yield None
+            return
         # data is given only during tests.
         if not data:
             data = self.read_files_shard(self.data_folder.get_shard(self.rank, world_size))
