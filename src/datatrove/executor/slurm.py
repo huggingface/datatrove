@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import random
+import signal
 import subprocess
+import sys
 import tempfile
 import textwrap
 import time
@@ -19,6 +21,13 @@ from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp
+
+
+def requeue_handler(signum, _frame):
+    signame = signal.Signals(signum).name
+    logger.warning(f"Received signal {signame} ({signame}). Requeueing and exiting...")
+    subprocess.run(["scontrol", "requeue", "${SLURM_JOB_ID}"])
+    sys.exit(15)
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
@@ -50,6 +59,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         stagger_max_array_jobs: int = 0,
         run_on_dependency_fail: bool = False,
         randomize_start: bool = False,
+        requeue_signals: tuple[str] | None = ("SIGUSR1",),
     ):
         """Execute a pipeline on a slurm cluster
 
@@ -91,6 +101,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 between launching each of the parallel jobs
             run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
             randomize_start: randomize the start of each task in a job in a ~3 min window
+            requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance
+            is being reclaimed and jobs must be stopped for example. Set to None to disable
         """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
@@ -113,6 +125,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.randomize_start = randomize_start
         self.job_id = None
         self.depends_job_id = None
+        self.requeue_signals = requeue_signals
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
@@ -133,6 +146,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if slurm_rank >= len(all_ranks):
                 return
             rank = all_ranks[slurm_rank]
+
+            for ss in self.requeue_signals or []:
+                signal.signal(signal.Signals[ss], requeue_handler)
+
             if self.randomize_start:
                 time.sleep(random.randint(0, 60 * 3))
             self._run_for_rank(rank)

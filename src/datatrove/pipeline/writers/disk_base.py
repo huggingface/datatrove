@@ -1,5 +1,7 @@
+import dataclasses
 from abc import ABC, abstractmethod
 from string import Template
+from typing import Callable
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -7,11 +9,29 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 
+def _default_adapter(document: Document) -> dict:
+    """
+    You can create your own adapter that returns a dictionary in your preferred format
+    Args:
+        document: document to format
+
+    Returns: a dictionary to write to disk
+
+    """
+    return {key: val for key, val in dataclasses.asdict(document).items() if val}
+
+
 class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
 
-    def __init__(self, output_folder: DataFolderLike, output_filename: str = None, compression: str | None = "infer"):
+    def __init__(
+        self,
+        output_folder: DataFolderLike,
+        output_filename: str = None,
+        compression: str | None = "infer",
+        adapter: Callable = None,
+    ):
         super().__init__()
         self.compression = compression
         self.output_folder = get_datafolder(output_folder)
@@ -20,6 +40,7 @@ class DiskWriter(PipelineStep, ABC):
             output_filename += ".gz"
         self.output_filename = Template(output_filename)
         self.output_mg = self.output_folder.get_output_file_manager(mode="wt", compression=compression)
+        self.adapter = adapter if adapter else _default_adapter
 
     def __enter__(self):
         return self
@@ -36,12 +57,12 @@ class DiskWriter(PipelineStep, ABC):
         )
 
     @abstractmethod
-    def _write(self, document: Document, file_handler):
+    def _write(self, document: dict, file_handler):
         raise NotImplementedError
 
     def write(self, document: Document, rank: int = 0, **kwargs):
         output_filename = self._get_output_filename(document, rank, **kwargs)
-        self._write(document, self.output_mg.get_file(output_filename))
+        self._write(self.adapter(document), self.output_mg.get_file(output_filename))
         self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
         self.update_doc_stats(document)
