@@ -318,7 +318,7 @@ class DedupReader(JsonlReader):
             yield None
         # data is given only during tests.
         if not data:
-            data = self.read_files_shard(self.data_folder.get_files_shard(self.rank, world_size))
+            data = self.read_files_shard(self.data_folder.get_shard(self.rank, world_size))
         # data is still useful for the metadata lost in the sequence format.
         for doc, doc_content in zip(
             data,
