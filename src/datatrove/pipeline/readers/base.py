@@ -22,6 +22,16 @@ class BaseReader(PipelineStep):
         id_key: str = "id",
         default_metadata: dict = None,
     ):
+        """
+
+        Args:
+            limit: read at most this number of documents
+            progress: show a tqdm progress bar
+            adapter: custom function that should return a dictionary with the datatrove Document format (see _default_adapter)
+            text_key: the key containing the text data. `text` by default
+            id_key: the key containing the id for each sample. `id` by default
+            default_metadata: a dictionary with any data that should be added to all sample's metadata
+        """
         super().__init__()
         self.limit = limit
         self.progress = progress
@@ -32,6 +42,17 @@ class BaseReader(PipelineStep):
         self.default_metadata = default_metadata
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
+        """
+        The default data adapter to adapt input data into the datatrove Document format
+
+        Args:
+            data: a dictionary with the "raw" representation of the data
+            path: file path or source for this sample
+            id_in_file: its id in this particular file or source
+
+        Returns: a dictionary with text, id, media and metadata fields
+
+        """
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
@@ -40,6 +61,16 @@ class BaseReader(PipelineStep):
         }
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
+        """
+        Applies the adapter to each sample, instantiates a Document object and adds `default_metadata`.
+        Args:
+            data: a dictionary with the "raw" representation of the data
+            source_file: file path or source for this sample
+            id_in_file: its id in this particular file or source
+
+        Returns: a Document
+
+        """
         parsed_data = self.adapter(data, source_file, id_in_file)
         if not parsed_data.get("text", None):
             if not self._empty_warning:
@@ -53,7 +84,11 @@ class BaseReader(PipelineStep):
             document.metadata = self.default_metadata | document.metadata
         return document
 
+    @abstractmethod
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+        To be overridden
+        """
         raise NotImplementedError
 
 
@@ -72,6 +107,19 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
     ):
+        """
+
+        Args:
+            data_folder: a str, tuple or DataFolder object representing a path/filesystem
+            limit: read at most this number of documents
+            progress: show a tqdm progress bar
+            adapter: custom function that should return a dictionary with the datatrove Document format (see _default_adapter)
+            text_key: the key containing the text data. `text` by default
+            id_key: the key containing the id for each sample. `id` by default
+            default_metadata: a dictionary with any data that should be added to all sample's metadata
+            recursive: whether to search recursively for files
+            glob_pattern: pattern that all files must match exactly to be included (relative to data_folder)
+        """
         super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
         self.recursive = recursive
@@ -84,10 +132,27 @@ class BaseDiskReader(BaseReader):
         return document
 
     @abstractmethod
-    def read_file(self, filepath: str):
+    def read_file(self, filepath: str) -> DocumentsPipeline:
+        """
+        Subclasses only need to implement this method. Should open the filepath given, and for each line/item in the file
+         call `self.get_document_from_dict(data, filepath, id_in_path)` and yield its result.
+        Args:
+            filepath: path of the file to read
+
+        Returns: generator of Document
+
+        """
         raise NotImplementedError
 
-    def read_files_shard(self, shard):
+    def read_files_shard(self, shard: list[str]) -> DocumentsPipeline:
+        """
+            Reads a list of files and yield Documents
+        Args:
+            shard: a list of file paths
+
+        Returns: generator of Document
+
+        """
         li = 0
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             for filepath in shard:
@@ -106,6 +171,16 @@ class BaseDiskReader(BaseReader):
                     break
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+        Will get this rank's shard and sequentially read each file in the shard, yielding Document.
+        Args:
+            data: any existing data from previous pipeline stages
+            rank: rank of the current task
+            world_size: total number of tasks
+
+        Returns:
+
+        """
         if data:
             yield from data
         files_shard = self.data_folder.get_shard(

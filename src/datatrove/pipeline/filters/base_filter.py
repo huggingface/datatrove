@@ -22,7 +22,8 @@ class BaseFilter(PipelineStep, ABC):
 
     def __init__(self, exclusion_writer: DiskWriter = None):
         """
-        :param exclusion_writer: optionally pass in a writer that will save the dropped documents
+        Args:
+            exclusion_writer: optionally pass in a writer that will save the dropped documents
         """
         super().__init__()
         self.exclusion_writer = exclusion_writer
