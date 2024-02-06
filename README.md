@@ -27,6 +27,10 @@ Local, remote and other file systems are supported through [fsspec](https://file
   * [Filtering data](#filtering-data)
   * [Saving data](#saving-data)
   * [Deduplicating data](#deduplicating-data)
+  * [Custom blocks](#custom-blocks)
+    + [Simple data](#simple-data)
+    + [Custom function](#custom-function)
+    + [Custom block](#custom-block)
 - [Contributing](#contributing)
 
 <!-- tocstop -->
@@ -265,6 +269,7 @@ JsonlWriter(
 For deduplication check the examples [minhash_deduplication.py](examples/minhash_deduplication.py), [sentence_deduplication.py](examples/sentence_deduplication.py) and [exact_substrings.py](examples/exact_substrings.py).
 
 ### Custom blocks
+
 #### Simple data
 You can pass an iterable of [`Document`](src/datatrove/data.py) directly as a pipeline block like so:
 ```python
