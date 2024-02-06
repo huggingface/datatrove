@@ -59,11 +59,13 @@ class GopherQualityFilter(BaseFilter):
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
-            Applies the heuristics rules to decide if a document should be REMOVED:
-                -
 
-        :param doc
-        :return: False if sample.text does not pass any of the the heuristic tests
+        Args:
+            doc: Applies the heuristics rules to decide if a document should be REMOVED
+
+
+        Returns: False if sample.text does not pass any of the the heuristic tests
+
         """
         from nltk.tokenize import word_tokenize
 
