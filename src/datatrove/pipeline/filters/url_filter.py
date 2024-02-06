@@ -29,6 +29,17 @@ def get_list(abs_path: str, file_name: str, extra: set = None, do_normalize: boo
 
 
 class URLFilter(BaseFilter):
+    """
+    Performs filtering based on samples urls.
+    Samples are removed if:
+    - their domain is present on `block_listed_domains`
+    - if their subdomain is present on `block_listed_domains`
+    - if the full url is present on `block_listed_url`
+    - if any word from `banned_words` is in the url
+    - if there are at least `soft_word_threshold` words from `soft_banned_words` in the url
+    - if any word from `banned_subwords` is a substring of the url
+    """
+
     name = "😈 Url-filter"
     _requires_dependencies = ["tldextract"]
 

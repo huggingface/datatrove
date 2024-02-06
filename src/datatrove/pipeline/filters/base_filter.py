@@ -22,7 +22,8 @@ class BaseFilter(PipelineStep, ABC):
 
     def __init__(self, exclusion_writer: DiskWriter = None):
         """
-        :param exclusion_writer: optionally pass in a writer that will save the dropped documents
+        Args:
+            exclusion_writer: optionally pass in a writer that will save the dropped documents
         """
         super().__init__()
         self.exclusion_writer = exclusion_writer
@@ -30,7 +31,7 @@ class BaseFilter(PipelineStep, ABC):
     @abstractmethod
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
         """Filter modules main method.
-        Returns true if a sample should be kept, false if it should be removed.
+        Returns true if a sample should be KEPT, false if it should be REMOVED.
 
         Args:
             doc: sample to filter

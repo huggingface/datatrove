@@ -3,9 +3,6 @@ import shutil
 import tempfile
 import unittest
 
-import pyarrow as pa
-import pyarrow.parquet as pq
-
 from datatrove.pipeline.readers.parquet import ParquetReader
 from datatrove.utils._import_utils import is_pyarrow_available
 
