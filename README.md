@@ -6,6 +6,31 @@ DataTrove processing pipelines are platform-agnostic, running out of the box loc
 
 Local, remote and other file systems are supported through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).
 
+## Table of contents
+
+<!-- toc -->
+
+- [Installation](#installation)
+- [Quickstart examples](#quickstart-examples)
+- [Pipeline](#pipeline)
+  * [DataTrove Document](#datatrove-document)
+  * [Types of pipeline blocks](#types-of-pipeline-blocks)
+  * [Full pipeline](#full-pipeline)
+- [Executors](#executors)
+  * [LocalPipelineExecutor](#localpipelineexecutor)
+  * [SlurmPipelineExecutor](#slurmpipelineexecutor)
+- [Logging](#logging)
+- [DataFolder / paths](#datafolder--paths)
+- [Practical guides](#practical-guides)
+  * [Reading data](#reading-data)
+  * [Extracting text](#extracting-text)
+  * [Filtering data](#filtering-data)
+  * [Saving data](#saving-data)
+  * [Deduplicating data](#deduplicating-data)
+- [Contributing](#contributing)
+
+<!-- tocstop -->
+
 ## Installation
 
 ```bash
