@@ -1,9 +1,10 @@
+import heapq
 import os
 import shutil
 import struct
 import tempfile
 import unittest
-from collections import defaultdict
+from collections import defaultdict, deque
 from math import floor
 
 import numpy as np
@@ -118,8 +119,8 @@ class TestMinhash(unittest.TestCase):
                     last = sig.sig
 
             # test duplicate pairs
-            for b in range(config.num_buckets):
-                buckets_block(None, rank=b, world_size=config.num_buckets)
+            for b in range(config.num_buckets * 10):
+                buckets_block(None, rank=b, world_size=config.num_buckets * 10)
             bucket_results_folder = get_datafolder(buckets_folder)
             dup_files = bucket_results_folder.list_files(glob_pattern="*.dups")
             pairs = defaultdict(set)
@@ -167,3 +168,87 @@ class TestMinhash(unittest.TestCase):
             filtered = filter_block(cluster_samples)
             filtered_ids = {x.id for x in filtered}
             assert filtered_ids == kept
+
+    def test_multiprocess_s2(self):
+        for use_64bit_hashes in (True, False):
+            sigs_folder = os.path.join(self.tmp_dir, "b_signatures")
+            buckets_folder1 = os.path.join(self.tmp_dir, "b_buckets")
+            buckets_folder2 = os.path.join(self.tmp_dir, "b_buckets2")
+            config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
+
+            signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config)
+            buckets_block1 = MinhashDedupBuckets(
+                input_folder=sigs_folder,
+                output_folder=buckets_folder1,
+                config=config,
+            )
+            buckets_block2 = MinhashDedupBuckets(
+                input_folder=sigs_folder,
+                output_folder=buckets_folder2,
+                config=config,
+            )
+
+            samples = [Document(text=lorem_ipsum[x : x + 200], id="?") for x in range(0, len(lorem_ipsum) - 200, 10)]
+
+            signatures_block(samples)
+            # test duplicate pairs
+            for b in range(config.num_buckets):
+                buckets_block1(None, rank=b, world_size=config.num_buckets)
+            for b in range(config.num_buckets * 10):
+                buckets_block2(None, rank=b, world_size=config.num_buckets * 10)
+
+            bucket_results_folder1 = get_datafolder(buckets_folder1)
+            bucket_results_folder2 = get_datafolder(buckets_folder2)
+            dup_files1 = bucket_results_folder1.list_files(glob_pattern="*.dups")
+            dup_files2 = bucket_results_folder2.list_files(glob_pattern="*.dups")
+            for bucket, dup_file1 in enumerate(dup_files1):
+                alllines = []
+                with bucket_results_folder1.open(dup_file1, mode="rb") as df1:
+                    while data := df1.read(4 * struct.calcsize("I")):
+                        alllines.append(struct.unpack("<4I", data))
+                pi = 0
+                for filei in range(bucket * 10, (bucket + 1) * 10):
+                    pidelta = 0
+                    with bucket_results_folder2.open(dup_files2[filei], mode="rb") as df2:
+                        while data := df2.read(4 * struct.calcsize("I")):
+                            assert alllines[pi + pidelta] == struct.unpack("<4I", data)
+                            pidelta += 1
+                    pi += pidelta
+
+                assert pi == len(alllines)
+
+                # check if actually read the same hashes, when using 1 worker or 10
+                for bucket in range(config.num_buckets):
+                    sigs_df = get_datafolder(sigs_folder)
+                    sig_files = sigs_df.list_files(subdirectory=f"bucket_{bucket:03d}")
+                    sig_readers = [
+                        read_sigs(sigs_df.open(file, mode="rb"), file_i, config)
+                        for file_i, file in enumerate(sig_files)
+                    ]
+                    pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
+                    heapq.heapify(pq)
+                    ordered = deque()
+                    while pq:
+                        v = heapq.heappop(pq)
+                        ordered.append(v)
+                        next_sig = next(sig_readers[v.reader_id], None)
+                        if next_sig:
+                            heapq.heappush(pq, next_sig)
+                    for bucket_worker in range(10):
+                        hash_min, hash_max = buckets_block2.get_worker_hash_range(
+                            sig_files, bucket * 10 + bucket_worker, config.num_buckets * 10
+                        )
+                        sig_readers = [
+                            read_sigs(
+                                sigs_df.open(file, mode="rb"), file_i, config, min_hash=hash_min, max_hash=hash_max
+                            )
+                            for file_i, file in enumerate(sig_files)
+                        ]
+                        pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
+                        while pq:
+                            v = heapq.heappop(pq)
+                            nextv = ordered.popleft()
+                            assert v == nextv
+                            next_sig = next(sig_readers[v.reader_id], None)
+                            if next_sig:
+                                heapq.heappush(pq, next_sig)

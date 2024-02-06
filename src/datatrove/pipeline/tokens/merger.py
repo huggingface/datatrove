@@ -24,6 +24,9 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
+        upload_block_size: int = 20 * 2**20,  # 20MB
+        # upload_block_size * 10000 must be bigger than 2*max_tokens_per_file,
+        # or s3 uploads will fail
         seed: int = None,
         save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
@@ -38,6 +41,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.save_loss_metadata = save_loss_metadata
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
+        self.upload_block_size = upload_block_size
 
     def get_ordering(self, all_doc_ends):
         """
@@ -99,6 +103,7 @@ class DocumentTokenizerMerger(PipelineStep):
             output_folder=self.output_folder,
             filename=f"{file_ct:03d}_{self.save_filename}.ds",
             save_loss_metadata=self.save_loss_metadata,
+            upload_block_size=self.upload_block_size,
         )
         for input_file_id in ordering:
             if 0 < self.max_tokens <= self.stats["tokens"].total:
@@ -112,6 +117,7 @@ class DocumentTokenizerMerger(PipelineStep):
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
+                    upload_block_size=self.upload_block_size,
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
