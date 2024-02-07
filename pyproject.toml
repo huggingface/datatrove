@@ -50,7 +50,7 @@ processing = [
     "fasttext-wheel",
     "nltk",
     "inscriptis",
-    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+#    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
     "trafilatura",
     "tokenizers",
