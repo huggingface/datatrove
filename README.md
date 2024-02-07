@@ -38,15 +38,14 @@ Local, remote and other file systems are supported through [fsspec](https://file
 ## Installation
 
 ```bash
-git clone git@github.com:huggingface/datatrove.git && cd datatrove
-pip install -e ".[FLAVOUR]"
+pip install datatrove[FLAVOUR]
 ```
-Available flavours (combine them with `,` i.e. `[processing,s3]`:
-- `all` installs everything
-- `io` dependencies to read `warc/arc/wet` files and arrow/parquet formats
-- `processing` dependencies for text extraction, filtering and tokenization
-- `s3` s3 support
-- `cli` for command line tools
+Available flavours (combine them with `,` i.e. `[processing,s3]`):
+- `all` installs everything: `pip install datatrove[all]`
+- `io` dependencies to read `warc/arc/wet` files and arrow/parquet formats: `pip install datatrove[io]`
+- `processing` dependencies for text extraction, filtering and tokenization: `pip install datatrove[processing]`
+- `s3` s3 support: `pip install datatrove[s3]`
+- `cli` for command line tools: `pip install datatrove[cli]`
 
 ## Quickstart examples
 You can check the following [examples](examples):
@@ -376,6 +375,7 @@ You could also inherit from [`BaseExtractor`](src/datatrove/pipeline/extractors/
 ## Contributing
 
 ```bash
+git clone git@github.com:huggingface/datatrove.git && cd datatrove
 pip install -e ".[dev]"
 ```
 
