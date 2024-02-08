@@ -1,10 +1,12 @@
 import queue
+import sys
 from concurrent.futures import ThreadPoolExecutor, wait
 from functools import partial
 from threading import Event
 from typing import BinaryIO
 
 import numpy as np
+from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
@@ -84,6 +86,10 @@ class DocumentTokenizerMerger(PipelineStep):
             ".ds.index and/or .ds.loss files"
             f"({len(datafiles)} vs {len(datafiles_index)} vs {len(datafiles_loss)})"
         )
+
+        if len(datafiles) == 0:
+            logger.error("No datafiles found!")
+            sys.exit(-1)
 
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
         token_inputs = list(
