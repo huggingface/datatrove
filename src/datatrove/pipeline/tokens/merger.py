@@ -104,32 +104,33 @@ class DocumentTokenizerMerger(PipelineStep):
 
         with ThreadPoolExecutor() as executor:
             doc_ends = list(executor.map(load_doc_ends, self.input_folder.open_files(datafiles_index)))
-            logger.info(f"Loaded index for {sum(len(de) for de in doc_ends)} documents across {len(datafiles)} files.")
+        logger.info(f"Loaded index for {sum(len(de) for de in doc_ends)} documents across {len(datafiles)} files.")
 
-            token_inputs = list(
-                map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
-            )
-            loss_inputs = (
-                list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
-                if self.save_loss_metadata
-                else ([None] * len(token_inputs))
-            )
+        token_inputs = list(
+            map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
+        )
+        loss_inputs = (
+            list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
+            if self.save_loss_metadata
+            else ([None] * len(token_inputs))
+        )
 
-            tokenizer_name = None
-            if self.save_final_metadata:
-                if self.input_folder.isfile(f"{datafiles[0]}.metadata"):
-                    with self.input_folder.open(f"{datafiles[0]}.metadata", "rt") as f:
-                        tokenizer_name = f.read().splitlines()[0]
+        tokenizer_name = None
+        if self.save_final_metadata:
+            if self.input_folder.isfile(f"{datafiles[0]}.metadata"):
+                with self.input_folder.open(f"{datafiles[0]}.metadata", "rt") as f:
+                    tokenizer_name = f.read().splitlines()[0]
 
-            ordering = self.get_ordering(doc_ends)
-
+        ordering = self.get_ordering(doc_ends)
+        logger.info("Loaded new ordering")
+        # this would work more nicely with asyncio but does not require rewriting the entire codebase
+        with ThreadPoolExecutor(max_workers=len(token_inputs)) as executor:
             input_queues = [queue.Queue(self.read_queue_size) for _ in range(len(token_inputs))]
             early_stop = Event()
             workers = [
                 executor.submit(input_data_read_worker, token_input, loss_input, q, len(docs), early_stop)
                 for token_input, loss_input, q, docs in zip(token_inputs, loss_inputs, input_queues, doc_ends)
             ]
-
             file_ct = 0
             output_file = TokenizedFile(
                 output_folder=self.output_folder,
@@ -148,6 +149,7 @@ class DocumentTokenizerMerger(PipelineStep):
                     break
                 if 0 < self.max_tokens_per_file <= len(output_file):
                     output_file.close()
+                    logger.info(f'Output file "{file_ct:03d}_{self.save_filename}.ds" complete!')
                     file_ct += 1
                     if self.save_final_metadata:
                         output_file.save_final_metadata(tokenizer_name)
@@ -165,6 +167,7 @@ class DocumentTokenizerMerger(PipelineStep):
                 self.stat_update("tokens", value=len(tokens_data) // 2)
             # cleanup
             output_file.close()
+            logger.info(f'Output file "{file_ct:03d}_{self.save_filename}.ds" complete!')
             if self.save_final_metadata:
                 output_file.save_final_metadata(tokenizer_name)
                 # save final total metadata file
