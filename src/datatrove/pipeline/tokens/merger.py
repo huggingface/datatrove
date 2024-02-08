@@ -91,24 +91,6 @@ class DocumentTokenizerMerger(PipelineStep):
             logger.error("No datafiles found!")
             sys.exit(-1)
 
-        doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
-        token_inputs = list(
-            map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
-        )
-        loss_inputs = (
-            list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
-            if self.save_loss_metadata
-            else None
-        )
-
-        tokenizer_name = None
-        if self.save_final_metadata:
-            if self.input_folder.isfile(f"{datafiles[0]}.metadata"):
-                with self.input_folder.open(f"{datafiles[0]}.metadata", "rt") as f:
-                    tokenizer_name = f.read().splitlines()[0]
-
-        ordering = self.get_ordering(doc_ends)
-
         def input_data_read_worker(token_input, loss_input, results_queue, size, early_stop: Event):
             for _ in range(size):
                 if early_stop.is_set():
@@ -121,6 +103,25 @@ class DocumentTokenizerMerger(PipelineStep):
                 results_queue.put((read_tokens, loss))
 
         with ThreadPoolExecutor() as executor:
+            doc_ends = list(executor.map(load_doc_ends, self.input_folder.open_files(datafiles_index)))
+
+            token_inputs = list(
+                map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
+            )
+            loss_inputs = (
+                list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
+                if self.save_loss_metadata
+                else ([None] * len(token_inputs))
+            )
+
+            tokenizer_name = None
+            if self.save_final_metadata:
+                if self.input_folder.isfile(f"{datafiles[0]}.metadata"):
+                    with self.input_folder.open(f"{datafiles[0]}.metadata", "rt") as f:
+                        tokenizer_name = f.read().splitlines()[0]
+
+            ordering = self.get_ordering(doc_ends)
+
             input_queues = [queue.Queue(self.read_queue_size) for _ in range(len(token_inputs))]
             early_stop = Event()
             workers = [
