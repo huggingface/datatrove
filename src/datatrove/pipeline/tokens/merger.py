@@ -1,4 +1,7 @@
+import queue
+from concurrent.futures import ThreadPoolExecutor, wait
 from functools import partial
+from threading import Event
 from typing import BinaryIO
 
 import numpy as np
@@ -30,6 +33,7 @@ class DocumentTokenizerMerger(PipelineStep):
         seed: int = None,
         save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
+        read_queue_size: int = 5,  # how many documents to preload from each file
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -42,6 +46,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
+        self.read_queue_size = read_queue_size
 
     def get_ordering(self, all_doc_ends):
         """
@@ -98,42 +103,68 @@ class DocumentTokenizerMerger(PipelineStep):
 
         ordering = self.get_ordering(doc_ends)
 
-        file_ct = 0
-        output_file = TokenizedFile(
-            output_folder=self.output_folder,
-            filename=f"{file_ct:03d}_{self.save_filename}.ds",
-            save_loss_metadata=self.save_loss_metadata,
-            upload_block_size=self.upload_block_size,
-        )
-        for input_file_id in ordering:
-            if 0 < self.max_tokens <= self.stats["tokens"].total:
-                break
-            if 0 < self.max_tokens_per_file <= len(output_file):
-                output_file.close()
-                file_ct += 1
-                if self.save_final_metadata:
-                    output_file.save_final_metadata(tokenizer_name)
-                output_file = TokenizedFile(
-                    output_folder=self.output_folder,
-                    filename=f"{file_ct:03d}_{self.save_filename}.ds",
-                    save_loss_metadata=self.save_loss_metadata,
-                    upload_block_size=self.upload_block_size,
-                )
-            # copy tokens and loss
-            tokens = next(token_inputs[input_file_id])
-            output_file.write_bytes(tokens)
-            if loss_inputs:
-                output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
-            self.stat_update("tokens", value=len(tokens) // 2)
-        # cleanup
-        output_file.close()
-        if self.save_final_metadata:
-            output_file.save_final_metadata(tokenizer_name)
-            # save final total metadata file
-            output_file.save_final_metadata(
-                tokenizer_name, self.stats["tokens"].total, filename=f"{self.save_filename}.ds"
+        def input_data_read_worker(token_input, loss_input, results_queue, size, early_stop: Event):
+            for _ in range(size):
+                if early_stop.is_set():
+                    break
+                # with the loop we should actually error out of there is an issue related to the size
+                read_tokens = next(token_input)
+                loss = None
+                if loss_input:
+                    loss = next(loss_input)
+                results_queue.put((read_tokens, loss))
+
+        with ThreadPoolExecutor() as executor:
+            input_queues = [queue.Queue(self.read_queue_size) for _ in range(len(token_inputs))]
+            early_stop = Event()
+            workers = [
+                executor.submit(input_data_read_worker, token_input, loss_input, q, len(docs), early_stop)
+                for token_input, loss_input, q, docs in zip(token_inputs, loss_inputs, input_queues, doc_ends)
+            ]
+
+            file_ct = 0
+            output_file = TokenizedFile(
+                output_folder=self.output_folder,
+                filename=f"{file_ct:03d}_{self.save_filename}.ds",
+                save_loss_metadata=self.save_loss_metadata,
+                upload_block_size=self.upload_block_size,
             )
-        output_file.close()
+            for input_file_id in ordering:
+                if 0 < self.max_tokens <= self.stats["tokens"].total:
+                    early_stop.set()
+                    for inp_q in input_queues:
+                        # safe because there are no other queue consumers
+                        if inp_q.full():
+                            # free up a spot so that the event can be checked
+                            inp_q.get_nowait()
+                    break
+                if 0 < self.max_tokens_per_file <= len(output_file):
+                    output_file.close()
+                    file_ct += 1
+                    if self.save_final_metadata:
+                        output_file.save_final_metadata(tokenizer_name)
+                    output_file = TokenizedFile(
+                        output_folder=self.output_folder,
+                        filename=f"{file_ct:03d}_{self.save_filename}.ds",
+                        save_loss_metadata=self.save_loss_metadata,
+                        upload_block_size=self.upload_block_size,
+                    )
+                # copy tokens and loss
+                tokens_data, loss_data = input_queues[input_file_id].get()
+                output_file.write_bytes(tokens_data)
+                if loss_data:
+                    output_file.write_loss_bytes(loss_data)
+                self.stat_update("tokens", value=len(tokens_data) // 2)
+            # cleanup
+            output_file.close()
+            if self.save_final_metadata:
+                output_file.save_final_metadata(tokenizer_name)
+                # save final total metadata file
+                output_file.save_final_metadata(
+                    tokenizer_name, self.stats["tokens"].total, filename=f"{self.save_filename}.ds"
+                )
+            output_file.close()
+            wait(workers)
 
 
 def load_doc_ends(file: BinaryIO):
