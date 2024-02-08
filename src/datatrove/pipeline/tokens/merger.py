@@ -104,6 +104,7 @@ class DocumentTokenizerMerger(PipelineStep):
 
         with ThreadPoolExecutor() as executor:
             doc_ends = list(executor.map(load_doc_ends, self.input_folder.open_files(datafiles_index)))
+            logger.info(f"Loaded index for {sum(len(de) for de in doc_ends)} documents across {len(datafiles)} files.")
 
             token_inputs = list(
                 map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
