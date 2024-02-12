@@ -11,6 +11,15 @@ from datatrove.pipeline.tokens.merger import load_doc_ends
 
 
 class DocumentTokenizerContextShuffler(PipelineStep):
+    """ Pipeline step to shuffle the tokenized documents inside context windows for each files of a folder (done separately for each file).
+        Will write the shuffled documents in the output folder.
+    
+    Args:
+        input_folder: the input folder to read the tokenized documents from
+        output_folder: the output folder to write the shuffled documents to
+        window_size: the size of the window to shuffle (default: 2048 + 1)
+        seed: the seed for the random number generator (default: None)
+    """
     name = "🗃 Context Shuffler"
     type = "🔢 - TOKENIZER"
 

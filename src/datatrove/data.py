@@ -1,8 +1,14 @@
+""" Data classes for the datatrove package.
+"""
 from dataclasses import dataclass, field
 from typing import Generator, NewType
 
 
 class MediaType:
+    """ Media types
+
+        For future uses, currently not used.
+    """
     IMAGE = 0
     VIDEO = 1
     AUDIO = 2
@@ -10,6 +16,10 @@ class MediaType:
 
 @dataclass
 class Media:
+    """ Media metadata
+    
+        For future uses, currently not used.
+    """
     type: int
     url: str
     alt: str | None = None
@@ -18,6 +28,18 @@ class Media:
 
 @dataclass
 class Document:
+    """ Main Document dataclass going through the processing pipeline
+
+    Args:
+        text: str
+            The text of the document
+        id: str
+            The unique identifier of the document
+        media: list[Media]
+            The media associated with the document
+        metadata: dict[str, str | int | float | bool]
+            The metadata associated with the document
+    """
     text: str
     id: str
     media: list[Media] = field(default_factory=list)

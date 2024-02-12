@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from contextlib import nullcontext
-from typing import Callable
+from typing import Callable, Generator
 
 from loguru import logger
 from tqdm import tqdm
@@ -11,6 +11,19 @@ from datatrove.pipeline.base import PipelineStep
 
 
 class BaseReader(PipelineStep):
+    """ Base module for Readers. Readers read data from a source and create documents.
+        Reader are the first step in a pipeline usually.
+    
+    Args:
+        limit: limit the number of documents to read
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the adapter (default: "text")
+        id_key: key to use for the id in the adapter (default: "id")
+        default_metadata: default metadata to add to all documents
+    """
     type = "📖 - READER"
 
     def __init__(
@@ -31,7 +44,7 @@ class BaseReader(PipelineStep):
         self._empty_warning = False
         self.default_metadata = default_metadata
 
-    def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
+    def _default_adapter(self, data: dict, path: str, id_in_file: int | str) -> dict:
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
@@ -39,7 +52,15 @@ class BaseReader(PipelineStep):
             "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
 
-    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
+    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str) -> Document | None:
+        """ Get a Document from a dict of data/metadata, optionally running the dictionnary through an adapter.
+            Source file and id in file are added as metadata.
+
+        Args:
+            data: the data to adapt
+            source_file: the source file
+            id_in_file: the id in the file
+        """
         parsed_data = self.adapter(data, source_file, id_in_file)
         if not parsed_data.get("text", None):
             if not self._empty_warning:
@@ -58,6 +79,19 @@ class BaseReader(PipelineStep):
 
 
 class BaseDiskReader(BaseReader):
+    """ Base module for fsspec based Readers. Readers read data from a source (local or remote) and create documents.
+
+    Args:
+        data_folder: the data folder to read from
+        limit: limit the number of documents to read
+        progress: show progress bar
+        adapter: function to adapt the data from the source to a Document
+        text_key: key to use for the text in the adapter (default: "text")
+        id_key: key to use for the id in the adapter (default: "id")
+        default_metadata: default metadata to add to all documents
+        recursive: whether to read files recursively
+        glob_pattern: glob pattern to filter files
+    """
     type = "📖 - READER"
 
     def __init__(
@@ -84,10 +118,16 @@ class BaseDiskReader(BaseReader):
         return document
 
     @abstractmethod
-    def read_file(self, filepath: str):
+    def read_file(self, filepath: str) -> Generator[Document, None, None]:
+        """ Read a file and yield documents from it"""
         raise NotImplementedError
 
-    def read_files_shard(self, shard):
+    def read_files_shard(self, shard: list[str]) -> Generator[str, None, None]:
+        """ Read a shard of files and yield documents up to self.limit if set.
+
+        Args:
+            shard: list of file paths to read
+        """
         li = 0
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             for filepath in shard:

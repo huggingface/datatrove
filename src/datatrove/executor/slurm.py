@@ -24,6 +24,45 @@ from datatrove.utils.logging import get_random_str, get_timestamp
 class SlurmPipelineExecutor(PipelineExecutor):
     """Executor to run pipelines on Slurm.
     Creates and calls a sbatch launch script.
+
+    Args:
+        pipeline: a list of PipelineStep and/or custom functions
+            with arguments (data: DocumentsPipeline, rank: int,
+            world_size: int)
+        tasks: total number of tasks to run the pipeline on
+        time: slurm time limit
+        partition: slurm partition
+        cpus_per_task: how many cpus to give each task. should be 1
+            except when you need to give each task more memory
+        mem_per_cpu_gb: slurm option. use in conjunction with the
+            above option to increase max memory
+        workers: how many tasks to run simultaneously. -1 for no
+            limit
+        job_name: slurm job name
+        env_command: command to activate a python environment, if
+            needed
+        condaenv: name of a conda environment to activate
+        venv_path: path to a python venv to activate
+        sbatch_args: dictionary with additional arguments to pass to
+            sbatch
+        max_array_size: the limit of tasks in a task array job on
+            your slurm cluster or -1 if none. if
+            tasks>max_array_size, multiple task array jobs will be
+            launched
+        depends: another SlurmPipelineExecutor that should run
+            before this one
+        logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
+        skip_completed: whether to skip tasks that were completed in
+            previous runs. default: True
+        slurm_logs_folder: where to store the raw slurm log files.
+            must be a local path default:
+            slurm_logs/$job_name/$timestamp_$randomstring
+        max_array_launch_parallel: if we need multiple jobs due to max_array_size, whether to launch them all in
+            one go (parallel) or sequentially
+        stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
+            between launching each of the parallel jobs
+        run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
+        randomize_start: randomize the start of each task in a job in a ~3 min window
     """
 
     def __init__(
@@ -51,47 +90,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         run_on_dependency_fail: bool = False,
         randomize_start: bool = False,
     ):
-        """Execute a pipeline on a slurm cluster
-
-        Args:
-            pipeline: a list of PipelineStep and/or custom functions
-                with arguments (data: DocumentsPipeline, rank: int,
-                world_size: int)
-            tasks: total number of tasks to run the pipeline on
-            time: slurm time limit
-            partition: slurm partition
-            cpus_per_task: how many cpus to give each task. should be 1
-                except when you need to give each task more memory
-            mem_per_cpu_gb: slurm option. use in conjunction with the
-                above option to increase max memory
-            workers: how many tasks to run simultaneously. -1 for no
-                limit
-            job_name: slurm job name
-            env_command: command to activate a python environment, if
-                needed
-            condaenv: name of a conda environment to activate
-            venv_path: path to a python venv to activate
-            sbatch_args: dictionary with additional arguments to pass to
-                sbatch
-            max_array_size: the limit of tasks in a task array job on
-                your slurm cluster or -1 if none. if
-                tasks>max_array_size, multiple task array jobs will be
-                launched
-            depends: another SlurmPipelineExecutor that should run
-                before this one
-            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
-            skip_completed: whether to skip tasks that were completed in
-                previous runs. default: True
-            slurm_logs_folder: where to store the raw slurm log files.
-                must be a local path default:
-                slurm_logs/$job_name/$timestamp_$randomstring
-            max_array_launch_parallel: if we need multiple jobs due to max_array_size, whether to launch them all in
-                one go (parallel) or sequentially
-            stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
-                between launching each of the parallel jobs
-            run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
-            randomize_start: randomize the start of each task in a job in a ~3 min window
-        """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers
@@ -140,6 +138,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.launch_job()
 
     def launch_merge_stats(self):
+        """ Launch a slurm job to merge the stats files from the
+        array job into a single file.
+        """
         launch_slurm_job(
             self.get_launch_file_contents(
                 {
@@ -155,6 +156,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
     @property
     def dependency(self):
+        """ Prepare the SBATCH string of slurm job dependencies.
+        """
         dependency = []
         if self.depends_job_id:
             dependency.append(f"{'afterany' if self.run_on_dependency_fail else 'afterok'}:" f"{self.depends_job_id}")
@@ -163,6 +166,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         return ",".join(dependency)
 
     def launch_job(self):
+        """ Launch the slurm job.
+            We pickle the executor and launch a sbatch job to run the pipeline.
+            If some dependency job has not been launched yet, we launch them first.
+        """
         assert not self.depends or (
             isinstance(self.depends, SlurmPipelineExecutor)
         ), "depends= must be a SlurmPipelineExecutor"
@@ -217,6 +224,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.launch_merge_stats()
 
     def get_sbatch_args(self, max_array: int = 1) -> dict:
+        """ Prepare the SBATCH arguments for the slurm job.
+        """
         # this one we actually have to create as slurm will be writing here
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
@@ -235,6 +244,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         }
 
     def get_launch_file_contents(self, sbatch_args: dict, run_script: str):
+        """ Prepare the content of the launch script for the slurm job.
+        """
         args = "\n".join([f"#SBATCH --{k}={v}" if v else f"#SBATCH --{k}" for k, v in sbatch_args.items()])
 
         env_command = (
@@ -269,6 +280,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
 
 def launch_slurm_job(launch_file_contents, *args):
+    """ Helper to launch a slurm job from a launch script.
+    """
     with tempfile.NamedTemporaryFile("w") as f:
         f.write(launch_file_contents)
         f.flush()

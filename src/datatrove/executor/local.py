@@ -12,6 +12,19 @@ from datatrove.utils.stats import PipelineStats
 
 
 class LocalPipelineExecutor(PipelineExecutor):
+    """Executor to run a pipeline locally
+
+    Args:
+        pipeline: a list of PipelineStep and/or custom lamdba functions
+            with arguments (data: DocumentsPipeline, rank: int,
+            world_size: int)
+        tasks: total number of tasks to run the pipeline on (default: 1)
+        workers: how many tasks to run simultaneously. (default is -1 for no limit aka tasks)
+        logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
+        skip_completed: whether to skip tasks that were completed in
+            previous runs. default: True
+        start_method: method to use to spawn a multiprocessing Pool (default: "fork")
+    """
     def __init__(
         self,
         pipeline: list[PipelineStep | Callable],
@@ -19,28 +32,16 @@ class LocalPipelineExecutor(PipelineExecutor):
         workers: int = -1,
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
-        start_method: str = "forkserver",
+        start_method: str = "fork",
     ):
-        """Execute a pipeline locally
-
-        Args:
-            pipeline: a list of PipelineStep and/or custom functions
-                with arguments (data: DocumentsPipeline, rank: int,
-                world_size: int)
-            tasks: total number of tasks to run the pipeline on
-            workers: how many tasks to run simultaneously. -1 for no
-                limit
-            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
-            skip_completed: whether to skip tasks that were completed in
-                previous runs. default: True
-            start_method: method to use to spawn a multiprocessing Pool
-        """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.start_method = start_method
 
     def _launch_run_for_rank(self, rank: int, ranks_q, completed=None, completed_lock=None):
+        """ Wrapper around _run_for_rank to handle completed tasks and logging
+        """
         local_rank = ranks_q.get()
         try:
             return self._run_for_rank(rank, local_rank)

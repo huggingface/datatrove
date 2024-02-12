@@ -11,7 +11,7 @@ import dataclasses
 import heapq
 import struct
 from dataclasses import dataclass
-from typing import BinaryIO, Generator
+from typing import BinaryIO, Generator, Tuple
 
 from loguru import logger
 
@@ -39,16 +39,20 @@ class HashSig:
 
 
 class SentenceDedupSignature(PipelineStep):
+    """ SentenceDedup: First pipeline step
+    
+        Creates a signature for each document. Each HashSig has n hash, the doc id and the sentence idx. Before saving
+        them the hashes are sorted.
+
+    Args:
+        output_folder: folder where signatures are saved
+        n_sentences: n_sentences where duplicates are checked.
+    """
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
     _requires_dependencies = ["nltk"]
 
     def __init__(self, output_folder: DataFolderLike, n_sentences: int = 3):
-        """Args:
-        output_folder: folder where signatures are saved
-        n_sentences: n_sentences where duplicates are checked.
-        kwargs
-        """
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.n_sentences = n_sentences
@@ -115,6 +119,17 @@ def read_sigs(file: BinaryIO, file_id: int, index_file: bool = False) -> Generat
 
 
 class SentenceFindDedups(PipelineStep):
+    """ SentenceDedup: Second pipeline step
+
+        SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and load them
+        in a priority queue to check for duplicates. If a duplicate is found its document id and sentence id are saved.
+    
+    Args:
+        data_folder: data folder where signatures are saved
+        output_folder: folder where duplicates are saved
+        index_folder: folder where index files are saved
+        only_dedup_in_index: only dedup in index
+    """
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 2"
 
@@ -132,16 +147,6 @@ class SentenceFindDedups(PipelineStep):
         self.only_dedup_in_index = only_dedup_in_index
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
-        """Args:
-            data
-            rank
-            world_size
-
-        Returns:
-
-        SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and load them
-        in a priority queue to check for duplicates. If a duplicate is found its document id and sentence id are saved.
-        """
         assert world_size == 1, "SentenceFindDedups can only run on a single worker."
         files_with_duplicates = set()
         with self.stats.time_stats:
@@ -192,10 +197,21 @@ class SentenceFindDedups(PipelineStep):
 
 
 def read_duplicates(file: BinaryIO) -> Generator[tuple, None, None]:
+    """ Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage. """
     yield from read_tuples_from_file(file, "I", "H")  # (doc_id, sent_id) pairs
 
 
 class SentenceDedupFilter(PipelineStep):
+    """ SentenceDedup: Third pipeline step
+
+        SentenceDedupFilter reads a DocumentPipeline and removes duplicated sentences found at stage 2
+    
+    Args:
+        data_folder: data folder to get duplicate files.
+        n_sentences: n_sentences where duplicates are checked.
+        min_doc_words: min amount of words for each document
+        exclusion_writer: writer to save excluded documents
+    """
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 3"
 
@@ -206,10 +222,6 @@ class SentenceDedupFilter(PipelineStep):
         min_doc_words: int = 50,
         exclusion_writer: DiskWriter = None,
     ):
-        """Args:
-        data_folder: data folder to get duplicate files.
-        min_doc_words: min amount of words for each document
-        """
         from nltk import load
 
         super().__init__()
@@ -219,7 +231,7 @@ class SentenceDedupFilter(PipelineStep):
         self._tokenizer = load("tokenizers/punkt/english.pickle")
         self.exclusion_writer = exclusion_writer
 
-    def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> (str, str):
+    def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> Tuple[str, str]:
         if not du_lines:
             return doc.text, None
         sentence_spans = list(self._tokenizer.span_tokenize(doc.text))
@@ -279,6 +291,13 @@ class SentenceDedupFilter(PipelineStep):
 
 
 class SentenceDedupBuildIndex(PipelineStep):
+    """ SentenceDedup: Only build an index
+
+    Args:
+        data_folder: data folder to get duplicate files.
+        output_folder: folder where index is saved
+        index_name: name of the index
+    """
     type = "🫂 - DEDUP"
     name = "💥 sentence-deduplication build index"
 

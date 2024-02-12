@@ -1,6 +1,6 @@
 import itertools
 import struct
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import humanize
 import numpy as np
@@ -35,6 +35,17 @@ def batched(iterable, n):
 
 
 class TokenizedFile:
+    """ Class to write tokenized documents to local/remote folders.
+        Handles writing the tokenized document, an index file with the document ends (in tokens), and optionally a loss file with loss masks.
+        Also handles shuffling the documents inside the file at the end and providing a new TokenizedFile instance with the new ordering.
+
+    Args:
+        output_folder (DataFolderLike): the output folder where to save the tokenized documents
+        filename (str): the filename to use
+        save_index (bool): whether to save the index file (document boundaries)
+        save_loss_metadata (bool): whether to save the loss metadata (to mask some tokens during training)
+        upload_block_size (int): the fsspec size of the upload block for remote filesystems (S3)
+    """
     def __init__(
         self,
         output_folder: DataFolderLike,
@@ -60,6 +71,8 @@ class TokenizedFile:
         return self.doc_ends[-1] if self.doc_ends else 0
 
     def close(self):
+        """ Close the files and save the index.
+        """
         if self.tokens_file:
             self.tokens_file.close()
         if self.loss_file:
@@ -74,12 +87,16 @@ class TokenizedFile:
             index_file.close()
 
     def cleanup(self):
+        """ Remove the files and the index.
+        """
         self.doc_ends = []
         self.output_folder.rm_file(self.filename)
         if self.loss_file:
             self.output_folder.rm_file(f"{self.filename}.loss")
 
     def write_bytes(self, tk_bytes: bytes):
+        """ Write tk_bytes to the tokens file and update the document boundaries with a new document end (in tokens).
+        """
         self.tokens_file.write(tk_bytes)
         # 1 token = 2 bytes (uint16)
         self.write_idx += len(tk_bytes) // 2
@@ -87,16 +104,32 @@ class TokenizedFile:
         self.doc_ends.append(self.write_idx)
 
     def write_loss_bytes(self, l_bytes: bytes):
+        """ Write loss mask to the loss file."""
         if self.save_loss_metadata:
             self.loss_file.write(l_bytes)
 
     def write(self, tokens: list[int], loss_values: np.ndarray | None):
+        """ Write tokens and loss values to the files.
+
+        Args:
+            tokens (list[int]): the tokens to write
+            loss_values (np.ndarray | None): optional loss values to write
+        """
         # get the bytes for uint16 (H)
         self.write_bytes(struct.pack("<%sH" % len(tokens), *tokens))
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
-    def copy(self, destination: str, ordering: np.ndarray = None, new_output_folder: DataFolder = None):
+    def copy(self, destination: str, ordering: np.ndarray, new_output_folder: DataFolder = None) -> "TokenizedFile":
+        """ Close the current tokenized file and copy its content to a new file, shuffling the document order with provided ordering.
+        
+        Args:
+            destination (str): the new filename in new_output_folder
+            ordering (np.ndarray): the new ordering of the documents
+            new_output_folder (DataFolder): the new output folder to use
+        Returns:
+            TokenizedFile: the new tokenized file
+        """
         # open original file in read mode
         self.close()
         with self.output_folder.open(
@@ -134,6 +167,12 @@ class TokenizedFile:
             return new_file
 
     def save_final_metadata(self, tokenizer_name: str | None = None, token_count: int = -1, filename: str = None):
+        """ Save the final metadata file with the tokenizer name and the token count.
+
+        Args:
+            tokenizer_name (str | None): the tokenizer name to save
+            token_count (int): the token count to save
+        """
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"
         if filename is None:
@@ -145,6 +184,27 @@ class TokenizedFile:
 
 
 class DocumentTokenizer(PipelineStep):
+    """ Tokenize the documents in the pipeline using the HuggingFace fast tokenizers library.
+        This pipeline step saves the tokenized documents locally/remotely in a set of files and optionally shuffles documents inside each file.
+
+        You can use a DocumentTokenizerMerger to merge the tokenized files into a single file while also shuffling the file order.
+    
+    Args:
+        output_folder (DataFolderLike): the output folder where to save the tokenized documents
+        local_working_dir (str | None): a local working directory to use for temporary files (before internal shuffling)
+            if None we shuffle in output_folder (can be very slow if it's a remote location) 
+        save_filename (str): the filename to use for the final tokenized files (default: None – use the default filename)
+        tokenizer_name (str): the name of the tokenizer to use, from the HuggingFace tokenizers library (default: "gpt2")
+        eos_token (str): whether to add the EOS token after each document (default: "<|endoftext|>")
+        save_loss_metadata (bool): save the loss information (default: False)
+        shuffle (bool): whether to shuffle documents in the dataset (default: True)
+        batch_size (int): batch size for tokenization (default: 1000)
+        seed (int): the seed to use for shuffling
+        save_final_metadata (bool): whether to save the final metadata (default: True)
+        upload_block_size (int | None): the fsspec size of the upload block for remote filesystems (S3)
+            You can set this if your s3 uploads are failing because of "Part number must be an integer between 1 and 10000, inclusive".
+            Example: 20 * 2**20 (20MB)
+    """
     name = "✍️ Writer"
     type = "🔢 - TOKENIZER"
     _requires_dependencies = ["tokenizers"]
@@ -152,7 +212,7 @@ class DocumentTokenizer(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        local_working_dir: str | None = None,
+        local_working_dir: Optional[Tuple[DataFolderLike, str]],
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
@@ -170,6 +230,8 @@ class DocumentTokenizer(PipelineStep):
         self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
         if self.local_working_dir and not isinstance(self.local_working_dir.fs, LocalFileSystem):
             raise ValueError("local_working_dir must be a local path")
+        if self.local_working_dir is None:
+            logger.warning("local_working_dir is not set. This may slow down the process.")
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
         self.eos_token = eos_token
@@ -182,6 +244,15 @@ class DocumentTokenizer(PipelineStep):
         self.upload_block_size = upload_block_size
 
     def get_loss_values(self, document: Document, encoded: "Encoding"):
+        """ Get the loss mask for the document, if needed.
+            A loss mask is defined as a list of tuple of start, end character positions in the string for which we want to ignore the loss.
+            This is useful for example when we have a document with a prompt and we want to ignore the loss for the prompt.
+        
+        Args:
+            document (Document): the document to process
+                document metadata can contain a "no_loss_ranges" list of tuple of start, end character positions List[Tuple[int, int]]
+            encoded (Encoding): the encoded document
+        """
         if self.save_loss_metadata:
             loss_values = np.ones((len(encoded.ids)))
             if no_loss := document.metadata.get("no_loss_ranges", None):
@@ -195,6 +266,13 @@ class DocumentTokenizer(PipelineStep):
             return loss_values
 
     def write_unshuffled(self, data: DocumentsPipeline, filename: str):
+        """ Tokenize documents with the tokenizer in batches and write the unshuffled tokenized documents to a file.
+            We also compute loss values if needed and save them.
+
+        Args:
+            data (DocumentsPipeline): the documents to process
+            filename (str): the filename to use for the output file
+        """
         from tokenizers import Encoding
 
         unshuff = TokenizedFile(
@@ -220,10 +298,24 @@ class DocumentTokenizer(PipelineStep):
                     self.stat_update("tokens", value=len(tokens))
         return unshuff
 
-    def get_output_filename(self, rank, name):
+    def get_output_filename(self, rank: int, name: str):
+        """ Get an output filename for the rank and a sub-step name (unshuffled/shuffled).
+        """
         return "_".join([x for x in [self.save_filename, f"{rank:05d}", f"{name}.ds"] if x])
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """ Main method to run the tokenization.
+            We first batch tokenize the documents and write them to a file.
+            Then we shuffle the documents and write them to a new file if self.shuffle is True (and remove the original file)
+
+        Args:
+            data: DocumentsPipeline
+                The data to be processed as a Generator typically created by a Reader initial pipeline step
+            rank: int
+                The rank of the process
+            world_size: int
+                The total number of processes
+        """
         unshuf_filename = self.get_output_filename(rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
@@ -245,6 +337,12 @@ class DocumentTokenizer(PipelineStep):
 
     @property
     def tokenizer(self) -> "Tokenizer":
+        """ Get a tokenizer instance from the HuggingFace tokenizers library.
+            If self.eos_token is defined, we add a post-processor to add the EOS token to each document.
+        
+        Returns:
+            Tokenizer: the tokenizer instance
+        """
         if not self._tokenizer:
             from tokenizers import Tokenizer
             from tokenizers.processors import TemplateProcessing

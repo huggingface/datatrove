@@ -9,6 +9,14 @@ from fsspec.implementations.local import LocalFileSystem
 
 
 class OutputFileManager:
+    """ A simple file manager to create/handle/close multiple output files.
+        Used in DataFolder.
+
+    Args:
+        fs: the filesystem to use (see fsspec for more details)
+        mode: the mode to open the files with
+        compression: the compression to use
+    """
     def __init__(self, fs, mode: str = "wt", compression: str | None = "infer"):
         self.fs = fs
         self.mode = mode
@@ -36,6 +44,15 @@ class OutputFileManager:
 
 
 class DataFolder(DirFileSystem):
+    """ A simple wrapper around fsspec's DirFileSystem to handle file listing and sharding files accross multiple workers/process.
+        It also handles the creation of output files.
+
+    Args:
+        path: the path to the folder (local or remote)
+        fs: the filesystem to use (see fsspec for more details)
+        auto_mkdir: whether to automatically create the parent directories when opening a file
+        **storage_options: additional options to pass to the filesystem
+    """
     def __init__(
         self,
         path: str,
@@ -105,15 +122,40 @@ class DataFolder(DirFileSystem):
         return OutputFileManager(self, **kwargs)
 
     def open_files(self, paths, mode="rb", **kwargs):
+        """ Open multiple files at once and return a list of file objects.
+
+        Args:
+            paths: the paths to the files
+            mode: the mode to open the files with
+            **kwargs: additional arguments to pass to the open
+        """
         return [self.open(path, mode=mode, **kwargs) for path in paths]
 
     def open(self, path, mode="rb", *args, **kwargs):
+        """ Open a file locally or remote, and create the parent directories if needed.
+
+            args/kwargs will depend on the filesystem (see fsspec for more details)
+            Typically we often use:
+                - compression: the compression to use
+                - block_size: the block size to use
+
+        Args:
+            path: the path to the file
+            mode: the mode to open the file with
+            *args: additional arguments to pass to the open
+            **kwargs: additional arguments to pass to the open
+        """
         if self.auto_mkdir and ("w" in mode or "a" in mode):
             self.fs.makedirs(self.fs._parent(self._join(path)), exist_ok=True)
         return super().open(path, mode=mode, *args, **kwargs)
 
 
 def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]) -> DataFolder:
+    """ Helper to get a DataFolder instance from various type of input locations
+
+    Args:
+        data: the input data
+    """
     # fully initialized DataFolder object
     if isinstance(data, DataFolder):
         return data
@@ -132,6 +174,8 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
 
 
 def get_file(file: IO | str, mode="rt", **kwargs):
+    """ Wrapper around fsspec.open to handle both file-like objects and strings
+    """
     if isinstance(file, str):
         return fsspec_open(file, mode, **kwargs)
     return file

@@ -31,6 +31,15 @@ SENTINEL = (1 << 32) - 1
 
 @dataclass
 class MinhashConfig:
+    """ Configuration for Min-Hash deduplication
+    
+    Args:
+        n_grams: n-grams size to use
+        num_buckets: number of buckets to use
+        hashes_per_bucket: number of hashes per bucket
+        use_64bit_hashes: use 64bit hashes
+        seed: random seed
+    """
     n_grams: int = 5
 
     num_buckets: int = 14
@@ -59,6 +68,14 @@ DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
 @dataclass(order=True)
 class HashSig:
+    """ Signature for a hash
+
+    Args:
+        sig: tuple of hashes
+        file_id: file id
+        doc_id: document id
+        reader_id: reader id
+    """
     sig: tuple[int]
     file_id: int
     doc_id: int
@@ -69,6 +86,14 @@ class HashSig:
 
 
 def read_sigs(file: BinaryIO, reader_id: int, config: MinhashConfig, index_file: bool = False) -> Generator:
+    """ Read signatures from a file
+
+    Args:
+        file: file to read from
+        reader_id: reader id
+        config: minhash configuration (a MinhashConfig object)
+        index_file: is index file
+    """
     if index_file:
         for data in read_tuples_from_file(file, f"{config.hashes_per_bucket}{config.hash_format}"):
             yield HashSig(sig=data, doc_id=-1, file_id=-1, reader_id=reader_id)
@@ -78,6 +103,14 @@ def read_sigs(file: BinaryIO, reader_id: int, config: MinhashConfig, index_file:
 
 
 class MinhashDedupSignature(PipelineStep):
+    """ Minhash Deduplication: First Pipeline Step
+
+        Compute the minhash signature for each document and write it to disk.
+
+    Args:
+        output_folder: output folder
+        config: minhash configuration (a MinhashConfig object)
+    """
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
     _requires_dependencies = ["nltk"]
@@ -96,10 +129,13 @@ class MinhashDedupSignature(PipelineStep):
 
     @property
     def parameters(self):
+        """ Minhash parameters
+
+        Create parameters for a random bijective permutation function
+        that maps a 32-bit hash value to another 32-bit hash value.
+        http://en.wikipedia.org/wiki/Universal_hashing
+        """
         if not self._parameters:
-            # Create parameters for a random bijective permutation function
-            # that maps a 32-bit hash value to another 32-bit hash value.
-            # http://en.wikipedia.org/wiki/Universal_hashing
             gen = np.random.RandomState(self.config.seed)
             self._parameters = (
                 gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes)),
@@ -107,7 +143,15 @@ class MinhashDedupSignature(PipelineStep):
             )
         return self._parameters
 
-    def get_signature(self, shingles):
+    def get_signature(self, shingles: np.ndarray) -> list[list[int]]:
+        """ Get the signature for a set of shingles (n-grams)
+
+        Args:
+            shingles: shingles (n-grams) numpy uint64 array of size (N, 1)
+        
+        Returns:
+            list (num buchets) of lists of integers (hashes)
+        """
         a, b = self.parameters
         phv = (shingles * a + b) % _mersenne_prime
         if not self.config.use_64bit_hashes:
@@ -116,7 +160,17 @@ class MinhashDedupSignature(PipelineStep):
             x.tolist() for x in np.split(np.min(phv, axis=0).astype(self.config.hash_dtype), self.config.num_buckets)
         ]
 
-    def get_shingles(self, text):
+    def get_shingles(self, text: str) -> np.ndarray:
+        """ Get shingles (hashed n-grams) from a string of text
+
+        Shingles are created by hashing n-grams of simplified text (lower cases, whitespace normalized, no punctuation, etc).
+
+        Args:
+            text: input text
+
+        Returns:
+            numpy array of shingles: dtype = uint64, shape = (number of n_grams in string, 1)
+        """
         from nltk import ngrams, word_tokenize
 
         return np.array(
@@ -167,6 +221,18 @@ class MinhashDedupSignature(PipelineStep):
 
 
 class MinhashDedupBuckets(PipelineStep):
+    """ Minhash Deduplication: Second Pipeline Step
+    
+        Build the index from the signatures.
+    
+    Args:
+        input_folder: input folder
+        output_folder: output folder
+        index_folder: index folder
+        config: minhash configuration (a MinhashConfig object)
+        only_dedup_in_index: only deduplicate versus index
+        create_index_name: create index name
+    """
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 2"
 
@@ -248,6 +314,10 @@ class MinhashDedupBuckets(PipelineStep):
 
 
 class MinhashDedupCluster(PipelineStep):
+    """ Minhash Deduplication: Third Pipeline Step
+        
+        Cluster the documents using the minhash indexes.
+    """
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 3"
 
@@ -302,6 +372,10 @@ class MinhashDedupCluster(PipelineStep):
 
 
 class MinhashDedupFilter(PipelineStep):
+    """ Minhash Deduplication: Fourth (and final) Pipeline Step
+            
+        Filter the documents based on the minhash clusters to keep only one per cluster
+    """
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 4"
 
@@ -366,6 +440,10 @@ class MinhashDedupFilter(PipelineStep):
 
 
 class MinhashBuildIndex(PipelineStep):
+    """ Minhash Deduplication
+            
+        Only build an index from the signatures
+    """
     type = "🫂 - DEDUP"
     name = "🎯 MinHash build index"
 
