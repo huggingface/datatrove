@@ -8,7 +8,7 @@ import numpy as np
 
 from datatrove.data import Document
 from datatrove.io import DataFolder, get_datafolder
-from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
+from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger, FileTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends
 from datatrove.utils._import_utils import is_tokenizers_available
@@ -20,7 +20,7 @@ if is_tokenizers_available():
     from tokenizers import Tokenizer
 
 
-texts = [
+TEXTS = [
     "Life, although it may only be an accumulation of anguish, is dear to me, and I will defend it.",
     "I do know that for the sympathy of one living being, I would make peace with all. I have love in me the likes of which you can scarcely imagine and rage the likes of which you would not believe. If I cannot satisfy the one, I will indulge the other.",
     "Even broken in spirit as he is, no one can feel more deeply than he does the beauties of nature. The starry sky, the sea, and every sight afforded by these wonderful regions, seems still to have the power of elevating his soul from earth. Such a man has a double existence: he may suffer misery, and be overwhelmed by disappointments; yet, when he has retired into himself, he will be like a celestial spirit that has a halo around him, within whose circle no grief or folly ventures.",
@@ -34,7 +34,7 @@ texts = [
 
 TOKENIZER = "gpt2"
 WORKERS = 3
-data = np.array_split([Document(text=text, id=id) for id, text in enumerate(texts)], WORKERS)
+DATA = np.array_split([Document(text=text, id=id) for id, text in enumerate(TEXTS)], WORKERS)
 
 
 def get_texts_from_tokens(input_folder: DataFolder):
@@ -62,9 +62,9 @@ class TestTokenization(unittest.TestCase):
     def check_order_reconstruction(self, input_folder, mapping):
         texts_from_tokens = get_texts_from_tokens(input_folder)
         if not mapping:
-            mapping = range(len(texts))
+            mapping = range(len(TEXTS))
         for map, from_tokens in zip(mapping, texts_from_tokens):
-            self.assertEqual(texts[map], from_tokens)
+            self.assertEqual(TEXTS[map], from_tokens)
 
     def test_tokenizer(self):
         for sub_test, args in [
@@ -78,9 +78,9 @@ class TestTokenization(unittest.TestCase):
                 MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
 
                 document_tokenizer = DocumentTokenizer(
-                    TOKENS_DIR, shuffle=seed is not None, seed=seed, save_loss_metadata=True
+                    TOKENS_DIR, local_working_dir=None, shuffle=seed is not None, seed=seed, save_loss_metadata=True
                 )
-                for worker, worker_data in enumerate(data):
+                for worker, worker_data in enumerate(DATA):
                     document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
                 # general consistency check
                 input_folder = get_datafolder(TOKENS_DIR)
@@ -94,6 +94,49 @@ class TestTokenization(unittest.TestCase):
                     TOKENS_DIR,
                     MERGED_DIR,
                     save_filename="my_dataset",
+                    shuffle=seed is not None,
+                    save_loss_metadata=True,
+                    seed=seed,
+                )
+                merger(None)
+
+                # general consistency check
+                input_folder = get_datafolder(MERGED_DIR)
+                check_dataset(input_folder)
+
+                # check order/reconstruction
+                self.check_order_reconstruction(input_folder, merge_mapping)
+
+    def test_file_merger_tokenizer(self):
+        for sub_test, args in [
+            ("tokenizer_unshuffled", (None, None, None)),
+            ("tokenizer_shuffled", (7383, [2, 0, 1, 4, 3, 5, 7, 6], [4, 1, 3, 0, 2, 5])),
+        ]:
+            with self.subTest(sub_test):
+                seed, dist_mapping, merge_mapping = args
+
+                TOKENS_DIR = os.path.join(self.tmp_dir, sub_test, "tokens")
+                MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
+
+                document_tokenizer = DocumentTokenizer(
+                    TOKENS_DIR, local_working_dir=None, shuffle=seed is not None, seed=seed, save_loss_metadata=True
+                )
+                for worker, worker_data in enumerate(DATA):
+                    document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
+                # general consistency check
+                input_folder = get_datafolder(TOKENS_DIR)
+                check_dataset(input_folder)
+
+                # check order/reconstruction
+                self.check_order_reconstruction(input_folder, dist_mapping)
+
+                # testing merger
+                merger = FileTokenizerMerger(
+                    TOKENS_DIR,
+                    MERGED_DIR,
+                    save_filename="my_dataset",
+                    min_chunks_to_shuffle=6,
+                    max_tokens_per_file=250,
                     shuffle=seed is not None,
                     save_loss_metadata=True,
                     seed=seed,
