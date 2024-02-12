@@ -109,13 +109,14 @@ class SentenceDedupSignature(PipelineStep):
 
 
 def read_sigs(file: BinaryIO, file_id: int, index_file: bool = False) -> Generator[HashSig, None, None]:
-    if index_file:
-        # only read hashes
-        for (hash,) in read_tuples_from_file(file, "Q"):
-            yield HashSig(hash_value=hash, doc_id=-1, file_id=file_id, sent_id=-1)
-    else:
-        for hash, doc_id, sent_id in read_tuples_from_file(file, "Q", "I", "H"):
-            yield HashSig(file_id=file_id, hash_value=hash, doc_id=doc_id, sent_id=sent_id)
+    with file as f:
+        if index_file:
+            # only read hashes
+            for (hash,) in read_tuples_from_file(f, "Q"):
+                yield HashSig(hash_value=hash, doc_id=-1, file_id=file_id, sent_id=-1)
+        else:
+            for hash, doc_id, sent_id in read_tuples_from_file(f, "Q", "I", "H"):
+                yield HashSig(file_id=file_id, hash_value=hash, doc_id=doc_id, sent_id=sent_id)
 
 
 class SentenceFindDedups(PipelineStep):
@@ -271,7 +272,8 @@ class SentenceDedupFilter(PipelineStep):
             f"{world_size=} {rank}"
         )
 
-        du_file = merge_docs(sorted(read_duplicates(self.data_folder.open(files[0], "rb"))), self.n_sentences)
+        with self.data_folder.open(files[0], "rb") as dupsf:
+            du_file = merge_docs(sorted(read_duplicates(dupsf)), self.n_sentences)
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for idx, doc in enumerate(data):
                 self.stat_update(StatHints.total)

@@ -32,13 +32,13 @@ class Document:
 
     Args:
         text: str
-            The text of the document
+             the actual text content for each sample
         id: str
-            The unique identifier of the document
+            a unique id (string) for this sample
         media: list[Media]
             The media associated with the document
         metadata: dict[str, str | int | float | bool]
-            The metadata associated with the document
+            a dictionary where any additional info may be stored
     """
     text: str
     id: str

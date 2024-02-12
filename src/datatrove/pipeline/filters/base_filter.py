@@ -19,7 +19,7 @@ class BaseFilter(PipelineStep, ABC):
     """Base module for Filters. Filters remove documents.
 
     Args:
-        :param exclusion_writer: optionally pass in a writer that will save the dropped documents
+        exclusion_writer: optionally pass in a writer that will save the dropped documents
     """
 
     type = "🔻 - FILTER"
@@ -31,7 +31,7 @@ class BaseFilter(PipelineStep, ABC):
     @abstractmethod
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
         """Filter modules main method.
-        Returns true if a sample should be kept, false if it should be removed.
+        Returns true if a sample should be KEPT, false if it should be REMOVED.
 
         Args:
             doc: sample to filter

@@ -31,18 +31,20 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 def read_tuples_from_file(file: BinaryIO, *formats):
     """ Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
-    
-    :param file: the file to read from
-    :param formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
-    :return: tuples with data specified in formats
+
+    Args:
+        file: the file to read from
+        *formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
+
+    Returns:tuples with data specified in formats
+
     """
     fstring = "<" + "".join(formats)
-    with file as f:
-        yield from map(partial(struct.unpack, fstring), iter(partial(f.read, struct.calcsize(fstring)), b""))
+    yield from map(partial(struct.unpack, fstring), iter(partial(file.read, struct.calcsize(fstring)), b""))
 
 
 def simplify_text(text: str) -> str:
-    """Performs the following operations to increase recall when looking for matches between documents:
+    """ Performs the following operations to increase recall when looking for matches between documents:
     - lowercase text
     - replace all whitespace with a single " "
     - remove all punctuation

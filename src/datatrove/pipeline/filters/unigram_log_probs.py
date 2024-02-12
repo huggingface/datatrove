@@ -15,6 +15,13 @@ UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lu
 
 
 class UnigramLogProbFilter(BaseFilter):
+    """
+    Computes average unigram log probability based on word frequencies from
+    https://www.kaggle.com/datasets/rtatman/english-word-frequency
+
+    Idea taken from https://huggingface.co/datasets/allenai/peS2o
+    """
+
     name = "🧑‍🍳 Unigram log-prob filter"
     _requires_dependencies = ["nltk"]
 
@@ -24,10 +31,10 @@ class UnigramLogProbFilter(BaseFilter):
         exclusion_writer: DiskWriter = None,
     ):
         """
-        filters if the predicted language is not among given language or if the language score is below language
-        language_threshold
 
-        @param languages: list of languages to not filter out.
+        Args:
+            logprobs_threshold: the minimum average unigram logprobs needed to keep a document
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.logprobs_threshold = logprobs_threshold
@@ -56,16 +63,19 @@ class UnigramLogProbFilter(BaseFilter):
         from nltk.tokenize import word_tokenize
 
         words = word_tokenize(doc.text)
-        freqs = [
-            self.unigram_frequencies.get(word.lower()) for word in words if self.unigram_frequencies.get(word.lower())
-        ]
+        freqs = [self.unigram_frequencies.get(word.lower(), 1e-9) for word in words]
+
+        if len(freqs) == 0:
+            return 0
         return sum([np.log(f) for f in freqs]) / len(freqs)
 
     def filter(self, doc: Document) -> bool:
         """
+            Checks if the average unigram probability is above the threshold. This assumes the text is in english.
+        Args:
+            doc:
 
-        :param doc: document
-        :return: is_filter
+        Returns:
+
         """
-
         return self.get_logprob(doc) > self.logprobs_threshold

@@ -215,6 +215,14 @@ class DocumentTokenizerMerger(PipelineStep):
         self.upload_block_size = upload_block_size
 
     def get_ordering(self, all_doc_ends):
+        """
+
+        Args:
+          all_doc_ends:
+
+        Returns:
+
+        """
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
 
@@ -281,6 +289,7 @@ class DocumentTokenizerMerger(PipelineStep):
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
+                    upload_block_size=self.upload_block_size,
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])

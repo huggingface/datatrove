@@ -8,10 +8,12 @@ class Trafilatura(BaseExtractor):
     No specific data structure is exchanged with Trafilatura, only the text is passed and the extracted text is returned.
     Alternatively and identically, `trafilatura` could be used through its command line main interface.
 
-    :param favour_precision: prefer less text but correct extraction.
-    :param include_images: not implemented currently
-    :param timeout: the timeout for extraction, per document, in seconds
-    :param kwargs: any other option will be passed to trafilatura
+    Args:
+        favour_precision: prefer less text but correct extraction.
+        include_images: not implemented currently
+        timeout: the timeout for extraction, per document, in seconds
+        deduplicate: trafilatura's deduplicate option
+        **kwargs: any other option will be passed to trafilatura
     """
 
     name = "⛏ Trafilatura"
@@ -34,6 +36,14 @@ class Trafilatura(BaseExtractor):
             raise NotImplementedError
 
     def extract(self, text: str) -> str:
+        """
+
+        Args:
+          text: str: html content
+
+        Returns: plain text extracted text
+
+        """
         from trafilatura import extract
 
         return extract(

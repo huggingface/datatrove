@@ -7,12 +7,13 @@ class ReadabilityInscriptis(BaseExtractor):
     """
     Extracts the text from the HTML document using readability and inscriptis.
 
-    :param max_new_lines: maximum number of consecutive \n to keep.
-    :param min_text_length: the minimum string length of a text block. If all text blocks are shorter than
+    Args:
+        max_new_lines: maximum number of consecutive \n to keep.
+        min_text_length: the minimum string length of a text block. If all text blocks are shorter than
     `min_text_length`, the document is considered empty.
-    :param min_text_score: `score = sqrt(block_lenth - min_text_length)`. The sum of scores of all text blocks must
+        min_text_score: `score = sqrt(block_lenth - min_text_length)`. The sum of scores of all text blocks must
     be greater than `min_text_score`.
-    :param timeout: the timeout for extraction, per document, in seconds
+        timeout: the timeout for extraction, per document, in seconds
     """
 
     _requires_dependencies = [

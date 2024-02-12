@@ -6,18 +6,46 @@ DataTrove processing pipelines are platform-agnostic, running out of the box loc
 
 Local, remote and other file systems are supported through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).
 
+## Table of contents
+
+<!-- toc -->
+
+- [Installation](#installation)
+- [Quickstart examples](#quickstart-examples)
+- [Pipeline](#pipeline)
+  * [DataTrove Document](#datatrove-document)
+  * [Types of pipeline blocks](#types-of-pipeline-blocks)
+  * [Full pipeline](#full-pipeline)
+- [Executors](#executors)
+  * [LocalPipelineExecutor](#localpipelineexecutor)
+  * [SlurmPipelineExecutor](#slurmpipelineexecutor)
+- [Logging](#logging)
+- [DataFolder / paths](#datafolder--paths)
+- [Practical guides](#practical-guides)
+  * [Reading data](#reading-data)
+  * [Extracting text](#extracting-text)
+  * [Filtering data](#filtering-data)
+  * [Saving data](#saving-data)
+  * [Deduplicating data](#deduplicating-data)
+  * [Custom blocks](#custom-blocks)
+    + [Simple data](#simple-data)
+    + [Custom function](#custom-function)
+    + [Custom block](#custom-block)
+- [Contributing](#contributing)
+
+<!-- tocstop -->
+
 ## Installation
 
 ```bash
-git clone git@github.com:huggingface/datatrove.git && cd datatrove
-pip install -e ".[FLAVOUR]"
+pip install datatrove[FLAVOUR]
 ```
-Available flavours (combine them with `,` i.e. `[processing,s3]`:
-- `all` installs everything
-- `io` dependencies to read `warc/arc/wet` files and arrow/parquet formats
-- `processing` dependencies for text extraction, filtering and tokenization
-- `s3` s3 support
-- `cli` for command line tools
+Available flavours (combine them with `,` i.e. `[processing,s3]`):
+- `all` installs everything: `pip install datatrove[all]`
+- `io` dependencies to read `warc/arc/wet` files and arrow/parquet formats: `pip install datatrove[io]`
+- `processing` dependencies for text extraction, filtering and tokenization: `pip install datatrove[processing]`
+- `s3` s3 support: `pip install datatrove[s3]`
+- `cli` for command line tools: `pip install datatrove[cli]`
 
 ## Quickstart examples
 You can check the following [examples](examples):
@@ -25,7 +53,7 @@ You can check the following [examples](examples):
 - [tokenize_c4.py](examples/tokenize_c4.py) reads data directly from huggingface's hub to tokenize the english portion of the C4 dataset using the `gpt2` tokenizer
 - [minhash_deduplication.py](examples/minhash_deduplication.py) full pipeline to run minhash deduplication of text data
 - [sentence_deduplication.py](examples/sentence_deduplication.py) example to run sentence level exact deduplication
-- [exact_substrings.py](examples/exact_substrings.py) example to run ExactSubstr (requires [this repo](https://github.com/google-research/deduplicate-text-datasets)
+- [exact_substrings.py](examples/exact_substrings.py) example to run ExactSubstr (requires [this repo](https://github.com/google-research/deduplicate-text-datasets))
 
 ## Pipeline
 ### DataTrove Document
@@ -65,10 +93,18 @@ pipeline = [
 Pipelines are platform-agnostic, which means that the same pipeline can smoothly run on different execution environments without any changes to its steps. Each environment has its own PipelineExecutor.
 Some options common to all executors:
 - `pipeline` a list consisting of the pipeline steps that should be run
-- `logging_dir` a datafolder where log files, statistics and more should be saved
+- `logging_dir` a datafolder where log files, statistics and more should be saved. Do not reuse folders for different pipelines/jobs as this will overwrite your stats, logs and completions.
 - `skip_completed` (_bool_, `True` by default) datatrove keeps track of completed tasks so that when you relaunch a job they can be skipped. Set this to `False` to disable this behaviour
 
 Call an executor's `run` method to execute its pipeline.
+
+
+> [!TIP] 
+> Datatrove keeps track of which tasks successfully completed by creating a marker (an empty file) in the `${logging_dir}/completions` folder. Once the job finishes, if some of its tasks have failed, you can **simply relaunch the exact same executor** and datatrove will check and only run the tasks that were not previously completed.
+
+> [!CAUTION] 
+> If you relaunch a pipeline because some tasks failed, **do not change the total number of tasks** as this will affect the distribution of input files/sharding.
+
 
 
 ### LocalPipelineExecutor
@@ -213,7 +249,7 @@ You can use [extractors](src/datatrove/pipeline/extractors) to extract text cont
 [Filters](src/datatrove/pipeline/filters) are some of the most important blocks of any data processing pipeline. Datatrove's filter blocks take a `Document` and return a boolean (`True` to keep a document, `False` to remove it). Removed samples do not continue to the next pipeline stage. You can also save the removed samples to disk by passing a [Writer](src/datatrove/pipeline/writers) to the `excluded_writer` parameter.
 
 ### Saving data
-Once you are done processing your data you will probably want to save it somewhere. For this you can use a [writer](src%2Fdatatrove%2Fpipeline%2Fwriters%2Fjsonl.py).
+Once you are done processing your data you will probably want to save it somewhere. For this you can use a [writer](src/datatrove/pipeline/writers/jsonl.py).
 Writers require an `output_folder` (the path where data should be saved). You can choose the `compression` to use (default: `gzip`) and the filename to save each file as.
 For the `output_filename`, a template is applied using the following arguments:
 - `${rank}` replaced with the current task's rank. Note that if this tag isn't present, **different tasks may try to write to the same location**
@@ -231,9 +267,115 @@ JsonlWriter(
 ### Deduplicating data
 For deduplication check the examples [minhash_deduplication.py](examples/minhash_deduplication.py), [sentence_deduplication.py](examples/sentence_deduplication.py) and [exact_substrings.py](examples/exact_substrings.py).
 
+### Custom blocks
+
+#### Simple data
+You can pass an iterable of [`Document`](src/datatrove/data.py) directly as a pipeline block like so:
+```python
+from datatrove.data import Document
+from datatrove.pipeline.filters import SamplerFilter
+from datatrove.pipeline.writers import JsonlWriter
+
+pipeline = [
+    [
+        Document(text="some data", id="0"),
+        Document(text="some more data", id="1"),
+        Document(text="even more data", id="2"),
+    ],
+    SamplerFilter(rate=0.5),
+    JsonlWriter(
+        output_folder="/my/output/path"
+    )
+]
+```
+
+Do note, however, that this iterable will not be sharded (if you launch more than 1 task they will all get the full iterable).
+This is usually useful for small workloads/testing.
+
+#### Custom function
+For simple processing you can simply pass in a custom function with the following signature:
+```python
+from datatrove.data import DocumentsPipeline
+
+def uppercase_everything(data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    """
+        `data` is a generator of Document. You must also return a generator of Document (yield)
+        You can optionally use `rank` and `world_size` for sharding
+    """
+    for document in data:
+        document.text = document.text.upper()
+        yield document
+
+pipeline = [
+    ...,
+    uppercase_everything,
+    ...
+]
+```
+> [!TIP] 
+> You might have some pickling issues due to the imports. If this happens, simply move whatever imports you need inside the function body.
+
+#### Custom block
+You can also define a full block inheriting from [`PipelineStep`](src/datatrove/pipeline/base.py) or one of its subclasses:
+
+```python
+from datatrove.pipeline.base import PipelineStep
+from datatrove.data import DocumentsPipeline
+from datatrove.io import DataFolderLike, get_datafolder
+
+
+class UppercaserBlock(PipelineStep):
+    def __init__(self, some_folder: DataFolderLike, some_param: int = 5):
+        super().__init__()
+        # you can take whatever parameters you need and save them here
+        self.some_param = some_param
+        # to load datafolders use get_datafolder()
+        self.some_folder = get_datafolder(some_folder)
+
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        # you could also load data from the `some_folder`:
+        for filepath in self.some_folder.get_shard(rank, world_size): # it also accepts a glob pattern, among other things
+            with self.some_folder.open(filepath, "rt") as f:
+                # do something
+                ...
+                yield doc
+        
+        #
+        # OR process data from previous blocks (`data`)
+        #
+        
+        for doc in data:
+            with self.track_time():
+                # you can wrap the main processing code in `track_time` to know how much each document took to process                
+                nr_uppercase_letters = sum(map(lambda c: c.isupper(), doc.text))
+                # you can also keep track of stats per document using stat_update
+                self.stat_update("og_upper_letters", value=nr_uppercase_letters)
+                doc.text = doc.text.upper()
+            # make sure you keep the yield outside the track_time block, or it will affect the time calculation
+            yield doc
+        
+        #
+        # OR save data to disk
+        #
+        
+        with self.some_folder.open("myoutput", "wt") as f:
+            for doc in data:
+                f.write(doc...)
+```
+
+```python
+pipeline = [
+    ...,
+    UppercaserBlock("somepath"),
+    ...
+]
+```
+
+You could also inherit from [`BaseExtractor`](src/datatrove/pipeline/extractors/base.py), [`BaseFilter`](src/datatrove/pipeline/filters/base_filter.py), [`BaseReader`/`BaseDiskReader`](src/datatrove/pipeline/readers/base.py), or [`DiskWriter`](src/datatrove/pipeline/writers/disk_base.py).
 ## Contributing
 
 ```bash
+git clone git@github.com:huggingface/datatrove.git && cd datatrove
 pip install -e ".[dev]"
 ```
 

@@ -11,8 +11,7 @@ from datatrove.pipeline.tokens.merger import load_doc_ends
 
 
 class DocumentTokenizerContextShuffler(PipelineStep):
-    """ Pipeline step to shuffle the tokenized documents inside context windows for each files of a folder (done separately for each file).
-        Will write the shuffled documents in the output folder.
+    """ Shuffles a .ds file on the context length level. This block will move around windows of `window_size` tokens.
     
     Args:
         input_folder: the input folder to read the tokenized documents from
@@ -37,10 +36,29 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         self.rand = default_rng(seed)
 
     def get_ordering(self, all_doc_ends):
+        """
+            Computes the new ordering of context windows
+
+        Args:
+          all_doc_ends:
+
+        Returns:
+
+        """
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return self.rand.permutation(doc_ids)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+
+        Args:
+          data: DocumentsPipeline:  (Default value = None)
+          rank: int:  (Default value = 0)
+          world_size: int:  (Default value = 1)
+
+        Returns:
+
+        """
         datafiles = self.input_folder.get_shard(rank, world_size, glob_pattern="*.ds")
         datafiles_index = self.input_folder.get_shard(rank, world_size, glob_pattern="*.ds.index")
         for datafile, index in zip(datafiles, datafiles_index):
@@ -50,6 +68,7 @@ class DocumentTokenizerContextShuffler(PipelineStep):
             ordering = self.rand.permutation(np.arange(0, nr_windows, dtype=int))
             with self.output_folder.open(datafile, "wb") as fout:
                 with self.input_folder.open(datafile, "rb") as f:
+                    # TODO: replace mmap implementation which only works locally
                     with mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ) as unshuf:
                         with self.track_time():
                             for windowi in ordering:

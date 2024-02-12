@@ -31,6 +31,14 @@ class MetricStatsDict(defaultdict):
         return result
 
     def topk(self, k=20):
+        """
+
+        Args:
+          k:  (Default value = 20)
+
+        Returns:
+
+        """
         return MetricStatsDict(init={s: self.get(s) for s in heapq.nlargest(k, self, key=lambda s: self.get(s).total)})
 
     def __repr__(self):
@@ -88,10 +96,26 @@ class Stats:
         return json.dumps(self.to_dict(), indent=4)
 
     def save_to_disk(self, file: TextIO):
+        """
+
+        Args:
+          file: TextIO:
+
+        Returns:
+
+        """
         file.write(self.to_json())
 
     @classmethod
     def from_dict(cls, data):
+        """
+
+        Args:
+          data:
+
+        Returns:
+
+        """
         stats = cls(data["name"])
         stats.time_stats = TimingStats.from_dict(data["time_stats"])
         stats.stats = MetricStatsDict(init=data["stats"])
@@ -122,6 +146,14 @@ class PipelineStats:
         return math.sqrt(sum((stat.time_stats.global_std_dev**2 for stat in self.stats)))
 
     def get_repr(self, text=None):
+        """
+
+        Args:
+          text:  (Default value = None)
+
+        Returns:
+
+        """
         total_time = self.total_time
         total_std_dev = self.total_std_dev
         x = (
@@ -141,9 +173,25 @@ class PipelineStats:
 
     @classmethod
     def from_json(cls, data):
+        """
+
+        Args:
+          data:
+
+        Returns:
+
+        """
         return PipelineStats([Stats.from_dict(stat) for stat in data])
 
     def save_to_disk(self, file: IO):
+        """
+
+        Args:
+          file: IO:
+
+        Returns:
+
+        """
         file.write(self.to_json())
 
 
@@ -162,6 +210,15 @@ class MetricStats:
     unit: str = "doc"
 
     def update(self, x: float, unit: str = None):
+        """
+
+        Args:
+          x: float:
+          unit: str:  (Default value = None)
+
+        Returns:
+
+        """
         if unit:
             self.unit = unit
         self.total += x
@@ -235,6 +292,14 @@ class MetricStats:
 
     @classmethod
     def from_dict(cls, data):
+        """
+
+        Args:
+          data:
+
+        Returns:
+
+        """
         if isinstance(data, dict):
             total = data.get("total")
             mean = data.get("mean", 1)
@@ -283,6 +348,15 @@ class TimingStats(MetricStats):
             self.global_mean = self.global_min = self.global_max = self.total
 
     def update(self, x: float, unit: str = None):
+        """
+
+        Args:
+          x: float:
+          unit: str:  (Default value = None)
+
+        Returns:
+
+        """
         super().update(x, unit)
         if self.n_tasks == 1:
             self.global_mean = self.global_min = self.global_max = self.total
@@ -308,9 +382,25 @@ class TimingStats(MetricStats):
         return new_time_stats
 
     def _get_time_frac(self, total_time):
+        """
+
+        Args:
+          total_time:
+
+        Returns:
+
+        """
         return (self.global_mean / total_time) if total_time > 0 else 0
 
     def get_repr(self, total_time: float = 0.0):
+        """
+
+        Args:
+          total_time: float:  (Default value = 0.0)
+
+        Returns:
+
+        """
         if self.total == 0:
             return "Time not computed"
         return (
@@ -355,6 +445,14 @@ class TimingStats(MetricStats):
 
     @classmethod
     def from_dict(cls, data):
+        """
+
+        Args:
+          data:
+
+        Returns:
+
+        """
         res: TimingStats = super().from_dict(data)
         if isinstance(data, dict):
             res.global_mean = data.get("global_mean", res.total)

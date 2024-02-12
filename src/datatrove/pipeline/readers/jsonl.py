@@ -48,13 +48,16 @@ class JsonlReader(BaseDiskReader):
 
     def read_file(self, filepath: str):
         with self.data_folder.open(filepath, "r", compression=self.compression) as f:
-            for li, line in enumerate(f):
-                with self.track_time():
-                    try:
-                        document = self.get_document_from_dict(json.loads(line), filepath, li)
-                        if not document:
+            try:
+                for li, line in enumerate(f):
+                    with self.track_time():
+                        try:
+                            document = self.get_document_from_dict(json.loads(line), filepath, li)
+                            if not document:
+                                continue
+                        except (EOFError, JSONDecodeError) as e:
+                            logger.warning(f"Error when reading `{filepath}`: {e}")
                             continue
-                    except (EOFError, JSONDecodeError) as e:
-                        logger.warning(f"Error when reading `{filepath}`: {e}")
-                        continue
-                yield document
+                    yield document
+            except UnicodeDecodeError as e:
+                logger.warning(f"File `{filepath}` may be corrupted: raised UnicodeDecodeError ({e})")

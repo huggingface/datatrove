@@ -25,6 +25,13 @@ def batched(iterable, n):
     """In python 3.12+ we could use itertools.batched instead
 
     One difference with itertools.batched: we return a list instead of a tuple
+
+    Args:
+      iterable:
+      n:
+
+    Returns:
+
     """
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
@@ -96,6 +103,11 @@ class TokenizedFile:
 
     def write_bytes(self, tk_bytes: bytes):
         """ Write tk_bytes to the tokens file and update the document boundaries with a new document end (in tokens).
+
+        Args:
+          tk_bytes: bytes:
+
+        Returns:
         """
         self.tokens_file.write(tk_bytes)
         # 1 token = 2 bytes (uint16)
@@ -104,7 +116,14 @@ class TokenizedFile:
         self.doc_ends.append(self.write_idx)
 
     def write_loss_bytes(self, l_bytes: bytes):
-        """ Write loss mask to the loss file."""
+        """ Write loss mask to the loss file.
+
+        Args:
+          l_bytes: bytes:
+
+        Returns:
+
+        """
         if self.save_loss_metadata:
             self.loss_file.write(l_bytes)
 
@@ -170,8 +189,9 @@ class TokenizedFile:
         """ Save the final metadata file with the tokenizer name and the token count.
 
         Args:
-            tokenizer_name (str | None): the tokenizer name to save
-            token_count (int): the token count to save
+            tokenizer_name (str | None): the tokenizer name to save (Default value = None)
+            token_count (int): the token count to save (Default value = -1)
+            filename: str:  (Default value = None)
         """
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"

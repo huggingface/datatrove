@@ -37,21 +37,31 @@ class PipelineExecutor(ABC):
     @abstractmethod
     def run(self):
         """ Run the pipeline on all tasks.
+            This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
+            See slurm and local executor for example usage.
         """
         pass
 
     @property
     @abstractmethod
-    def world_size(self):
-        """ Return the total number of tasks to run the pipeline on."""
+    def world_size(self) -> int:
+        """
+        Returns: the total number of tasks to consider. This is used for sharding data files, for example
+
+        """
         return 0
 
     def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
-        """ Run the pipeline for a single rank.
-
+        """
+            Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
+            and marks tasks as completed.
         Args:
-            rank: the rank (in the world size) this pipeline worker is running on
-            local_rank: the local rank (default: 0) – used for limiting logging verbosity
+            rank: the rank that we want to run the pipeline for
+            local_rank: at the moment this is only used for logging.
+            Any task with local_rank != 0 will not print logs to console.
+
+        Returns: the stats for this task
+
         """
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
@@ -87,29 +97,35 @@ class PipelineExecutor(ABC):
             close_task_logger(logfile)
         return stats
 
-    def is_rank_completed(self, rank: int):
-        """ Check if a rank (a task in the world size) is already completed.
-
+    def is_rank_completed(self, rank: int) -> bool:
+        """
+            Checks if a given task has already been completed.
         Args:
-            rank (int): The rank to check
+            rank: the rank of the task to check
+
+        Returns: whether task is already completed. If `skip_completed=False`, will always return `False`.
+
         """
         return self.skip_completed and self.logging_dir.isfile(f"completions/{rank:05d}")
 
     def mark_rank_as_completed(self, rank: int):
-        """ Mark a rank (a task in the world size) as completed.
-            We're using files in the logging_dir folder (at logging_dir/completions) to mark completion.
-
+        """
+            Marks a given task as completed.
+            In practice this involves creating an empty file with the rank in the filename.
         Args:
-            rank (int): The rank to mark as completed
+            rank: the rank of the task to mark as completed
+
+        Returns:
+
         """
         self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
-    def get_incomplete_ranks(self):
-        """ Get the list of ranks that are not yet completed.
-            This is based on the presence of files in the logging_dir/completions folder.
-        
-        Returns:
-            list[int]: list of ranks that are not yet completed
+    def get_incomplete_ranks(self) -> list[int]:
+        """
+            Gets a full list of ranks that are still incomplete.
+            Usually faster than calling `is_rank_completed` for each task.
+        Returns: list of ranks that are incomplete
+
         """
         completed = set(self.logging_dir.list_files("completions"))
         return list(
@@ -119,15 +135,27 @@ class PipelineExecutor(ABC):
             )
         )
 
-    def to_json(self, indent=4):
-        """ Convert the executor to a JSON string.
+    def to_json(self, indent=4) -> str:
+        """
+            Returns a json representation of this executor.
+        Args:
+            indent: how many spaces to use per indent
+
+        Returns: json string
+
         """
         data = self.__dict__
         data["pipeline"] = [{a: b for a, b in x.__dict__.items() if a != "stats"} for x in data["pipeline"]]
         return json.dumps(data, indent=indent)
 
     def save_executor_as_json(self, indent: int = 4):
-        """ Save the executor as a JSON file in the logging directory.
+        """
+            Save a json representation of this executor to a filesystem.
+        Args:
+            indent: how many spaces to use per indent
+
+        Returns:
+
         """
         with self.logging_dir.open("executor.json", "w") as f:
             json.dump(self, f, cls=ExecutorJSONEncoder, indent=indent)

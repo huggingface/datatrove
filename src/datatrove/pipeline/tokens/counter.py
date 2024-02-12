@@ -26,12 +26,28 @@ class TokensCounter(PipelineStep):
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         count_eos_token: bool = False,  # whether to count the EOS token on each document
     ):
+        """
+
+        Args:
+            tokenizer_name: tokenizer to use (from HF)
+            count_eos_token: whether to count EOS tokens as well (basically +1 per document)
+        """
         super().__init__()
         self.tokenizer_name = tokenizer_name
         self.count_eos_token = count_eos_token
         self._tokenizer = None
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+
+        Args:
+          data: DocumentsPipeline:
+          rank: int:  (Default value = 0)
+          world_size: int:  (Default value = 1)
+
+        Returns:
+
+        """
         for document in data:
             count = len(self.tokenizer.encode(document.text).ids)
             self.stat_update("tokens", value=count)
@@ -52,6 +68,7 @@ class LengthCounter(PipelineStep):
         to create an histogram of the document token length.
         
         It doesn't modify the documents, only update a counter for in the stats with each document length.
+        Will absolutely spam the hell out of your stats.json
 
     Args:
         None
@@ -65,6 +82,16 @@ class LengthCounter(PipelineStep):
         super().__init__()
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+
+        Args:
+          data: DocumentsPipeline:
+          rank: int:  (Default value = 0)
+          world_size: int:  (Default value = 1)
+
+        Returns:
+
+        """
         for document in data:
             count = document.metadata["token_count"]
             self.stats[count].update(1)
