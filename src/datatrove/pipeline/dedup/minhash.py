@@ -73,7 +73,7 @@ DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
 @dataclass(order=True)
 class HashSig:
-    """Signature for a hash
+    """ Hash signature for a given document in a given bucket
 
     Args:
         sig: tuple of hashes
@@ -220,7 +220,7 @@ class MinhashDedupSignature(PipelineStep):
             shingles: shingles (n-grams) numpy uint64 array of size (N, 1)
 
         Returns:
-            list (num buchets) of lists of integers (hashes)
+            list (num buckets) of lists of integers (hashes)
         """
         a, b = self.parameters
         phv = (shingles * a + b) % _mersenne_prime
@@ -294,9 +294,9 @@ class MinhashDedupSignature(PipelineStep):
 
 
 class MinhashDedupBuckets(PipelineStep):
-    """Minhash Deduplication: Second Pipeline Step
+    """ Minhash Deduplication: Second Pipeline Step
 
-        Build the index from the signatures.
+        Find duplicate pairs from the signatures and possibly an index. Can also save an index with the new signatures.
 
     Args:
         input_folder: input folder
@@ -444,7 +444,7 @@ class MinhashDedupBuckets(PipelineStep):
 class MinhashDedupCluster(PipelineStep):
     """Minhash Deduplication: Third Pipeline Step
 
-    Cluster the documents using the minhash indexes.
+    Cluster the documents using the previously found duplicate pairs.
     """
 
     type = "🫂 - DEDUP"

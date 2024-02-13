@@ -67,7 +67,7 @@ class PipelineExecutor(ABC):
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
-        logfile = add_task_logger(self.logging_dir, rank, 0)  # local_rank)
+        logfile = add_task_logger(self.logging_dir, rank, local_rank)
         log_pipeline(self.pipeline)
         try:
             # pipe data from one step to the next

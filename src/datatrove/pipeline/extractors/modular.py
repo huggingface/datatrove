@@ -35,8 +35,11 @@ class ReadabilityInscriptis(BaseExtractor):
     def extract(self, text: str) -> str:
         """Extracts the text from the HTML document using readability and inscriptis.
 
-        :param text: the HTML document
-        :return: the extracted text
+        Args:
+            the HTML document
+        
+        Returns:
+            the extracted text
         """
         from inscriptis import get_text
         from readability import Document as _Document

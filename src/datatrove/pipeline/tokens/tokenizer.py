@@ -1,6 +1,6 @@
 import itertools
 import struct
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 import humanize
 import numpy as np
@@ -232,7 +232,7 @@ class DocumentTokenizer(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        local_working_dir: Optional[Tuple[DataFolderLike, str]],
+        local_working_dir: Optional[DataFolderLike|str],
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
@@ -250,8 +250,8 @@ class DocumentTokenizer(PipelineStep):
         self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
         if self.local_working_dir and not isinstance(self.local_working_dir.fs, LocalFileSystem):
             raise ValueError("local_working_dir must be a local path")
-        if self.local_working_dir is None:
-            logger.warning("local_working_dir is not set. This may slow down the process.")
+        if self.local_working_dir is None and shuffle and self.output_folder.fs.protocol != "file":
+            logger.warning("local_working_dir is not set and output folder is not local. This may slow down the process.")
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
         self.eos_token = eos_token

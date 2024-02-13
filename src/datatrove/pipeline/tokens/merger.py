@@ -29,7 +29,7 @@ class FileTokenizerMerger(PipelineStep):
             - tokenized files if enough files are provided
             - chunk of tokenized files if not enough files are provided (less than min_chunks_to_shuffle)
         If you want to shuffle the documents in a more extensive way, you can use the DocumentTokenizerMerger
-        pipeline step instead but note that DocumentTokenizerMerger does full random access accross documents.
+        pipeline step instead but note that DocumentTokenizerMerger does full random shuffling accross documents.
 
         If you have enough files to process in comparison to the size of your dataset, using this pipeline step
         will be much faster than using DocumentTokenizerMerger.
