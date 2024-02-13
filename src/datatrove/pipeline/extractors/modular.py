@@ -37,7 +37,7 @@ class ReadabilityInscriptis(BaseExtractor):
 
         Args:
             the HTML document
-        
+
         Returns:
             the extracted text
         """

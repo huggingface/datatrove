@@ -73,7 +73,7 @@ DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
 @dataclass(order=True)
 class HashSig:
-    """ Hash signature for a given document in a given bucket
+    """Hash signature for a given document in a given bucket
 
     Args:
         sig: tuple of hashes
@@ -294,7 +294,7 @@ class MinhashDedupSignature(PipelineStep):
 
 
 class MinhashDedupBuckets(PipelineStep):
-    """ Minhash Deduplication: Second Pipeline Step
+    """Minhash Deduplication: Second Pipeline Step
 
         Find duplicate pairs from the signatures and possibly an index. Can also save an index with the new signatures.
 
