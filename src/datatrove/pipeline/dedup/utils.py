@@ -29,7 +29,7 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 
 
 def read_tuples_from_file(file: BinaryIO, *formats):
-    """ Utility to easily parse binary files. formats is a list of struct format characters.
+    """Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
 
     Args:
@@ -44,7 +44,7 @@ def read_tuples_from_file(file: BinaryIO, *formats):
 
 
 def simplify_text(text: str) -> str:
-    """ Performs the following operations to increase recall when looking for matches between documents:
+    """Performs the following operations to increase recall when looking for matches between documents:
     - lowercase text
     - replace all whitespace with a single " "
     - remove all punctuation

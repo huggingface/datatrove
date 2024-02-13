@@ -1,12 +1,12 @@
 import csv
-from typing import Callable, Literal, Generator
+from typing import Callable, Literal
 
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class CsvReader(BaseDiskReader):
-    """ Read data from CSV files.
+    """Read data from CSV files.
         Will read each line as a separate document.
 
     Args:
@@ -23,6 +23,7 @@ class CsvReader(BaseDiskReader):
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
     """
+
     name = "🔢 Csv"
 
     def __init__(

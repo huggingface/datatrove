@@ -39,8 +39,8 @@ class HashSig:
 
 
 class SentenceDedupSignature(PipelineStep):
-    """ SentenceDedup: First pipeline step
-    
+    """SentenceDedup: First pipeline step
+
         Creates a signature for each document. Each HashSig has n hash, the doc id and the sentence idx. Before saving
         them the hashes are sorted.
 
@@ -48,6 +48,7 @@ class SentenceDedupSignature(PipelineStep):
         output_folder: folder where signatures are saved
         n_sentences: n_sentences where duplicates are checked.
     """
+
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
     _requires_dependencies = ["nltk"]
@@ -120,17 +121,18 @@ def read_sigs(file: BinaryIO, file_id: int, index_file: bool = False) -> Generat
 
 
 class SentenceFindDedups(PipelineStep):
-    """ SentenceDedup: Second pipeline step
+    """SentenceDedup: Second pipeline step
 
         SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and load them
         in a priority queue to check for duplicates. If a duplicate is found its document id and sentence id are saved.
-    
+
     Args:
         data_folder: data folder where signatures are saved
         output_folder: folder where duplicates are saved
         index_folder: folder where index files are saved
         only_dedup_in_index: only dedup in index
     """
+
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 2"
 
@@ -198,21 +200,22 @@ class SentenceFindDedups(PipelineStep):
 
 
 def read_duplicates(file: BinaryIO) -> Generator[tuple, None, None]:
-    """ Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage. """
+    """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
     yield from read_tuples_from_file(file, "I", "H")  # (doc_id, sent_id) pairs
 
 
 class SentenceDedupFilter(PipelineStep):
-    """ SentenceDedup: Third pipeline step
+    """SentenceDedup: Third pipeline step
 
         SentenceDedupFilter reads a DocumentPipeline and removes duplicated sentences found at stage 2
-    
+
     Args:
         data_folder: data folder to get duplicate files.
         n_sentences: n_sentences where duplicates are checked.
         min_doc_words: min amount of words for each document
         exclusion_writer: writer to save excluded documents
     """
+
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 3"
 
@@ -293,13 +296,14 @@ class SentenceDedupFilter(PipelineStep):
 
 
 class SentenceDedupBuildIndex(PipelineStep):
-    """ SentenceDedup: Only build an index
+    """SentenceDedup: Only build an index
 
     Args:
         data_folder: data folder to get duplicate files.
         output_folder: folder where index is saved
         index_name: name of the index
     """
+
     type = "🫂 - DEDUP"
     name = "💥 sentence-deduplication build index"
 

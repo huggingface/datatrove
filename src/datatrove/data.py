@@ -5,10 +5,11 @@ from typing import Generator, NewType
 
 
 class MediaType:
-    """ Media types
+    """Media types
 
-        For future uses, currently not used.
+    For future uses, currently not used.
     """
+
     IMAGE = 0
     VIDEO = 1
     AUDIO = 2
@@ -16,10 +17,11 @@ class MediaType:
 
 @dataclass
 class Media:
-    """ Media metadata
-    
-        For future uses, currently not used.
+    """Media metadata
+
+    For future uses, currently not used.
     """
+
     type: int
     url: str
     alt: str | None = None
@@ -28,7 +30,7 @@ class Media:
 
 @dataclass
 class Document:
-    """ Main Document dataclass going through the processing pipeline
+    """Main Document dataclass going through the processing pipeline
 
     Args:
         text: str
@@ -40,6 +42,7 @@ class Document:
         metadata: dict[str, str | int | float | bool]
             a dictionary where any additional info may be stored
     """
+
     text: str
     id: str
     media: list[Media] = field(default_factory=list)

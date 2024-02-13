@@ -55,6 +55,7 @@ class Stats:
     Args:
         name: The name of the block
     """
+
     def __init__(self, name: str):
         self.name = name
         self.time_stats = TimingStats()

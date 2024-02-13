@@ -8,7 +8,7 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class HuggingFaceDatasetReader(BaseReader):
-    """ Read data from HuggingFace datasets.
+    """Read data from HuggingFace datasets.
         Will read each row as a separate document.
 
     Args:
@@ -24,6 +24,7 @@ class HuggingFaceDatasetReader(BaseReader):
         id_key: key to use for the id in the adapter (default: "id")
         default_metadata: default metadata to add to all documents
     """
+
     name = "🤗 HuggingFace"
     _requires_dependencies = ["datasets"]
 

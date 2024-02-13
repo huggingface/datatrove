@@ -5,9 +5,9 @@ from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class ParquetReader(BaseDiskReader):
-    """ Read data from Parquet files.
+    """Read data from Parquet files.
         Will read each batch as a separate document.
-    
+
     Args:
         data_folder: the data folder to read from
         limit: limit the number of Parquet files to read
@@ -23,6 +23,7 @@ class ParquetReader(BaseDiskReader):
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
     """
+
     name = "📒 Parquet"
     _requires_dependencies = ["pyarrow"]
 

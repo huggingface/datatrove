@@ -6,9 +6,9 @@ from datatrove.utils.stats import MetricStatsDict
 
 
 class URLStats(PipelineStep):
-    """ Pipeline step to compute the statistics of URLs in a pipeline.
+    """Pipeline step to compute the statistics of URLs in a pipeline.
         Will add a "url_stats.json" file in the output folder with the statistics.
-    
+
     Args:
         output_folder: the output folder to save the statistics
         url_field: the field to use as URL in the Document metadata (default: "url")
@@ -16,6 +16,7 @@ class URLStats(PipelineStep):
         topk: the number of top URLs to keep (default: None - keep all)
         min_doc_count_to_save: the minimum number of documents per URL to save the URL (default: 1)
     """
+
     type = "📊 - STATS"
     name = "🌐 URLs"
     _requires_dependencies = ["tldextract"]

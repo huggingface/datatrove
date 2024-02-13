@@ -25,6 +25,7 @@ class LocalPipelineExecutor(PipelineExecutor):
             previous runs. default: True
         start_method: method to use to spawn a multiprocessing Pool (default: "fork")
     """
+
     def __init__(
         self,
         pipeline: list[PipelineStep | Callable],

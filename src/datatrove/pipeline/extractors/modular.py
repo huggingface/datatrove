@@ -33,7 +33,7 @@ class ReadabilityInscriptis(BaseExtractor):
         self._parser_config = ParserConfig(css=CSS_PROFILES["strict"])
 
     def extract(self, text: str) -> str:
-        """ Extracts the text from the HTML document using readability and inscriptis.
+        """Extracts the text from the HTML document using readability and inscriptis.
 
         :param text: the HTML document
         :return: the extracted text

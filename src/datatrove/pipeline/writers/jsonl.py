@@ -6,7 +6,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class JsonlWriter(DiskWriter):
-    """ Write data to datafolder (local or remote) in JSONL format
+    """Write data to datafolder (local or remote) in JSONL format
 
     Args:
         output_folder: a str, tuple or DataFolder where data should be saved
@@ -14,6 +14,7 @@ class JsonlWriter(DiskWriter):
         compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
         adapter: a custom function to "adapt" the Document format to the desired output format
     """
+
     default_output_filename: str = "${rank}.jsonl"
     name = "🐿 Jsonl"
 

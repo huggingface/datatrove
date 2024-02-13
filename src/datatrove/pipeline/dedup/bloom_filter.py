@@ -30,7 +30,7 @@ def get_false_positive_prob(size_in_bytes: int, n: int, k: int) -> float:
 
 
 class SingleBloomFilter(PipelineStep):
-    """ Single Bloom filter for deduplication
+    """Single Bloom filter for deduplication
 
     Args:
         output_folder: output folder: local or on S3
@@ -45,6 +45,7 @@ class SingleBloomFilter(PipelineStep):
         save_bloom_filter: if true saves bloom filter for later use
         exclusion_writer: saves duplicated data
     """
+
     type = "🫂 - DEDUPS"
     name = "🪷 Bloom-filter"
     _requires_dependencies = ["nltk"]
@@ -87,7 +88,7 @@ class SingleBloomFilter(PipelineStep):
 
     @property
     def parameters(self):
-        """ Returns the parameters for the hash functions.
+        """Returns the parameters for the hash functions.
             Create parameters for a random bijective permutation function
             that maps a 32-bit hash value to another 32-bit hash value.
             http://en.wikipedia.org/wiki/Universal_hashing
@@ -106,8 +107,8 @@ class SingleBloomFilter(PipelineStep):
         return self._parameters
 
     def get_shingles(self, text: str) -> np.ndarray:
-        """ Get shingles from a string of text
-            Shingles are created by hashing n-grams of simplified text (lower cases, whitespace normalized, no punctuation, etc).
+        """Get shingles from a string of text
+        Shingles are created by hashing n-grams of simplified text (lower cases, whitespace normalized, no punctuation, etc).
         """
         from nltk import ngrams, word_tokenize
 
@@ -120,23 +121,20 @@ class SingleBloomFilter(PipelineStep):
         )
 
     def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
-        """ Get indexes for the shingles with the k hashing functions
-        """
+        """Get indexes for the shingles with the k hashing functions"""
         a, b = self.parameters
         phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, self.m_bytes)
         return phv.tolist()
 
     def update_bf(self, indexes: list[int]):
-        """ Update the bloom filter with the indexes
-        """
+        """Update the bloom filter with the indexes"""
         for index in indexes:
             byte_index, bit_index = divmod(index, 8)
             mask = 1 << bit_index
             self.bit_vector[byte_index] |= mask
 
     def query(self, indexes: list[int]) -> bool:
-        """ Query the bloom filter with the indexes
-        """
+        """Query the bloom filter with the indexes"""
         for idx in indexes:
             byte_index, bit_index = divmod(idx, 8)
             mask = 1 << bit_index
@@ -146,8 +144,8 @@ class SingleBloomFilter(PipelineStep):
         return True
 
     def step(self, doc: Document) -> bool:
-        """ Deduplication step
-            Compute shingles, indexes, and query the bloom filter
+        """Deduplication step
+        Compute shingles, indexes, and query the bloom filter
         """
         shingles = self.get_shingles(doc.text)
         self.total_shingles += shingles.size

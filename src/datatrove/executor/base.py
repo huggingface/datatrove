@@ -14,7 +14,7 @@ from datatrove.utils.stats import PipelineStats
 
 
 class PipelineExecutor(ABC):
-    """ Base class for pipeline executors (local, slurm, etc.)
+    """Base class for pipeline executors (local, slurm, etc.)
 
     Args:
         pipeline: a list of PipelineStep and/or custom functions
@@ -23,6 +23,7 @@ class PipelineExecutor(ABC):
         skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
     """
+
     @abstractmethod
     def __init__(
         self,
@@ -36,9 +37,9 @@ class PipelineExecutor(ABC):
 
     @abstractmethod
     def run(self):
-        """ Run the pipeline on all tasks.
-            This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
-            See slurm and local executor for example usage.
+        """Run the pipeline on all tasks.
+        This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
+        See slurm and local executor for example usage.
         """
         pass
 
@@ -162,8 +163,8 @@ class PipelineExecutor(ABC):
 
 
 class ExecutorJSONEncoder(json.JSONEncoder):
-    """ Custom JSON encoder for the PipelineExecutor class
-    """
+    """Custom JSON encoder for the PipelineExecutor class"""
+
     def default(self, o):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)

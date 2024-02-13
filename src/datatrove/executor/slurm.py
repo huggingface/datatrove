@@ -31,50 +31,50 @@ def requeue_handler(signum, _frame):
 
 
 class SlurmPipelineExecutor(PipelineExecutor):
-    """ Execute a pipeline on a slurm cluster
+    """Execute a pipeline on a slurm cluster
 
-        [!] do not launch tasks from within a compute node/from another slurm task!
+    [!] do not launch tasks from within a compute node/from another slurm task!
 
-        Args:
-            pipeline: a list of PipelineStep and/or custom functions
-                with arguments (data: DocumentsPipeline, rank: int,
-                world_size: int)
-            tasks: total number of tasks to run the pipeline on
-            time: slurm time limit
-            partition: slurm partition
-            cpus_per_task: how many cpus to give each task. should be 1
-                except when you need to give each task more memory
-            mem_per_cpu_gb: slurm option. use in conjunction with the
-                above option to increase max memory
-            workers: how many tasks to run simultaneously. -1 for no
-                limit
-            job_name: slurm job name
-            env_command: command to activate a python environment, if
-                needed
-            condaenv: name of a conda environment to activate
-            venv_path: path to a python venv to activate
-            sbatch_args: dictionary with additional arguments to pass to
-                sbatch
-            max_array_size: the limit of tasks in a task array job on
-                your slurm cluster or -1 if none. if
-                tasks>max_array_size, multiple task array jobs will be
-                launched
-            depends: another SlurmPipelineExecutor that should run
-                before this one
-            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
-            skip_completed: whether to skip tasks that were completed in
-                previous runs. default: True
-            slurm_logs_folder: where to store the raw slurm log files.
-                must be a local path default:
-                slurm_logs/$job_name/$timestamp_$randomstring
-            max_array_launch_parallel: if we need multiple jobs due to max_array_size, whether to launch them all in
-                one go (parallel) or sequentially
-            stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
-                between launching each of the parallel jobs
-            run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
-            randomize_start: randomize the start of each task in a job in a ~3 min window
-            requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance
-            is being reclaimed and jobs must be stopped for example. Set to None to disable
+    Args:
+        pipeline: a list of PipelineStep and/or custom functions
+            with arguments (data: DocumentsPipeline, rank: int,
+            world_size: int)
+        tasks: total number of tasks to run the pipeline on
+        time: slurm time limit
+        partition: slurm partition
+        cpus_per_task: how many cpus to give each task. should be 1
+            except when you need to give each task more memory
+        mem_per_cpu_gb: slurm option. use in conjunction with the
+            above option to increase max memory
+        workers: how many tasks to run simultaneously. -1 for no
+            limit
+        job_name: slurm job name
+        env_command: command to activate a python environment, if
+            needed
+        condaenv: name of a conda environment to activate
+        venv_path: path to a python venv to activate
+        sbatch_args: dictionary with additional arguments to pass to
+            sbatch
+        max_array_size: the limit of tasks in a task array job on
+            your slurm cluster or -1 if none. if
+            tasks>max_array_size, multiple task array jobs will be
+            launched
+        depends: another SlurmPipelineExecutor that should run
+            before this one
+        logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
+        skip_completed: whether to skip tasks that were completed in
+            previous runs. default: True
+        slurm_logs_folder: where to store the raw slurm log files.
+            must be a local path default:
+            slurm_logs/$job_name/$timestamp_$randomstring
+        max_array_launch_parallel: if we need multiple jobs due to max_array_size, whether to launch them all in
+            one go (parallel) or sequentially
+        stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
+            between launching each of the parallel jobs
+        run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
+        randomize_start: randomize the start of each task in a job in a ~3 min window
+        requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance
+        is being reclaimed and jobs must be stopped for example. Set to None to disable
 
     """
 

@@ -110,7 +110,7 @@ class TestTokenization(unittest.TestCase):
     def test_file_merger_tokenizer(self):
         for sub_test, args in [
             ("tokenizer_unshuffled", (None, None, None)),
-            ("tokenizer_shuffled", (7383, [2, 0, 1, 4, 3, 5, 7, 6], [4, 1, 3, 0, 2, 5])),
+            ("tokenizer_shuffled", (7383, [2, 0, 1, 4, 3, 5, 7, 6], [7, 1, 5, 2, 0, 4, 3, 6])),
         ]:
             with self.subTest(sub_test):
                 seed, dist_mapping, merge_mapping = args

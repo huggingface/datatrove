@@ -9,7 +9,7 @@ from fsspec.implementations.local import LocalFileSystem
 
 
 class OutputFileManager:
-    """ A simple file manager to create/handle/close multiple output files.
+    """A simple file manager to create/handle/close multiple output files.
         Will keep track of different output files by name and properly cleanup in the end.
 
     Args:
@@ -17,6 +17,7 @@ class OutputFileManager:
         mode: the mode to open the files with
         compression: the compression to use
     """
+
     def __init__(self, fs, mode: str = "wt", compression: str | None = "infer"):
         self.fs = fs
         self.mode = mode
@@ -62,7 +63,7 @@ class OutputFileManager:
 
 
 class DataFolder(DirFileSystem):
-    """ A simple wrapper around fsspec's DirFileSystem to handle file listing and sharding files accross multiple workers/process.
+    """A simple wrapper around fsspec's DirFileSystem to handle file listing and sharding files accross multiple workers/process.
         Also handles the creation of output files.
         All file operations will be relative to `path`.
 
@@ -72,6 +73,7 @@ class DataFolder(DirFileSystem):
         auto_mkdir: whether to automatically create the parent directories when opening a file
         **storage_options: additional options to pass to the filesystem
     """
+
     def __init__(
         self,
         path: str,
@@ -169,7 +171,7 @@ class DataFolder(DirFileSystem):
         return OutputFileManager(self, **kwargs)
 
     def open_files(self, paths, mode="rb", **kwargs):
-        """ Opens all files in an iterable with the given options, in the same order as given
+        """Opens all files in an iterable with the given options, in the same order as given
 
         Args:
             paths: iterable of relative paths
@@ -179,7 +181,7 @@ class DataFolder(DirFileSystem):
         return [self.open(path, mode=mode, **kwargs) for path in paths]
 
     def open(self, path, mode="rb", *args, **kwargs):
-        """ Open a file locally or remote, and create the parent directories if self.auto_mkdir is `True`, .
+        """Open a file locally or remote, and create the parent directories if self.auto_mkdir is `True`, .
 
             args/kwargs will depend on the filesystem (see fsspec for more details)
             Typically we often use:
@@ -233,7 +235,7 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
 
 
 def get_file(file: IO | str, mode="rt", **kwargs):
-    """ Wrapper around fsspec.open to handle both file-like objects and strings
+    """Wrapper around fsspec.open to handle both file-like objects and strings
 
     Args:
       file: IO | str:

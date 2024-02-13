@@ -8,7 +8,7 @@ from datatrove.utils.stats import Stats
 
 
 class PipelineStep(ABC):
-    """ Base pipeline block, all blocs should inherit from this one.
+    """Base pipeline block, all blocs should inherit from this one.
         Takes care of some general things such as handling dependencies, and stats
 
     Args:
@@ -16,6 +16,7 @@ class PipelineStep(ABC):
         type: Type of the step
             Types are high-level categories of steps, e.g. "Reader", "Tokenizer", "Filters", etc.
     """
+
     name: str = None
     type: str = None
 
@@ -126,7 +127,7 @@ class PipelineStep(ABC):
 
 
 def _raise_error_for_missing_dependencies(step_name: str, dependencies: dict[str, str]) -> NoReturn:
-    """ Helper to raise an ImportError for missing dependencies and prompt the user to install said dependencies
+    """Helper to raise an ImportError for missing dependencies and prompt the user to install said dependencies
 
     Args:
         step_name: str

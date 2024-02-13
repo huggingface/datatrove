@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from contextlib import nullcontext
-from typing import Callable, Generator
+from typing import Callable
 
 from loguru import logger
 from tqdm import tqdm
@@ -11,9 +11,9 @@ from datatrove.pipeline.base import PipelineStep
 
 
 class BaseReader(PipelineStep):
-    """ Base module for Readers. Readers read data from a source and create documents.
+    """Base module for Readers. Readers read data from a source and create documents.
         Reader are the first step in a pipeline usually.
-    
+
     Args:
         limit: limit the number of documents to read
         progress: show progress bar
@@ -24,6 +24,7 @@ class BaseReader(PipelineStep):
         id_key: key to use for the id in the adapter (default: "id")
         default_metadata: default metadata to add to all documents
     """
+
     type = "📖 - READER"
 
     def __init__(
@@ -106,7 +107,7 @@ class BaseReader(PipelineStep):
 
 
 class BaseDiskReader(BaseReader):
-    """ Base module for fsspec based Readers. Readers read data from a source (local or remote) and create documents.
+    """Base module for fsspec based Readers. Readers read data from a source (local or remote) and create documents.
 
     Args:
         data_folder: the data folder to read from
@@ -119,6 +120,7 @@ class BaseDiskReader(BaseReader):
         recursive: whether to read files recursively
         glob_pattern: glob pattern to filter files
     """
+
     type = "📖 - READER"
 
     def __init__(

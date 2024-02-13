@@ -9,7 +9,7 @@ from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class JsonlReader(BaseDiskReader):
-    """ Read data from JSONL files.
+    """Read data from JSONL files.
         Will read each line as a separate document.
 
     Args:
@@ -26,6 +26,7 @@ class JsonlReader(BaseDiskReader):
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
     """
+
     name = "🐿 Jsonl"
 
     def __init__(

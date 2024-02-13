@@ -57,7 +57,7 @@ class DatasetToSequence(PipelineStep):
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
 
     def save_sizes(self, doc_lens: list[int], rank: int):
-        """ Saves the byte sizes of each doc in a file.
+        """Saves the byte sizes of each doc in a file.
 
         Args:
             doc_lens: list of sizes of each doc
@@ -86,7 +86,7 @@ class MergeSequences(PipelineStep):
     """STAGE 2
     It merges all the sequences from stage 1 into a big sequence. It saves a file with the cumulative bytes offset
     of every single sequence.
-    
+
     Args:
         data_folder: folder where sequences were saved in stage 1 and where the big sequence will be saved
         tasks_stage_1: number of tasks used in stage 1
@@ -147,8 +147,8 @@ def sequence_reader(file: BinaryIO, size_file: BinaryIO) -> Generator[list, None
 
 
 class DedupReader(JsonlReader):
-    """ 
-    """
+    """ """
+
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
     _requires_dependencies = ["nltk", "tokenizers"]

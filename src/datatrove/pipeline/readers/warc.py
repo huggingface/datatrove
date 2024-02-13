@@ -9,9 +9,9 @@ if TYPE_CHECKING:
 
 
 class WarcReader(BaseDiskReader):
-    """ Read data from WARC files.
+    """Read data from WARC files.
         Will read each record as a separate document.
-    
+
     Args:
         data_folder: the data folder to read from
         compression: the compression to use (default: "infer")
@@ -26,6 +26,7 @@ class WarcReader(BaseDiskReader):
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
     """
+
     name = "🕷 Warc"
     _requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
 
@@ -63,8 +64,7 @@ class WarcReader(BaseDiskReader):
 
 
 def process_record(record: "ArcWarcRecord") -> dict | None:
-    """ Process a WARC record to extract the html and metadata (id, url, date).
-    """
+    """Process a WARC record to extract the html and metadata (id, url, date)."""
     import cchardet
     import magic
 

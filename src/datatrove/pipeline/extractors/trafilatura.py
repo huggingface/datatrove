@@ -2,7 +2,7 @@ from .base import BaseExtractor
 
 
 class Trafilatura(BaseExtractor):
-    """ Trafilatura extractor, it uses https://trafilatura.readthedocs.io/en/latest/index.html
+    """Trafilatura extractor, it uses https://trafilatura.readthedocs.io/en/latest/index.html
 
     We're actually only using the main entry point of trafilatura: the `extract` function.
     No specific data structure is exchanged with Trafilatura, only the text is passed and the extracted text is returned.

@@ -5,7 +5,7 @@ from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class IpcReader(BaseDiskReader):
-    """ Read data from Apache Arrow IPC files.
+    """Read data from Apache Arrow IPC files.
 
     Args:
         data_folder: the data folder to read from
@@ -21,6 +21,7 @@ class IpcReader(BaseDiskReader):
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
     """
+
     name = "🪶 Ipc"
     _requires_dependencies = ["pyarrow"]
 

@@ -31,6 +31,7 @@ class DiskWriter(PipelineStep, ABC):
         compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
         adapter: a custom function to "adapt" the Document format to the desired output format
     """
+
     default_output_filename: str = None
     type = "💽 - WRITER"
 
