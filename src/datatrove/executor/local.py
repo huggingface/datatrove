@@ -23,7 +23,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
             previous runs. default: True
-        start_method: method to use to spawn a multiprocessing Pool (default: "fork")
+        start_method: method to use to spawn a multiprocessing Pool (default: "forkserver")
     """
 
     def __init__(
@@ -33,7 +33,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         workers: int = -1,
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
-        start_method: str = "fork",
+        start_method: str = "forkserver",
     ):
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
