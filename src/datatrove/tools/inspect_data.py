@@ -13,6 +13,10 @@ from datatrove.pipeline.writers import JsonlWriter
 from datatrove.utils._import_utils import is_rich_available
 
 
+"""
+    Simple utility to visualize some tokenized text data directly using an appropriate reader.
+"""
+
 if not is_rich_available():
     raise ImportError("Please install `rich` to run this command (`pip install rich`).")
 
@@ -62,6 +66,16 @@ def reader_class_from_name(reader_type):
 
 
 def reader_factory(data_folder: DataFolder, reader_type: str = None, **kwargs):
+    """
+
+    Args:
+      data_folder: DataFolder:
+      reader_type: str:  (Default value = None)
+      **kwargs:
+
+    Returns:
+
+    """
     data_files = data_folder.list_files()
     if not data_files:
         console.log(f'[red]Could not find any files in "{data_folder.path}"')
@@ -84,10 +98,19 @@ def reader_factory(data_folder: DataFolder, reader_type: str = None, **kwargs):
 
 
 def get_filter_expr(text=None):
+    """
+
+    Args:
+      text:  (Default value = None)
+
+    Returns:
+
+    """
     return (lambda x: eval(text)) if text else (lambda x: True)
 
 
 def main():
+    """ """
     args, extra_args = parser.parse_known_args()
     kwargs = dict(extra_arg.split("=") for extra_arg in extra_args)
     data_folder = get_datafolder(args.path)

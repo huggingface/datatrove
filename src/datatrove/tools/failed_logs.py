@@ -25,6 +25,10 @@ RANK_FROM_LOG_FILENAME_REGEX = re.compile(r"logs/task_(\d{5})\.log")
 
 
 def main():
+    """
+    Takes a `logging_dir` as input, gets total number of tasks from `executor.json` and then gets which ranks are
+    incomplete by scanning `logging_dir/completions`. The log files for the incomplete tasks are then displayed.
+    """
     args = parser.parse_args()
     console = Console()
 

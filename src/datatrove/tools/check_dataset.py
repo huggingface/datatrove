@@ -22,11 +22,29 @@ parser.add_argument("--eos", type=str, help="eos token", default="<|endoftext|>"
 
 
 def load_doc_ends(file: IO):
+    """
+        Reads a list of uint64s from a binary file handler
+    Args:
+      file: IO:
+
+    Returns:
+
+    """
     with file as f:
         return np.frombuffer(f.read(), dtype=np.uint64).tolist()
 
 
 def load_dataset_bytes(file, doc_ends, bytes_per_value: int = 2):
+    """
+        Reads tokens directly from a binary file using doc_ends to read one document at a time.
+    Args:
+      file: file handler
+      doc_ends: list with ending positions of each document
+      bytes_per_value: int:  (Default value = 2)  how many bytes to read per token
+
+    Returns:
+
+    """
     with file as f:
         for start, end in zip([0] + doc_ends[:-1], doc_ends):
             data = f.read((end - start) * bytes_per_value)
@@ -36,6 +54,16 @@ def load_dataset_bytes(file, doc_ends, bytes_per_value: int = 2):
 
 
 def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>"):
+    """
+    Reads a dataset and checks if loss tokens match up to the corresponding doc ends files
+    Args:
+      input_folder: DataFolder:
+      tokenizer: str:  (Default value = "gpt2")
+      eos_token: str:  (Default value = "<|endoftext|>")
+
+    Returns:
+
+    """
     tokenizer = Tokenizer.from_pretrained(tokenizer)
 
     eos_token = tokenizer.token_to_id(eos_token)

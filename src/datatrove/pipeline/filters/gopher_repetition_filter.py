@@ -84,7 +84,14 @@ class GopherRepetitionFilter(BaseFilter):
     ):
         """
 
-        @param kwargs:
+        Args:
+            dup_line_frac:
+            dup_para_frac:
+            dup_line_char_frac:
+            dup_para_char_frac:
+            top_n_grams:
+            dup_n_grams:
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
 

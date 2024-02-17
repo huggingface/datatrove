@@ -32,6 +32,14 @@ class DiskWriter(PipelineStep, ABC):
         compression: str | None = "infer",
         adapter: Callable = None,
     ):
+        """
+            Base writer block to save data to disk.
+        Args:
+            output_folder: a str, tuple or DataFolder where data should be saved
+            output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
+            compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
+            adapter: a custom function to "adapt" the Document format to the desired output format
+        """
         super().__init__()
         self.compression = compression
         self.output_folder = get_datafolder(output_folder)
@@ -51,16 +59,51 @@ class DiskWriter(PipelineStep, ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs):
+    def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs) -> str:
+        """
+            Get the output path for a given document, based on any possible tag replacement.
+            Example filename with `rank` tag: "${rank}.jsonl.gz"
+            Tags replaced:
+            - `rank`: rank of the current worker. Important as to avoid multiple workers writing to the same file
+            - `id`: the document's id
+            - metadata: any metadata field can be replaced directly
+            - kwargs: any additional kwargs passed to this function
+        Args:
+            document: the document for which the output path should be determined
+            rank: the rank of the current worker
+            **kwargs: any additional tags to replace in the filename
+
+        Returns: the final replaced path for this document
+
+        """
         return self.output_filename.substitute(
             {"rank": str(rank).zfill(5), "id": document.id, **document.metadata, **kwargs}
         )
 
     @abstractmethod
     def _write(self, document: dict, file_handler):
+        """
+        Main method that subclasses should implement. Receives an adapted (after applying self.adapter) dictionary with data to save to `file_handler`
+        Args:
+            document: dictionary with the data to save
+            file_handler: file_handler where it should be saved
+
+        Returns:
+
+        """
         raise NotImplementedError
 
     def write(self, document: Document, rank: int = 0, **kwargs):
+        """
+        Top level method to write a `Document` to disk. Will compute its output filename, adapt it to desired output format, write it and save stats.
+        Args:
+            document:
+            rank:
+            **kwargs: for the filename
+
+        Returns:
+
+        """
         output_filename = self._get_output_filename(document, rank, **kwargs)
         self._write(self.adapter(document), self.output_mg.get_file(output_filename))
         self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
@@ -68,6 +111,16 @@ class DiskWriter(PipelineStep, ABC):
         self.update_doc_stats(document)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """
+        Simply call `write` for each document
+        Args:
+            data:
+            rank:
+            world_size:
+
+        Returns:
+
+        """
         with self:
             for document in data:
                 with self.track_time():
