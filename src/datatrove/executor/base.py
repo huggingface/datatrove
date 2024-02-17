@@ -121,7 +121,7 @@ class PipelineExecutor(ABC):
         """
         self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
-    def get_incomplete_ranks(self) -> list[int]:
+    def get_incomplete_ranks(self, ranks=None) -> list[int]:
         """
             Gets a full list of ranks that are still incomplete.
             Usually faster than calling `is_rank_completed` for each task.
@@ -132,7 +132,7 @@ class PipelineExecutor(ABC):
         return list(
             filter(
                 lambda rank: not self.skip_completed or f"completions/{rank:05d}" not in completed,
-                range(self.world_size),
+                ranks if ranks is not None else range(self.world_size),
             )
         )
 
