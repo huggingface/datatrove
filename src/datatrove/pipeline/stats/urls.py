@@ -21,7 +21,7 @@ class URLStats(PipelineStep):
         super().__init__()
         self.url_field = url_field
         self.output_folder = get_datafolder(output_folder)
-        self.input_folder = get_datafolder(input_folder)
+        self.input_folder = get_datafolder(input_folder) if input_folder else None
         self.topk = topk
         self.min_doc_count_to_save = min_doc_count_to_save
 
