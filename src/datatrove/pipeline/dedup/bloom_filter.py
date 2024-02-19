@@ -100,13 +100,13 @@ class SingleBloomFilter(PipelineStep):
     def get_shingles(self, text: str) -> np.ndarray:
         from nltk import ngrams, word_tokenize
 
-        return np.array(
+        return np.fromiter(
             [
-                [sha1_hash32(" ".join(x).encode("utf-8"))]
+                sha1_hash32(" ".join(x).encode("utf-8"))
                 for x in ngrams(word_tokenize(simplify_text(text)), self.n_grams)
             ],
             dtype=np.uint64,
-        )
+        ).reshape((-1, 1))
 
     def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
         a, b = self.parameters
