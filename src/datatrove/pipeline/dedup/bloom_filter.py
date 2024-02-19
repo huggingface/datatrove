@@ -45,6 +45,7 @@ class SingleBloomFilter(PipelineStep):
         seed: int = 0,
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
+        language: str = "english",
     ):
         """Args:
         output_folder: output folder: local or on S3
@@ -83,6 +84,7 @@ class SingleBloomFilter(PipelineStep):
                 logger.warning(f"False probability = {fp:.3}")
             else:
                 logger.info(f"False probability = {fp:.3}")
+        self.language = language
 
     @property
     def parameters(self):

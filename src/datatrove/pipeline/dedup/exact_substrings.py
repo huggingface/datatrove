@@ -152,6 +152,7 @@ class DedupReader(JsonlReader):
         compression: Literal["guess", "gzip", "zst"] | None = "guess",
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
+        language: str = "english",
     ):
         super().__init__(data_folder=data_folder, compression=compression)
         self.sequence_folder = get_datafolder(sequence_folder)
@@ -163,6 +164,7 @@ class DedupReader(JsonlReader):
         self.exhausted_ranges = False
         self.bytes_counter = 0
         self.range_idx = 0
+        self.language = language
 
     def reset(self):
         self.bytes_counter = 0
@@ -304,7 +306,7 @@ class DedupReader(JsonlReader):
 
         self.bytes_counter += len(bytes_content)
 
-        if len(word_tokenize(doc.text)) < self.min_doc_words:
+        if len(word_tokenize(doc.text, self.language)) < self.min_doc_words:
             return False
 
         return True
