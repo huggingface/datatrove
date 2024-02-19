@@ -27,7 +27,7 @@ def main():
     args = parser.parse_args()
     stats_folder = get_datafolder(args.path)
     # output file
-    path = os.path.abspath(args.output)
+    path = args.output
 
     stats = []
     for file in tqdm(stats_folder.list_files()):

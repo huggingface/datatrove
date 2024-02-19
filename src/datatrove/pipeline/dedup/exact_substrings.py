@@ -32,7 +32,7 @@ SEPARATOR_BYTES = 12
 
 def prepare_doc(tokenizer, doc: str, rank: int, doc_id: int):
     tokens = tokenizer.encode(doc).ids
-    tokens = np.array(tokens, dtype=np.uint16)
+    tokens = np.fromiter(tokens, dtype=np.uint16, count=len(tokens))
     b_doc = b"\xff\xff" + struct.pack("<I", doc_id) + b"\xff\xff" + struct.pack("<I", rank) + tokens.tobytes()
     return b_doc
 

@@ -20,6 +20,8 @@ class LocalPipelineExecutor(PipelineExecutor):
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
         start_method: str = "forkserver",
+        local_tasks: int = -1,
+        local_rank_offset: int = 0,
     ):
         """Execute a pipeline locally
 
@@ -34,11 +36,20 @@ class LocalPipelineExecutor(PipelineExecutor):
             skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
             start_method: method to use to spawn a multiprocessing Pool
+            local_tasks: how many of the total tasks should be run on this node/machine. -1 for all
+            local_rank_offset: the rank of the first task to run on this machine.
+                Tasks [local_rank_offset, local_rank_offset + local_tasks] will be run.
         """
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.start_method = start_method
+        self.local_tasks = local_tasks if local_tasks != -1 else tasks
+        self.local_rank_offset = local_rank_offset
+        if self.local_rank_offset + self.local_tasks > self.tasks:
+            raise ValueError(
+                f"Local tasks go beyond the total tasks (local_rank_offset + local_tasks = {self.local_rank_offset + self.local_tasks} > {self.tasks} = tasks)"
+            )
 
     def _launch_run_for_rank(self, rank: int, ranks_q, completed=None, completed_lock=None) -> PipelineStats:
         """
@@ -71,8 +82,8 @@ class LocalPipelineExecutor(PipelineExecutor):
         Returns:
 
         """
-        if all(map(self.is_rank_completed, range(self.tasks))):
-            logger.info(f"Not doing anything as all {self.tasks} tasks have already been completed.")
+        if all(map(self.is_rank_completed, range(self.local_rank_offset, self.local_rank_offset + self.local_tasks))):
+            logger.info(f"Not doing anything as all {self.local_tasks} tasks have already been completed.")
             return
 
         self.save_executor_as_json()
@@ -81,8 +92,10 @@ class LocalPipelineExecutor(PipelineExecutor):
         for i in range(self.workers):
             ranks_q.put(i)
 
-        ranks_to_run = self.get_incomplete_ranks()
-        if (skipped := self.tasks - len(ranks_to_run)) > 0:
+        ranks_to_run = self.get_incomplete_ranks(
+            range(self.local_rank_offset, self.local_rank_offset + self.local_tasks)
+        )
+        if (skipped := self.local_tasks - len(ranks_to_run)) > 0:
             logger.info(f"Skipping {skipped} already completed tasks")
 
         if self.workers == 1:
@@ -111,7 +124,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         stats = sum(stats, start=PipelineStats())
         with self.logging_dir.open("stats.json", "wt") as statsfile:
             stats.save_to_disk(statsfile)
-        logger.success(stats.get_repr(f"All {self.tasks} tasks"))
+        logger.success(stats.get_repr(f"All {self.local_tasks} tasks"))
         return stats
 
     @property

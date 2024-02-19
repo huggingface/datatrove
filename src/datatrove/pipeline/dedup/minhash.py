@@ -185,13 +185,13 @@ class MinhashDedupSignature(PipelineStep):
     def get_shingles(self, text):
         from nltk import ngrams, word_tokenize
 
-        return np.array(
+        return np.fromiter(
             [
-                [self._hash_func(" ".join(x).encode("utf-8"))]
-                for x in ngrams(word_tokenize(simplify_text(text), self.language), self.config.n_grams)
+                self._hash_func(" ".join(x).encode("utf-8"))
+                for x in ngrams(word_tokenize(simplify_text(text)), self.config.n_grams)
             ],
             dtype=np.uint64,
-        )
+        ).reshape((-1, 1))
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         buckets = [
