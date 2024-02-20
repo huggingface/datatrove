@@ -1,4 +1,5 @@
 import os
+from typing import Tuple
 
 from fsspec.core import strip_protocol
 from huggingface_hub import cached_assets_path
@@ -10,25 +11,37 @@ from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
-class FastTextFilter(BaseFilter):
+class FastTextClassifierFilter(BaseFilter):
     name = "🤖 fastText"
     _requires_dependencies = [("fasttext", "fasttext-wheel")]
 
     def __init__(
         self,
         model_url: str,
+        filter_labels: Tuple[str, float] | list[Tuple[str, float]] = None,
+        save_labels_in_metadata: bool = True,
         exclusion_writer: DiskWriter = None,
     ):
         """
-        filters if the predicted language is not among given language or if the language score is below language
-        language_threshold
+        Only keeps documents that have at least one of the labels in `filter_labels` with a score above the configured
+        threshold.
+        Example:
+            for `filter_labels=[("math", 0.9)]` will only keep samples with a score on __label__math of at least 0.9
 
         Args:
-            model_url: url to download the model
+            model_url: url to download the model from
+            filter_labels: tuple of (label name without "__label__", min score) (or list of such tuples)
+            save_labels_in_metadata: whether to save all the label scores in the document metadata
             exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.model_url = model_url
+        self.filter_labels = filter_labels
+        if filter_labels and isinstance(filter_labels[0], str):
+            self.filter_labels = [filter_labels]
+        if not self.filter_labels:
+            logger.warning("No labels to filter provided. All samples will be kept.")
+        self.save_labels_in_metadata = save_labels_in_metadata
         self._model = None
 
     @property
@@ -47,16 +60,10 @@ class FastTextFilter(BaseFilter):
         return self._model
 
     def filter(self, doc: Document) -> bool:
-        """Args:
-            doc: document
-
-        Returns:
-            is_filter
-        """
-        return True
-        # language, score = self.model.predict(doc.text.replace("\n", ""))
-        # # language label is given in the form __label__<language_id>
-        # language = language[0].split("__")[2]
-        # doc.metadata["language"] = language
-        # doc.metadata["language_score"] = score[0]
-        # return score > self.language_threshold and language in self.languages
+        labels, scores = self.model.predict(doc.text.replace("\n", ""))
+        label_scores = dict(zip(labels, scores))
+        if self.save_labels_in_metadata:
+            doc.metadata.update(label_scores)
+        return not self.filter_labels or any(
+            label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.filter_labels
+        )
