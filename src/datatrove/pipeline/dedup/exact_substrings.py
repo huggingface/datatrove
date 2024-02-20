@@ -14,7 +14,7 @@ TLDR
 
 """
 import struct
-from typing import BinaryIO, Generator, Literal
+from typing import BinaryIO, Generator, Literal, Callable
 
 import numpy as np
 import tokenizers
@@ -150,11 +150,12 @@ class DedupReader(JsonlReader):
         data_folder: DataFolderLike,
         sequence_folder: DataFolderLike,
         compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        adapter: Callable = None,
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
         language: str = "english",
     ):
-        super().__init__(data_folder=data_folder, compression=compression)
+        super().__init__(data_folder=data_folder, compression=compression, adapter=adapter)
         self.sequence_folder = get_datafolder(sequence_folder)
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
         self.min_doc_words = min_doc_words
