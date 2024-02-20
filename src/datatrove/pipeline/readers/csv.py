@@ -11,7 +11,7 @@ class CsvReader(BaseDiskReader):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        compression: Literal["guess", "gzip", "zstd"] | None = "infer",
+        compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
