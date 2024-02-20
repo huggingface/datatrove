@@ -149,7 +149,7 @@ class DedupReader(JsonlReader):
         self,
         data_folder: DataFolderLike,
         sequence_folder: DataFolderLike,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        compression: Literal["guess", "gzip", "zst"] | None = "infer",
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
         language: str = "english",
