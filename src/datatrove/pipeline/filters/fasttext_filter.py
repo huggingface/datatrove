@@ -28,6 +28,8 @@ class FastTextClassifierFilter(BaseFilter):
         Example:
             for `filter_labels=[("math", 0.9)]` will only keep samples with a score on __label__math of at least 0.9
 
+        Info to train your own classifier: https://fasttext.cc/docs/en/supervised-tutorial.html
+
         Args:
             model_url: url to download the model from
             filter_labels: tuple of (label name without "__label__", min score) (or list of such tuples)
