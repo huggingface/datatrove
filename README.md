@@ -405,7 +405,7 @@ pytest -sv ./tests/
 
 ```bibtex
 @misc{penedo2024datatrove,
-  author = {Penedo, Guilherme and Wolf, Thomas},
+  author = {Penedo, Guilherme and Cappelli, Alessandro and Wolf, Thomas and Sasko, Mario},
   title = {DataTrove: large scale data processing},
   year = {2024},
   publisher = {GitHub},
