@@ -5,13 +5,8 @@ import unittest
 from datatrove.data import Document
 from datatrove.pipeline.readers.parquet import ParquetReader
 from datatrove.pipeline.writers.parquet import ParquetWriter
-from datatrove.utils._import_utils import is_pyarrow_available
 
 from ..utils import require_pyarrow
-
-
-if is_pyarrow_available():
-    pass  # noqa: F811
 
 
 @require_pyarrow
