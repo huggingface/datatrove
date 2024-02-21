@@ -399,3 +399,16 @@ Run the tests:
 ```bash
 pytest -sv ./tests/
 ```
+
+## Citation
+
+```bibtex
+@misc{penedo2024datatrove,
+  author = {Penedo, Guilherme and Wolf, Thomas},
+  title = {DataTrove: large scale data processing},
+  year = {2024},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  url = {https://github.com/huggingface/datatrove}
+}
+```
