@@ -32,6 +32,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
     + [Custom function](#custom-function)
     + [Custom block](#custom-block)
 - [Contributing](#contributing)
+- [Citation](#citation)
 
 <!-- tocstop -->
 
