@@ -1,7 +1,7 @@
 import dataclasses
 from abc import ABC, abstractmethod
 from string import Template
-from typing import Callable
+from typing import IO, Callable
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -31,6 +31,7 @@ class DiskWriter(PipelineStep, ABC):
         output_filename: str = None,
         compression: str | None = "infer",
         adapter: Callable = None,
+        mode: str = "wt",
     ):
         """
             Base writer block to save data to disk.
@@ -47,7 +48,7 @@ class DiskWriter(PipelineStep, ABC):
         if self.compression == "gzip" and not output_filename.endswith(".gz"):
             output_filename += ".gz"
         self.output_filename = Template(output_filename)
-        self.output_mg = self.output_folder.get_output_file_manager(mode="wt", compression=compression)
+        self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=compression)
         self.adapter = adapter if adapter else _default_adapter
 
     def __enter__(self):
@@ -81,13 +82,13 @@ class DiskWriter(PipelineStep, ABC):
         )
 
     @abstractmethod
-    def _write(self, document: dict, file_handler):
+    def _write(self, document: dict, file_handler: IO, filename: str):
         """
         Main method that subclasses should implement. Receives an adapted (after applying self.adapter) dictionary with data to save to `file_handler`
         Args:
             document: dictionary with the data to save
             file_handler: file_handler where it should be saved
-
+            filename: to use as a key for writer helpers and other data
         Returns:
 
         """
@@ -105,7 +106,7 @@ class DiskWriter(PipelineStep, ABC):
 
         """
         output_filename = self._get_output_filename(document, rank, **kwargs)
-        self._write(self.adapter(document), self.output_mg.get_file(output_filename))
+        self._write(self.adapter(document), self.output_mg.get_file(output_filename), output_filename)
         self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
         self.update_doc_stats(document)

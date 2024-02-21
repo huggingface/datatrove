@@ -21,7 +21,7 @@ class OutputFileManager:
 
     def get_file(self, filename):
         """
-            Opens file `filename` if it hasn't been opened yet. Otherwise just returns it from the file cache
+            Opens file `filename` if it hasn't been opened yet. Otherwise, just returns it from the file cache
         Args:
           filename: name of the file to open/get if previously opened
 
