@@ -3,7 +3,6 @@ from typing import IO, Callable
 
 from loguru import logger
 
-from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
@@ -57,7 +56,3 @@ class ParquetWriter(DiskWriter):
         self._batches.clear()
         self._writers.clear()
         super().close()
-
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        logger.info("RUN ON pw")
-        super().run(data, rank, world_size)

@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from itertools import chain
 from typing import NoReturn
 
+from loguru import logger
+
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.utils._import_utils import _is_package_available
 from datatrove.utils.stats import Stats
@@ -102,6 +104,7 @@ class PipelineStep(ABC):
         Returns:
 
         """
+        logger.info("RUN ON PIPELINESTEP")
         if data:
             yield from data
 
