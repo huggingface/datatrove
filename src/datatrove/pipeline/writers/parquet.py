@@ -1,6 +1,8 @@
 from collections import defaultdict
 from typing import IO, Callable
 
+from loguru import logger
+
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -47,6 +49,7 @@ class ParquetWriter(DiskWriter):
             self._write_batch(filename)
 
     def close(self):
+        logger.info("CLOSE ON PW")
         for filename in list(self._batches.keys()):
             self._write_batch(filename)
         for writer in self._writers.values():
@@ -56,4 +59,5 @@ class ParquetWriter(DiskWriter):
         super().close()
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        logger.info("RUN ON pw")
         super().run(data, rank, world_size)

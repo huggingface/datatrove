@@ -61,6 +61,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         )
 
     def close(self, rank: int = 0):
+        logger.info("CLOSE ON HF")
         repo_id = create_repo(self.dataset, private=self.private, repo_type="dataset", exist_ok=True).repo_id
         filelist = list(self._writers.keys())
         super().close()
@@ -94,6 +95,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         )
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        logger.info("RUN ON HF")
         super().run(data, rank, world_size)
         if rank == 0:
             # wait for all the PRs to have been submitted
