@@ -65,4 +65,6 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             if self.cleanup:
                 self.local_working_dir.rm(file)
             operations.append(addition)
-        create_commit(repo_id, operations=operations, commit_message=f"Commit {len(filelist)} files.")
+        create_commit(
+            repo_id, repo_type="dataset", operations=operations, commit_message=f"Commit {len(filelist)} files."
+        )
