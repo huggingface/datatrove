@@ -39,7 +39,7 @@ class ParquetWriter(DiskWriter):
 
         if filename not in self._writers:
             self._writers[filename] = pq.ParquetWriter(
-                file_handler, schema=pa.table({name: [val] for name, val in document.items()}).schema
+                file_handler, schema=pa.RecordBatch.from_pylist([document]).schema
             )
         self._batches[filename].append(document)
         if len(self._batches[filename]) == self.batch_size:
