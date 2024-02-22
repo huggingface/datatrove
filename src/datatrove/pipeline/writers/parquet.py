@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import IO, Callable
 
 from datatrove.io import DataFolderLike
@@ -18,13 +18,25 @@ class ParquetWriter(DiskWriter):
         adapter: Callable = None,
         batch_size: int = 1000,
         expand_metadata: bool = False,
+        max_file_size: int = 5 * 2**30,  # 5GB
     ):
         super().__init__(
-            output_folder, output_filename, compression, adapter, mode="wb", expand_metadata=expand_metadata
+            output_folder,
+            output_filename,
+            compression,
+            adapter,
+            mode="wb",
+            expand_metadata=expand_metadata,
+            max_file_size=max_file_size,
         )
         self._writers = {}
         self._batches = defaultdict(list)
+        self._file_counter = Counter()
         self.batch_size = batch_size
+
+    def _switch_file(self, original_name, old_filename, new_filename):
+        self._writers.pop(original_name).close()
+        super()._switch_file(original_name, old_filename, new_filename)
 
     def _write_batch(self, filename):
         if not self._batches[filename]:

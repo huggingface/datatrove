@@ -34,6 +34,18 @@ class OutputFileManager:
             self._output_files[filename] = self.fs.open(filename, mode=self.mode, compression=self.compression)
         return self._output_files[filename]
 
+    def pop(self, filename):
+        """
+            Return the file, as if called by `get_file`, but clean up internal references to it.
+        Args:
+            filename: name of the file to open/get if previously opened
+
+        Returns: a file handler we can write to
+        """
+        file = self.get_file(filename)
+        self._output_files.pop(file)
+        return file
+
     def write(self, filename, data):
         """
             Write data to a given file.

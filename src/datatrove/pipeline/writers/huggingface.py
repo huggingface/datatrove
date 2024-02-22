@@ -9,7 +9,6 @@ from huggingface_hub import (
     CommitOperationAdd,
     create_commit,
     create_repo,
-    get_repo_discussions,
     preupload_lfs_files,
 )
 from huggingface_hub.utils import HfHubHTTPError
@@ -37,16 +36,23 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         adapter: Callable = None,
         cleanup: bool = True,
         expand_metadata: bool = True,
+        max_file_size: int = 5 * 2**30,  # 5GB
     ):
         """
+        This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
+        `hf://datasets/...` output path if your dataset is small enough.
 
         Args:
             dataset: A namespace (user or an organization) and a repo name separated by a `/`.
-            private:
-            local_working_dir:
-            output_filename:
-            compression:
-            adapter:
+            private: whether to set the repo to private if it has to be created
+            local_working_dir: where to save files before they are uploaded
+            output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
+            compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
+            adapter: a custom function to "adapt" the Document format to the desired output format
+            cleanup: delete the created files from local storage after upload
+            expand_metadata: save each metadata entry in a different column instead of as a dictionary
+            max_file_size: will create a new file when this size is exceeded (in bytes). -1 for no limit.
+                Filenames will have a number prepended (000_..., 001_..., etc)
         """
         self.dataset = dataset
         self.private = private
@@ -67,29 +73,39 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             compression=compression,
             adapter=adapter,
             expand_metadata=expand_metadata,
+            max_file_size=max_file_size,
         )
+        self.operations = []
+        self._repo_init = False
+
+    def upload_files(self, *filenames):
+        if not self._repo_init:
+            create_repo(self.dataset, private=self.private, repo_type="dataset", exist_ok=True)
+            self._repo_init = True
+        additions = [
+            CommitOperationAdd(path_in_repo=filename, path_or_fileobj=self.local_working_dir.resolve_paths(filename))
+            for filename in filenames
+        ]
+        logger.info(f"Uploading {','.join(filenames)} to the hub...")
+        preupload_lfs_files(self.dataset, repo_type="dataset", additions=additions)
+        logger.info(f"Upload of {','.join(filenames)} to the hub complete!")
+        if self.cleanup:
+            for filename in filenames:
+                self.local_working_dir.rm(filename)
+        self.operations.extend(additions)
 
     def close(self, rank: int = 0):
-        repo_id = create_repo(self.dataset, private=self.private, repo_type="dataset", exist_ok=True).repo_id
         filelist = list(self._writers.keys())
         super().close()
-        logger.info(f"Starting upload of {len(filelist)} files to {repo_id}")
-        operations = []  # List of all `CommitOperationAdd` objects that will be generated
-        for file in filelist:
-            addition = CommitOperationAdd(
-                path_in_repo=file, path_or_fileobj=self.local_working_dir.resolve_paths(file)
-            )
-            preupload_lfs_files(repo_id, repo_type="dataset", additions=[addition])
-            if self.cleanup:
-                self.local_working_dir.rm(file)
-            operations.append(addition)
+        logger.info(f"Starting upload of {len(filelist)} files to {self.dataset}")
+        self.upload_files(*filelist)
         retries = 0
         while True:
             try:
                 create_commit(
-                    repo_id,
+                    self.dataset,
                     repo_type="dataset",
-                    operations=operations,
+                    operations=self.operations,
                     commit_message=f"DataTrove upload ({len(filelist)} files)",
                 )
                 break
@@ -102,13 +118,6 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
                     retries += 1
 
-    def _get_open_datatrove_prs(self):
-        return filter(
-            lambda x: x.title.startswith("DataTrove upload"),
-            get_repo_discussions(
-                repo_id=self.dataset,
-                repo_type="dataset",
-                discussion_type="pull_request",
-                discussion_status="open",
-            ),
-        )
+    def _switch_file(self, original_name, old_filename, new_filename):
+        super()._switch_file(original_name, old_filename, new_filename)
+        self.upload_files(old_filename)
