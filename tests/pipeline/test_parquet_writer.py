@@ -18,7 +18,7 @@ class TestParquetWriter(unittest.TestCase):
 
     def test_write(self):
         data = [
-            Document(text=text, id=str(i), metadata={"somedata": 2 * i})
+            Document(text=text, id=str(i), metadata={"somedata": 2 * i, "somefloat": i * 0.4, "somestring": "hello"})
             for i, text in enumerate(["hello", "text2", "more text"])
         ]
         with ParquetWriter(output_folder=self.tmp_dir, batch_size=2) as w:
