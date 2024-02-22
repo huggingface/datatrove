@@ -94,7 +94,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         )
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        super(ParquetWriter, self).run(data, rank, world_size)
+        super().run(data, rank, world_size)
         if rank == 0:
             # wait for all the PRs to have been submitted
             while True:
