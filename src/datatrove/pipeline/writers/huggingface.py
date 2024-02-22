@@ -95,7 +95,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         self.operations.extend(additions)
 
     def close(self, rank: int = 0):
-        filelist = list(self._writers.keys())
+        filelist = list(self.output_mg.get_open_files().keys())
         super().close()
         if filelist:
             logger.info(f"Starting upload of {len(filelist)} files to {self.dataset}")
