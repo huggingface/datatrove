@@ -17,7 +17,6 @@ from loguru import logger
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.writers import ParquetWriter
-from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class HuggingFaceDatasetWriter(ParquetWriter):
@@ -96,8 +95,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         )
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        logger.info("RUN ON HF")
-        super(DiskWriter, self).run(data, rank, world_size)
+        yield from super().run(data, rank, world_size)
         if rank == 0:
             # wait for all the PRs to have been submitted
             while True:

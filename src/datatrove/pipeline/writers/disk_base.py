@@ -126,7 +126,6 @@ class DiskWriter(PipelineStep, ABC):
         Returns:
 
         """
-        logger.info("RUN ON main")
         with self:
             for document in data:
                 with self.track_time():
