@@ -97,8 +97,9 @@ class HuggingFaceDatasetWriter(ParquetWriter):
     def close(self, rank: int = 0):
         filelist = list(self._writers.keys())
         super().close()
-        logger.info(f"Starting upload of {len(filelist)} files to {self.dataset}")
-        self.upload_files(*filelist)
+        if filelist:
+            logger.info(f"Starting upload of {len(filelist)} files to {self.dataset}")
+            self.upload_files(*filelist)
         retries = 0
         while True:
             try:
@@ -106,7 +107,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     self.dataset,
                     repo_type="dataset",
                     operations=self.operations,
-                    commit_message=f"DataTrove upload ({len(filelist)} files)",
+                    commit_message=f"DataTrove upload ({len(self.operations)} files)",
                 )
                 break
             except HfHubHTTPError as e:
