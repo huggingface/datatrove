@@ -28,9 +28,8 @@ class ParquetWriter(DiskWriter):
             return
         import pyarrow as pa
 
-        names = list(self._batches[filename][0].keys())
         # prepare batch
-        batch = pa.record_batch(list(zip(*[d.values() for d in self._batches.pop(filename)])), names=names)
+        batch = pa.RecordBatch.from_pylist(self._batches.pop(filename))
         # write batch
         self._writers[filename].write_batch(batch)
 
@@ -40,7 +39,7 @@ class ParquetWriter(DiskWriter):
 
         if filename not in self._writers:
             self._writers[filename] = pq.ParquetWriter(
-                file_handler, schema=pa.table({name: [val] for name, val in document.items()}).schema
+                file_handler, schema=pa.RecordBatch.from_pylist([document]).schema
             )
         self._batches[filename].append(document)
         if len(self._batches[filename]) == self.batch_size:

@@ -1,9 +1,11 @@
+import os.path
 from glob import has_magic
 from typing import IO, TypeAlias
 
 from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
-from fsspec.core import url_to_fs
+from fsspec.callbacks import NoOpCallback, TqdmCallback
+from fsspec.core import get_fs_token_paths, url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
 
@@ -226,7 +228,7 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
     )
 
 
-def get_file(file: IO | str, mode="rt", **kwargs):
+def open_file(file: IO | str, mode="rt", **kwargs):
     """
 
     Args:
@@ -240,6 +242,25 @@ def get_file(file: IO | str, mode="rt", **kwargs):
     if isinstance(file, str):
         return fsspec_open(file, mode, **kwargs)
     return file
+
+
+def download_file(remote_path: str, local_path: str, progress: bool = True):
+    fs, _, paths = get_fs_token_paths(remote_path)
+    fs.get_file(
+        paths[0],
+        local_path,
+        callback=TqdmCallback(
+            tqdm_kwargs={
+                "desc": f"↓ Downloading {os.path.basename(remote_path)}",
+                "unit": "B",
+                "unit_scale": True,
+                "unit_divisor": 1024,  # make use of standard units e.g. KB, MB, etc.
+                "miniters": 1,  # recommended for network progress that might vary strongly
+            }
+        )
+        if progress
+        else NoOpCallback(),
+    )
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

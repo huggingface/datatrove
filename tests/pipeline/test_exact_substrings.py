@@ -5,9 +5,9 @@ import unittest
 
 from datatrove.data import Document
 from datatrove.pipeline.dedup.exact_substrings import (
-    DatasetToSequence,
-    DedupReader,
-    MergeSequences,
+    ESDatasetToSequence,
+    ESMergeSequences,
+    ESRangeRemover,
     read_bytes,
     sequence_reader,
 )
@@ -184,14 +184,13 @@ class TestExactSubstr(unittest.TestCase):
     def test_signature_1_worker(self):
         data = copy.deepcopy(DATA)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
-        merge_sequence = MergeSequences(
+        dataset_to_sequence = ESDatasetToSequence(output_folder=self.tmp_dir)
+        merge_sequence = ESMergeSequences(
             data_folder=self.tmp_dir,
             tasks_stage_1=1,
         )
 
-        dedup_reader = DedupReader(
-            data_folder=self.tmp_dir,
+        dedup_reader = ESRangeRemover(
             sequence_folder=self.tmp_dir,
             min_doc_words=0,
         )
@@ -237,14 +236,13 @@ class TestExactSubstr(unittest.TestCase):
     def test_signature_2_worker(self):
         data = copy.deepcopy(DATA)
 
-        dataset_to_sequence = DatasetToSequence(output_folder=self.tmp_dir)
-        merge_sequence = MergeSequences(
+        dataset_to_sequence = ESDatasetToSequence(output_folder=self.tmp_dir)
+        merge_sequence = ESMergeSequences(
             data_folder=self.tmp_dir,
             tasks_stage_1=2,
         )
 
-        dedup_reader = DedupReader(
-            data_folder=self.tmp_dir,
+        dedup_reader = ESRangeRemover(
             sequence_folder=self.tmp_dir,
             min_doc_words=0,
         )
