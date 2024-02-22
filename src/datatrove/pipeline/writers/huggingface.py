@@ -36,6 +36,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         compression: str | None = None,
         adapter: Callable = None,
         cleanup: bool = True,
+        expand_metadata: bool = True,
     ):
         """
 
@@ -61,11 +62,14 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 "variable for faster uploads:\npip install hf-transfer\nexport HF_HUB_ENABLE_HF_TRANSFER=1"
             )
         super().__init__(
-            output_folder=local_working_dir, output_filename=output_filename, compression=compression, adapter=adapter
+            output_folder=local_working_dir,
+            output_filename=output_filename,
+            compression=compression,
+            adapter=adapter,
+            expand_metadata=expand_metadata,
         )
 
     def close(self, rank: int = 0):
-        logger.info("CLOSE ON HF")
         repo_id = create_repo(self.dataset, private=self.private, repo_type="dataset", exist_ok=True).repo_id
         filelist = list(self._writers.keys())
         super().close()

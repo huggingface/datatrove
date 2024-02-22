@@ -9,18 +9,6 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 
-def _default_adapter(document: Document) -> dict:
-    """
-    You can create your own adapter that returns a dictionary in your preferred format
-    Args:
-        document: document to format
-
-    Returns: a dictionary to write to disk
-
-    """
-    return {key: val for key, val in dataclasses.asdict(document).items() if val}
-
-
 class DiskWriter(PipelineStep, ABC):
     default_output_filename: str = None
     type = "💽 - WRITER"
@@ -32,6 +20,7 @@ class DiskWriter(PipelineStep, ABC):
         compression: str | None = "infer",
         adapter: Callable = None,
         mode: str = "wt",
+        expand_metadata: bool = False,
     ):
         """
             Base writer block to save data to disk.
@@ -49,7 +38,22 @@ class DiskWriter(PipelineStep, ABC):
             output_filename += ".gz"
         self.output_filename = Template(output_filename)
         self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=compression)
-        self.adapter = adapter if adapter else _default_adapter
+        self.adapter = adapter if adapter else self._default_adapter
+        self.expand_metadata = expand_metadata
+
+    def _default_adapter(self, document: Document) -> dict:
+        """
+        You can create your own adapter that returns a dictionary in your preferred format
+        Args:
+            document: document to format
+
+        Returns: a dictionary to write to disk
+
+        """
+        data = {key: val for key, val in dataclasses.asdict(document).items() if val}
+        if self.expand_metadata and "metadata" in data:
+            data |= data.pop("metadata")
+        return data
 
     def __enter__(self):
         return self
