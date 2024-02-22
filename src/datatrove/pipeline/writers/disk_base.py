@@ -3,8 +3,6 @@ from abc import ABC, abstractmethod
 from string import Template
 from typing import IO, Callable
 
-from loguru import logger
-
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
@@ -54,11 +52,9 @@ class DiskWriter(PipelineStep, ABC):
         self.adapter = adapter if adapter else _default_adapter
 
     def __enter__(self):
-        logger.info("RUNNING ENTER")
         return self
 
     def close(self):
-        logger.info("CLOSE ON MAIN")
         self.output_mg.close()
 
     def __exit__(self, exc_type, exc_val, exc_tb):

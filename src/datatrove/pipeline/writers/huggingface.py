@@ -1,4 +1,5 @@
 import os
+import random
 import tempfile
 import time
 from typing import Callable
@@ -9,14 +10,17 @@ from huggingface_hub import (
     create_commit,
     create_repo,
     get_repo_discussions,
-    merge_pull_request,
     preupload_lfs_files,
 )
+from huggingface_hub.utils import HfHubHTTPError
 from loguru import logger
 
-from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.writers import ParquetWriter
+
+
+MAX_RETRIES = 12
+BASE_DELAY = 0.1
 
 
 class HuggingFaceDatasetWriter(ParquetWriter):
@@ -75,13 +79,24 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             if self.cleanup:
                 self.local_working_dir.rm(file)
             operations.append(addition)
-        create_commit(
-            repo_id,
-            repo_type="dataset",
-            operations=operations,
-            commit_message=f"DataTrove upload ({len(filelist)} files)",
-            create_pr=True,
-        )
+        retries = 0
+        while True:
+            try:
+                create_commit(
+                    repo_id,
+                    repo_type="dataset",
+                    operations=operations,
+                    commit_message=f"DataTrove upload ({len(filelist)} files)",
+                )
+                break
+            except HfHubHTTPError as e:
+                if "A commit has happened since" in e.server_message:
+                    if retries >= MAX_RETRIES:
+                        logger.error(f"Failed to create commit after {MAX_RETRIES=}. Giving up.")
+                        raise e
+                    logger.info("Commit creation race condition issue. Waiting...")
+                    time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
+                    retries += 1
 
     def _get_open_datatrove_prs(self):
         return filter(
@@ -93,22 +108,3 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 discussion_status="open",
             ),
         )
-
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        yield from super().run(data, rank, world_size)
-        if rank == 0:
-            # wait for all the PRs to have been submitted
-            while True:
-                nr_open_datatrove_prs = len(list(self._get_open_datatrove_prs()))
-                if nr_open_datatrove_prs == world_size:
-                    break
-                logger.info(f"Found {nr_open_datatrove_prs}/{world_size} open datatrove PRs, waiting...")
-                time.sleep(30)
-            # merge all the PRs
-            for discussion in self._get_open_datatrove_prs():
-                merge_pull_request(
-                    repo_id=self.dataset,
-                    repo_type="dataset",
-                    discussion_num=discussion.num,
-                    comment="Auto merged by DataTrove",
-                )
