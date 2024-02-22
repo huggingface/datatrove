@@ -61,7 +61,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             addition = CommitOperationAdd(
                 path_in_repo=file, path_or_fileobj=self.local_working_dir.resolve_paths(file)
             )
-            preupload_lfs_files(repo_id, additions=[addition])
+            preupload_lfs_files(repo_id, repo_type="dataset", additions=[addition])
             if self.cleanup:
                 self.local_working_dir.rm(file)
             operations.append(addition)
