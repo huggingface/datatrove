@@ -22,6 +22,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         output_filename: str = None,
         compression: str | None = None,
         adapter: Callable = None,
+        cleanup: bool = True,
     ):
         """
 
@@ -38,6 +39,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         self.local_working_dir = get_datafolder(
             local_working_dir if local_working_dir else tempfile.TemporaryDirectory()
         )
+        self.cleanup = cleanup
         if not isinstance(local_working_dir.fs, LocalFileSystem):
             raise ValueError("local_working_dir must be a local path")
         if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER", "0") != "1":
@@ -52,6 +54,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
     def close(self):
         repo_id = create_repo(self.dataset, private=self.private, repo_type="dataset", exist_ok=True).repo_id
         filelist = list(self._writers.keys())
+        super().close()
         logger.info(f"Starting upload of {len(filelist)} files to {repo_id}")
         operations = []  # List of all `CommitOperationAdd` objects that will be generated
         for file in filelist:
@@ -59,5 +62,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 path_in_repo=file, path_or_fileobj=self.local_working_dir.resolve_paths(file)
             )
             preupload_lfs_files(repo_id, additions=[addition])
+            if self.cleanup:
+                self.local_working_dir.rm(file)
             operations.append(addition)
         create_commit(repo_id, operations=operations, commit_message=f"Commit {len(filelist)} files.")
