@@ -43,7 +43,7 @@ class OutputFileManager:
         Returns: a file handler we can write to
         """
         file = self.get_file(filename)
-        self._output_files.pop(file)
+        self._output_files.pop(filename)
         return file
 
     def write(self, filename, data):
