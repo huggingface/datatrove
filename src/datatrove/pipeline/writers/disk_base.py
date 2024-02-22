@@ -134,11 +134,11 @@ class DiskWriter(PipelineStep, ABC):
         # we possibly have to change file
         if self.max_file_size > 0:
             # get size of current file
-            output_filename = f"{self.file_id_counter.get(original_name):03d}_{original_name}"
+            output_filename = f"{self.file_id_counter[original_name]:03d}_{original_name}"
             # we have to switch file!
             if self.output_mg.get_file(output_filename).tell() >= self.max_file_size:
                 self.file_id_counter[original_name] += 1
-                new_output_filename = f"{self.file_id_counter.get(original_name):03d}_{original_name}"
+                new_output_filename = f"{self.file_id_counter[original_name]:03d}_{original_name}"
                 self._switch_file(original_name, output_filename, new_output_filename)
                 output_filename = new_output_filename
         # actually write
