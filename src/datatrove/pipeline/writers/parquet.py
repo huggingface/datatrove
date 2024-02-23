@@ -42,7 +42,6 @@ class ParquetWriter(DiskWriter):
             original_name: name without file counter
             old_filename: old full filename
             new_filename: new full filename
-
         """
         self._writers.pop(original_name).close()
         super()._on_file_switch(original_name, old_filename, new_filename)
