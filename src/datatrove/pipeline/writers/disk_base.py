@@ -43,9 +43,8 @@ class DiskWriter(PipelineStep, ABC):
             output_filename += ".gz"
         self.max_file_size = max_file_size
         self.file_id_counter = Counter()
-        if self.max_file_size > 0:
-            if mode != "wb":
-                raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
+        if self.max_file_size > 0 and mode != "wb":
+            raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
         self.output_filename = Template(output_filename)
         self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=compression)
         self.adapter = adapter if adapter else self._default_adapter
