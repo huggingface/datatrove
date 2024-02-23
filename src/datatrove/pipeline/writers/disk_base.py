@@ -1,4 +1,5 @@
 import dataclasses
+import os.path
 from abc import ABC, abstractmethod
 from collections import Counter
 from string import Template
@@ -107,7 +108,7 @@ class DiskWriter(PipelineStep, ABC):
         """
         raise NotImplementedError
 
-    def _switch_file(self, _original_name, old_filename, _new_filename):
+    def _on_file_switch(self, _original_name, old_filename, _new_filename):
         """
             Called when we are switching file from "old_filename" to "new_filename" (original_name is the filename
             without 000_, 001_, etc)
@@ -118,6 +119,17 @@ class DiskWriter(PipelineStep, ABC):
 
         """
         self.output_mg.pop(old_filename).close()
+
+    def _get_filename_with_file_id(self, filename):
+        """
+            Prepend a file id to the base filename for when we are splitting files at a given max size
+        Args:
+            filename: filename without file id
+
+        Returns: formatted filename
+
+        """
+        return f"{os.path.dirname(filename)}/{self.file_id_counter[filename]:03d}_{os.path.basename(filename)}"
 
     def write(self, document: Document, rank: int = 0, **kwargs):
         """
@@ -134,12 +146,12 @@ class DiskWriter(PipelineStep, ABC):
         # we possibly have to change file
         if self.max_file_size > 0:
             # get size of current file
-            output_filename = f"{self.file_id_counter[original_name]:03d}_{original_name}"
+            output_filename = self._get_filename_with_file_id(original_name)
             # we have to switch file!
             if self.output_mg.get_file(output_filename).tell() >= self.max_file_size:
                 self.file_id_counter[original_name] += 1
-                new_output_filename = f"{self.file_id_counter[original_name]:03d}_{original_name}"
-                self._switch_file(original_name, output_filename, new_output_filename)
+                new_output_filename = self._get_filename_with_file_id(original_name)
+                self._on_file_switch(original_name, output_filename, new_output_filename)
                 output_filename = new_output_filename
         # actually write
         self._write(self.adapter(document), self.output_mg.get_file(output_filename), original_name)

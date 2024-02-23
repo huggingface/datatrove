@@ -36,7 +36,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         adapter: Callable = None,
         cleanup: bool = True,
         expand_metadata: bool = True,
-        max_file_size: int = 5 * 2**30,  # 5GB
+        max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
@@ -119,6 +119,15 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
                     retries += 1
 
-    def _switch_file(self, original_name, old_filename, new_filename):
-        super()._switch_file(original_name, old_filename, new_filename)
+    def _on_file_switch(self, original_name, old_filename, new_filename):
+        """
+            Called when we are switching file from "old_filename" to "new_filename" (original_name is the filename
+            without 000_, 001_, etc)
+        Args:
+            original_name: name without file counter
+            old_filename: old full filename
+            new_filename: new full filename
+
+        """
+        super()._on_file_switch(original_name, old_filename, new_filename)
         self.upload_files(old_filename)
