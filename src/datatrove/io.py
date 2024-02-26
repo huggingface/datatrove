@@ -8,6 +8,7 @@ from fsspec.callbacks import NoOpCallback, TqdmCallback
 from fsspec.core import get_fs_token_paths, url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
+from huggingface_hub import HfFileSystem
 
 
 class OutputFileManager:
@@ -119,16 +120,20 @@ class DataFolder(DirFileSystem):
         if glob_pattern and not has_magic(glob_pattern):
             # makes it slightly easier for file extensions
             glob_pattern = f"*{glob_pattern}"
+        extra_options = {}
+        if isinstance(self.fs, HfFileSystem):
+            extra_options["expand_info"] = False  # speed up
         return sorted(
             [
                 f
                 for f, info in (
-                    self.find(subdirectory, maxdepth=0 if not recursive else None, detail=True)
+                    self.find(subdirectory, maxdepth=0 if not recursive else None, detail=True, **extra_options)
                     if not glob_pattern
                     else self.glob(
                         self.fs.sep.join([glob_pattern, subdirectory]),
                         maxdepth=0 if not recursive else None,
                         detail=True,
+                        **extra_options,
                     )
                 ).items()
                 if info["type"] != "directory"
