@@ -1,13 +1,13 @@
 import math
-from tqdm import tqdm
+from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
 from typing import BinaryIO, Generator, List, Union
-from contextlib import nullcontext
-from loguru import logger
 
 import numpy as np
+from loguru import logger
 from numpy.random import default_rng
+from tqdm import tqdm
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -217,7 +217,10 @@ class FileTokenizerMerger(PipelineStep):
                 # Get all the data readers for the files we need to merge in this merge file
                 chunks_token_inputs = [
                     get_data_reader(
-                        self.input_folder.open(datafiles[d.file_id]), doc_ends=d.doc_ends, nb_bytes=2, start_e=d.start_e
+                        self.input_folder.open(datafiles[d.file_id]),
+                        doc_ends=d.doc_ends,
+                        nb_bytes=2,
+                        start_e=d.start_e,
                     )
                     for d in chunks_per_file
                 ]
@@ -371,7 +374,9 @@ class DocumentTokenizerMerger(PipelineStep):
             save_loss_metadata=self.save_loss_metadata,
             upload_block_size=self.upload_block_size,
         )
-        for input_file_id in tqdm(ordering, desc="Merging documents", unit="documents", total=len(ordering), disable=not self.progress):
+        for input_file_id in tqdm(
+            ordering, desc="Merging documents", unit="documents", total=len(ordering), disable=not self.progress
+        ):
             if 0 < self.max_tokens <= self.stats["tokens"].total:
                 break
             if 0 < self.max_tokens_per_file <= len(output_file):
