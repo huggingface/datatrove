@@ -160,4 +160,4 @@ cython_debug/
 
 .vscode/
 
-playground/*
+playground/

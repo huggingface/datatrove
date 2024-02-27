@@ -1,7 +1,10 @@
 import math
+from tqdm import tqdm
 from dataclasses import dataclass
 from functools import partial
 from typing import BinaryIO, Generator, List, Union
+from contextlib import nullcontext
+from loguru import logger
 
 import numpy as np
 from numpy.random import default_rng
@@ -50,7 +53,7 @@ class FileTokenizerMerger(PipelineStep):
         save_final_metadata (bool): whether to save the final metadata. Default: True
     """
 
-    name = "🗃 Merger"
+    name = "🗃 Chunk Merger"
     type = "🔢 - TOKENIZER"
 
     def __init__(
@@ -68,6 +71,7 @@ class FileTokenizerMerger(PipelineStep):
         seed: int = None,
         save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
+        progress: bool = True,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -81,6 +85,7 @@ class FileTokenizerMerger(PipelineStep):
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
         self.min_chunks_to_shuffle = min_chunks_to_shuffle
+        self.progress = progress
 
     def get_ordering(self, file_chunks: list[Chunk]) -> Union[np.ndarray, List[int]]:
         """Get the ordering of the files to process.
@@ -118,6 +123,7 @@ class FileTokenizerMerger(PipelineStep):
         )
 
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
+        num_docs = sum(len(doc_ends[i]) for i in range(len(doc_ends)))
 
         # If we have less input files than the min_chunks_to_shuffle, we will split input file in chunk to have at
         # least min_chunks_to_shuffle documents per chunk
@@ -140,6 +146,7 @@ class FileTokenizerMerger(PipelineStep):
 
         # Now we mix the order of the chunks (full files if enough files, or chunks of files if we have less than min_chunks_to_shuffle)
         shuffled_datafiles_chunks = self.get_ordering(datafiles_chunks)
+        logger.info(f"Shuffling {len(shuffled_datafiles_chunks)} chunks with a total of {num_docs} documents.")
 
         # Now we gather then again in the new shuffled order
         # in files of about max_tokens_per_file tokens
@@ -199,47 +206,50 @@ class FileTokenizerMerger(PipelineStep):
                     tokenizer_name = f.read().splitlines()[0]
 
         file_ct = 0
-        for chunks_per_file in chunks_per_files:
-            output_file = TokenizedFile(
-                output_folder=self.output_folder,
-                filename=f"{file_ct:03d}_{self.save_filename}.ds",
-                save_loss_metadata=self.save_loss_metadata,
-                upload_block_size=self.upload_block_size,
-            )
-            # Get all the data readers for the files we need to merge in this merge file
-            chunks_token_inputs = [
-                get_data_reader(
-                    self.input_folder.open(datafiles[d.file_id]), doc_ends=d.doc_ends, nb_bytes=2, start_e=d.start_e
+        with tqdm(total=num_docs) if self.progress else nullcontext() as pbar:
+            for chunks_per_file in chunks_per_files:
+                output_file = TokenizedFile(
+                    output_folder=self.output_folder,
+                    filename=f"{file_ct:03d}_{self.save_filename}.ds",
+                    save_loss_metadata=self.save_loss_metadata,
+                    upload_block_size=self.upload_block_size,
                 )
-                for d in chunks_per_file
-            ]
-            chunks_loss_inputs = (
-                [
+                # Get all the data readers for the files we need to merge in this merge file
+                chunks_token_inputs = [
                     get_data_reader(
-                        self.input_folder.open(datafiles_loss[d.file_id]),
-                        doc_ends=d.doc_ends,
-                        nb_bytes=1,
-                        start_e=d.start_e,
+                        self.input_folder.open(datafiles[d.file_id]), doc_ends=d.doc_ends, nb_bytes=2, start_e=d.start_e
                     )
                     for d in chunks_per_file
                 ]
-                if self.save_loss_metadata
-                else None
-            )
+                chunks_loss_inputs = (
+                    [
+                        get_data_reader(
+                            self.input_folder.open(datafiles_loss[d.file_id]),
+                            doc_ends=d.doc_ends,
+                            nb_bytes=1,
+                            start_e=d.start_e,
+                        )
+                        for d in chunks_per_file
+                    ]
+                    if self.save_loss_metadata
+                    else None
+                )
 
-            for chunk_token in chunks_token_inputs:
-                for tokens in chunk_token:
-                    output_file.write_bytes(tokens)
-                    self.stat_update("tokens", value=len(tokens) // 2)
-            if self.save_loss_metadata:
-                for chunk_loss in chunks_loss_inputs:
-                    for loss in chunk_loss:
-                        output_file.write_loss_bytes(loss)
+                for chunk_token in chunks_token_inputs:
+                    for tokens in chunk_token:
+                        output_file.write_bytes(tokens)
+                        self.stat_update("tokens", value=len(tokens) // 2)
+                        if self.progress:
+                            pbar.update()
+                if self.save_loss_metadata:
+                    for chunk_loss in chunks_loss_inputs:
+                        for loss in chunk_loss:
+                            output_file.write_loss_bytes(loss)
 
-            output_file.close()
-            file_ct += 1
-            if self.save_final_metadata:
-                output_file.save_final_metadata(tokenizer_name)
+                output_file.close()
+                file_ct += 1
+                if self.save_final_metadata:
+                    output_file.save_final_metadata(tokenizer_name)
 
 
 class DocumentTokenizerMerger(PipelineStep):
@@ -266,7 +276,7 @@ class DocumentTokenizerMerger(PipelineStep):
         save_final_metadata (bool): whether to save the final metadata. Default: True
     """
 
-    name = "🗃 Merger"
+    name = "🗃 Document Merger"
     type = "🔢 - TOKENIZER"
 
     def __init__(
@@ -283,6 +293,7 @@ class DocumentTokenizerMerger(PipelineStep):
         seed: int = None,
         save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
+        progress: bool = True,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -295,6 +306,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
+        self.progress = progress
 
     def get_ordering(self, all_doc_ends):
         """
@@ -359,7 +371,7 @@ class DocumentTokenizerMerger(PipelineStep):
             save_loss_metadata=self.save_loss_metadata,
             upload_block_size=self.upload_block_size,
         )
-        for input_file_id in ordering:
+        for input_file_id in tqdm(ordering, desc="Merging documents", unit="documents", total=len(ordering), disable=not self.progress):
             if 0 < self.max_tokens <= self.stats["tokens"].total:
                 break
             if 0 < self.max_tokens_per_file <= len(output_file):
