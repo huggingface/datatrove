@@ -186,9 +186,7 @@ class MinhashDedupSignature(PipelineStep):
     _requires_dependencies = ["nltk"]
 
     def __init__(
-        self,
-        output_folder: DataFolderLike,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        self, output_folder: DataFolderLike, config: MinhashConfig = DEFAULT_MINHASH_CONFIG, language: str = "english"
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -196,6 +194,7 @@ class MinhashDedupSignature(PipelineStep):
         self.num_hashes = self.config.num_buckets * self.config.hashes_per_bucket
         self._parameters = None
         self._hash_func = sha1_hash32 if not self.config.use_64bit_hashes else sha1_hash64
+        self.language = language
 
     @property
     def parameters(self):
@@ -243,13 +242,13 @@ class MinhashDedupSignature(PipelineStep):
         """
         from nltk import ngrams, word_tokenize
 
-        return np.array(
+        return np.fromiter(
             [
-                [self._hash_func(" ".join(x).encode("utf-8"))]
+                self._hash_func(" ".join(x).encode("utf-8"))
                 for x in ngrams(word_tokenize(simplify_text(text)), self.config.n_grams)
             ],
             dtype=np.uint64,
-        )
+        ).reshape((-1, 1))
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         buckets = [

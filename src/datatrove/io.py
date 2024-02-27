@@ -1,11 +1,14 @@
+import os.path
 from glob import has_magic
 from typing import IO, TypeAlias
 
 from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
-from fsspec.core import url_to_fs
+from fsspec.callbacks import NoOpCallback, TqdmCallback
+from fsspec.core import get_fs_token_paths, url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
+from huggingface_hub import HfFileSystem
 
 
 class OutputFileManager:
@@ -26,7 +29,7 @@ class OutputFileManager:
 
     def get_file(self, filename):
         """
-            Opens file `filename` if it hasn't been opened yet. Otherwise just returns it from the file cache
+            Opens file `filename` if it hasn't been opened yet. Otherwise, just returns it from the file cache
         Args:
           filename: name of the file to open/get if previously opened
 
@@ -36,6 +39,24 @@ class OutputFileManager:
         if filename not in self._output_files:
             self._output_files[filename] = self.fs.open(filename, mode=self.mode, compression=self.compression)
         return self._output_files[filename]
+
+    def get_open_files(self):
+        """
+        Getter for output files
+        """
+        return self._output_files
+
+    def pop(self, filename):
+        """
+            Return the file, as if called by `get_file`, but clean up internal references to it.
+        Args:
+            filename: name of the file to open/get if previously opened
+
+        Returns: a file handler we can write to
+        """
+        file = self.get_file(filename)
+        self._output_files.pop(filename)
+        return file
 
     def write(self, filename, data):
         """
@@ -111,16 +132,20 @@ class DataFolder(DirFileSystem):
         if glob_pattern and not has_magic(glob_pattern):
             # makes it slightly easier for file extensions
             glob_pattern = f"*{glob_pattern}"
+        extra_options = {}
+        if isinstance(self.fs, HfFileSystem):
+            extra_options["expand_info"] = False  # speed up
         return sorted(
             [
                 f
                 for f, info in (
-                    self.find(subdirectory, maxdepth=0 if not recursive else None, detail=True)
+                    self.find(subdirectory, maxdepth=0 if not recursive else None, detail=True, **extra_options)
                     if not glob_pattern
                     else self.glob(
                         self.fs.sep.join([glob_pattern, subdirectory]),
                         maxdepth=0 if not recursive else None,
                         detail=True,
+                        **extra_options,
                     )
                 ).items()
                 if info["type"] != "directory"
@@ -247,6 +272,25 @@ def get_file(file: IO | str, mode="rt", **kwargs):
     if isinstance(file, str):
         return fsspec_open(file, mode, **kwargs)
     return file
+
+
+def download_file(remote_path: str, local_path: str, progress: bool = True):
+    fs, _, paths = get_fs_token_paths(remote_path)
+    fs.get_file(
+        paths[0],
+        local_path,
+        callback=TqdmCallback(
+            tqdm_kwargs={
+                "desc": f"↓ Downloading {os.path.basename(remote_path)}",
+                "unit": "B",
+                "unit_scale": True,
+                "unit_divisor": 1024,  # make use of standard units e.g. KB, MB, etc.
+                "miniters": 1,  # recommended for network progress that might vary strongly
+            }
+        )
+        if progress
+        else NoOpCallback(),
+    )
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

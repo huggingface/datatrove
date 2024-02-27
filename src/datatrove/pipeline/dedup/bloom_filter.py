@@ -61,6 +61,7 @@ class SingleBloomFilter(PipelineStep):
         seed: int = 0,
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
+        language: str = "english",
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -85,6 +86,7 @@ class SingleBloomFilter(PipelineStep):
                 logger.warning(f"False probability = {fp:.3}")
             else:
                 logger.info(f"False probability = {fp:.3}")
+        self.language = language
 
     @property
     def parameters(self):
@@ -112,13 +114,13 @@ class SingleBloomFilter(PipelineStep):
         """
         from nltk import ngrams, word_tokenize
 
-        return np.array(
+        return np.fromiter(
             [
-                [sha1_hash32(" ".join(x).encode("utf-8"))]
+                sha1_hash32(" ".join(x).encode("utf-8"))
                 for x in ngrams(word_tokenize(simplify_text(text)), self.n_grams)
             ],
             dtype=np.uint64,
-        )
+        ).reshape((-1, 1))
 
     def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
         """Get indexes for the shingles with the k hashing functions"""

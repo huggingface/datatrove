@@ -14,7 +14,7 @@ TLDR
 
 """
 import struct
-from typing import BinaryIO, Generator, Literal
+from typing import BinaryIO, Generator
 
 import numpy as np
 import tokenizers
@@ -22,7 +22,6 @@ from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
-from datatrove.pipeline.readers import JsonlReader
 
 from .utils import ExtensionHelperES as EH
 
@@ -32,12 +31,12 @@ SEPARATOR_BYTES = 12
 
 def prepare_doc(tokenizer, doc: str, rank: int, doc_id: int):
     tokens = tokenizer.encode(doc).ids
-    tokens = np.array(tokens, dtype=np.uint16)
+    tokens = np.fromiter(tokens, dtype=np.uint16, count=len(tokens))
     b_doc = b"\xff\xff" + struct.pack("<I", doc_id) + b"\xff\xff" + struct.pack("<I", rank) + tokens.tobytes()
     return b_doc
 
 
-class DatasetToSequence(PipelineStep):
+class ESDatasetToSequence(PipelineStep):
     """STAGE 1
     Creates a sequence of all docs pre-prepended by a unique separator. It also saves a second file with the
     bytes length of each individual doc.
@@ -82,7 +81,7 @@ class DatasetToSequence(PipelineStep):
         self.save_sizes(doc_lens, rank)
 
 
-class MergeSequences(PipelineStep):
+class ESMergeSequences(PipelineStep):
     """STAGE 2
     It merges all the sequences from stage 1 into a big sequence. It saves a file with the cumulative bytes offset
     of every single sequence.
@@ -146,22 +145,19 @@ def sequence_reader(file: BinaryIO, size_file: BinaryIO) -> Generator[list, None
                 yield f.read(n_bytes)
 
 
-class DedupReader(JsonlReader):
-    """ """
-
+class ESRangeRemover(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
     _requires_dependencies = ["nltk", "tokenizers"]
 
     def __init__(
         self,
-        data_folder: DataFolderLike,
         sequence_folder: DataFolderLike,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
         tokenizer_name: str = "gpt2",
         min_doc_words: int = 50,
+        language: str = "english",
     ):
-        super().__init__(data_folder=data_folder, compression=compression)
+        super().__init__()
         self.sequence_folder = get_datafolder(sequence_folder)
         self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
         self.min_doc_words = min_doc_words
@@ -171,6 +167,7 @@ class DedupReader(JsonlReader):
         self.exhausted_ranges = False
         self.bytes_counter = 0
         self.range_idx = 0
+        self.language = language
 
     def reset(self):
         self.bytes_counter = 0
@@ -312,7 +309,7 @@ class DedupReader(JsonlReader):
 
         self.bytes_counter += len(bytes_content)
 
-        if len(word_tokenize(doc.text)) < self.min_doc_words:
+        if len(word_tokenize(doc.text, self.language)) < self.min_doc_words:
             return False
 
         return True
@@ -324,9 +321,6 @@ class DedupReader(JsonlReader):
         sequence_file, size_file = self.get_all_files(rank=self.rank, world_size=world_size)
         if not self.dup_ranges:
             return
-        # data is given only during tests.
-        if not data:
-            data = self.read_files_shard(self.data_folder.get_shard(self.rank, world_size))
         # data is still useful for the metadata lost in the sequence format.
         for doc, doc_content in zip(
             data,

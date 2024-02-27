@@ -1,5 +1,5 @@
 from .bloom_filter import SingleBloomFilter
-from .exact_substrings import DatasetToSequence, DedupReader, MergeSequences
+from .exact_substrings import ESDatasetToSequence, ESMergeSequences, ESRangeRemover
 from .minhash import (
     MinhashBuildIndex,
     MinhashDedupBuckets,
