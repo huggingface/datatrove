@@ -61,6 +61,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             launched
         depends: another SlurmPipelineExecutor that should run
             before this one
+        depends_job_id: alternatively to the above, you can pass the job id of a dependency
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
             previous runs. default: True
@@ -95,6 +96,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args: dict | None = None,
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
+        depends_job_id: str | None = None,
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
@@ -117,6 +119,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.condaenv = condaenv
         self.venv_path = venv_path
         self.depends = depends
+        self.depends_job_id = depends_job_id
         self._sbatch_args = sbatch_args if sbatch_args else {}
         self.max_array_size = max_array_size
         self.max_array_launch_parallel = max_array_launch_parallel
@@ -124,7 +127,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.run_on_dependency_fail = run_on_dependency_fail
         self.randomize_start = randomize_start
         self.job_id = None
-        self.depends_job_id = None
         self.requeue_signals = requeue_signals
         self.slurm_logs_folder = (
             slurm_logs_folder

@@ -61,6 +61,8 @@ class TokenizedFile:
         save_index: bool = True,
         save_loss_metadata: bool = False,
         upload_block_size: int | None = None,
+        tokenizer_name: str | None = None,
+        save_final_metadata: bool = False,
     ):
         self.output_folder = get_datafolder(output_folder)
         self.filename = filename
@@ -69,6 +71,8 @@ class TokenizedFile:
         self.upload_block_size = upload_block_size
         self.write_idx = 0
         self.doc_ends = []
+        self.tokenizer_name = tokenizer_name
+        self.save_final_metadata = save_final_metadata
 
         self.tokens_file = self.output_folder.open(self.filename, mode="wb", block_size=upload_block_size)
         self.loss_file: DataFolderLike | None = None
@@ -76,7 +80,7 @@ class TokenizedFile:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb", block_size=upload_block_size)
 
     def __len__(self):
-        return self.doc_ends[-1] if self.doc_ends else 0
+        return int(self.doc_ends[-1]) if self.doc_ends else 0
 
     def close(self):
         """Close the files and save the index."""
@@ -93,6 +97,9 @@ class TokenizedFile:
             index_file.write(struct.pack("<%sQ" % len(self.doc_ends), *self.doc_ends))
             index_file.close()
 
+        if self.save_final_metadata:
+            self.write_final_metadata()
+
     def cleanup(self):
         """Remove the files and the index."""
         self.doc_ends = []
@@ -100,19 +107,27 @@ class TokenizedFile:
         if self.loss_file:
             self.output_folder.rm_file(f"{self.filename}.loss")
 
-    def write_bytes(self, tk_bytes: bytes):
+    def write_bytes(self, tk_bytes: bytes, doc_ends: list[int] = None):
         """Write tk_bytes to the tokens file and update the document boundaries with a new document end (in tokens).
 
         Args:
           tk_bytes: bytes:
+          doc_ends: list[int]  (Default value = None): optional list of document ends (in tokens) if writing several documents at once
 
         Returns:
         """
         self.tokens_file.write(tk_bytes)
-        # 1 token = 2 bytes (uint16)
-        self.write_idx += len(tk_bytes) // 2
-        # save each document's boundary
-        self.doc_ends.append(self.write_idx)
+        if doc_ends is not None:
+            # We've written several documents at once
+            self.doc_ends.extend([int(d) + self.write_idx for d in doc_ends])
+            # 1 token = 2 bytes (uint16)
+            self.write_idx += len(tk_bytes) // 2
+        else:
+            # We've written a single document
+            # 1 token = 2 bytes (uint16)
+            self.write_idx += len(tk_bytes) // 2
+            # save each document's boundary
+            self.doc_ends.append(self.write_idx)
 
     def write_loss_bytes(self, l_bytes: bytes):
         """Write loss mask to the loss file.
@@ -138,7 +153,14 @@ class TokenizedFile:
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
-    def copy(self, destination: str, ordering: np.ndarray, new_output_folder: DataFolder = None) -> "TokenizedFile":
+    def copy(
+        self,
+        save_filename: str,
+        ordering: np.ndarray,
+        new_output_folder: DataFolder = None,
+        rank: int = 0,
+        max_tokens_per_file: int = None,
+    ) -> "TokenizedFile":
         """Close the current tokenized file and copy its content to a new file, shuffling the document order with provided ordering.
 
         Args:
@@ -149,7 +171,6 @@ class TokenizedFile:
             TokenizedFile: the new tokenized file
         """
         # open original file in read mode
-        self.close()
         with self.output_folder.open(
             self.filename, mode="rb", cache_type=SHUFFLING_CACHE_TYPE, block_size=SHUFFLING_READ_BLOCK_SIZE
         ) as tokens_file:
@@ -163,13 +184,20 @@ class TokenizedFile:
                     block_size=SHUFFLING_READ_BLOCK_SIZE // 2,  # this one is half the size
                 )
             )
+            sub_rank = 0
+            destination = get_output_filename(save_filename, rank, "shuffled", sub_rank)
+
             new_file = TokenizedFile(
                 self.output_folder if not new_output_folder else new_output_folder,
                 destination,
                 save_loss_metadata=self.save_loss_metadata,
                 upload_block_size=self.upload_block_size,
+                tokenizer_name=self.tokenizer_name,
+                save_final_metadata=self.save_final_metadata,
             )
+            logger.info(f"Shuffling in {destination}...")
             # shuffle doc_id
+            total_tokens_written = 0
             for doc_id in ordering:
                 # get start and end from the boundaries
                 start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
@@ -180,11 +208,27 @@ class TokenizedFile:
                 if loss_file:
                     loss_file.seek(start)
                     new_file.write_loss_bytes(loss_file.read(end - start))
+                total_tokens_written += end - start
+                if max_tokens_per_file and total_tokens_written > max_tokens_per_file:
+                    new_file.close()
+                    sub_rank += 1
+                    destination = get_output_filename(save_filename, rank, "shuffled", sub_rank)
+                    new_file = TokenizedFile(
+                        self.output_folder if not new_output_folder else new_output_folder,
+                        destination,
+                        save_loss_metadata=self.save_loss_metadata,
+                        upload_block_size=self.upload_block_size,
+                        tokenizer_name=self.tokenizer_name,
+                        save_final_metadata=self.save_final_metadata,
+                    )
+                    logger.info(f"Shuffling in {destination}...")
+                    total_tokens_written = 0
             if loss_file:
                 loss_file.close()
+            new_file.close()
             return new_file
 
-    def save_final_metadata(self, tokenizer_name: str | None = None, token_count: int = -1, filename: str = None):
+    def write_final_metadata(self, token_count: int = -1, filename: str = None):
         """Save the final metadata file with the tokenizer name and the token count.
 
         Args:
@@ -192,6 +236,7 @@ class TokenizedFile:
             token_count (int): the token count to save (Default value = -1)
             filename: str:  (Default value = None)
         """
+        tokenizer_name = self.tokenizer_name
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"
         if filename is None:
@@ -200,6 +245,13 @@ class TokenizedFile:
             if token_count == -1:
                 token_count = self.write_idx
             f.write("\n".join([tokenizer_name, str(token_count), humanize.metric(token_count, unit="T")]))
+
+
+def get_output_filename(save_filename, rank: int, name: str, sub_rank: int = None):
+    """Get an output filename for the rank and a sub-step name (unshuffled/shuffled)."""
+    if sub_rank is not None:
+        return "_".join([x for x in [save_filename, f"{rank:05d}", f"{sub_rank:05d}", f"{name}.ds"] if x])
+    return "_".join([x for x in [save_filename, f"{rank:05d}", f"{name}.ds"] if x])
 
 
 class DocumentTokenizer(PipelineStep):
@@ -238,7 +290,8 @@ class DocumentTokenizer(PipelineStep):
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
         save_loss_metadata: bool = False,  # save the loss information
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
-        batch_size: int = 1000,  # batch size for tokenization
+        batch_size: int = 10000,  # batch size for tokenization
+        max_tokens_per_file: int = None,  # max tokens per file to set to have more files to shuffle
         seed: int = None,
         save_final_metadata: bool = True,
         upload_block_size: int | None = None,
@@ -264,6 +317,7 @@ class DocumentTokenizer(PipelineStep):
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
+        self.max_tokens_per_file = max_tokens_per_file
 
     def get_loss_values(self, document: Document, encoded: "Encoding"):
         """Get the loss mask for the document, if needed.
@@ -303,6 +357,8 @@ class DocumentTokenizer(PipelineStep):
             save_index=not self.shuffle,
             save_loss_metadata=self.save_loss_metadata,
             upload_block_size=self.upload_block_size,
+            tokenizer_name=self.tokenizer_name,
+            save_final_metadata=self.save_final_metadata,
         )
         # tokenize document's text in batches to go faster – we compute loss values independently if needed
         for batch in batched(data, self.batch_size):
@@ -318,11 +374,8 @@ class DocumentTokenizer(PipelineStep):
                     unshuff.write(tokens, loss_values)
                     # save stats
                     self.stat_update("tokens", value=len(tokens))
+        unshuff.close()
         return unshuff
-
-    def get_output_filename(self, rank: int, name: str):
-        """Get an output filename for the rank and a sub-step name (unshuffled/shuffled)."""
-        return "_".join([x for x in [self.save_filename, f"{rank:05d}", f"{name}.ds"] if x])
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """Main method to run the tokenization.
@@ -337,24 +390,25 @@ class DocumentTokenizer(PipelineStep):
             world_size: int
                 The total number of processes
         """
-        unshuf_filename = self.get_output_filename(rank, "unshuffled")
+        unshuf_filename = get_output_filename(self.save_filename, rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
         if len(outputfile) == 0:
             logger.warning("No data saved.")
             return
         if self.shuffle:
-            shuffled_filename = self.get_output_filename(rank, "shuffled")
             # get new TokenizedFile, shuffling docs from original one
             new_outputfile = outputfile.copy(
-                shuffled_filename, self.rand.permutation(len(outputfile.doc_ends)), self.output_folder
+                self.save_filename,
+                self.rand.permutation(len(outputfile.doc_ends)),
+                self.output_folder,
+                max_tokens_per_file=self.max_tokens_per_file,
+                rank=rank,
             )
             # remove and replace original file
             outputfile.cleanup()
             outputfile = new_outputfile
         outputfile.close()
-        if self.save_final_metadata:
-            outputfile.save_final_metadata(self.tokenizer_name)
 
     @property
     def tokenizer(self) -> "Tokenizer":

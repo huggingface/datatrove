@@ -259,7 +259,7 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
     )
 
 
-def get_file(file: IO | str, mode="rt", **kwargs):
+def open_file(file: IO | str, mode="rt", **kwargs):
     """Wrapper around fsspec.open to handle both file-like objects and strings
 
     Args:

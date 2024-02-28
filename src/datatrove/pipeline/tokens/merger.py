@@ -1,6 +1,3 @@
-import math
-from contextlib import nullcontext
-from dataclasses import dataclass
 from functools import partial
 from typing import BinaryIO, Generator, List, Union
 
@@ -13,15 +10,6 @@ from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.tokenizer import TokenizedFile
-
-
-@dataclass
-class Chunk:
-    """A chunk of a file containing tokenized documents."""
-
-    file_id: int
-    start_e: int
-    doc_ends: np.ndarray
 
 
 class FileTokenizerMerger(PipelineStep):
@@ -53,7 +41,7 @@ class FileTokenizerMerger(PipelineStep):
         save_final_metadata (bool): whether to save the final metadata. Default: True
     """
 
-    name = "🗃 Chunk Merger"
+    name = "🗃 Files Block Merger"
     type = "🔢 - TOKENIZER"
 
     def __init__(
@@ -61,7 +49,6 @@ class FileTokenizerMerger(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         save_filename: str,  # if defined, the final output filename will be this
-        min_chunks_to_shuffle: int = 10000,  # min number of documents per chunk (if we have less input files than this, we will split input file in chunk to have at least)
         max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
@@ -84,24 +71,21 @@ class FileTokenizerMerger(PipelineStep):
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
-        self.min_chunks_to_shuffle = min_chunks_to_shuffle
         self.progress = progress
 
-    def get_ordering(self, file_chunks: list[Chunk]) -> Union[np.ndarray, List[int]]:
+    def get_ordering(self, files: list) -> Union[np.ndarray, List[int]]:
         """Get the ordering of the files to process.
         If shuffle is True, the files are shuffled, otherwise they are returned as is.
         """
         if not self.shuffle:
-            return file_chunks
+            return files
         else:
-            perm = self.rand.permutation(range(len(file_chunks)))
-            return [file_chunks[i] for i in perm]
+            perm = self.rand.permutation(range(len(files)))
+            return [files[i] for i in perm]
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """Main method to run the merging of files.
             The world_size must be 1 for this pipeline step merging the results of the previous parallel step.
-
-
 
         Args:
             data: not used we're using as source the input_folder
@@ -123,81 +107,12 @@ class FileTokenizerMerger(PipelineStep):
         )
 
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
+        num_files = len(datafiles)
         num_docs = sum(len(doc_ends[i]) for i in range(len(doc_ends)))
 
-        # If we have less input files than the min_chunks_to_shuffle, we will split input file in chunk to have at
-        # least min_chunks_to_shuffle documents per chunk
-        if self.min_chunks_to_shuffle > 0 and len(datafiles) < self.min_chunks_to_shuffle:
-            file_splits = math.ceil(self.min_chunks_to_shuffle / len(datafiles))
-            # We take care of the edge case where we have less document in a file than the file_splits
-            datafiles_chunks = []
-            for i in range(len(datafiles)):
-                chunk_in_file = min(
-                    len(doc_ends[i]), file_splits
-                )  # Let's not split in more than the number of documents
-                chunk_ends_list = np.array_split(doc_ends[i], chunk_in_file)
-                start_e = 0
-                for chunk_ends in chunk_ends_list:
-                    datafiles_chunks.append(Chunk(file_id=i, start_e=start_e, doc_ends=chunk_ends))
-                    start_e = chunk_ends[-1]
-        else:
-            file_splits = 1
-            datafiles_chunks = [Chunk(file_id=i, start_e=0, doc_ends=doc_ends[i]) for i in range(len(datafiles))]
-
         # Now we mix the order of the chunks (full files if enough files, or chunks of files if we have less than min_chunks_to_shuffle)
-        shuffled_datafiles_chunks = self.get_ordering(datafiles_chunks)
-        logger.info(f"Shuffling {len(shuffled_datafiles_chunks)} chunks with a total of {num_docs} documents.")
-
-        # Now we gather then again in the new shuffled order
-        # in files of about max_tokens_per_file tokens
-        chunks_per_files: List[
-            List[Chunk]
-        ] = []  # List of length number of output_files (so that max tokens per file is respected)
-        chunks_per_file = []  # For each output file, list the chunks of input files that will be merged in this output file
-        current_tokens_in_file = 0
-        total_tokens = 0
-        for file_chunk in shuffled_datafiles_chunks:
-            file_id = file_chunk.file_id
-            doc_ends = file_chunk.doc_ends
-            start_e = file_chunk.start_e
-            if doc_ends[-1] - start_e + current_tokens_in_file < self.max_tokens_per_file:
-                # The full chunk fits in the current file given our max_tokens_per_file budget
-                chunks_per_file.append(Chunk(file_id=file_id, doc_ends=doc_ends, start_e=start_e))
-                current_tokens_in_file += doc_ends[-1] - start_e
-            else:
-                # We have at least one new file boundary in this chunk, so we'll we need to split it
-                while 0 < self.max_tokens_per_file <= doc_ends[-1] - start_e + current_tokens_in_file:
-                    switching_index = np.argmax(doc_ends - start_e + current_tokens_in_file > self.max_tokens_per_file)
-
-                    # We include the document that make us bigger than the max_tokens_per_file budget as well (easier to manage)
-                    chunks_per_file.append(
-                        Chunk(file_id=file_id, doc_ends=doc_ends[: switching_index + 1], start_e=start_e)
-                    )
-                    current_tokens_in_file += doc_ends[switching_index] - start_e
-                    chunks_per_files.append(chunks_per_file)
-                    total_tokens += current_tokens_in_file
-
-                    # Start a new file with the remaining part of the chunk
-                    current_tokens_in_file = 0
-                    chunks_per_file = []
-                    start_e = doc_ends[switching_index]
-                    doc_ends = doc_ends[
-                        switching_index + 1 :
-                    ]  # We remove the first part of the document from the list and test again
-                    if len(doc_ends) == 0:
-                        # We have no more document in this chunk to add to this file
-                        break
-                if len(doc_ends) > 0:
-                    # We still have one of this document left to add to the current new file
-                    chunks_per_file.append(Chunk(file_id=file_id, doc_ends=doc_ends, start_e=start_e))
-                    current_tokens_in_file += doc_ends[-1] - start_e
-
-            # We stop anyway if we have reached the max_tokens budget
-            if 0 < self.max_tokens <= total_tokens:
-                break
-        if chunks_per_file:
-            chunks_per_files.append(chunks_per_file)
-            total_tokens += current_tokens_in_file
+        ordering = self.get_ordering(list(range(num_files)))
+        logger.info(f"Shuffling {num_files} files with a total of {num_docs} documents.")
 
         tokenizer_name = None
         if self.save_final_metadata:
@@ -206,53 +121,44 @@ class FileTokenizerMerger(PipelineStep):
                     tokenizer_name = f.read().splitlines()[0]
 
         file_ct = 0
-        with tqdm(total=num_docs) if self.progress else nullcontext() as pbar:
-            for chunks_per_file in chunks_per_files:
+        output_file = TokenizedFile(
+            output_folder=self.output_folder,
+            filename=f"{file_ct:03d}_{self.save_filename}.ds",
+            save_loss_metadata=self.save_loss_metadata,
+            upload_block_size=self.upload_block_size,
+            tokenizer_name=tokenizer_name,
+            save_final_metadata=self.save_final_metadata,
+        )
+        for input_file_id in tqdm(
+            ordering, desc="Merging documents", unit="files", total=num_files, disable=not self.progress
+        ):
+            if 0 < self.max_tokens <= self.stats["tokens"].total:
+                break
+            if 0 < self.max_tokens_per_file <= len(output_file):
+                output_file.close()
+                file_ct += 1
                 output_file = TokenizedFile(
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
                     upload_block_size=self.upload_block_size,
+                    tokenizer_name=tokenizer_name,
+                    save_final_metadata=self.save_final_metadata,
                 )
-                # Get all the data readers for the files we need to merge in this merge file
-                chunks_token_inputs = [
-                    get_data_reader(
-                        self.input_folder.open(datafiles[d.file_id]),
-                        doc_ends=d.doc_ends,
-                        nb_bytes=2,
-                        start_e=d.start_e,
-                    )
-                    for d in chunks_per_file
-                ]
-                chunks_loss_inputs = (
-                    [
-                        get_data_reader(
-                            self.input_folder.open(datafiles_loss[d.file_id]),
-                            doc_ends=d.doc_ends,
-                            nb_bytes=1,
-                            start_e=d.start_e,
-                        )
-                        for d in chunks_per_file
-                    ]
-                    if self.save_loss_metadata
-                    else None
-                )
+            # copy input file in output file and loss
+            tokens = self.input_folder.open(datafiles[input_file_id]).read()
 
-                for chunk_token in chunks_token_inputs:
-                    for tokens in chunk_token:
-                        output_file.write_bytes(tokens)
-                        self.stat_update("tokens", value=len(tokens) // 2)
-                        if self.progress:
-                            pbar.update()
-                if self.save_loss_metadata:
-                    for chunk_loss in chunks_loss_inputs:
-                        for loss in chunk_loss:
-                            output_file.write_loss_bytes(loss)
-
-                output_file.close()
-                file_ct += 1
-                if self.save_final_metadata:
-                    output_file.save_final_metadata(tokenizer_name)
+            output_file.write_bytes(tokens, doc_ends=doc_ends[input_file_id])
+            if datafiles_loss[input_file_id]:
+                loss_inputs = self.input_folder.open(datafiles_loss[input_file_id]).read()
+                output_file.write_loss_bytes(loss_inputs)
+            self.stat_update("tokens", value=len(tokens) // 2)
+        # cleanup
+        output_file.close()
+        if self.save_final_metadata:
+            # save final total metadata file
+            output_file.write_final_metadata(self.stats["tokens"].total, filename=f"{self.save_filename}.ds")
+        output_file.close()
 
 
 class DocumentTokenizerMerger(PipelineStep):
@@ -373,6 +279,8 @@ class DocumentTokenizerMerger(PipelineStep):
             filename=f"{file_ct:03d}_{self.save_filename}.ds",
             save_loss_metadata=self.save_loss_metadata,
             upload_block_size=self.upload_block_size,
+            tokenizer_name=tokenizer_name,
+            save_final_metadata=self.save_final_metadata,
         )
         for input_file_id in tqdm(
             ordering, desc="Merging documents", unit="documents", total=len(ordering), disable=not self.progress
@@ -382,13 +290,13 @@ class DocumentTokenizerMerger(PipelineStep):
             if 0 < self.max_tokens_per_file <= len(output_file):
                 output_file.close()
                 file_ct += 1
-                if self.save_final_metadata:
-                    output_file.save_final_metadata(tokenizer_name)
                 output_file = TokenizedFile(
                     output_folder=self.output_folder,
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
                     upload_block_size=self.upload_block_size,
+                    tokenizer_name=tokenizer_name,
+                    save_final_metadata=self.save_final_metadata,
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
@@ -399,11 +307,8 @@ class DocumentTokenizerMerger(PipelineStep):
         # cleanup
         output_file.close()
         if self.save_final_metadata:
-            output_file.save_final_metadata(tokenizer_name)
             # save final total metadata file
-            output_file.save_final_metadata(
-                tokenizer_name, self.stats["tokens"].total, filename=f"{self.save_filename}.ds"
-            )
+            output_file.write_final_metadata(self.stats["tokens"].total, filename=f"{self.save_filename}.ds")
         output_file.close()
 
 
@@ -423,7 +328,9 @@ def load_doc_ends(file: BinaryIO) -> np.ndarray:
         return np.frombuffer(f.read(), dtype=np.uint64)
 
 
-def get_data_reader(file: BinaryIO, doc_ends: list, nb_bytes: int, start_e: int = 0) -> Generator[bytes, None, None]:
+def get_data_reader(
+    file: BinaryIO, doc_ends: list, nb_bytes: int = 1, start_e: int = 0
+) -> Generator[bytes, None, None]:
     """Get a reader for the data in the file given a list of document ends and a number of bytes per element.
         The reader will yield the data for each document in the file.
 
