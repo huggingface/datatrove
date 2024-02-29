@@ -15,7 +15,7 @@ class WarcReader(BaseDiskReader):
     Args:
         data_folder: the data folder to read from
         compression: the compression to use (default: "infer")
-        limit: limit the number of WARC files to read
+        limit: limit the number of WARC documents to read
         progress: show progress bar
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
