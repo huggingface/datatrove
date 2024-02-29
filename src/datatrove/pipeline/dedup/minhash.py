@@ -300,7 +300,7 @@ class MinhashDedupBuckets(PipelineStep):
     Args:
         input_folder: input folder containing the signature from step 1
         output_folder: output folder where results (document duplicate pairs) will be saved
-        index_folder: index folder
+        index_folder: index folder. If set, we will load all index files in this folder and use them as a reference for deduplicating the current dataset (remove any matches on our dataset with signatures from the index)
         config: minhash configuration (a MinhashConfig object)
         only_dedup_in_index: only deduplicate versus index (ignore any matches between 2 documents in our input dataset)
         create_index_name: create index name. If this parameter is set, index files will be created with this name that other datasets can use as a reference for dedup. Set to `None` to disable index file creation.
