@@ -185,7 +185,7 @@ class BaseDiskReader(BaseReader):
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             for filepath in shard:
                 self.stat_update("input_files")
-                logger.warning(f"Reading input file {filepath}")
+                logger.info(f"Reading input file {filepath}")
                 di = 0
                 for di, document in enumerate(self.read_file(filepath)):
                     if self.limit != -1 and li >= self.limit:

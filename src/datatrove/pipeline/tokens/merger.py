@@ -159,7 +159,6 @@ class DocumentTokenizerMerger(PipelineStep):
         if self.save_final_metadata:
             # save final total metadata file
             output_file.write_final_metadata(self.stats["tokens"].total, filename=f"{self.save_filename}.ds")
-        output_file.close()
 
 
 def load_doc_ends(file: BinaryIO) -> np.ndarray:
@@ -175,7 +174,7 @@ def load_doc_ends(file: BinaryIO) -> np.ndarray:
                 Each element is the index of the end of a document in the file (in tokens)
     """
     with file as f:
-        return np.frombuffer(f.read(), dtype=np.uint64)
+        return np.frombuffer(f.read(), dtype=np.uint64).astype(int)
 
 
 def get_data_reader(
@@ -198,5 +197,5 @@ def get_data_reader(
         if start_e != 0:
             f.seek(int(start_e) * nb_bytes)
         for r_e in doc_ends:
-            yield f.read((int(r_e) - int(start_e)) * nb_bytes)
+            yield f.read((r_e - start_e) * nb_bytes)
             start_e = r_e
