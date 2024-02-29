@@ -291,7 +291,7 @@ class DocumentTokenizer(PipelineStep):
         save_loss_metadata: bool = False,  # save the loss information
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
         batch_size: int = 10000,  # batch size for tokenization
-        max_tokens_per_file: int = None,  # max tokens per file to set to have more files to shuffle
+        max_tokens_per_file: int = None,  # max tokens per file to get more (smaller) shuffled output files
         seed: int = None,
         save_final_metadata: bool = True,
         upload_block_size: int | None = None,
