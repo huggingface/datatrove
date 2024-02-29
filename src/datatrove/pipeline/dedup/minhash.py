@@ -298,7 +298,7 @@ class MinhashDedupBuckets(PipelineStep):
         Find duplicate pairs from the signatures and possibly an index. Can also save an index with the new signatures.
 
     Args:
-        input_folder: input folder
+        input_folder: input folder containing the signature from step 1
         output_folder: output folder
         index_folder: index folder
         config: minhash configuration (a MinhashConfig object)
