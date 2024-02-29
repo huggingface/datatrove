@@ -46,7 +46,7 @@ class SentenceDedupSignature(PipelineStep):
 
     Args:
         output_folder: folder where signatures are saved
-        n_sentences: n_sentences where duplicates are checked.
+        n_sentences: create chunks of n sentences where duplicates are checked.
     """
 
     type = "🫂 - DEDUPS"
