@@ -12,7 +12,7 @@ class CsvReader(BaseDiskReader):
     Args:
         data_folder: the data folder to read from
         compression: the compression to use (default: "infer")
-        limit: limit the number of CSV files to read in each rank.
+        limit: limit the number of CSV lines to read in each rank. Useful for debugging
         progress: show progress bar
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
