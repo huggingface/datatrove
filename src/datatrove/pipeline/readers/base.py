@@ -15,7 +15,7 @@ class BaseReader(PipelineStep):
         Reader are the first step in a pipeline usually.
 
     Args:
-        limit: limit the number of documents to read
+        limit: limit the number of documents to read. Useful for debugging
         progress: show progress bar
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
