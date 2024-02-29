@@ -574,7 +574,7 @@ class MinhashDedupFilter(PipelineStep):
 class MinhashBuildIndex(PipelineStep):
     """Minhash Deduplication
 
-    Only build an index from the signatures
+    Only build an index from the signatures, without deduplicating
     """
 
     type = "🫂 - DEDUP"
