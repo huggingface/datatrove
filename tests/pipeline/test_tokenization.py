@@ -8,7 +8,7 @@ import numpy as np
 
 from datatrove.data import Document
 from datatrove.io import DataFolder, get_datafolder
-from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger, FileTokenizerMerger
+from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends
 from datatrove.utils._import_utils import is_tokenizers_available
@@ -94,49 +94,6 @@ class TestTokenization(unittest.TestCase):
                     TOKENS_DIR,
                     MERGED_DIR,
                     save_filename="my_dataset",
-                    shuffle=seed is not None,
-                    save_loss_metadata=True,
-                    seed=seed,
-                )
-                merger(None)
-
-                # general consistency check
-                input_folder = get_datafolder(MERGED_DIR)
-                check_dataset(input_folder)
-
-                # check order/reconstruction
-                self.check_order_reconstruction(input_folder, merge_mapping)
-
-    def test_file_merger_tokenizer(self):
-        for sub_test, args in [
-            ("tokenizer_unshuffled", (None, None, None)),
-            ("tokenizer_shuffled", (7383, [2, 0, 1, 4, 3, 5, 7, 6], [7, 1, 5, 2, 0, 4, 3, 6])),
-        ]:
-            with self.subTest(sub_test):
-                seed, dist_mapping, merge_mapping = args
-
-                TOKENS_DIR = os.path.join(self.tmp_dir, sub_test, "tokens")
-                MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
-
-                document_tokenizer = DocumentTokenizer(
-                    TOKENS_DIR, local_working_dir=None, shuffle=seed is not None, seed=seed, save_loss_metadata=True
-                )
-                for worker, worker_data in enumerate(DATA):
-                    document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
-                # general consistency check
-                input_folder = get_datafolder(TOKENS_DIR)
-                check_dataset(input_folder)
-
-                # check order/reconstruction
-                self.check_order_reconstruction(input_folder, dist_mapping)
-
-                # testing merger
-                merger = FileTokenizerMerger(
-                    TOKENS_DIR,
-                    MERGED_DIR,
-                    save_filename="my_dataset",
-                    min_chunks_to_shuffle=6,
-                    max_tokens_per_file=250,
                     shuffle=seed is not None,
                     save_loss_metadata=True,
                     seed=seed,
