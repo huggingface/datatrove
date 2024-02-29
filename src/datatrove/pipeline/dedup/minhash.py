@@ -41,7 +41,7 @@ class MinhashConfig:
         n_grams: n-grams size to use
         num_buckets: number of buckets to use
         hashes_per_bucket: number of hashes per bucket
-        use_64bit_hashes: use 64bit hashes
+        use_64bit_hashes: use 64bit hashes. Uses 32bit hashes if `False`
         seed: random seed
     """
 
