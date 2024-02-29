@@ -8,7 +8,7 @@ from datatrove.utils.stats import Stats
 
 
 class PipelineStep(ABC):
-    """Base pipeline block, all blocs should inherit from this one.
+    """Base pipeline block, all blocks should inherit from this one.
         Takes care of some general things such as handling dependencies, and stats
 
     Args:
