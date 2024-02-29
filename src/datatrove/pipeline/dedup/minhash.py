@@ -443,7 +443,7 @@ class MinhashDedupBuckets(PipelineStep):
 class MinhashDedupCluster(PipelineStep):
     """Minhash Deduplication: Third Pipeline Step
 
-    Cluster the documents using the previously found duplicate pairs.
+    Cluster the documents using the previously found duplicate pairs. If A-B and B-C are duplicate pairs, then we will have the A-B-C cluster. Only one document per cluster will be kept after filtering
     """
 
     type = "🫂 - DEDUP"
