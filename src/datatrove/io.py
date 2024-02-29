@@ -91,7 +91,7 @@ class DataFolder(DirFileSystem):
     Args:
         path: the path to the folder (local or remote)
         fs: the filesystem to use (see fsspec for more details)
-        auto_mkdir: whether to automatically create the parent directories when opening a file
+        auto_mkdir: whether to automatically create the parent directories when opening a file in write mode
         **storage_options: additional options to pass to the filesystem
     """
 
