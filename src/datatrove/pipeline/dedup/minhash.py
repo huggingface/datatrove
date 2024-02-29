@@ -299,7 +299,7 @@ class MinhashDedupBuckets(PipelineStep):
 
     Args:
         input_folder: input folder containing the signature from step 1
-        output_folder: output folder
+        output_folder: output folder where results (document duplicate pairs) will be saved
         index_folder: index folder
         config: minhash configuration (a MinhashConfig object)
         only_dedup_in_index: only deduplicate versus index
