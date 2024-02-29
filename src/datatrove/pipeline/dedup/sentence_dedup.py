@@ -302,7 +302,7 @@ class SentenceDedupBuildIndex(PipelineStep):
     """SentenceDedup: Only build an index
 
     Args:
-        data_folder: data folder to get duplicate files.
+        data_folder: data folder to get signature files.
         output_folder: folder where index is saved
         index_name: name of the index
     """
