@@ -42,7 +42,7 @@ class MinhashConfig:
         num_buckets: number of buckets to use
         hashes_per_bucket: number of hashes per bucket
         use_64bit_hashes: use 64bit hashes. Uses 32bit hashes if `False`
-        seed: random seed
+        seed: random seed used to generate the hash function parameters. Should be the same on all workers to ensure they all have the same parameters
     """
 
     n_grams: int = 5
