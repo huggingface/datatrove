@@ -114,7 +114,7 @@ class BaseDiskReader(BaseReader):
         limit: limit the number of documents to read
         progress: show progress bar
         adapter: function to adapt the data from the source to a Document
-        text_key: key to use for the text in the adapter (default: "text")
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
         id_key: key to use for the id in the adapter (default: "id")
         default_metadata: default metadata to add to all documents
         recursive: whether to read files recursively
