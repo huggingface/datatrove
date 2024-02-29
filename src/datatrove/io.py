@@ -206,7 +206,7 @@ class DataFolder(DirFileSystem):
         return [self.open(path, mode=mode, **kwargs) for path in paths]
 
     def open(self, path, mode="rb", *args, **kwargs):
-        """Open a file locally or remote, and create the parent directories if self.auto_mkdir is `True`, .
+        """Open a file locally or remote, and create the parent directories if self.auto_mkdir is `True` and we are opening in write mode.
 
             args/kwargs will depend on the filesystem (see fsspec for more details)
             Typically we often use:
