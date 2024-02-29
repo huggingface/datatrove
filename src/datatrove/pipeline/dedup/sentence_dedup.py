@@ -238,7 +238,7 @@ class SentenceDedupFilter(PipelineStep):
         self.exclusion_writer = exclusion_writer
         self.language = language
 
-    def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> Tuple[str, str]:
+    def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> tuple[str, str]:
         if not du_lines:
             return doc.text, None
         sentence_spans = list(self._tokenizer.span_tokenize(doc.text))
