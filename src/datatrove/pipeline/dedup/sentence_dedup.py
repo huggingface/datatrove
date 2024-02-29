@@ -124,7 +124,7 @@ def read_sigs(file: BinaryIO, file_id: int, index_file: bool = False) -> Generat
 class SentenceFindDedups(PipelineStep):
     """SentenceDedup: Second pipeline step
 
-        SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and load them
+        SentenceFindDedups runs on a single worker. It reads all the signatures from the previous step and loads them
         in a priority queue to check for duplicates. If a duplicate is found its document id and sentence id are saved.
 
     Args:
