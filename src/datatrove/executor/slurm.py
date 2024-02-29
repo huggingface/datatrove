@@ -32,6 +32,7 @@ def requeue_handler(signum, _frame):
 
 class SlurmPipelineExecutor(PipelineExecutor):
     """Execute a pipeline on a slurm cluster
+    Creates and calls a sbatch launch script.
 
     [!] do not launch tasks from within a compute node/from another slurm task!
 

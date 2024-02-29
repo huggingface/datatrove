@@ -66,22 +66,14 @@ class TokensCounter(PipelineStep):
 
 class LengthCounter(PipelineStep):
     """This pipeline step can be used after a TokensCounter or Tokenization step
-        to create an histogram of the document token length.
+    to create an histogram of the document token length.
 
-        It doesn't modify the documents, only update a counter for in the stats with each document length.
-        Will absolutely spam the hell out of your stats.json
-
-    Args:
-        None
+    It doesn't modify the documents, only update a counter for in the stats with each document length.
+    Will absolutely spam the hell out of your stats.json
     """
 
     name = "📊 Document length counter"
     type = "🔢 - TOKENIZER"
-
-    def __init__(
-        self,
-    ):
-        super().__init__()
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """

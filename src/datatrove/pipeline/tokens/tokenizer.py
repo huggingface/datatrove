@@ -80,7 +80,7 @@ class TokenizedFile:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb", block_size=upload_block_size)
 
     def __len__(self):
-        return int(self.doc_ends[-1]) if self.doc_ends else 0
+        return self.doc_ends[-1] if self.doc_ends else 0
 
     def close(self):
         """Close the files and save the index."""
@@ -119,7 +119,7 @@ class TokenizedFile:
         self.tokens_file.write(tk_bytes)
         if doc_ends is not None:
             # We've written several documents at once
-            self.doc_ends.extend([int(d) + self.write_idx for d in doc_ends])
+            self.doc_ends.extend([d + self.write_idx for d in doc_ends])
             # 1 token = 2 bytes (uint16)
             self.write_idx += len(tk_bytes) // 2
         else:
@@ -164,9 +164,11 @@ class TokenizedFile:
         """Close the current tokenized file and copy its content to a new file, shuffling the document order with provided ordering.
 
         Args:
-            destination (str): the new filename in new_output_folder
+            save_filename (str): the new filename in new_output_folder
             ordering (np.ndarray): the new ordering of the documents
             new_output_folder (DataFolder): the new output folder to use
+            rank: used to get filename
+            max_tokens_per_file: split into small chunk files each with max this number of tokens
         Returns:
             TokenizedFile: the new tokenized file
         """
@@ -398,7 +400,7 @@ class DocumentTokenizer(PipelineStep):
             return
         if self.shuffle:
             # get new TokenizedFile, shuffling docs from original one
-            new_outputfile = outputfile.copy(
+            outputfile.copy(
                 self.save_filename,
                 self.rand.permutation(len(outputfile.doc_ends)),
                 self.output_folder,
@@ -407,8 +409,6 @@ class DocumentTokenizer(PipelineStep):
             )
             # remove and replace original file
             outputfile.cleanup()
-            outputfile = new_outputfile
-        outputfile.close()
 
     @property
     def tokenizer(self) -> "Tokenizer":

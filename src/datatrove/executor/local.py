@@ -24,6 +24,9 @@ class LocalPipelineExecutor(PipelineExecutor):
         skip_completed: whether to skip tasks that were completed in
             previous runs. default: True
         start_method: method to use to spawn a multiprocessing Pool (default: "forkserver")
+        local_tasks: how many of the total tasks should be run on this node/machine. -1 for all
+        local_rank_offset: the rank of the first task to run on this machine.
+            Tasks [local_rank_offset, local_rank_offset + local_tasks] will be run.
     """
 
     def __init__(

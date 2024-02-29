@@ -9,7 +9,7 @@ class IpcReader(BaseDiskReader):
 
     Args:
         data_folder: the data folder to read from
-        limit: limit the number of IPC files to read
+        limit: limit the number of IPC documents to read
         stream: if True, will read the file as a stream (default: False)
         progress: show progress bar
         adapter: function to adapt the data dict from the source to a Document.
