@@ -16,7 +16,7 @@ class BaseReader(PipelineStep):
 
     Args:
         limit: limit the number of documents to read. Useful for debugging
-        progress: show progress bar
+        progress: show tqdm progress bar. Might be spammy in some environments
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
