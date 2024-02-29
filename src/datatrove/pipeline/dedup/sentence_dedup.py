@@ -212,7 +212,7 @@ class SentenceDedupFilter(PipelineStep):
 
     Args:
         data_folder: data folder to get duplicate files.
-        n_sentences: n_sentences where duplicates are checked.
+        n_sentences: n_sentences where duplicates are checked. Should match step1
         min_doc_words: min amount of words for each document
         exclusion_writer: writer to save excluded documents
     """
