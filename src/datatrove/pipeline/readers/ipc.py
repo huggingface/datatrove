@@ -15,7 +15,7 @@ class IpcReader(BaseDiskReader):
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
-        text_key: key to use for the text in the adapter (default: "text")
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
         id_key: key to use for the id in the adapter (default: "id")
         default_metadata: default metadata to add to all documents
         recursive: if True, will read files recursively in subfolders (default: True)
