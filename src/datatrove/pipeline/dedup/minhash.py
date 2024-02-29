@@ -303,7 +303,7 @@ class MinhashDedupBuckets(PipelineStep):
         index_folder: index folder
         config: minhash configuration (a MinhashConfig object)
         only_dedup_in_index: only deduplicate versus index
-        create_index_name: create index name
+        create_index_name: create index name. If this parameter is set, index files will be created with this name that other datasets can use as a reference for dedup. Set to `None` to disable index file creation.
     """
 
     type = "🫂 - DEDUP"
