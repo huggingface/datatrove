@@ -10,7 +10,7 @@ class ParquetReader(BaseDiskReader):
 
     Args:
         data_folder: the data folder to read from
-        limit: limit the number of Parquet files to read
+        limit: limit the number of Parquet rows to read
         batch_size: the batch size to use (default: 1000)
         read_metadata: if True, will read the metadata (default: True)
         progress: show progress bar
