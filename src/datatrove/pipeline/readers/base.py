@@ -111,7 +111,7 @@ class BaseDiskReader(BaseReader):
 
     Args:
         data_folder: the data folder to read from
-        limit: limit the number of documents to read
+        limit: limit the number of documents to read. Useful for debugging
         progress: show progress bar
         adapter: function to adapt the data from the source to a Document
         text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
