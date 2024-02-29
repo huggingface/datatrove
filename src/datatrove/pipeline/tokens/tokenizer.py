@@ -284,7 +284,7 @@ class DocumentTokenizer(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        local_working_dir: Optional[DataFolderLike | str],
+        local_working_dir: DataFolderLike | None = None,
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
