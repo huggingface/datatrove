@@ -455,12 +455,14 @@ class MinhashDedupCluster(PipelineStep):
         output_folder: DataFolderLike,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         save_cluster_id: bool = False,
+        ignore_index_matches: bool = False,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.config = config
         self.save_cluster_id = save_cluster_id
+        self.ignore_index_matches = ignore_index_matches
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(glob_pattern="*.dups")
@@ -481,6 +483,9 @@ class MinhashDedupCluster(PipelineStep):
                 with self.input_folder.open(dup_file, "rb") as dupf:
                     for f1, d1, f2, d2 in read_tuples_from_file(dupf, "4I"):
                         a, b = (f1, d1), (f2, d2)
+                        if self.ignore_index_matches and a == (SENTINEL, SENTINEL):
+                            # if we are skipping matches with the index and "a" is from the index
+                            continue
                         union_set[parent(b)] = parent(a)
 
             ci = 0
