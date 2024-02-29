@@ -5,6 +5,23 @@ from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class IpcReader(BaseDiskReader):
+    """Read data from Apache Arrow IPC files.
+
+    Args:
+        data_folder: the data folder to read from
+        limit: limit the number of IPC documents to read
+        stream: if True, will read the file as a stream (default: False)
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: if True, will read files recursively in subfolders (default: True)
+        glob_pattern: a glob pattern to filter files to read (default: None)
+    """
+
     name = "🪶 Ipc"
     _requires_dependencies = ["pyarrow"]
 

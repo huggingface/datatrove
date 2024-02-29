@@ -9,8 +9,13 @@ if TYPE_CHECKING:
 
 
 class TokensCounter(PipelineStep):
-    """
-    Counts how many tokens each document's text corresponds to
+    """Count the number of tokens in each document.
+        This pipeline step uses the HuggingFace fast tokenizers library to count the number of tokens in each document.
+        It doesn't save the tokenized documents, only the token count.
+
+    Args:
+        tokenizer_name (str): the name of the tokenizer to use, from the HuggingFace tokenizers library.
+        count_eos_token (bool): whether to count the EOS token on each document.
     """
 
     name = "📊 Counter"
@@ -60,18 +65,15 @@ class TokensCounter(PipelineStep):
 
 
 class LengthCounter(PipelineStep):
-    """
-    To be used after the TokensCounter block, counts how many samples have a given amount of tokens.
+    """This pipeline step can be used after a TokensCounter or Tokenization step
+    to create an histogram of the document token length.
+
+    It doesn't modify the documents, only update a counter for in the stats with each document length.
     Will absolutely spam the hell out of your stats.json
     """
 
     name = "📊 Document length counter"
     type = "🔢 - TOKENIZER"
-
-    def __init__(
-        self,
-    ):
-        super().__init__()
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """

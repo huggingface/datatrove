@@ -12,6 +12,16 @@ from datatrove.utils.typeshelper import StatHints
 
 
 class DiskWriter(PipelineStep, ABC):
+    """
+        Base writer block to save data to disk.
+
+    Args:
+        output_folder: a str, tuple or DataFolder where data should be saved
+        output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
+        compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
+        adapter: a custom function to "adapt" the Document format to the desired output format
+    """
+
     default_output_filename: str = None
     type = "💽 - WRITER"
 
@@ -25,16 +35,6 @@ class DiskWriter(PipelineStep, ABC):
         expand_metadata: bool = False,
         max_file_size: int = -1,  # in bytes. -1 for unlimited
     ):
-        """
-            Base writer block to save data to disk.
-        Args:
-            output_folder: a str, tuple or DataFolder where data should be saved
-            output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
-            compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
-            adapter: a custom function to "adapt" the Document format to the desired output format
-            max_file_size: will create a new file when this size is exceeded (in bytes). -1 for no limit.
-            Filenames will have a number prepended (000_..., 001_..., etc)
-        """
         super().__init__()
         self.compression = compression
         self.output_folder = get_datafolder(output_folder)

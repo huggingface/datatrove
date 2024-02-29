@@ -20,7 +20,7 @@ if is_tokenizers_available():
     from tokenizers import Tokenizer
 
 
-texts = [
+TEXTS = [
     "Life, although it may only be an accumulation of anguish, is dear to me, and I will defend it.",
     "I do know that for the sympathy of one living being, I would make peace with all. I have love in me the likes of which you can scarcely imagine and rage the likes of which you would not believe. If I cannot satisfy the one, I will indulge the other.",
     "Even broken in spirit as he is, no one can feel more deeply than he does the beauties of nature. The starry sky, the sea, and every sight afforded by these wonderful regions, seems still to have the power of elevating his soul from earth. Such a man has a double existence: he may suffer misery, and be overwhelmed by disappointments; yet, when he has retired into himself, he will be like a celestial spirit that has a halo around him, within whose circle no grief or folly ventures.",
@@ -34,7 +34,7 @@ texts = [
 
 TOKENIZER = "gpt2"
 WORKERS = 3
-data = np.array_split([Document(text=text, id=id) for id, text in enumerate(texts)], WORKERS)
+DATA = np.array_split([Document(text=text, id=id) for id, text in enumerate(TEXTS)], WORKERS)
 
 
 def get_texts_from_tokens(input_folder: DataFolder):
@@ -62,9 +62,9 @@ class TestTokenization(unittest.TestCase):
     def check_order_reconstruction(self, input_folder, mapping):
         texts_from_tokens = get_texts_from_tokens(input_folder)
         if not mapping:
-            mapping = range(len(texts))
+            mapping = range(len(TEXTS))
         for map, from_tokens in zip(mapping, texts_from_tokens):
-            self.assertEqual(texts[map], from_tokens)
+            self.assertEqual(TEXTS[map], from_tokens)
 
     def test_tokenizer(self):
         for sub_test, args in [
@@ -78,9 +78,9 @@ class TestTokenization(unittest.TestCase):
                 MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
 
                 document_tokenizer = DocumentTokenizer(
-                    TOKENS_DIR, shuffle=seed is not None, seed=seed, save_loss_metadata=True
+                    TOKENS_DIR, local_working_dir=None, shuffle=seed is not None, seed=seed, save_loss_metadata=True
                 )
-                for worker, worker_data in enumerate(data):
+                for worker, worker_data in enumerate(DATA):
                     document_tokenizer(worker_data, rank=worker, world_size=WORKERS)
                 # general consistency check
                 input_folder = get_datafolder(TOKENS_DIR)

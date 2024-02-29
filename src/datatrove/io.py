@@ -12,8 +12,13 @@ from huggingface_hub import HfFileSystem
 
 
 class OutputFileManager:
-    """
-    Will keep track of different output files by name and properly cleanup in the end.
+    """A simple file manager to create/handle/close multiple output files.
+        Will keep track of different output files by name and properly cleanup in the end.
+
+    Args:
+        fs: the filesystem to use (see fsspec for more details)
+        mode: the mode to open the files with
+        compression: the compression to use
     """
 
     def __init__(self, fs, mode: str = "wt", compression: str | None = "infer"):
@@ -79,8 +84,15 @@ class OutputFileManager:
 
 
 class DataFolder(DirFileSystem):
-    """
-    Wrapper around a fsspec filesystem. All file operations will be relative to `path`.
+    """A simple wrapper around fsspec's DirFileSystem to handle file listing and sharding files accross multiple workers/process.
+        Also handles the creation of output files.
+        All file operations will be relative to `path`.
+
+    Args:
+        path: the path to the folder (local or remote)
+        fs: the filesystem to use (see fsspec for more details)
+        auto_mkdir: whether to automatically create the parent directories when opening a file in write mode
+        **storage_options: additional options to pass to the filesystem
     """
 
     def __init__(
@@ -184,31 +196,28 @@ class DataFolder(DirFileSystem):
         return OutputFileManager(self, **kwargs)
 
     def open_files(self, paths, mode="rb", **kwargs):
-        """
-            Opens all files in an iterable with the given options, in the same order as given
+        """Opens all files in an iterable with the given options, in the same order as given
 
         Args:
-          paths: iterable of relative paths
-          mode:  (Default value = "rb")
-          **kwargs:
-
-        Returns:
-
+            paths: iterable of relative paths
+            mode: the mode to open the files with (Default value = "rb")
+            **kwargs: additional arguments to pass to the open
         """
         return [self.open(path, mode=mode, **kwargs) for path in paths]
 
     def open(self, path, mode="rb", *args, **kwargs):
-        """
-            Opens a single file.
-            If self.auto_mkdir is `True`, will first make sure parent directories exist before opening in write mode.
+        """Open a file locally or remote, and create the parent directories if self.auto_mkdir is `True` and we are opening in write mode.
+
+            args/kwargs will depend on the filesystem (see fsspec for more details)
+            Typically we often use:
+                - compression: the compression to use
+                - block_size: the block size to use
+
         Args:
-          path:
-          mode:  (Default value = "rb")
-          *args:
-          **kwargs:
-
-        Returns:
-
+            path: the path to the file
+            mode: the mode to open the file with (Default value = "rb")
+            *args: additional arguments to pass to the open
+            **kwargs: additional arguments to pass to the open
         """
         if self.auto_mkdir and ("w" in mode or "a" in mode):
             self.fs.makedirs(self.fs._parent(self._join(path)), exist_ok=True)
@@ -232,7 +241,6 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
       data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]:
 
     Returns: `DataFolder` instance
-
     """
     # fully initialized DataFolder object
     if isinstance(data, DataFolder):
@@ -252,7 +260,7 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
 
 
 def open_file(file: IO | str, mode="rt", **kwargs):
-    """
+    """Wrapper around fsspec.open to handle both file-like objects and string paths
 
     Args:
       file: IO | str:
@@ -260,7 +268,6 @@ def open_file(file: IO | str, mode="rt", **kwargs):
       **kwargs:
 
     Returns:
-
     """
     if isinstance(file, str):
         return fsspec_open(file, mode, **kwargs)
