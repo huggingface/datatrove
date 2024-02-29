@@ -21,7 +21,7 @@ class WarcReader(BaseDiskReader):
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
         text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
-        id_key: key to use for the id in the adapter (default: "id")
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
         default_metadata: default metadata to add to all documents
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
