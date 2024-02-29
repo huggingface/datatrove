@@ -79,7 +79,7 @@ class HashSig:
         sig: tuple of hashes
         file_id: file id
         doc_id: document id
-        reader_id: reader id
+        reader_id: reader id. Used to know from where the next signature should be requested
     """
 
     sig: tuple[int]
