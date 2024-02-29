@@ -41,7 +41,7 @@ class HashSig:
 class SentenceDedupSignature(PipelineStep):
     """SentenceDedup: First pipeline step
 
-        Creates a signature for each document. Each HashSig has n hash, the doc id and the sentence idx. Before saving
+        Creates a signature for each sentence in each document. Each HashSig has n hash, the doc id and the sentence idx. Before saving
         them the hashes are sorted.
 
     Args:
