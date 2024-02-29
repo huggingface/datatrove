@@ -12,7 +12,7 @@ class URLStats(PipelineStep):
     Args:
         output_folder: the output folder to save the statistics
         url_field: the field to use as URL in the Document metadata (default: "url")
-        input_folder: the input folder to read the statistics from (default: None)
+        input_folder: the input folder to read the statistics from (default: None). Used to merge statistics
         topk: the number of top URLs to keep (default: None - keep all)
         min_doc_count_to_save: the minimum number of documents per URL to save the URL (default: 1)
     """
