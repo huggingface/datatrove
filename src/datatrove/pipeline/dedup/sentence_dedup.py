@@ -11,7 +11,7 @@ import dataclasses
 import heapq
 import struct
 from dataclasses import dataclass
-from typing import BinaryIO, Generator, Tuple
+from typing import BinaryIO, Generator
 
 from loguru import logger
 

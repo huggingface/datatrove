@@ -1,6 +1,6 @@
 import itertools
 import struct
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import humanize
 import numpy as np
