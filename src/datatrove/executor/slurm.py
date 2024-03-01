@@ -14,7 +14,6 @@ from typing import Callable
 
 import dill
 from dill import CONTENTS_FMODE
-from fsspec.implementations.local import LocalFileSystem
 from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
@@ -140,7 +139,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if slurm_logs_folder
             else (
                 f"slurm_logs/{self.job_name}/{get_timestamp()}_{get_random_str()}"
-                if not isinstance(self.logging_dir.fs, LocalFileSystem)
+                if not self.logging_dir.is_local()
                 else self.logging_dir.resolve_paths("slurm_logs")
             )
         )

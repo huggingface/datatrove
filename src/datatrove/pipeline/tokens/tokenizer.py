@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 import humanize
 import numpy as np
-from fsspec.implementations.local import LocalFileSystem
 from loguru import logger
 from numpy.random import default_rng
 
@@ -303,9 +302,9 @@ class DocumentTokenizer(PipelineStep):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
-        if self.local_working_dir and not isinstance(self.local_working_dir.fs, LocalFileSystem):
+        if self.local_working_dir and not self.local_working_dir.is_local():
             raise ValueError("local_working_dir must be a local path")
-        if self.local_working_dir is None and shuffle and self.output_folder.fs.protocol != ("file", "local"):
+        if self.local_working_dir is None and shuffle and not self.output_folder.is_local():
             logger.warning(
                 "local_working_dir is not set and output folder is not local. This may slow down the process."
             )

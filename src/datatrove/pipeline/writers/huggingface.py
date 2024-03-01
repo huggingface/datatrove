@@ -4,7 +4,6 @@ import tempfile
 import time
 from typing import Callable
 
-from fsspec.implementations.local import LocalFileSystem
 from huggingface_hub import (
     CommitOperationAdd,
     create_commit,
@@ -60,7 +59,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             local_working_dir if local_working_dir else tempfile.TemporaryDirectory()
         )
         self.cleanup = cleanup
-        if not isinstance(self.local_working_dir.fs, LocalFileSystem):
+        if not self.local_working_dir.is_local():
             raise ValueError("local_working_dir must be a local path")
         if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER", "0") != "1":
             logger.warning(

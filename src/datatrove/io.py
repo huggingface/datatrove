@@ -223,6 +223,12 @@ class DataFolder(DirFileSystem):
             self.fs.makedirs(self.fs._parent(self._join(path)), exist_ok=True)
         return super().open(path, mode=mode, *args, **kwargs)
 
+    def is_local(self):
+        """
+        Checks if the underlying fs instance is a LocalFileSystem
+        """
+        return isinstance(self.fs, LocalFileSystem)
+
 
 def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]) -> DataFolder:
     """
