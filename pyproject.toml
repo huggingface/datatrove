@@ -97,11 +97,11 @@ where = ["src"]
 datatrove = ["assets/*"]
 
 [tool.ruff]
-ignore = [
+lint.ignore = [
   "C901", # `function_name` is too complex
   "E501", # line length violation
 ]
-select = [
+lint.select = [
   "C",
   "E",
   "F",
