@@ -106,6 +106,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         run_on_dependency_fail: bool = False,
         randomize_start: bool = False,
         requeue_signals: tuple[str] | None = ("SIGUSR1",),
+        mail_type: str = "ALL",
+        mail_user: str = None,
     ):
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
@@ -129,6 +131,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.randomize_start = randomize_start
         self.job_id = None
         self.requeue_signals = requeue_signals
+        self.mail_type = mail_type
+        self.mail_user = mail_user
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
@@ -287,6 +291,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "array": f"0-{max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             "requeue": "",
             "qos": self.qos,
+            "mail-type": self.mail_type,
+            "mail-user": self.mail_user,
             **self._sbatch_args,
         }
 
