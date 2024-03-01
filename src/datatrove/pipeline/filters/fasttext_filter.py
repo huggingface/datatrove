@@ -86,6 +86,6 @@ class FastTextClassifierFilter(BaseFilter):
                 label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.keep_labels
             )
         else:
-            return not any(
+            return not self.remove_labels or not any(
                 label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.remove_labels
             )
