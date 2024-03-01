@@ -77,6 +77,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         randomize_start: randomize the start of each task in a job in a ~3 min window
         requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance
         is being reclaimed and jobs must be stopped for example. Set to None to disable
+        mail_type: see https://slurm.schedmd.com/sbatch.html. Common values are (NONE, BEGIN, END, FAIL, REQUEUE, ALL)
+        mail_user: email address to send notifications to
 
     """
 
