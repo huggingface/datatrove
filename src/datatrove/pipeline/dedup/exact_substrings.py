@@ -13,6 +13,7 @@ TLDR
 3) DedupReader reads docs and ranges at the same time and remove duplicates.
 
 """
+
 import struct
 from typing import BinaryIO, Generator
 

@@ -399,6 +399,7 @@ class DocumentTokenizer(PipelineStep):
             logger.warning("No data saved.")
             return
         if self.shuffle:
+            logger.info("Shuffling...")
             # get new TokenizedFile, shuffling docs from original one
             outputfile.copy(
                 self.save_filename,

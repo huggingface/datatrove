@@ -1,5 +1,5 @@
-""" Data classes for the datatrove package.
-"""
+"""Data classes for the datatrove package."""
+
 from dataclasses import dataclass, field
 from typing import Generator, NewType
 
