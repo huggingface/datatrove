@@ -305,7 +305,7 @@ class DocumentTokenizer(PipelineStep):
         self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
         if self.local_working_dir and not isinstance(self.local_working_dir.fs, LocalFileSystem):
             raise ValueError("local_working_dir must be a local path")
-        if self.local_working_dir is None and shuffle and self.output_folder.fs.protocol != "file":
+        if self.local_working_dir is None and shuffle and self.output_folder.fs.protocol != ("file", "local"):
             logger.warning(
                 "local_working_dir is not set and output folder is not local. This may slow down the process."
             )
