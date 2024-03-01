@@ -17,7 +17,8 @@ class FastTextClassifierFilter(BaseFilter):
     - AT LEAST ONE of the labels in `keep_labels` with a score above the configured threshold, or
     - NONE of the labels in `remove_labels` with a score above the configured threshold.
 
-    You can only supply one of these, to avoid conflicts. Use multiple filters if you need to.
+    You can only supply one of these, to avoid conflicts. Use multiple filters if you need to. If you supply
+    neither, the block will simply annotate each document with the labels (set `save_labels_in_metadata=True`)
 
     Example:
         for `keep_labels=[("math", 0.9)]` will only keep samples with a score on __label__math of at least 0.9
@@ -51,8 +52,6 @@ class FastTextClassifierFilter(BaseFilter):
         self.remove_labels = remove_labels
         if keep_labels and remove_labels:
             raise ValueError("You can only supply one of `keep_labels` or `remove_labels`.")
-        if not keep_labels and not remove_labels:
-            raise ValueError("You need to supply one of `keep_labels` or `remove_labels`.")
         self.newline_replacement = newline_replacement
         if keep_labels and isinstance(keep_labels[0], str):
             self.keep_labels = [keep_labels]
