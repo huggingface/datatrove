@@ -16,15 +16,15 @@ def get_filter_result(res):
 
 
 class BaseFilter(PipelineStep, ABC):
-    """Base module for Filters. Filters remove documents."""
+    """Base module for Filters. Filters remove documents.
+
+    Args:
+        exclusion_writer: optionally pass in a writer that will save the dropped documents
+    """
 
     type = "🔻 - FILTER"
 
     def __init__(self, exclusion_writer: DiskWriter = None):
-        """
-        Args:
-            exclusion_writer: optionally pass in a writer that will save the dropped documents
-        """
         super().__init__()
         self.exclusion_writer = exclusion_writer
 

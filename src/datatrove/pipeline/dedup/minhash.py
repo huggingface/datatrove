@@ -35,6 +35,16 @@ SENTINEL = (1 << 32) - 1
 
 @dataclass
 class MinhashConfig:
+    """Configuration for Min-Hash deduplication
+
+    Args:
+        n_grams: n-grams size to use
+        num_buckets: number of buckets to use
+        hashes_per_bucket: number of hashes per bucket
+        use_64bit_hashes: use 64bit hashes. Uses 32bit hashes if `False`
+        seed: random seed used to generate the hash function parameters. Should be the same on all workers to ensure they all have the same parameters
+    """
+
     n_grams: int = 5
 
     num_buckets: int = 14
@@ -63,6 +73,15 @@ DEFAULT_MINHASH_CONFIG = MinhashConfig()
 
 @dataclass(order=True)
 class HashSig:
+    """Hash signature for a given document in a given bucket
+
+    Args:
+        sig: tuple of hashes
+        file_id: file id
+        doc_id: document id
+        reader_id: reader id. Used to know from where the next signature should be requested
+    """
+
     sig: tuple[int]
     file_id: int
     doc_id: int
@@ -124,6 +143,14 @@ def read_sigs(
     max_hash: int = _mersenne_prime,
     ensure_order: bool = True,
 ) -> Generator:
+    """Read signatures from a file
+
+    Args:
+        file: file to read from
+        reader_id: reader id
+        config: minhash configuration (a MinhashConfig object)
+        index_file: is index file
+    """
     with file as f:
         seek_to_start(f, min_hash, config, index_file)
         last = None
@@ -145,14 +172,21 @@ def read_sigs(
 
 
 class MinhashDedupSignature(PipelineStep):
+    """Minhash Deduplication: First Pipeline Step
+
+        Compute the minhash signature for each document and write it to disk.
+
+    Args:
+        output_folder: output folder
+        config: minhash configuration (a MinhashConfig object)
+    """
+
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
     _requires_dependencies = ["nltk"]
 
     def __init__(
-        self,
-        output_folder: DataFolderLike,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        self, output_folder: DataFolderLike, config: MinhashConfig = DEFAULT_MINHASH_CONFIG, language: str = "english"
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -160,13 +194,17 @@ class MinhashDedupSignature(PipelineStep):
         self.num_hashes = self.config.num_buckets * self.config.hashes_per_bucket
         self._parameters = None
         self._hash_func = sha1_hash32 if not self.config.use_64bit_hashes else sha1_hash64
+        self.language = language
 
     @property
     def parameters(self):
+        """Minhash parameters
+
+        Create parameters for a random bijective permutation function
+        that maps a 32-bit hash value to another 32-bit hash value.
+        http://en.wikipedia.org/wiki/Universal_hashing
+        """
         if not self._parameters:
-            # Create parameters for a random bijective permutation function
-            # that maps a 32-bit hash value to another 32-bit hash value.
-            # http://en.wikipedia.org/wiki/Universal_hashing
             gen = np.random.RandomState(self.config.seed)
             self._parameters = (
                 gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes)),
@@ -174,7 +212,15 @@ class MinhashDedupSignature(PipelineStep):
             )
         return self._parameters
 
-    def get_signature(self, shingles):
+    def get_signature(self, shingles: np.ndarray) -> list[list[int]]:
+        """Get the signature for a set of shingles (n-grams)
+
+        Args:
+            shingles: shingles (n-grams) numpy uint64 array of size (N, 1)
+
+        Returns:
+            list (num buckets) of lists of integers (hashes)
+        """
         a, b = self.parameters
         phv = (shingles * a + b) % _mersenne_prime
         if not self.config.use_64bit_hashes:
@@ -183,16 +229,26 @@ class MinhashDedupSignature(PipelineStep):
             x.tolist() for x in np.split(np.min(phv, axis=0).astype(self.config.hash_dtype), self.config.num_buckets)
         ]
 
-    def get_shingles(self, text):
+    def get_shingles(self, text: str) -> np.ndarray:
+        """Get shingles (hashed n-grams) from a string of text
+
+        Shingles are created by hashing n-grams of simplified text (lower cases, whitespace normalized, no punctuation, etc).
+
+        Args:
+            text: input text
+
+        Returns:
+            numpy array of shingles: dtype = uint64, shape = (number of n_grams in string, 1)
+        """
         from nltk import ngrams, word_tokenize
 
-        return np.array(
+        return np.fromiter(
             [
-                [self._hash_func(" ".join(x).encode("utf-8"))]
+                self._hash_func(" ".join(x).encode("utf-8"))
                 for x in ngrams(word_tokenize(simplify_text(text)), self.config.n_grams)
             ],
             dtype=np.uint64,
-        )
+        ).reshape((-1, 1))
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         buckets = [
@@ -237,6 +293,19 @@ class MinhashDedupSignature(PipelineStep):
 
 
 class MinhashDedupBuckets(PipelineStep):
+    """Minhash Deduplication: Second Pipeline Step
+
+        Find duplicate pairs from the signatures and possibly an index. Can also save an index with the new signatures.
+
+    Args:
+        input_folder: input folder containing the signature from step 1
+        output_folder: output folder where results (document duplicate pairs) will be saved
+        index_folder: index folder. If set, we will load all index files in this folder and use them as a reference for deduplicating the current dataset (remove any matches on our dataset with signatures from the index)
+        config: minhash configuration (a MinhashConfig object)
+        only_dedup_in_index: only deduplicate versus index (ignore any matches between 2 documents in our input dataset)
+        create_index_name: create index name. If this parameter is set, index files will be created with this name that other datasets can use as a reference for dedup. Set to `None` to disable index file creation.
+    """
+
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 2"
 
@@ -372,6 +441,11 @@ class MinhashDedupBuckets(PipelineStep):
 
 
 class MinhashDedupCluster(PipelineStep):
+    """Minhash Deduplication: Third Pipeline Step
+
+    Cluster the documents using the previously found duplicate pairs. If A-B and B-C are duplicate pairs, then we will have the A-B-C cluster. Only one document per cluster will be kept after filtering
+    """
+
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 3"
 
@@ -381,12 +455,14 @@ class MinhashDedupCluster(PipelineStep):
         output_folder: DataFolderLike,
         config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
         save_cluster_id: bool = False,
+        ignore_index_matches: bool = False,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.config = config
         self.save_cluster_id = save_cluster_id
+        self.ignore_index_matches = ignore_index_matches
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(glob_pattern="*.dups")
@@ -407,6 +483,9 @@ class MinhashDedupCluster(PipelineStep):
                 with self.input_folder.open(dup_file, "rb") as dupf:
                     for f1, d1, f2, d2 in read_tuples_from_file(dupf, "4I"):
                         a, b = (f1, d1), (f2, d2)
+                        if self.ignore_index_matches and a == (SENTINEL, SENTINEL):
+                            # if we are skipping matches with the index and "a" is from the index
+                            continue
                         union_set[parent(b)] = parent(a)
 
             ci = 0
@@ -429,6 +508,11 @@ class MinhashDedupCluster(PipelineStep):
 
 
 class MinhashDedupFilter(PipelineStep):
+    """Minhash Deduplication: Fourth (and final) Pipeline Step
+
+    Filter the documents based on the minhash clusters to keep only one per cluster
+    """
+
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 4"
 
@@ -493,6 +577,11 @@ class MinhashDedupFilter(PipelineStep):
 
 
 class MinhashBuildIndex(PipelineStep):
+    """Minhash Deduplication
+
+    Only build an index from the signatures, without deduplicating
+    """
+
     type = "🫂 - DEDUP"
     name = "🎯 MinHash build index"
 

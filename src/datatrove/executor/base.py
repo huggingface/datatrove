@@ -14,6 +14,16 @@ from datatrove.utils.stats import PipelineStats
 
 
 class PipelineExecutor(ABC):
+    """Base class for pipeline executors (local, slurm, etc.)
+
+    Args:
+        pipeline: a list of PipelineStep and/or custom functions
+            with arguments (data: DocumentsPipeline, rank: int, world_size: int)
+        logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
+        skip_completed: whether to skip tasks that were completed in
+                previous runs. default: True
+    """
+
     @abstractmethod
     def __init__(
         self,
@@ -21,25 +31,15 @@ class PipelineExecutor(ABC):
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
     ):
-        """
-        Args:
-            pipeline: a list of PipelineStep and/or custom functions
-                with arguments (data: DocumentsPipeline, rank: int, world_size: int)
-            logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
-            skip_completed: whether to skip tasks that were completed in
-                previous runs. default: True
-        """
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.logging_dir = get_datafolder(logging_dir if logging_dir else f"logs/{get_timestamp()}_{get_random_str()}")
         self.skip_completed = skip_completed
 
     @abstractmethod
     def run(self):
-        """
-            This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
-            See slurm and local executor for example usage.
-        Returns:
-
+        """Run the pipeline on all tasks.
+        This method is responsible for correctly invoking `self._run_for_rank` for each task that is to be run.
+        See slurm and local executor for example usage.
         """
         pass
 
@@ -121,7 +121,7 @@ class PipelineExecutor(ABC):
         """
         self.logging_dir.open(f"completions/{rank:05d}", "w").close()
 
-    def get_incomplete_ranks(self) -> list[int]:
+    def get_incomplete_ranks(self, ranks=None) -> list[int]:
         """
             Gets a full list of ranks that are still incomplete.
             Usually faster than calling `is_rank_completed` for each task.
@@ -132,7 +132,7 @@ class PipelineExecutor(ABC):
         return list(
             filter(
                 lambda rank: not self.skip_completed or f"completions/{rank:05d}" not in completed,
-                range(self.world_size),
+                ranks if ranks is not None else range(self.world_size),
             )
         )
 
@@ -163,6 +163,8 @@ class PipelineExecutor(ABC):
 
 
 class ExecutorJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for the PipelineExecutor class"""
+
     def default(self, o):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)

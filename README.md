@@ -32,6 +32,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
     + [Custom function](#custom-function)
     + [Custom block](#custom-block)
 - [Contributing](#contributing)
+- [Citation](#citation)
 
 <!-- tocstop -->
 
@@ -99,10 +100,10 @@ Some options common to all executors:
 Call an executor's `run` method to execute its pipeline.
 
 
-> [!TIP] 
+> [!TIP]
 > Datatrove keeps track of which tasks successfully completed by creating a marker (an empty file) in the `${logging_dir}/completions` folder. Once the job finishes, if some of its tasks have failed, you can **simply relaunch the exact same executor** and datatrove will check and only run the tasks that were not previously completed.
 
-> [!CAUTION] 
+> [!CAUTION]
 > If you relaunch a pipeline because some tasks failed, **do not change the total number of tasks** as this will affect the distribution of input files/sharding.
 
 
@@ -129,6 +130,17 @@ executor = LocalPipelineExecutor(
 )
 executor.run()
 ```
+</details>
+
+<details>
+  <summary>Multi-node parallelism</summary>
+
+You can have different nodes/machines process different parts of the total tasks by using the `local_tasks` and `local_rank_offset`. For each node/instance/machine, launch with the following options:
+- `tasks` the total tasks to be executed (across all machines). **This value must be the same on each machine or the input file distribution may overlap!** Example: 500
+- `local_tasks` how many tasks of the total will be executed on this particular machine. Note that you can use different values for each machine. Example: 100
+- `local_rank_offset` the rank of the first task to be executed on this machine. If this is the 3rd machine where you are launching a job, and the 2 previous machines each ran 250 and 150 jobs, this would be `400` for the current machine.
+
+To get final merged stats you will have to invoke the `merge_stats` script manually on a path containing the stats from all machines.
 </details>
 
 ### SlurmPipelineExecutor
@@ -182,7 +194,7 @@ executor2 = SlurmPipelineExecutor(
     tasks=1,
     time="5:00:00",  # 5 hours
     partition="hopper-cpu",
-    depends=executor1  # this pipeline will only be launched after executor1 successfuly completes
+    depends=executor1  # this pipeline will only be launched after executor1 successfully completes
 )
 # executor1.run()
 executor2.run() # this will actually launch executor1, as it is a dependency, so no need to launch it explicitly
@@ -312,7 +324,7 @@ pipeline = [
     ...
 ]
 ```
-> [!TIP] 
+> [!TIP]
 > You might have some pickling issues due to the imports. If this happens, simply move whatever imports you need inside the function body.
 
 #### Custom block
@@ -339,25 +351,25 @@ class UppercaserBlock(PipelineStep):
                 # do something
                 ...
                 yield doc
-        
+
         #
         # OR process data from previous blocks (`data`)
         #
-        
+
         for doc in data:
             with self.track_time():
-                # you can wrap the main processing code in `track_time` to know how much each document took to process                
+                # you can wrap the main processing code in `track_time` to know how much each document took to process
                 nr_uppercase_letters = sum(map(lambda c: c.isupper(), doc.text))
                 # you can also keep track of stats per document using stat_update
                 self.stat_update("og_upper_letters", value=nr_uppercase_letters)
                 doc.text = doc.text.upper()
             # make sure you keep the yield outside the track_time block, or it will affect the time calculation
             yield doc
-        
+
         #
         # OR save data to disk
         #
-        
+
         with self.some_folder.open("myoutput", "wt") as f:
             for doc in data:
                 f.write(doc...)
@@ -386,5 +398,18 @@ pre-commit install
 
 Run the tests:
 ```bash
-pytest -sv ./tests/ 
+pytest -sv ./tests/
+```
+
+## Citation
+
+```bibtex
+@misc{penedo2024datatrove,
+  author = {Penedo, Guilherme and Cappelli, Alessandro and Wolf, Thomas and Sasko, Mario},
+  title = {DataTrove: large scale data processing},
+  year = {2024},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  url = {https://github.com/huggingface/datatrove}
+}
 ```

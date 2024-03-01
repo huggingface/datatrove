@@ -6,12 +6,30 @@ from datatrove.pipeline.readers.base import BaseDiskReader
 
 
 class CsvReader(BaseDiskReader):
+    """Read data from CSV files.
+        Will read each line as a separate document.
+
+    Args:
+        data_folder: the data folder to read from
+        compression: the compression to use (default: "infer")
+        limit: limit the number of CSV lines to read in each rank. Useful for debugging
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: if True, will read files recursively in subfolders (default: True)
+        glob_pattern: a glob pattern to filter files to read (default: None)
+    """
+
     name = "🔢 Csv"
 
     def __init__(
         self,
         data_folder: DataFolderLike,
-        compression: Literal["guess", "gzip", "zstd"] | None = "infer",
+        compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,

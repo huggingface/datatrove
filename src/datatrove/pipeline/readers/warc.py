@@ -9,13 +9,31 @@ if TYPE_CHECKING:
 
 
 class WarcReader(BaseDiskReader):
+    """Read data from WARC files.
+        Will read each record as a separate document.
+
+    Args:
+        data_folder: the data folder to read from
+        compression: the compression to use (default: "infer")
+        limit: limit the number of WARC documents to read
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: if True, will read files recursively in subfolders (default: True)
+        glob_pattern: a glob pattern to filter files to read (default: None)
+    """
+
     name = "🕷 Warc"
     _requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
 
     def __init__(
         self,
         data_folder: DataFolderLike,
-        compression: Literal["guess", "gzip", "zstd"] | None = "infer",
+        compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
@@ -46,6 +64,7 @@ class WarcReader(BaseDiskReader):
 
 
 def process_record(record: "ArcWarcRecord") -> dict | None:
+    """Process a WARC record to extract the html and metadata (id, url, date)."""
     import cchardet
     import magic
 

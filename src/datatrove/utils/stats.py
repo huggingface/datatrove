@@ -49,6 +49,13 @@ class MetricStatsDict(defaultdict):
 
 
 class Stats:
+    """
+    Stats for a particular block
+
+    Args:
+        name: The name of the block
+    """
+
     def __init__(self, name: str):
         self.name = name
         self.time_stats = TimingStats()

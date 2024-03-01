@@ -8,6 +8,23 @@ from datatrove.pipeline.readers.base import BaseReader
 
 
 class HuggingFaceDatasetReader(BaseReader):
+    """Read data from HuggingFace datasets.
+        Will read each row as a separate document.
+
+    Args:
+        dataset: the name of the dataset to load with datasets.load_dataset
+        dataset_options: options to pass to the load_dataset function
+        limit: limit the number of rows to read
+        batch_size: the batch size to use
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+    """
+
     name = "🤗 HuggingFace"
     _requires_dependencies = ["datasets"]
 

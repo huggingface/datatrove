@@ -11,6 +11,20 @@ from datatrove.pipeline.base import PipelineStep
 
 
 class BaseReader(PipelineStep):
+    """Base module for Readers. Readers read data from a source and create documents.
+        Reader are the first step in a pipeline usually.
+
+    Args:
+        limit: limit the number of documents to read. Useful for debugging
+        progress: show tqdm progress bar. Might be spammy in some environments
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+    """
+
     type = "📖 - READER"
 
     def __init__(
@@ -93,6 +107,20 @@ class BaseReader(PipelineStep):
 
 
 class BaseDiskReader(BaseReader):
+    """Base module for fsspec based Readers. Readers read data from a source (local or remote) and create documents.
+
+    Args:
+        data_folder: the data folder to read from
+        limit: limit the number of documents to read. Useful for debugging
+        progress: show progress bar
+        adapter: function to adapt the data from the source to a Document
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: whether to read files recursively
+        glob_pattern: glob pattern to filter files
+    """
+
     type = "📖 - READER"
 
     def __init__(
