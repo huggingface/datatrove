@@ -292,8 +292,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "array": f"0-{max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             "requeue": "",
             "qos": self.qos,
-            "mail-type": self.mail_type,
-            "mail-user": self.mail_user,
+            **({"mail-type": self.mail_type, "mail-user": self.mail_user} if self.mail_user else {}),
             **self._sbatch_args,
         }
 
