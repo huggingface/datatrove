@@ -5,18 +5,19 @@ import re
 
 from loguru import logger
 from rich.console import Console
-from rich.prompt import Confirm
 
 from datatrove.io import get_datafolder
 from datatrove.utils._import_utils import is_rich_available
+
 
 def list_folders_with_prefix(log_files_path, log_prefix):
     # Get a list of all folders in the given path
     folders = [folder for folder in os.listdir(log_files_path) if os.path.isdir(os.path.join(log_files_path, folder))]
     # Filter out only the folders that start with the specified prefix
     folders_with_prefix = [os.path.join(log_files_path, folder) for folder in folders if folder.startswith(log_prefix)]
-    
+
     return folders_with_prefix
+
 
 if not is_rich_available():
     raise ImportError("Please install `rich` to run this command (`pip install rich`).")
@@ -28,10 +29,8 @@ parser.add_argument(
     "path", type=str, nargs="?", help="Path to the logging folder. Defaults to current directory.", default=os.getcwd()
 )
 
-parser.add_argument(
-    "--log_prefix", type=str, nargs="?", help="Prefix of logging folders to be scanned.", default=""
-)
-parser.add_argument('--show_complete', help="Also list all jobs that are already complete.", action='store_true')
+parser.add_argument("--log_prefix", type=str, nargs="?", help="Prefix of logging folders to be scanned.", default="")
+parser.add_argument("--show_complete", help="Also list all jobs that are already complete.", action="store_true")
 RANK_FROM_LOG_FILENAME_REGEX = re.compile(r"logs/task_(\d{5})\.log")
 
 
@@ -62,23 +61,24 @@ def main():
             world_size = json.load(f).get("world_size", None)
         if not world_size:
             console.log("Could not get the total number of tasks, please try relaunching the run.", style="red")
-            continue 
+            continue
 
         with console.status("Fetching list of incomplete tasks"):
             completed = set(logging_dir.list_files("completions"))
             incomplete = set(filter(lambda rank: f"completions/{rank:05d}" not in completed, range(world_size)))
 
-        if len(incomplete)==0:
+        if len(incomplete) == 0:
             emoji = "✅"
             complete_jobs += 1
         else:
             emoji = "❌"
             incomplete_jobs += 1
-        
-        if not (len(incomplete)==0 and not args.show_complete):
+
+        if not (len(incomplete) == 0 and not args.show_complete):
             console.log(f"{emoji}{path.split('/')[-1]+':': <50}{len(completed)}/{world_size} completed tasks.")
 
     console.log(f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} jobs completed.")
+
 
 if __name__ == "__main__":
     main()
