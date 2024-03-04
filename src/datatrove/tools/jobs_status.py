@@ -29,7 +29,7 @@ parser.add_argument(
 )
 
 parser.add_argument("--log_prefix", type=str, nargs="?", help="Prefix of logging folders to be scanned.", default="")
-parser.add_argument("--show_complete", help="Also list all jobs that are already complete.", action="store_true")
+parser.add_argument("--show_incomplete", help="Also list all jobs that are already complete.", action="store_true")
 
 
 def main():
@@ -51,14 +51,18 @@ def main():
         logging_dir = get_datafolder(path)
         if not logging_dir.isfile("executor.json"):
             console.log(
-                'Could not find "executor.json" in the given directory. Are you sure it is a ' "logging folder?",
+                f'Could not find "executor.json" in the given directory ({logging_dir}). Are you sure it is a '
+                "logging folder?",
                 style="red",
             )
             continue
         with logging_dir.open("executor.json", "rt") as f:
             world_size = json.load(f).get("world_size", None)
         if not world_size:
-            console.log("Could not get the total number of tasks, please try relaunching the run.", style="red")
+            console.log(
+                f"Could not get the total number of tasks in {logging_dir}, please try relaunching the run.",
+                style="red",
+            )
             continue
 
         with console.status("Fetching list of incomplete tasks"):
@@ -72,7 +76,7 @@ def main():
             emoji = "❌"
             incomplete_jobs += 1
 
-        if not (len(incomplete) == 0 and not args.show_complete):
+        if not (len(incomplete) == 0 and args.show_incomplete):
             console.log(f"{emoji}{path.split('/')[-1]+':': <50}{len(completed)}/{world_size} completed tasks.")
 
     console.log(
