@@ -1,7 +1,6 @@
 import argparse
 import json
 import os.path
-import re
 
 from loguru import logger
 from rich.console import Console
@@ -31,7 +30,6 @@ parser.add_argument(
 
 parser.add_argument("--log_prefix", type=str, nargs="?", help="Prefix of logging folders to be scanned.", default="")
 parser.add_argument("--show_complete", help="Also list all jobs that are already complete.", action="store_true")
-RANK_FROM_LOG_FILENAME_REGEX = re.compile(r"logs/task_(\d{5})\.log")
 
 
 def main():
@@ -77,7 +75,9 @@ def main():
         if not (len(incomplete) == 0 and not args.show_complete):
             console.log(f"{emoji}{path.split('/')[-1]+':': <50}{len(completed)}/{world_size} completed tasks.")
 
-    console.log(f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} jobs completed.")
+    console.log(
+        f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed."
+    )
 
 
 if __name__ == "__main__":
