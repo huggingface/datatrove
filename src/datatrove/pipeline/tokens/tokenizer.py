@@ -105,6 +105,8 @@ class TokenizedFile:
         self.output_folder.rm_file(self.filename)
         if self.loss_file:
             self.output_folder.rm_file(f"{self.filename}.loss")
+        if self.save_final_metadata and self.output_folder.exists(f"{self.filename}.metadata"):
+            self.output_folder.rm_file(f"{self.filename}.metadata")
 
     def write_bytes(self, tk_bytes: bytes, doc_ends: list[int] = None):
         """Write tk_bytes to the tokens file and update the document boundaries with a new document end (in tokens).
