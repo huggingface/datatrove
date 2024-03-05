@@ -52,7 +52,7 @@ class HuggingFaceDatasetReader(BaseReader):
         return document
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        from datasets import load_dataset
+        from datasets import load_dataset  # type: ignore
 
         if data:
             yield from data

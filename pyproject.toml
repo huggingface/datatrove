@@ -41,7 +41,7 @@ io = [
   "pyarrow",
   "python-magic",
   "warcio",
-  "datasets"
+  "datasets>=2.18.0"
 ]
 s3 = [
   "s3fs>=2023.12.2",
