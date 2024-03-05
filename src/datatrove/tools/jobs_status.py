@@ -9,15 +9,6 @@ from datatrove.io import get_datafolder
 from datatrove.utils._import_utils import is_rich_available
 
 
-def list_folders_with_prefix(log_files_path, log_prefix):
-    # Get a list of all folders in the given path
-    folders = [folder for folder in os.listdir(log_files_path) if os.path.isdir(os.path.join(log_files_path, folder))]
-    # Filter out only the folders that start with the specified prefix
-    folders_with_prefix = [os.path.join(log_files_path, folder) for folder in folders if folder.startswith(log_prefix)]
-
-    return folders_with_prefix
-
-
 if not is_rich_available():
     raise ImportError("Please install `rich` to run this command (`pip install rich`).")
 
@@ -28,8 +19,10 @@ parser.add_argument(
     "path", type=str, nargs="?", help="Path to the logging folder. Defaults to current directory.", default=os.getcwd()
 )
 
-parser.add_argument("--log_prefix", type=str, nargs="?", help="Prefix of logging folders to be scanned.", default="")
-parser.add_argument("--show_incomplete", help="Also list all jobs that are already complete.", action="store_true")
+parser.add_argument(
+    "-p", "--log_prefix", type=str, nargs="?", help="Prefix of logging folders to be scanned.", default=""
+)
+parser.add_argument("-hc", "--hide_complete", help="Hide all jobs that are already complete.", action="store_true")
 
 
 def main():
@@ -41,17 +34,22 @@ def main():
     args = parser.parse_args()
     console = Console()
 
-    logging_dirs = sorted(list_folders_with_prefix(args.path, args.log_prefix))
+    main_folder = get_datafolder(args.path)
+    logging_dirs = [
+        f
+        for f, info in main_folder.glob(f"{args.log_prefix}*", detail=True, maxdepth=1).items()
+        if info["type"] == "directory"
+    ]
     logger.remove()
 
     complete_jobs = 0
     incomplete_jobs = 0
 
     for path in logging_dirs:
-        logging_dir = get_datafolder(path)
+        logging_dir = get_datafolder(main_folder.resolve_paths(path))
         if not logging_dir.isfile("executor.json"):
             console.log(
-                f'Could not find "executor.json" in the given directory ({logging_dir}). Are you sure it is a '
+                f'Could not find "executor.json" in the given directory ({path}). Are you sure it is a '
                 "logging folder?",
                 style="red",
             )
@@ -60,7 +58,7 @@ def main():
             world_size = json.load(f).get("world_size", None)
         if not world_size:
             console.log(
-                f"Could not get the total number of tasks in {logging_dir}, please try relaunching the run.",
+                f"Could not get the total number of tasks in {path}, please try relaunching the run.",
                 style="red",
             )
             continue
@@ -76,12 +74,17 @@ def main():
             emoji = "❌"
             incomplete_jobs += 1
 
-        if not (len(incomplete) == 0 and args.show_incomplete):
-            console.log(f"{emoji}{path.split('/')[-1]+':': <50}{len(completed)}/{world_size} completed tasks.")
+        if len(incomplete) > 0 or not args.hide_complete:
+            console.log(
+                f"{emoji} {path.split('/')[-1]+':': <50}{len(completed)}/{world_size} ({len(completed)/(world_size):.0%}) completed tasks."
+            )
 
-    console.log(
-        f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed."
-    )
+    if complete_jobs + incomplete_jobs > 0:
+        console.log(
+            f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed."
+        )
+    else:
+        console.log("No jobs found.")
 
 
 if __name__ == "__main__":
