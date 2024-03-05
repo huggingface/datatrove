@@ -76,7 +76,7 @@ def main():
 
         if len(incomplete) > 0 or not args.hide_complete:
             console.log(
-                f"{emoji} {path.split('/')[-1]+':': <50}{len(completed)}/{world_size} ({len(completed)/(world_size):.0%}) completed tasks."
+                f"{emoji} {path + ':': <50}{len(completed)}/{world_size} ({len(completed)/(world_size):.0%}) completed tasks."
             )
 
     if complete_jobs + incomplete_jobs > 0:
