@@ -28,7 +28,7 @@ class WarcReader(BaseDiskReader):
     """
 
     name = "🕷 Warc"
-    _requires_dependencies = ["warcio", ("cchardet", "faust-chardet"), ("magic", "python-magic")]
+    _requires_dependencies = ["warcio", ("cchardet", "faust-cchardet"), ("magic", "python-magic")]
 
     def __init__(
         self,
