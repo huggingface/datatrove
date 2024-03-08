@@ -70,9 +70,9 @@ class PipelineStep(ABC):
         Returns:
 
         """
-        self.stats["doc_len"] += len(document.text)
+        self.stat_update("doc_len", value=len(document.text), unit="doc")
         if token_count := document.metadata.get("token_count", None):
-            self.stats["doc_len_tokens"] += token_count
+            self.stat_update("doc_len_tokens", value=token_count, unit="doc")
 
     def track_time(self, unit: str = None):
         """
