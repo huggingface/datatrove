@@ -32,9 +32,22 @@ class C4QualityFilter(BaseFilter):
     - Remove lines with one word over 1000 chars
     - Remove lines with cookies and terms of use keywords
 
-
-
     Reference implementation: https://github.com/tensorflow/datasets/blob/master/tensorflow_datasets/text/c4_utils.py#L197
+    Args:
+        exclusion_writer: optionally pass in a writer that will save the dropped documents
+        tokenizer_language: load a diff language specific punkt tokenizer from nltk
+        split_paragraph: by default (as in the paper) split on "\n".
+            Set to "False" to apply the filters to each sentence instead of to each line
+        remove_citations: remove wikipedia style citations from the text
+        filter_no_terminal_punct: remove lines without terminal punctuation marks
+        min_num_sentences: remove documents that do not have at least this number of sentences (after line filtering).
+            set to -1 to disable
+        min_words_per_line: drop lines without this min number of words
+        max_word_length: drop lines where at least one word has more than this number of characters
+        filter_lorem_ipsum: drop documents that contain "lorem ipsum"
+        filter_javascript: drop lines mentioning "javascript"
+        filter_curly_bracket: drop documents containing {
+        filter_policy: drop lines containing any of the phrases in POLICY_SUBSTRINGS
     """
 
     name = "⛰ C4 Quality"
