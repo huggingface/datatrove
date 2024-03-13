@@ -18,12 +18,12 @@ import struct
 from typing import BinaryIO, Generator
 
 import numpy as np
-import tokenizers
 from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 
+from ...utils.tokenization import PipelineStepWithTokenizer
 from .utils import ExtensionHelperES as EH
 
 
@@ -37,7 +37,7 @@ def prepare_doc(tokenizer, doc: str, rank: int, doc_id: int):
     return b_doc
 
 
-class ESDatasetToSequence(PipelineStep):
+class ESDatasetToSequence(PipelineStepWithTokenizer):
     """STAGE 1
     Creates a sequence of all docs pre-prepended by a unique separator. It also saves a second file with the
     bytes length of each individual doc.
@@ -49,12 +49,11 @@ class ESDatasetToSequence(PipelineStep):
 
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
-    _requires_dependencies = ["tokenizers"]
 
     def __init__(self, output_folder: DataFolderLike, tokenizer_name: str = "gpt2"):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer_name = tokenizer_name
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         """Saves the byte sizes of each doc in a file.
@@ -146,10 +145,10 @@ def sequence_reader(file: BinaryIO, size_file: BinaryIO) -> Generator[list, None
                 yield f.read(n_bytes)
 
 
-class ESRangeRemover(PipelineStep):
+class ESRangeRemover(PipelineStepWithTokenizer):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
-    _requires_dependencies = ["nltk", "tokenizers"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -160,7 +159,7 @@ class ESRangeRemover(PipelineStep):
     ):
         super().__init__()
         self.sequence_folder = get_datafolder(sequence_folder)
-        self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer_name = tokenizer_name
         self.min_doc_words = min_doc_words
         self.sequence_bytes_offset = None
         self.dup_ranges = None

@@ -4,10 +4,10 @@ import struct
 from typing import IO
 
 import numpy as np
-from tokenizers import Tokenizer
 from tqdm import tqdm
 
 from datatrove.io import DataFolder, get_datafolder
+from datatrove.utils.tokenization import load_tokenizer
 
 
 parser = argparse.ArgumentParser()
@@ -64,7 +64,7 @@ def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: 
     Returns:
 
     """
-    tokenizer = Tokenizer.from_pretrained(tokenizer)
+    tokenizer = load_tokenizer(tokenizer)
 
     eos_token = tokenizer.token_to_id(eos_token)
 

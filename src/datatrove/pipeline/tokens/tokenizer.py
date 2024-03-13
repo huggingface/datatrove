@@ -9,7 +9,7 @@ from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolder, DataFolderLike, get_datafolder
-from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 
 SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas for final filtered common crawl docs)
@@ -17,7 +17,7 @@ SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas f
 SHUFFLING_CACHE_TYPE = "none"  # do not cache as we are only jumping around and not reading sequentially
 
 if TYPE_CHECKING:
-    from tokenizers import Encoding, Tokenizer
+    from tokenizers import Encoding
 
 
 def batched(iterable, n):
@@ -257,7 +257,7 @@ def get_output_filename(save_filename, rank: int, name: str, sub_rank: int = Non
     return "_".join([x for x in [save_filename, f"{rank:05d}", f"{name}.ds"] if x])
 
 
-class DocumentTokenizer(PipelineStep):
+class DocumentTokenizer(PipelineStepWithTokenizer):
     """Tokenize the documents in the pipeline using the HuggingFace fast tokenizers library.
         This pipeline step saves the tokenized documents locally/remotely in a set of files and optionally shuffles documents inside each file.
 
@@ -282,7 +282,6 @@ class DocumentTokenizer(PipelineStep):
 
     name = "✍️ Writer"
     type = "🔢 - TOKENIZER"
-    _requires_dependencies = ["tokenizers"]
 
     def __init__(
         self,
@@ -316,7 +315,6 @@ class DocumentTokenizer(PipelineStep):
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle
         self.batch_size = batch_size
-        self._tokenizer = None
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
@@ -411,24 +409,3 @@ class DocumentTokenizer(PipelineStep):
             )
             # remove and replace original file
             outputfile.cleanup()
-
-    @property
-    def tokenizer(self) -> "Tokenizer":
-        """Get a tokenizer instance from the HuggingFace tokenizers library.
-            If self.eos_token is defined, we add a post-processor to add the EOS token to each document.
-
-        Returns:
-            Tokenizer: the tokenizer instance
-        """
-        if not self._tokenizer:
-            from tokenizers import Tokenizer
-            from tokenizers.processors import TemplateProcessing
-
-            self._tokenizer = Tokenizer.from_pretrained(self.tokenizer_name)
-            if self.eos_token:
-                self._tokenizer.post_processor = TemplateProcessing(
-                    single="$A <EOS>",
-                    special_tokens=[("<EOS>", self.tokenizer.token_to_id(self.eos_token))],
-                    pair=None,
-                )
-        return self._tokenizer
