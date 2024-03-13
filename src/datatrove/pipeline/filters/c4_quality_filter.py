@@ -71,7 +71,11 @@ class C4QualityFilter(BaseFilter):
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         from nltk.tokenize import sent_tokenize
 
-        lines = doc.text.splitlines() if self.split_paragraph else sent_tokenize(doc.text)
+        lines = (
+            doc.text.splitlines()
+            if self.split_paragraph
+            else sent_tokenize(doc.text, language=self.tokenizer_language)
+        )
 
         num_sentences = 0
         kept_lines = []
@@ -110,7 +114,7 @@ class C4QualityFilter(BaseFilter):
             if self.filter_policy and any(p in line_l for p in POLICY_SUBSTRINGS):
                 self.stat_update("line-filter-policy")
                 continue
-            num_sentences += len(sent_tokenize(line)) if self.split_paragraph else 1
+            num_sentences += len(sent_tokenize(line, language=self.tokenizer_language)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
         if num_sentences < self.min_num_sentences:
