@@ -50,6 +50,8 @@ class TokensCounter(PipelineStepWithTokenizer):
                 count = document.metadata["token_count"]
             else:
                 count = len(self.tokenizer.encode(document.text).ids)
+                if self.count_eos_token:
+                    count += 1
                 document.metadata["token_count"] = count
             self.stat_update("tokens", value=count)
             yield document
