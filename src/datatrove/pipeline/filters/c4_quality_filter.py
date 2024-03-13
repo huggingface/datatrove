@@ -134,6 +134,7 @@ class C4QualityFilter(BaseFilter):
             return False, "too_few_sentences"
 
         doc.text = ("\n" if self.split_paragraph else " ").join(kept_lines).strip()
+        return True
 
 
 class C4ParagraphFilter(BaseFilter):
