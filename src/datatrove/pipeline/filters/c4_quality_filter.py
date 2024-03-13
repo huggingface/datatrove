@@ -53,7 +53,7 @@ class C4QualityFilter(BaseFilter):
         if len(lines) < self.min_lines:
             return False, f"< {self.min_lines} lines"
 
-        if "{" or "}" in doc.text:
+        if "{" in doc.text or "}" in doc.text:
             return False, "curly brackets"
 
         if self.lorem_ipsum.search(doc.text):
