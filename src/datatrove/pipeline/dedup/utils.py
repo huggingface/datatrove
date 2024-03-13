@@ -6,8 +6,6 @@ from collections import defaultdict
 from functools import partial
 from typing import BinaryIO
 
-import numpy as np
-
 
 class ExtensionHelperSD:
     stage_1_signature = ".c4_sig"
@@ -66,15 +64,6 @@ def simplify_text(text: str) -> str:
     # diacritics/unicode normalization
     text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
     return text.strip()
-
-
-def _b2i(b: bytes) -> int:
-    return np.frombuffer(b, dtype=np.uint64, count=1, offset=0).item(0)
-
-
-def str_hash(s: str) -> int:
-    h = hashlib.sha1(bytes(s, encoding="utf-8"))
-    return _b2i(h.digest())
 
 
 def merge_docs(sen_list, n_sentences: int = 3) -> dict:

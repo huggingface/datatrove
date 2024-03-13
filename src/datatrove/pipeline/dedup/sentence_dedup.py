@@ -22,7 +22,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, simplify_text, str_hash
+from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, sha1_hash64, simplify_text
 
 
 @dataclass(order=True)
@@ -54,9 +54,16 @@ class SentenceDedupSignature(PipelineStep):
     name = "💥 sentence-deduplication stage 1"
     _requires_dependencies = ["nltk"]
 
-    def __init__(self, output_folder: DataFolderLike, n_sentences: int = 3, language: str = "english"):
+    def __init__(
+        self,
+        output_folder: DataFolderLike,
+        split_sentences: bool = True,  # set to False to split on \n instead
+        n_sentences: int = 3,
+        language: str = "english",
+    ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
+        self.split_sentences = split_sentences
         self.n_sentences = n_sentences
         self.language = language
 
@@ -70,11 +77,10 @@ class SentenceDedupSignature(PipelineStep):
                 f.write(struct.pack("<H", hs.sent_id))
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
-        # todo use language id metadata in sent_tokenize
         from nltk import ngrams
         from nltk.tokenize import sent_tokenize
 
-        sentences = sent_tokenize(doc.text, self.language)
+        sentences = sent_tokenize(doc.text, self.language) if self.split_sentences else doc.text.splitlines()
         if len(sentences) < self.n_sentences:
             return []
 
@@ -82,7 +88,7 @@ class SentenceDedupSignature(PipelineStep):
         n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.n_sentences)]
         hashes = [
             HashSig(
-                hash_value=str_hash(n_sent_gram),
+                hash_value=sha1_hash64(n_sent_gram.encode("utf-8")),
                 doc_id=doc_idx,
                 sent_id=sentence_idx,
             )
