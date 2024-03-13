@@ -40,6 +40,7 @@ class C4QualityFilter(BaseFilter):
         if len(line.split()) < self.min_words:
             return False
 
+    # TODO: replace with this implementation: https://github.com/tensorflow/datasets/blob/master/tensorflow_datasets/text/c4_utils.py#L197
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """Args:
             doc
