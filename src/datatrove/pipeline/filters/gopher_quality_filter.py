@@ -1,7 +1,6 @@
 import string
 
 import numpy as np
-from nltk.tokenize import word_tokenize
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
@@ -13,6 +12,7 @@ STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
 
 class GopherQualityFilter(BaseFilter):
     name = "🥇 Gopher Quality"
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -32,16 +32,18 @@ class GopherQualityFilter(BaseFilter):
         Filter to apply Gopher's quality heuristic rules.
         Reference: https://arxiv.org/pdf/2112.11446.pdf
 
-        @param min_doc_words:
-        @param max_doc_words:
-        @param min_avg_word_length:
-        @param max_avg_word_length:
-        @param max_symbol_word_ratio:
-        @param max_bullet_lines_ratio:
-        @param max_ellipsis_lines_ratio:
-        @param max_non_alpha_words_ratio:
-        @param min_stop_words:
-        @param stop_words:
+        Args:
+            min_doc_words:
+            max_doc_words:
+            min_avg_word_length:
+            max_avg_word_length:
+            max_symbol_word_ratio:
+            max_bullet_lines_ratio:
+            max_ellipsis_lines_ratio:
+            max_non_alpha_words_ratio:
+            min_stop_words:
+            stop_words:
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.min_doc_words = min_doc_words
@@ -57,13 +59,17 @@ class GopherQualityFilter(BaseFilter):
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
-            Applies the heuristics rules to decide if a document should be REMOVED:
-                -
 
-        :param doc
-        :return: False if sample.content does not pass any of the the heuristic tests
+        Args:
+            doc: Applies the heuristics rules to decide if a document should be REMOVED
+
+
+        Returns: False if sample.text does not pass any of the the heuristic tests
+
         """
-        text = doc.content
+        from nltk.tokenize import word_tokenize
+
+        text = doc.text
         words = word_tokenize(text)  # TODO we should use language id filter
 
         # words < min_doc_words or words > max_doc_words

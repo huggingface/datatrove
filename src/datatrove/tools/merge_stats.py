@@ -5,7 +5,7 @@ import os.path
 from loguru import logger
 from tqdm import tqdm
 
-from datatrove.io import BaseInputDataFolder, BaseOutputDataFile
+from datatrove.io import get_datafolder, open_file
 from datatrove.utils.stats import PipelineStats
 
 
@@ -24,25 +24,19 @@ parser.add_argument(
 
 
 def main():
-    args, file_args = parser.parse_known_args()
-    stats_folder = BaseInputDataFolder.from_path(args.path)
+    args = parser.parse_args()
+    stats_folder = get_datafolder(args.path)
     # output file
-    extra_args = dict(extra_arg.split("=") for extra_arg in file_args)
-    if (
-        "cleanup" in extra_args
-    ):  # dumb workaround to cast this to boolean (otherwise we'd have to use pydantic or smth)
-        extra_args["cleanup"] = extra_args["cleanup"] == "True"
-    path = extra_args.pop("path", os.path.abspath(args.output))
-    output_file = BaseOutputDataFile.from_path(path, **extra_args)
+    path = args.output
 
     stats = []
     for file in tqdm(stats_folder.list_files()):
-        with file.open() as f:
+        with stats_folder.open(file, "rt") as f:
             stats.append(PipelineStats.from_json(json.load(f)))
     merged = sum(tqdm(stats), start=PipelineStats())
-    with output_file.open() as f:
+    with open_file(path, mode="wt") as f:
         merged.save_to_disk(f)
-    logger.info(f"Processing complete. Results saved to {output_file.path}.")
+    logger.info(f"Processing complete. Results saved to {path}.")
     logger.info(merged)
 
 

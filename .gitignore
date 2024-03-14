@@ -158,4 +158,6 @@ cython_debug/
 # ruff code style
 .ruff_cache/
 
-playground/*
+.vscode/
+
+playground/

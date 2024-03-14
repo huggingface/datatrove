@@ -3,10 +3,10 @@ import re
 import struct
 import unicodedata
 from collections import defaultdict
+from functools import partial
+from typing import BinaryIO
 
 import numpy as np
-
-from datatrove.io import BaseInputDataFile
 
 
 class ExtensionHelperSD:
@@ -28,25 +28,22 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 )
 
 
-def read_tuples_from_file(file: BaseInputDataFile, *formats):
-    """
-        Utility to easily parse binary files. formats is a list of struct format characters.
+def read_tuples_from_file(file: BinaryIO, *formats):
+    """Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
-    :param file: the file to read from
-    :param formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
-    :return: tuples with data specified in formats
+
+    Args:
+        file: the file to read from
+        *formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
+
+    Returns:tuples with data specified in formats
+
     """
-    with file.open(binary=True) as f:
-        while True:
-            line = []
-            for F in formats:
-                if not (data := f.read(struct.calcsize(F))):
-                    return
-                line.extend(struct.unpack(f"<{F}", data))
-            yield tuple(line)
+    fstring = "<" + "".join(formats)
+    yield from map(partial(struct.unpack, fstring), iter(partial(file.read, struct.calcsize(fstring)), b""))
 
 
-def simplify_content(text: str):
+def simplify_text(text: str) -> str:
     """Performs the following operations to increase recall when looking for matches between documents:
     - lowercase text
     - replace all whitespace with a single " "

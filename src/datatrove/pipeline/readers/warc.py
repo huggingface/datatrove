@@ -1,59 +1,89 @@
-from typing import Callable, Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
-import cchardet
-import magic
-from warcio.archiveiterator import ArchiveIterator
-from warcio.recordloader import ArcWarcRecord
-
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.io import DataFolderLike
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class WarcReader(BaseReader):
+if TYPE_CHECKING:
+    from warcio.recordloader import ArcWarcRecord
+
+
+class WarcReader(BaseDiskReader):
+    """Read data from WARC files.
+        Will read each record as a separate document.
+
+    Args:
+        data_folder: the data folder to read from
+        compression: the compression to use (default: "infer")
+        limit: limit the number of WARC documents to read
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: if True, will read files recursively in subfolders (default: True)
+        glob_pattern: a glob pattern to filter files to read (default: None)
+    """
+
     name = "🕷 Warc"
+    _requires_dependencies = ["warcio", ("cchardet", "faust-cchardet"), ("magic", "python-magic")]
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        data_folder: DataFolderLike,
+        compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
-        content_key: str = "content",
-        id_key: str = "data_id",
+        text_key: str = "text",
+        id_key: str = "id",
         default_metadata: dict = None,
+        recursive: bool = True,
+        glob_pattern: str | None = None,
     ):
         self.compression = compression
-        super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
+        super().__init__(
+            data_folder, limit, progress, adapter, text_key, id_key, default_metadata, recursive, glob_pattern
+        )
 
-    def read_file(self, datafile: BaseInputDataFile):
-        with datafile.open(compression=self.compression, binary=True) as f:
+    def read_file(self, filepath: str):
+        from warcio.archiveiterator import ArchiveIterator
+
+        with self.data_folder.open(filepath, "rb", compression=self.compression) as f:
             for ri, record in enumerate(ArchiveIterator(f)):
                 with self.track_time():
                     extracted_data = process_record(record)
                     if not extracted_data:
                         continue
-                    document = self.get_document_from_dict(extracted_data, datafile, ri)
+                    document = self.get_document_from_dict(extracted_data, filepath, ri)
                     if not document:
                         continue
                 yield document
 
 
-def process_record(record: ArcWarcRecord) -> dict | None:
+def process_record(record: "ArcWarcRecord") -> dict | None:
+    """Process a WARC record to extract the html and metadata (id, url, date)."""
+    import cchardet
+    import magic
+
     # record type
-    if record.rec_type != "response":
+    if record.rec_type != "response" and record.rec_type != "conversion":  # wet files have "conversion" type
         return
 
     # content type filtering
     mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
-    if mime_type is not None and mime_type != "text/html":
+    if mime_type is not None and (
+        mime_type != "text/html" and (record.rec_type != "conversion" or mime_type != "text/plain")
+    ):
         return
 
     content_bytes = record.content_stream().read()
     if mime_type is None:
         # fallback for older crawls without payload types
         mime_type = magic.from_buffer(content_bytes, mime=True)
-        if mime_type != "text/html":
+        if mime_type != "text/html" and (record.rec_type != "conversion" or mime_type != "text/plain"):
             return
 
     # Decode the response bytes
@@ -71,7 +101,7 @@ def process_record(record: ArcWarcRecord) -> dict | None:
         except (UnicodeDecodeError, LookupError):
             return
 
-    data_id = record.rec_headers["WARC-Record-ID"]
+    id_ = record.rec_headers["WARC-Record-ID"]
     url = record.rec_headers.get("WARC-Target-URI", None)
     date = record.rec_headers.get("WARC-Date", None)
     # handle older formats
@@ -80,4 +110,4 @@ def process_record(record: ArcWarcRecord) -> dict | None:
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 
-    return {"content": html, "data_id": data_id, "url": url, "date": date}
+    return {"text": html, "id": id_, "url": url, "date": date}

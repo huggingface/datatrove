@@ -1,17 +1,124 @@
-[tool.black]
-line-length = 119
-target-version = ['py310']
+[project]
+name = "datatrove"
+version = "0.0.1"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+description = "HuggingFace library to process and filter large amounts of webdata"
+readme = "README.md"
+authors = [
+  {name = "HuggingFace Inc.", email = "guilherme@huggingface.co"}
+]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["data", "machine", "learning", "processing"]
+requires-python = ">=3.10.0"
+dependencies = [
+    "dill>=0.3.0",
+    "fsspec>=2023.12.2",
+    "huggingface-hub>=0.17.0",
+    "humanize",
+    "loguru>=0.7.0",
+    "multiprocess",
+    "numpy>=1.25.0",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+cli = [
+  "rich",
+]
+io = [
+  "faust-cchardet",
+  "pyarrow",
+  "python-magic",
+  "warcio",
+  "datasets>=2.18.0"
+]
+s3 = [
+  "s3fs>=2023.12.2",
+]
+processing = [
+    "fasttext-wheel",
+    "nltk",
+    "inscriptis",
+#    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+    "tldextract",
+    "trafilatura",
+    "tokenizers",
+]
+quality = [
+  "ruff>=0.1.5"
+]
+testing = [
+  "datatrove[cli]",
+  "datatrove[io]",
+  "datatrove[processing]",
+  "datatrove[s3]",
+  "pytest",
+  "pytest-timeout",
+  "pytest-xdist",
+  "moto[s3,server]",
+]
+all = [
+  "datatrove[quality]",
+  "datatrove[testing]",
+]
+dev = [
+  "datatrove[all]"
+]
+
+[project.urls]
+Repository = "https://github.com/huggingface/datatrove"
+
+[project.scripts]
+check_dataset = "datatrove.tools.check_dataset:main"
+merge_stats = "datatrove.tools.merge_stats:main"
+launch_pickled_pipeline = "datatrove.tools.launch_pickled_pipeline:main"
+failed_logs = "datatrove.tools.failed_logs:main"
+inspect_data = "datatrove.tools.inspect_data:main"
+jobs_status = "datatrove.tools.jobs_status:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+datatrove = ["assets/*"]
 
 [tool.ruff]
-# Never enforce `E501` (line length violations).
-ignore = ["C901", "E501", "E741"]
-select = ["C", "E", "F", "I", "W"]
+lint.ignore = [
+  "C901", # `function_name` is too complex
+  "E501", # line length violation
+]
+lint.select = [
+  "C",
+  "E",
+  "F",
+  "I",
+  "W"
+]
 line-length = 119
 
-# Ignore import violations in all `__init__.py` files.
-[tool.ruff.per-file-ignores]
-"__init__.py" = ["E402", "F401", "F403", "F811"]
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = [
+  "F401" # module imported but unused
+]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 lines-after-imports = 2
-known-first-party = ["datatrove"]
+known-first-party = [
+  "datatrove"
+]
+

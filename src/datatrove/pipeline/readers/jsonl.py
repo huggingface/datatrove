@@ -4,36 +4,61 @@ from typing import Callable, Literal
 
 from loguru import logger
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.io import DataFolderLike
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class JsonlReader(BaseReader):
+class JsonlReader(BaseDiskReader):
+    """Read data from JSONL files.
+        Will read each line as a separate document.
+
+    Args:
+        data_folder: the data folder to read from
+        compression: the compression to use (default: "infer")
+        limit: limit the number of JSON lines to read
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: if True, will read files recursively in subfolders (default: True)
+        glob_pattern: a glob pattern to filter files to read (default: None)
+    """
+
     name = "🐿 Jsonl"
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
-        compression: Literal["guess", "gzip", "zst"] | None = "guess",
+        data_folder: DataFolderLike,
+        compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         progress: bool = False,
         adapter: Callable = None,
-        content_key: str = "content",
-        id_key: str = "data_id",
+        text_key: str = "text",
+        id_key: str = "id",
         default_metadata: dict = None,
+        recursive: bool = True,
+        glob_pattern: str | None = None,
     ):
-        super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
+        super().__init__(
+            data_folder, limit, progress, adapter, text_key, id_key, default_metadata, recursive, glob_pattern
+        )
         self.compression = compression
 
-    def read_file(self, datafile: BaseInputDataFile):
-        with datafile.open(compression=self.compression) as f:
-            for li, line in enumerate(f):
-                with self.track_time():
-                    try:
-                        document = self.get_document_from_dict(json.loads(line), datafile, li)
-                        if not document:
+    def read_file(self, filepath: str):
+        with self.data_folder.open(filepath, "r", compression=self.compression) as f:
+            try:
+                for li, line in enumerate(f):
+                    with self.track_time():
+                        try:
+                            document = self.get_document_from_dict(json.loads(line), filepath, li)
+                            if not document:
+                                continue
+                        except (EOFError, JSONDecodeError) as e:
+                            logger.warning(f"Error when reading `{filepath}`: {e}")
                             continue
-                    except (EOFError, JSONDecodeError) as e:
-                        logger.warning(f"Error when reading `{datafile.path}`: {e}")
-                        continue
-                yield document
+                    yield document
+            except UnicodeDecodeError as e:
+                logger.warning(f"File `{filepath}` may be corrupted: raised UnicodeDecodeError ({e})")

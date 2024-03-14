@@ -12,7 +12,9 @@ class LambdaFilter(BaseFilter):
         """
         filters documents triggering the given filter_function with respect to a specific metadata key.
 
-        @param regex_exp: regex expression
+        Args:
+            filter_function:
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.filter_function = filter_function

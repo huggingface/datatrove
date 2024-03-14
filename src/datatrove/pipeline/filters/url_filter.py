@@ -3,10 +3,10 @@ import re
 import tarfile
 from typing import Iterable
 
-from tldextract import TLDExtract
+from huggingface_hub import cached_assets_path
 
 from datatrove.data import Document
-from datatrove.utils.assets import ASSETS_PATH, DOWNLOAD_PATH
+from datatrove.utils._import_utils import ASSETS_PATH
 
 from ..writers.disk_base import DiskWriter
 from .base_filter import BaseFilter
@@ -19,13 +19,29 @@ def normalize(text, replace=""):
     return normalizer.sub(replace, text).lower()
 
 
-def load_list(path, do_normalize=True):
-    with open(path) as f:
-        return {normalize(x) if do_normalize else x.strip() for x in f if x[0] != "#"}
+def parse_list(line, do_normalize=True):
+    return {normalize(x) if do_normalize else x.strip() for x in line if x[0] != "#"}
+
+
+def get_list(abs_path: str, file_name: str, extra: set = None, do_normalize: bool = True):
+    with open(os.path.join(abs_path, file_name)) as f:
+        return parse_list(f, do_normalize).union(set(parse_list(extra, do_normalize)) if extra else set())
 
 
 class URLFilter(BaseFilter):
+    """
+    Performs filtering based on samples urls.
+    Samples are removed if:
+    - their domain is present on `block_listed_domains`
+    - if their subdomain is present on `block_listed_domains`
+    - if the full url is present on `block_listed_url`
+    - if any word from `banned_words` is in the url
+    - if there are at least `soft_word_threshold` words from `soft_banned_words` in the url
+    - if any word from `banned_subwords` is a substring of the url
+    """
+
     name = "😈 Url-filter"
+    _requires_dependencies = ["tldextract"]
 
     def __init__(
         self,
@@ -37,8 +53,9 @@ class URLFilter(BaseFilter):
         soft_banned_words: Iterable = None,
         exclusion_writer: DiskWriter = None,
     ):
+        from tldextract import TLDExtract
+
         super().__init__(exclusion_writer)
-        self.download_path = os.path.join(DOWNLOAD_PATH, "url_filter")
         self.soft_word_threshold = soft_word_threshold
         self.block_listed_domains = extra_domains
         self.block_listed_url = extra_urls
@@ -48,28 +65,22 @@ class URLFilter(BaseFilter):
         self._downloaded = False
         self.tldextractor = TLDExtract()
 
-    def get_list(self, abs_path: str, file_name: str, extra: set = None, do_normalize: bool = True):
-        return load_list(os.path.join(abs_path, file_name), do_normalize=do_normalize).union(
-            set(extra) if extra else set()
-        )
-
     def download_data(self):
         if self._downloaded:
             return
-        if not os.path.isfile(f"{self.download_path}adult/domains") or not os.path.isfile(
-            f"{self.download_path}adult/urls"
+        download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
+        if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
+            os.path.join(download_dir, "adult", "urls")
         ):
             with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
-                tar.extractall(self.download_path)
-        self.block_listed_domains = self.get_list(
-            self.download_path, "adult/domains", self.block_listed_domains, do_normalize=False
+                tar.extractall(download_dir)
+        self.block_listed_domains = get_list(
+            download_dir, "adult/domains", self.block_listed_domains, do_normalize=False
         )
-        self.block_listed_url = self.get_list(
-            self.download_path, "adult/urls", self.block_listed_url, do_normalize=False
-        )
-        self.banned_words = self.get_list(ASSETS_PATH, "banned_words.txt", self.banned_words)
-        self.banned_subwords = self.get_list(ASSETS_PATH, "banned_subwords.txt", self.banned_subwords)
-        self.soft_banned_words = self.get_list(ASSETS_PATH, "soft_banned_words.txt", self.soft_banned_words)
+        self.block_listed_url = get_list(download_dir, "adult/urls", self.block_listed_url, do_normalize=False)
+        self.banned_words = get_list(ASSETS_PATH, "banned_words.txt", self.banned_words)
+        self.banned_subwords = get_list(ASSETS_PATH, "banned_subwords.txt", self.banned_subwords)
+        self.soft_banned_words = get_list(ASSETS_PATH, "soft_banned_words.txt", self.soft_banned_words)
         self._downloaded = True
 
     def filter(self, document: Document) -> bool | tuple[bool, str]:

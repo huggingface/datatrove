@@ -10,9 +10,11 @@ class RegexFilter(BaseFilter):
 
     def __init__(self, regex_exp: str, exclusion_writer: DiskWriter = None):
         """
-        filters if regex find at least one match
+        filters if regex finds at least one match
 
-        @param regex_exp: regex expression
+        Args:
+            regex_exp: regex expression
+            exclusion_writer:
         """
         super().__init__(exclusion_writer)
         self.regex = re.compile(regex_exp)
@@ -24,4 +26,4 @@ class RegexFilter(BaseFilter):
         Returns:
             is_filter
         """
-        return not len(self.regex.findall(doc.content)) > 0
+        return not self.regex.search(doc.text)

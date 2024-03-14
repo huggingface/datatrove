@@ -1,40 +1,64 @@
 from typing import Callable
 
-import pyarrow.parquet as pq
-
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
-from datatrove.pipeline.readers.base import BaseReader
+from datatrove.io import DataFolderLike
+from datatrove.pipeline.readers.base import BaseDiskReader
 
 
-class ParquetReader(BaseReader):
+class ParquetReader(BaseDiskReader):
+    """Read data from Parquet files.
+        Will read each batch as a separate document.
+
+    Args:
+        data_folder: the data folder to read from
+        limit: limit the number of Parquet rows to read
+        batch_size: the batch size to use (default: 1000)
+        read_metadata: if True, will read the metadata (default: True)
+        progress: show progress bar
+        adapter: function to adapt the data dict from the source to a Document.
+            Take as input: data: dict, path: str, id_in_file: int | str
+            Return: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
+        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+        default_metadata: default metadata to add to all documents
+        recursive: if True, will read files recursively in subfolders (default: True)
+        glob_pattern: a glob pattern to filter files to read (default: None)
+    """
+
     name = "📒 Parquet"
+    _requires_dependencies = ["pyarrow"]
 
     def __init__(
         self,
-        data_folder: BaseInputDataFolder,
+        data_folder: DataFolderLike,
         limit: int = -1,
         batch_size: int = 1000,
         read_metadata: bool = True,
         progress: bool = False,
         adapter: Callable = None,
-        content_key: str = "content",
-        id_key: str = "data_id",
+        text_key: str = "text",
+        id_key: str = "id",
         default_metadata: dict = None,
+        recursive: bool = True,
+        glob_pattern: str | None = None,
     ):
-        super().__init__(data_folder, limit, progress, adapter, content_key, id_key, default_metadata)
+        super().__init__(
+            data_folder, limit, progress, adapter, text_key, id_key, default_metadata, recursive, glob_pattern
+        )
         self.batch_size = batch_size
         self.read_metadata = read_metadata
 
-    def read_file(self, datafile: BaseInputDataFile):
-        with datafile.open(binary=True) as f:
+    def read_file(self, filepath: str):
+        import pyarrow.parquet as pq
+
+        with self.data_folder.open(filepath, "rb") as f:
             with pq.ParquetFile(f) as pqf:
                 li = 0
-                columns = [self.content_key, self.id_key] if not self.read_metadata else None
+                columns = [self.text_key, self.id_key] if not self.read_metadata else None
                 for batch in pqf.iter_batches(batch_size=self.batch_size, columns=columns):
                     documents = []
                     with self.track_time("batch"):
                         for line in batch.to_pylist():
-                            document = self.get_document_from_dict(line, datafile, li)
+                            document = self.get_document_from_dict(line, filepath, li)
                             if not document:
                                 continue
                             documents.append(document)

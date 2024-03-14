@@ -3,8 +3,7 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.io import LocalInputDataFolder
-from datatrove.pipeline.dedup.bloom_filter import SingleBloomFilter, get_false_positive_prob, get_optimal_k
+from datatrove.pipeline.dedup.bloom_filter import SingleBloomFilter
 
 
 TEXT_0 = (
@@ -69,17 +68,17 @@ TEXT_6 = (
 TEXT_7 = "1 + 1 = 2, 2 + 2 = 4, 4 + 4 = 8, ..."
 
 DOCS = [
-    Document(content=TEXT_0, data_id="0"),
-    Document(content=TEXT_1, data_id="1"),
-    Document(content=TEXT_2, data_id="2"),
-    Document(content=TEXT_3, data_id="3"),
-    Document(content=TEXT_4, data_id="4"),
-    Document(content=TEXT_5, data_id="5"),
-    Document(content=TEXT_6, data_id="6"),
-    Document(content=TEXT_7, data_id="7"),
-    Document(content=TEXT_0, data_id="8"),
-    Document(content=TEXT_1, data_id="9"),
-    Document(content=TEXT_6[:-10], data_id="10"),
+    Document(text=TEXT_0, id="0"),
+    Document(text=TEXT_1, id="1"),
+    Document(text=TEXT_2, id="2"),
+    Document(text=TEXT_3, id="3"),
+    Document(text=TEXT_4, id="4"),
+    Document(text=TEXT_5, id="5"),
+    Document(text=TEXT_6, id="6"),
+    Document(text=TEXT_7, id="7"),
+    Document(text=TEXT_0, id="8"),
+    Document(text=TEXT_1, id="9"),
+    Document(text=TEXT_6[:-10], id="10"),
 ]
 
 TARGETS = [True] * 8 + [False] * 3
@@ -88,22 +87,18 @@ TARGETS = [True] * 8 + [False] * 3
 class SentenceDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
-        self.test_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        # Remove the directory after the test
-        shutil.rmtree(self.test_dir)
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_sd(self):
-        bloom_filter = SingleBloomFilter(
-            output_folder=LocalInputDataFolder(self.test_dir), m_bytes=2**10 - 1, k=7, expected_elements=866
-        )
+        bloom_filter = SingleBloomFilter(output_folder=self.tmp_dir, m_bytes=2**10 - 1, k=7, expected_elements=866)
 
         for doc_idx, doc in enumerate(DOCS):
             is_unique = bloom_filter.step(doc)
             self.assertEqual(is_unique, TARGETS[doc_idx])
 
-        fp = get_false_positive_prob(bloom_filter.m_bytes, n=bloom_filter.total_shingles, k=bloom_filter.k)
-        print(f"False probability = {fp:.3}")
-        print(f"Optimal K given total shingles = {get_optimal_k(bloom_filter.m_bytes, bloom_filter.total_shingles)}")
-        print(f"{bloom_filter.total_shingles=}")
+        # # Uncomment to debug:
+        # fp = get_false_positive_prob(bloom_filter.m_bytes, n=bloom_filter.total_shingles, k=bloom_filter.k)
+        # print(f"False probability = {fp:.3}")
+        # print(f"Optimal K given total shingles = {get_optimal_k(bloom_filter.m_bytes, bloom_filter.total_shingles)}")
+        # print(f"{bloom_filter.total_shingles=}")

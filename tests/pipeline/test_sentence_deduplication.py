@@ -6,8 +6,9 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.io import LocalInputDataFolder, LocalOutputDataFolder
 from datatrove.pipeline.dedup.sentence_dedup import SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
+
+from ..utils import require_nltk
 
 
 def get_random_string(n: int = 20):
@@ -85,20 +86,20 @@ rs_1 = get_random_string()
 rs_2 = get_random_string()
 
 DOCS = [
-    Document(content=TEXT_0, data_id="0"),
-    Document(content=TEXT_1, data_id="1"),
-    Document(content=" ".join([TEXT_0, rs_1]), data_id="2"),
-    Document(content=" ".join([rs_1, TEXT_0, rs_2]), data_id="3"),
-    Document(content=LOTR, data_id="4"),
-    Document(content=" ".join([LOTR, HPPS]), data_id="5"),
+    Document(text=TEXT_0, id="0"),
+    Document(text=TEXT_1, id="1"),
+    Document(text=" ".join([TEXT_0, rs_1]), id="2"),
+    Document(text=" ".join([rs_1, TEXT_0, rs_2]), id="3"),
+    Document(text=LOTR, id="4"),
+    Document(text=" ".join([LOTR, HPPS]), id="5"),
 ]
 
 DOCS_2 = [
-    Document(content=TEXT_0_1, data_id="0"),
-    Document(content=TEXT_1_1, data_id="1"),
-    Document(content=TEXT_2_1, data_id="2"),
-    Document(content=LOTR, data_id="3"),
-    Document(content=TEXT_3_1, data_id="4"),
+    Document(text=TEXT_0_1, id="0"),
+    Document(text=TEXT_1_1, id="1"),
+    Document(text=TEXT_2_1, id="2"),
+    Document(text=LOTR, id="3"),
+    Document(text=TEXT_3_1, id="4"),
 ]
 
 TARGETS = [
@@ -127,41 +128,35 @@ TARGETS_WS2_1 = [
 ]
 
 
+@require_nltk
 class SentenceDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
-        self.test_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        # Remove the directory after the test
-        shutil.rmtree(self.test_dir)
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_sd(self):
-        signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.test_dir))
-        find_duplicates = SentenceFindDedups(
-            data_folder=LocalInputDataFolder(self.test_dir), output_folder=LocalOutputDataFolder(self.test_dir)
-        )
-        dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.test_dir), min_doc_words=0)
+        signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
+        find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, min_doc_words=0)
 
         signature_creation(data=DOCS)
         find_duplicates(data=[])
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS))):
-            self.assertEqual(doc.content, TARGETS[i])
+            self.assertEqual(doc.text, TARGETS[i])
 
     def test_sd_worker(self):
-        signature_creation = SentenceDedupSignature(output_folder=LocalOutputDataFolder(self.test_dir))
+        signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
 
-        find_duplicates = SentenceFindDedups(
-            data_folder=LocalInputDataFolder(self.test_dir), output_folder=LocalOutputDataFolder(self.test_dir)
-        )
-        dedup_filter = SentenceDedupFilter(data_folder=LocalInputDataFolder(self.test_dir), min_doc_words=0)
+        find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, min_doc_words=0)
 
         signature_creation(data=DOCS, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)
         find_duplicates(data=[])
 
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS), rank=0, world_size=2)):
-            self.assertEqual(doc.content, TARGETS_WS2_0[i], msg=str(i))
+            self.assertEqual(doc.text, TARGETS_WS2_0[i], msg=str(i))
 
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2)):
-            self.assertEqual(doc.content, TARGETS_WS2_1[i])
+            self.assertEqual(doc.text, TARGETS_WS2_1[i])

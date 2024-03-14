@@ -1,13 +1,13 @@
 import argparse
-import mmap
 import os
 import struct
+from typing import IO
 
 import numpy as np
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
-from datatrove.io import BaseInputDataFile, BaseInputDataFolder
+from datatrove.io import DataFolder, get_datafolder
 
 
 parser = argparse.ArgumentParser()
@@ -21,49 +21,83 @@ parser.add_argument("--eos", type=str, help="eos token", default="<|endoftext|>"
 """
 
 
-def load_doc_ends(file: BaseInputDataFile):
-    with file.open_binary() as f:
-        return np.frombuffer(f.read(), dtype=np.uint64)
+def load_doc_ends(file: IO):
+    """
+        Reads a list of uint64s from a binary file handler
+    Args:
+      file: IO:
+
+    Returns:
+
+    """
+    with file as f:
+        return np.frombuffer(f.read(), dtype=np.uint64).tolist()
 
 
-def load_input_mmap(file: BaseInputDataFile):
-    with file.open_binary() as f:
-        return mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+def load_dataset_bytes(file, doc_ends, bytes_per_value: int = 2):
+    """
+        Reads tokens directly from a binary file using doc_ends to read one document at a time.
+    Args:
+      file: file handler
+      doc_ends: list with ending positions of each document
+      bytes_per_value: int:  (Default value = 2)  how many bytes to read per token
+
+    Returns:
+
+    """
+    with file as f:
+        for start, end in zip([0] + doc_ends[:-1], doc_ends):
+            data = f.read((end - start) * bytes_per_value)
+            assert len(data) == (end - start) * bytes_per_value, "Could not read correct number of bytes"
+            yield data
+        assert f.read(1) == b"", "Dataset should be exhausted but there is more data to read"
 
 
-def check_dataset(input_folder: BaseInputDataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>"):
+def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>"):
+    """
+    Reads a dataset and checks if loss tokens match up to the corresponding doc ends files
+    Args:
+      input_folder: DataFolder:
+      tokenizer: str:  (Default value = "gpt2")
+      eos_token: str:  (Default value = "<|endoftext|>")
+
+    Returns:
+
+    """
     tokenizer = Tokenizer.from_pretrained(tokenizer)
 
     eos_token = tokenizer.token_to_id(eos_token)
 
-    datafiles = input_folder.list_files(extension=".ds")
-    datafiles_index = input_folder.list_files(extension=".ds.index")
-    datafiles_loss = input_folder.list_files(extension=".ds.loss")
+    def open_file(path):
+        return input_folder.open(path, "rb")
+
+    datafiles = input_folder.list_files(glob_pattern="*.ds")
+    datafiles_index = input_folder.list_files(glob_pattern="*.ds.index")
+    datafiles_loss = input_folder.list_files(glob_pattern="*.ds.loss")
     check_loss = not not datafiles_loss
     assert len(datafiles) == len(datafiles_index) and (not check_loss or len(datafiles) == len(datafiles_loss)), (
         "Mismatch between number of .ds, " ".ds.index and/or .ds.loss files"
     )
 
-    doc_ends = [load_doc_ends(file) for file in datafiles_index]
-    token_inputs = list(map(load_input_mmap, datafiles))
-    loss_inputs = list(map(load_input_mmap, datafiles_loss)) if check_loss else [None] * len(token_inputs)
+    doc_ends = [load_doc_ends(open_file(file)) for file in datafiles_index]
+    token_inputs = [load_dataset_bytes(open_file(path), ends) for path, ends in zip(datafiles, doc_ends)]
+    loss_inputs = (
+        [load_dataset_bytes(open_file(path), ends, bytes_per_value=1) for path, ends in zip(datafiles_loss, doc_ends)]
+        if check_loss
+        else [None] * len(token_inputs)
+    )
     for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
         zip(doc_ends, token_inputs, loss_inputs)
     ):
-        assert (
-            not check_loss or file_token_inputs.size() == file_loss_inputs.size() * 2
-        ), "Mismatch between loss and tokens file sizes"
-        assert file_token_inputs.size() == file_doc_ends[-1] * 2, "Size of .ds does not match last doc_end"
-        for doci, doc_end in tqdm(enumerate(file_doc_ends), total=len(file_doc_ends)):
-            last_token = struct.unpack("<H", file_token_inputs[(doc_end.item() - 1) * 2 : doc_end.item() * 2])[0]
+        for doci, tokens in tqdm(enumerate(file_token_inputs), total=len(file_doc_ends)):
+            last_token = struct.unpack("<H", tokens[-2:])[0]
             assert last_token == eos_token, f"no EOS at doc end of doc {doci}"
-        file_token_inputs.close()
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    input_folder: BaseInputDataFolder = BaseInputDataFolder.from_path(args.data)
+    input_folder: DataFolder = get_datafolder(args.data)
 
     check_dataset(input_folder, args.tokenizer, args.eos)
     print("All checks ok")

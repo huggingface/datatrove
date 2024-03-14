@@ -1,12 +1,17 @@
-from nltk.tokenize import word_tokenize
-
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class ListFilter(BaseFilter):
+    """
+    Checks the ratio of number of lines to number of words.
+    Equivalent to around a min of 3.333 words per line
+
+    """
+
     name = "🎅 List"
+    _requires_dependencies = ["nltk"]
 
     def __init__(self, new_line_ratio: float | None = 0.3, exclusion_writer: DiskWriter = None):  # TODO better tune
         """ """
@@ -19,9 +24,11 @@ class ListFilter(BaseFilter):
             doc
 
         Returns:
-            False if sample.content is a list
+            False if sample.text is a list
         """
-        text = doc.content
+        from nltk.tokenize import word_tokenize
+
+        text = doc.text
         words = word_tokenize(text)  # TODO we should use language id filter
         new_line = text.count("\n")
         if new_line / len(words) > self.new_line_ratio:

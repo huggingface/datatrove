@@ -3,12 +3,11 @@ import math
 
 import numpy as np
 from loguru import logger
-from nltk import ngrams, word_tokenize
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import BaseOutputDataFolder
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_content
+from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_text
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
@@ -31,22 +30,9 @@ def get_false_positive_prob(size_in_bytes: int, n: int, k: int) -> float:
 
 
 class SingleBloomFilter(PipelineStep):
-    type = "🫂 - DEDUPS"
-    name = "🪷 Bloom-filter"
+    """Single Bloom filter for deduplication
 
-    def __init__(
-        self,
-        output_folder: BaseOutputDataFolder,
-        m_bytes: int,
-        k: int = None,
-        expected_elements: int = None,
-        duplicate_threshold: float = 0.8,
-        n_grams: int = 13,
-        seed: int = 0,
-        save_bloom_filter: bool = False,
-        exclusion_writer: DiskWriter = None,
-    ):
-        """Args:
+    Args:
         output_folder: output folder: local or on S3
         m_bytes: bloom filter size in bytes (actual size x8 bigger)
         k: number of hashes
@@ -58,13 +44,30 @@ class SingleBloomFilter(PipelineStep):
         seed: seed
         save_bloom_filter: if true saves bloom filter for later use
         exclusion_writer: saves duplicated data
-        """
+    """
 
+    type = "🫂 - DEDUPS"
+    name = "🪷 Bloom-filter"
+    _requires_dependencies = ["nltk"]
+
+    def __init__(
+        self,
+        output_folder: DataFolderLike,
+        m_bytes: int,
+        k: int = None,
+        expected_elements: int = None,
+        duplicate_threshold: float = 0.8,
+        n_grams: int = 13,
+        seed: int = 0,
+        save_bloom_filter: bool = False,
+        exclusion_writer: DiskWriter = None,
+        language: str = "english",
+    ):
         super().__init__()
-        self.output_folder = output_folder
+        self.output_folder = get_datafolder(output_folder)
         self.m_bytes = m_bytes  # size in bits
-        self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
         self.m = m_bytes * 8  # (self.m + 7) // 8  # size in bytes
+        self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
         self.duplicate_threshold = duplicate_threshold
         self.n_grams = n_grams
         self.bit_vector = bytearray(([0] * self.m_bytes))
@@ -83,43 +86,57 @@ class SingleBloomFilter(PipelineStep):
                 logger.warning(f"False probability = {fp:.3}")
             else:
                 logger.info(f"False probability = {fp:.3}")
-
-    def set_up_dl_locks(self, dl_lock, up_lock):
-        self.output_folder.set_lock(up_lock)
+        self.language = language
 
     @property
     def parameters(self):
+        """Returns the parameters for the hash functions.
+            Create parameters for a random bijective permutation function
+            that maps a 32-bit hash value to another 32-bit hash value.
+            http://en.wikipedia.org/wiki/Universal_hashing
+
+        Returns:
+            tuple: (a, b) parameters for the hash functions
+                where a and b are numpy uint64 arrays of shape (1, k) containing the
+                random parameters for the hash functions.
+        """
         if not self._parameters:
-            # Create parameters for a random bijective permutation function
-            # that maps a 32-bit hash value to another 32-bit hash value.
-            # http://en.wikipedia.org/wiki/Universal_hashing
             gen = np.random.RandomState(self.seed)
-            self._parameters = gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.k)), gen.randint(
-                0, _mersenne_prime, dtype=np.uint64, size=(1, self.k)
+            self._parameters = (
+                gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.k)),
+                gen.randint(0, _mersenne_prime, dtype=np.uint64, size=(1, self.k)),
             )
         return self._parameters
 
     def get_shingles(self, text: str) -> np.ndarray:
-        return np.array(
+        """Get shingles from a string of text
+        Shingles are created by hashing n-grams of simplified text (lower cases, whitespace normalized, no punctuation, etc).
+        """
+        from nltk import ngrams, word_tokenize
+
+        return np.fromiter(
             [
-                [sha1_hash32(" ".join(x).encode("utf-8"))]
-                for x in ngrams(word_tokenize(simplify_content(text)), self.n_grams)
+                sha1_hash32(" ".join(x).encode("utf-8"))
+                for x in ngrams(word_tokenize(simplify_text(text)), self.n_grams)
             ],
             dtype=np.uint64,
-        )
+        ).reshape((-1, 1))
 
     def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
+        """Get indexes for the shingles with the k hashing functions"""
         a, b = self.parameters
         phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, self.m_bytes)
         return phv.tolist()
 
     def update_bf(self, indexes: list[int]):
+        """Update the bloom filter with the indexes"""
         for index in indexes:
             byte_index, bit_index = divmod(index, 8)
             mask = 1 << bit_index
             self.bit_vector[byte_index] |= mask
 
     def query(self, indexes: list[int]) -> bool:
+        """Query the bloom filter with the indexes"""
         for idx in indexes:
             byte_index, bit_index = divmod(idx, 8)
             mask = 1 << bit_index
@@ -129,7 +146,10 @@ class SingleBloomFilter(PipelineStep):
         return True
 
     def step(self, doc: Document) -> bool:
-        shingles = self.get_shingles(doc.content)
+        """Deduplication step
+        Compute shingles, indexes, and query the bloom filter
+        """
+        shingles = self.get_shingles(doc.text)
         self.total_shingles += shingles.size
         if shingles.size == 0:
             return True
