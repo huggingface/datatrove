@@ -153,7 +153,7 @@ def read_sigs(
     """
     with file as f:
         if f.size == 0:
-            yield None
+            return
         seek_to_start(f, min_hash, config, index_file)
         last = None
         for data in read_tuples_from_file(
