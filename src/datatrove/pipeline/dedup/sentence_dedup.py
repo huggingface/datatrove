@@ -14,6 +14,8 @@ import struct
 from dataclasses import dataclass
 from typing import BinaryIO, Generator
 
+import numpy as np
+from fsspec.spec import AbstractBufferedFile
 from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
@@ -22,7 +24,18 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, sha1_hash64, simplify_text
+from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, seek_to_start, sha1_hash64, simplify_text
+
+
+@dataclass
+class SentDedupConfig:
+    n_sentences: int = 3
+    split_sentences: bool = True  # set to False to split on \n instead
+    only_dedup_in_index: bool = True
+    min_doc_words: int = 50
+
+
+DEFAULT_SENT_DEDUP_CONFIG = SentDedupConfig()
 
 
 @dataclass(order=True)
@@ -57,14 +70,12 @@ class SentenceDedupSignature(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        split_sentences: bool = True,  # set to False to split on \n instead
-        n_sentences: int = 3,
+        config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
         language: str = "english",
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.split_sentences = split_sentences
-        self.n_sentences = n_sentences
+        self.config = config
         self.language = language
 
     def save_hashes(self, rank: int, signatures):
@@ -80,12 +91,12 @@ class SentenceDedupSignature(PipelineStep):
         from nltk import ngrams
         from nltk.tokenize import sent_tokenize
 
-        sentences = sent_tokenize(doc.text, self.language) if self.split_sentences else doc.text.splitlines()
-        if len(sentences) < self.n_sentences:
+        sentences = sent_tokenize(doc.text, self.language) if self.config.split_sentences else doc.text.splitlines()
+        if len(sentences) < self.config.n_sentences:
             return []
 
         sentences_tokens = [simplify_text(sent) for sent in sentences]
-        n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.n_sentences)]
+        n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.config.n_sentences)]
         hashes = [
             HashSig(
                 hash_value=sha1_hash64(n_sent_gram.encode("utf-8")),
@@ -117,15 +128,25 @@ class SentenceDedupSignature(PipelineStep):
         self.save_hashes(rank, signatures)
 
 
-def read_sigs(file: BinaryIO, file_id: int, index_file: bool = False) -> Generator[HashSig, None, None]:
+def read_sigs(
+    file: AbstractBufferedFile, file_id: int, index_file: bool = False, min_hash: int = 0, max_hash: int = -1
+) -> Generator[HashSig, None, None]:
+    line_format = "QIH" if not index_file else "Q"
+    last = None
     with file as f:
-        if index_file:
-            # only read hashes
-            for (hash,) in read_tuples_from_file(f, "Q"):
-                yield HashSig(hash_value=hash, doc_id=-1, file_id=file_id, sent_id=-1)
-        else:
-            for hash, doc_id, sent_id in read_tuples_from_file(f, "Q", "I", "H"):
-                yield HashSig(file_id=file_id, hash_value=hash, doc_id=doc_id, sent_id=sent_id)
+        seek_to_start(f, min_hash, line_format, "Q")
+        for data in read_tuples_from_file(f, line_format):
+            assert (
+                data[0] >= min_hash and last is None or data[0] >= last
+            ), f"Hash order error. {f.tell()=}, {min_hash=}, {data[0]=}, {last=}"
+            if max_hash != -1 and data[0] > max_hash:
+                break
+            last = data[0]
+            yield (
+                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1)
+                if index_file
+                else HashSig(file_id=file_id, hash_value=data[0], doc_id=data[1], sent_id=data[2])
+            )
 
 
 class SentenceFindDedups(PipelineStep):
@@ -149,21 +170,27 @@ class SentenceFindDedups(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
-        only_dedup_in_index: bool = True,
+        config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
-        self.only_dedup_in_index = only_dedup_in_index
+        self.config = config
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
-        assert world_size == 1, "SentenceFindDedups can only run on a single worker."
-        files_with_duplicates = set()
+        # assert world_size == 1, "SentenceFindDedups can only run on a single worker."
+        # each worker will process [hash_min, hash_max]
+        hashes_per_worker = np.iinfo(np.uint64).max // world_size
+        hash_min, hash_max = hashes_per_worker * rank, -1 if rank + 1 == world_size else hashes_per_worker * (rank + 1)
+
+        logger.info(f"Running worker {rank}/{world_size} with hash range: {[hash_min, hash_max]}")
+
         with self.stats.time_stats:
             sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
-                read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.open_files(sig_files))
+                read_sigs(file, file_i, min_hash=hash_min, max_hash=hash_max)
+                for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
             index_files = self.index_folder.list_files() if self.index_folder else None
             if index_files:
@@ -175,7 +202,7 @@ class SentenceFindDedups(PipelineStep):
                     ]
                 )
 
-            pq = [next(sig_reader) for sig_reader in sig_readers]
+            pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
             heapq.heapify(pq)
 
             output_mg = self.output_folder.get_output_file_manager(mode="wb")
@@ -186,24 +213,19 @@ class SentenceFindDedups(PipelineStep):
                 if (
                     last and last.hash_value == v.hash_value and not v.is_from_index()
                 ):  # we never want to match samples from the index itself
-                    out_filename = f"{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}"
+                    out_filename = f"{v.file_id:05d}-{rank:04d}{ExtensionHelperSD.stage_2_duplicates}"
                     # the previous one we are matching against is part of the index
                     # OR there are no index files
                     # OR we are also matching within the main dataset
-                    if last.is_from_index() or not index_files or not self.only_dedup_in_index:
+                    if last.is_from_index() or not index_files or not self.config.only_dedup_in_index:
                         output_mg.write(out_filename, struct.pack("<I", v.doc_id))
                         output_mg.write(out_filename, struct.pack("<H", v.sent_id))
-                        files_with_duplicates.add(v.file_id)
                 last = v
                 new_v = next(sig_readers[v.file_id], None)
 
                 if new_v:
                     heapq.heappush(pq, new_v)
 
-        for i in range(len(sig_files)):
-            if i not in files_with_duplicates:
-                # empty files as the next stage expects 1 file per task
-                output_mg.get_file(f"{i:05d}{ExtensionHelperSD.stage_2_duplicates}")
         output_mg.close()
 
 
@@ -230,8 +252,7 @@ class SentenceDedupFilter(PipelineStep):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        n_sentences: int = 3,
-        min_doc_words: int = 50,
+        config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
     ):
@@ -239,8 +260,7 @@ class SentenceDedupFilter(PipelineStep):
 
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
-        self.n_sentences = n_sentences
-        self.min_doc_words = min_doc_words
+        self.config = config
         self._tokenizer = load(f"tokenizers/punkt/{language}.pickle")
         self.exclusion_writer = exclusion_writer
         self.language = language
@@ -248,28 +268,33 @@ class SentenceDedupFilter(PipelineStep):
     def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> tuple[str, str]:
         if not du_lines:
             return doc.text, None
-        sentence_spans = list(self._tokenizer.span_tokenize(doc.text))
+        sentence_spans = (
+            list(self._tokenizer.span_tokenize(doc.text)) if self.config.split_sentences else doc.text.splitlines()
+        )
         kept_sentences = []
         original_formatted = []
         last_s = 0
         in_removed_span = False
         for idx, s in enumerate(sentence_spans):
+            line_text = doc.text[last_s : s[1]] if self.config.split_sentences else s
             if idx not in du_lines:
-                kept_sentences.append(doc.text[last_s : s[1]])
+                kept_sentences.append(line_text)
                 if in_removed_span:
                     original_formatted.append("<<<\u001b[0m")
                 in_removed_span = False
             elif not in_removed_span:
                 in_removed_span = True
                 original_formatted.append("\033[91m>>>")
-            original_formatted.append(doc.text[last_s : s[1]])
-            last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
+            original_formatted.append(line_text)
+            if self.config.split_sentences:
+                last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
         if in_removed_span:
             original_formatted.append("<<<\u001b[0m")
         if len(kept_sentences) < len(sentence_spans):
             self.stat_update("removed_sentences", value=len(sentence_spans) - len(kept_sentences))
         self.stat_update("original_sentences", value=len(sentence_spans))
-        return "".join(kept_sentences).lstrip(), "".join(original_formatted)
+        merge_char = "" if self.config.split_sentences else "\n"
+        return merge_char.join(kept_sentences).lstrip(), merge_char.join(original_formatted)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """step method for Filters.
@@ -279,21 +304,23 @@ class SentenceDedupFilter(PipelineStep):
         """
         from nltk.tokenize import word_tokenize
 
-        files = self.data_folder.get_shard(rank, world_size, glob_pattern=ExtensionHelperSD.stage_2_duplicates)
-        assert len(files) == 1, (
-            f"n_files / n_tasks should be equal to n_workers, instead {len(files)=}\n{files}.\n"
-            f"{world_size=} {rank}"
-        )
+        files = self.data_folder.list_files(glob_pattern=f"{rank:05d}-[0-9]*{ExtensionHelperSD.stage_2_duplicates}")
 
-        with self.data_folder.open(files[0], "rb") as dupsf:
-            du_file = merge_docs(sorted(read_duplicates(dupsf)), self.n_sentences)
+        logger.info(f"Loading duplicate indexes from the following {len(files)} results files: " + ", ".join(files))
+
+        all_dups = []
+        for file in self.data_folder.open_files(files):
+            with file as dupsf:
+                all_dups.extend(read_duplicates(dupsf))
+        du_file = merge_docs(sorted(all_dups), self.config.n_sentences)
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for idx, doc in enumerate(data):
                 self.stat_update(StatHints.total)
                 with self.stats.time_stats:
                     filtered_text, original_formatted = self.remove_dup_sentences(doc, du_lines=du_file.get(idx))
                 if (
-                    filtered_text == doc.text or len(word_tokenize(filtered_text, self.language)) > self.min_doc_words
+                    filtered_text == doc.text
+                    or len(word_tokenize(filtered_text, self.language)) > self.config.min_doc_words
                 ):  # document is kept
                     self.update_doc_stats(doc)
                     if not filtered_text == doc.text and writer:

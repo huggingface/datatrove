@@ -4,7 +4,6 @@ import os
 import re
 import struct
 from dataclasses import dataclass
-from functools import cache
 from typing import Generator
 
 import numpy as np
@@ -14,7 +13,13 @@ from loguru import logger
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import read_tuples_from_file, sha1_hash32, sha1_hash64, simplify_text
+from datatrove.pipeline.dedup.utils import (
+    read_tuples_from_file,
+    seek_to_start,
+    sha1_hash32,
+    sha1_hash64,
+    simplify_text,
+)
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import StatHints
 
@@ -91,49 +96,6 @@ class HashSig:
         return self.reader_id != self.file_id
 
 
-def seek_to_start(f: AbstractBufferedFile, start_hash: int, config: MinhashConfig, index_file: bool = False):
-    if start_hash == 0:
-        return
-    line_size = struct.calcsize(f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}")
-    nr_lines = f.size // line_size
-
-    @cache
-    def read_line_start(line):
-        assert line >= 0 and line < nr_lines
-        f.seek(line * line_size, os.SEEK_SET)
-        return struct.unpack(config.hash_format, f.read(struct.calcsize(config.hash_format)))[0]
-
-    # save some time with binary search
-    # this file is strictly bigger
-    if read_line_start(0) >= start_hash:
-        f.seek(0, os.SEEK_SET)
-        return
-
-    # this file is strictly smaller, ignore it completely
-    if read_line_start(nr_lines - 1) < start_hash:
-        f.seek(0, os.SEEK_END)
-        return
-
-    # binary search to find start line
-    start_line, hi = 0, nr_lines
-    # Note, the comparison uses "<" to match the
-    # __lt__() logic in list.sort() and in heapq.
-    while start_line < hi:
-        mid = (start_line + hi) // 2
-        if read_line_start(mid) < start_hash:
-            start_line = mid + 1
-        else:
-            hi = mid
-
-    if start_line > nr_lines:
-        raise ValueError
-
-    # verification check. we know start_line > 0 from the check above
-    if (prev_hash := read_line_start(start_line - 1)) >= start_hash:
-        raise ValueError(f"Wrong bsearch start line: {prev_hash=} >= {start_hash=}")
-    f.seek(start_line * line_size, os.SEEK_SET)
-
-
 def read_sigs(
     file: AbstractBufferedFile,
     reader_id: int,
@@ -151,12 +113,11 @@ def read_sigs(
         config: minhash configuration (a MinhashConfig object)
         index_file: is index file
     """
+    line_format = f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}"
     with file as f:
-        seek_to_start(f, min_hash, config, index_file)
+        seek_to_start(f, min_hash, line_format, config.hash_format)
         last = None
-        for data in read_tuples_from_file(
-            f, f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}"
-        ):
+        for data in read_tuples_from_file(f, line_format):
             sigdata = data if index_file else data[:-1]
             assert sigdata[0] >= min_hash and (
                 ensure_order is False or last is None or sigdata >= last

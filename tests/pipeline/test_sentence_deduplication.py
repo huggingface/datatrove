@@ -6,7 +6,12 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.pipeline.dedup.sentence_dedup import SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
+from datatrove.pipeline.dedup.sentence_dedup import (
+    SentDedupConfig,
+    SentenceDedupFilter,
+    SentenceDedupSignature,
+    SentenceFindDedups,
+)
 
 from ..utils import require_nltk
 
@@ -138,10 +143,10 @@ class SentenceDedup(unittest.TestCase):
     def test_sd(self):
         signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
         find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
-        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, min_doc_words=0)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, config=SentDedupConfig(min_doc_words=0))
 
         signature_creation(data=DOCS)
-        find_duplicates(data=[])
+        find_duplicates()
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS))):
             self.assertEqual(doc.text, TARGETS[i])
 
@@ -149,11 +154,28 @@ class SentenceDedup(unittest.TestCase):
         signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
 
         find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
-        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, min_doc_words=0)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, config=SentDedupConfig(min_doc_words=0))
 
         signature_creation(data=DOCS, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)
-        find_duplicates(data=[])
+        find_duplicates()
+
+        for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS), rank=0, world_size=2)):
+            self.assertEqual(doc.text, TARGETS_WS2_0[i], msg=str(i))
+
+        for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2)):
+            self.assertEqual(doc.text, TARGETS_WS2_1[i])
+
+    def test_distributed_find_dups(self):
+        signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir)
+
+        find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir, output_folder=self.tmp_dir)
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir, config=SentDedupConfig(min_doc_words=0))
+
+        signature_creation(data=DOCS, rank=0, world_size=2)
+        signature_creation(data=DOCS_2, rank=1, world_size=2)
+        for rank in range(50):
+            find_duplicates(rank=rank, world_size=50)
 
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS), rank=0, world_size=2)):
             self.assertEqual(doc.text, TARGETS_WS2_0[i], msg=str(i))
