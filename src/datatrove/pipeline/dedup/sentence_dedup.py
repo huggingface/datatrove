@@ -190,7 +190,9 @@ class SentenceFindDedups(PipelineStep):
             sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
                 read_sigs(file, file_i, min_hash=hash_min, max_hash=hash_max)
-                for file_i, file in enumerate(self.data_folder.open_files(sig_files))
+                for file_i, file in enumerate(
+                    self.data_folder.open_files(sig_files, block_size=50000, cache_type="none")
+                )
             ]
             index_files = self.index_folder.list_files() if self.index_folder else None
             if index_files:
@@ -198,7 +200,9 @@ class SentenceFindDedups(PipelineStep):
                 sig_readers.extend(
                     [
                         read_sigs(file, len(sig_readers) + file_i, index_file=True)
-                        for file_i, file in enumerate(self.data_folder.open_files(index_files))
+                        for file_i, file in enumerate(
+                            self.data_folder.open_files(index_files, block_size=50000, cache_type="none")
+                        )
                     ]
                 )
 
