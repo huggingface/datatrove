@@ -206,8 +206,10 @@ class SentenceFindDedups(PipelineStep):
                     ]
                 )
 
+            logger.info(f"Initializing pq with {len(sig_readers)} files.")
             pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
             heapq.heapify(pq)
+            logger.info("PQ initialized.")
 
             output_mg = self.output_folder.get_output_file_manager(mode="wb")
 
