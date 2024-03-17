@@ -226,7 +226,7 @@ class SentenceFindDedups(PipelineStep):
                 if (
                     last and last.hash_value == v.hash_value and not v.is_from_index()
                 ):  # we never want to match samples from the index itself
-                    out_filename = f"{v.file_id:05d}-{rank:04d}{ExtensionHelperSD.stage_2_duplicates}"
+                    out_filename = f"{rank:04d}/{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}"
                     # the previous one we are matching against is part of the index
                     # OR there are no index files
                     # OR we are also matching within the main dataset
@@ -317,7 +317,7 @@ class SentenceDedupFilter(PipelineStep):
         """
         from nltk.tokenize import word_tokenize
 
-        files = self.data_folder.list_files(glob_pattern=f"{rank:05d}-[0-9]*{ExtensionHelperSD.stage_2_duplicates}")
+        files = self.data_folder.list_files(glob_pattern=f"[0-9]*/{rank:05d}{ExtensionHelperSD.stage_2_duplicates}")
 
         logger.info(f"Loading duplicate indexes from the following {len(files)} results files: " + ", ".join(files))
 
