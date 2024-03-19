@@ -313,9 +313,12 @@ class SentenceDedupFilter(PipelineStep):
         for idx, s in enumerate(sentence_spans):
             line_text = doc.text[last_s : s[1]] if self.config.split_sentences else s
             # track / increment dup_line ref
-            if du_line_idx < len(du_lines) and du_lines[du_line_idx] == idx:
-                drop_until = idx + n_sentences
-                du_line_idx += 1
+            if du_line_idx < len(du_lines):
+                if du_lines[du_line_idx] < idx:
+                    raise ValueError("Error with duplicate line index")
+                elif du_lines[du_line_idx] == idx:
+                    drop_until = idx + n_sentences
+                    du_line_idx += 1
 
             # if outside the range, we keep this line/sent
             if idx >= drop_until:
