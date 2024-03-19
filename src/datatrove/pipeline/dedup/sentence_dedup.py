@@ -262,9 +262,10 @@ class SentenceFindDedups(PipelineStep):
         output_mg.close()
 
 
-def read_duplicates(file: BinaryIO) -> Generator[tuple, None, None]:
+def read_duplicates(file: BinaryIO) -> np.ndarray:
     """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
-    yield from read_tuples_from_file(file, "I", "H")  # (doc_id, sent_id) pairs
+    with file as f:
+        return np.fromfile(f, dtype=[("doc", "<u4"), ("sent", "<u2")])
 
 
 class SentenceDedupFilter(PipelineStep):
@@ -337,15 +338,25 @@ class SentenceDedupFilter(PipelineStep):
         """
         from nltk.tokenize import word_tokenize
 
-        files = self.data_folder.list_files(glob_pattern=f"[0-9]*/{rank:05d}{ExtensionHelperSD.stage_2_duplicates}")
+        folders = self.data_folder.list_files(include_directories=True, recursive=False)
+        # for performance reasons when having for instance 12k*10k files
+        files = [
+            f
+            for f in [f"{folder}/{rank:05d}{ExtensionHelperSD.stage_2_duplicates}" for folder in folders]
+            if self.data_folder.exists(f)
+        ]
 
         logger.info(f"Loading duplicate indexes from the following {len(files)} results files: " + ", ".join(files))
 
-        all_dups = []
-        for file in self.data_folder.open_files(files):
-            with file as dupsf:
-                all_dups.extend(read_duplicates(dupsf))
-        du_file = merge_docs(sorted(all_dups), self.config.n_sentences)
+        print("FS: ", files)
+
+        all_dups = np.array([], dtype=[("doc", "<u4"), ("sent", "<u2")])
+        if files:
+            with ThreadPoolExecutor() as pool:
+                all_dups = np.concatenate(list(pool.map(read_duplicates, self.data_folder.open_files(files))), axis=0)
+        all_dups.sort()
+
+        du_file = merge_docs(all_dups, self.config.n_sentences)
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             for idx, doc in enumerate(data):
                 self.stat_update(StatHints.total)
