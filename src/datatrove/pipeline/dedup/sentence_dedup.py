@@ -346,13 +346,17 @@ class SentenceDedupFilter(PipelineStep):
             if self.data_folder.exists(f)
         ]
 
-        logger.info(f"Loading duplicate indexes from the following {len(files)} results files: " + ", ".join(files))
+        logger.info(f"Loading duplicate indexes from {len(files)} results files.")
 
         all_dups = np.array([], dtype=[("doc", "<u4"), ("sent", "<u2")])
         if files:
             with ThreadPoolExecutor() as pool:
-                all_dups = np.concatenate(list(pool.map(read_duplicates, self.data_folder.open_files(files))), axis=0)
-        all_dups.sort()
+                all_dups = np.concatenate(
+                    list(tqdm(pool.map(read_duplicates, self.data_folder.open_files(files)), total=len(files))), axis=0
+                )
+            all_dups.sort()
+
+        logger.info("Loaded duplicate indexes.")
 
         du_file = merge_docs(all_dups, self.config.n_sentences)
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
