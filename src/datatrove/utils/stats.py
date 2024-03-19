@@ -49,6 +49,13 @@ class MetricStatsDict(defaultdict):
 
 
 class Stats:
+    """
+    Stats for a particular block
+
+    Args:
+        name: The name of the block
+    """
+
     def __init__(self, name: str):
         self.name = name
         self.time_stats = TimingStats()
@@ -308,7 +315,7 @@ class MetricStats:
                 unit=data.get("unit", cls.unit),
             )
         else:
-            return cls(total=data, min=data, max=data, mean=data, n=data, unit="task")
+            return cls(total=data, min=data, max=data, mean=data, n=1, unit="task")
 
     def __repr__(self):
         if self.mean != 1:

@@ -32,6 +32,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
     + [Custom function](#custom-function)
     + [Custom block](#custom-block)
 - [Contributing](#contributing)
+- [Citation](#citation)
 
 <!-- tocstop -->
 
@@ -398,4 +399,17 @@ pre-commit install
 Run the tests:
 ```bash
 pytest -sv ./tests/
+```
+
+## Citation
+
+```bibtex
+@misc{penedo2024datatrove,
+  author = {Penedo, Guilherme and Cappelli, Alessandro and Wolf, Thomas and Sasko, Mario},
+  title = {DataTrove: large scale data processing},
+  year = {2024},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  url = {https://github.com/huggingface/datatrove}
+}
 ```

@@ -2,6 +2,10 @@ from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 
 
 class DocLenStats(PipelineStep):
+    """Pipeline step to compute the length of each document in a pipeline.
+    Will add a "length" metadata to each document with the length of the text in characters and (if available) tokens.
+    """
+
     type = "📊 - STATS"
     name = "🤓 document length"
 

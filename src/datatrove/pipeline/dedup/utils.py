@@ -29,8 +29,7 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 
 
 def read_tuples_from_file(file: BinaryIO, *formats):
-    """
-        Utility to easily parse binary files. formats is a list of struct format characters.
+    """Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
 
     Args:

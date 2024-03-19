@@ -41,7 +41,7 @@ io = [
   "pyarrow",
   "python-magic",
   "warcio",
-  "datasets"
+  "datasets>=2.18.0"
 ]
 s3 = [
   "s3fs>=2023.12.2",
@@ -85,6 +85,7 @@ merge_stats = "datatrove.tools.merge_stats:main"
 launch_pickled_pipeline = "datatrove.tools.launch_pickled_pipeline:main"
 failed_logs = "datatrove.tools.failed_logs:main"
 inspect_data = "datatrove.tools.inspect_data:main"
+jobs_status = "datatrove.tools.jobs_status:main"
 
 [build-system]
 requires = ["setuptools"]
@@ -97,11 +98,11 @@ where = ["src"]
 datatrove = ["assets/*"]
 
 [tool.ruff]
-ignore = [
+lint.ignore = [
   "C901", # `function_name` is too complex
   "E501", # line length violation
 ]
-select = [
+lint.select = [
   "C",
   "E",
   "F",
@@ -110,12 +111,12 @@ select = [
 ]
 line-length = 119
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = [
   "F401" # module imported but unused
 ]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 lines-after-imports = 2
 known-first-party = [
   "datatrove"

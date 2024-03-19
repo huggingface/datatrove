@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: 'DataTrove: large scale data processing'
+message: >-
+  If you use this software, please cite it using the metadata from this file.
+type: software
+authors:
+  - given-names: Guilherme
+    family-names: Penedo
+  - given-names: Alessandro
+    family-names: Cappelli
+  - given-names: Thomas
+    family-names: Wolf
+  - given-names: Mario
+    family-names: Sasko
+repository-code: 'https://github.com/huggingface/datatrove'
+abstract: "DataTrove is a library to process, filter and deduplicate text data at a very large scale. It provides a set of prebuilt commonly used processing blocks with a framework to easily add custom functionality. DataTrove processing pipelines are platform-agnostic, running out of the box locally or on a slurm cluster. Its (relatively) low memory usage and multiple step design makes it ideal for large workloads, such as to process an LLM's training data."
+keywords:
+  - deep-learning
+  - pytorch
+  - transformers
+  - llms
+  - data
+  - scale
+license: Apache-2.0
+version: 0.0.1
