@@ -116,6 +116,8 @@ def read_sigs(
     """
     line_format = f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}"
     with file as f:
+        if f.size == 0:
+            return
         seek_to_start(f, min_hash, line_format, config.hash_format)
         last = None
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):

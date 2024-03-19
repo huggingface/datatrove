@@ -40,6 +40,7 @@ class PipelineStep(ABC):
         return super().__new__(cls)
 
     def __init__(self):
+        super().__init__()
         self.stats = Stats(str(self))
 
     def stat_update(self, *labels, value: int = 1, unit: str = None):
