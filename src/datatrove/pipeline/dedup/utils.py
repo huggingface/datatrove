@@ -3,7 +3,6 @@ import os
 import re
 import struct
 import unicodedata
-from collections import defaultdict
 from functools import cache
 from typing import BinaryIO
 
@@ -75,16 +74,6 @@ def simplify_text(text: str) -> str:
     # diacritics/unicode normalization
     text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
     return text.strip()
-
-
-def merge_docs(sen_list, n_sentences: int = 3) -> dict:
-    def to_sentences(idx: int):
-        return {idx + i for i in range(n_sentences)}
-
-    merged = defaultdict(set)
-    for doc_id, sent_id in sen_list:
-        merged[doc_id].update(to_sentences(sent_id))
-    return merged  # {doc_id: set of sent ids}
 
 
 # https://github.com/ekzhu/datasketch/blob/master/datasketch/hashfunc.py

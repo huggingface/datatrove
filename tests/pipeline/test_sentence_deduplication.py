@@ -102,9 +102,11 @@ DOCS = [
 DOCS_2 = [
     Document(text=TEXT_0_1, id="0"),
     Document(text=TEXT_1_1, id="1"),
-    Document(text=TEXT_2_1, id="2"),
+    Document(text=TEXT_2_1 + 10 * (" " + TEXT_2_1), id="2"),
     Document(text=LOTR, id="3"),
     Document(text=TEXT_3_1, id="4"),
+    Document(text=TEXT_2_1, id="5"),
+    Document(text=TEXT_1_1, id="6"),
 ]
 
 TARGETS = [

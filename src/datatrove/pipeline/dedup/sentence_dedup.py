@@ -26,7 +26,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, sha1_hash64, simplify_text
+from .utils import ExtensionHelperSD, read_tuples_from_file, sha1_hash64, simplify_text
 
 
 @dataclass
@@ -106,6 +106,7 @@ class SentenceDedupSignature(PipelineStep):
                 # save to file
                 if right_idx > left_idx:
                     signatures[left_idx:right_idx].tofile(f)
+                left_idx = right_idx
                 # we've reached the end of our data
                 if right_idx >= len(signatures):
                     break
@@ -299,19 +300,25 @@ class SentenceDedupFilter(PipelineStep):
         self.exclusion_writer = exclusion_writer
         self.language = language
 
-    def remove_dup_sentences(self, doc: Document, du_lines: set = None) -> tuple[str, str]:
-        if not du_lines:
-            return doc.text, None
+    def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray, n_sentences: int = 3) -> tuple[str, str]:
         sentence_spans = (
             list(self._tokenizer.span_tokenize(doc.text)) if self.config.split_sentences else doc.text.splitlines()
         )
         kept_sentences = []
         original_formatted = []
         last_s = 0
+        du_line_idx = 0  # pointer for duplicate lines
+        drop_until = 0  # used to keep track of last matched span's end
         in_removed_span = False
         for idx, s in enumerate(sentence_spans):
             line_text = doc.text[last_s : s[1]] if self.config.split_sentences else s
-            if idx not in du_lines:
+            # track / increment dup_line ref
+            if du_line_idx < len(du_lines) and du_lines[du_line_idx] == idx:
+                drop_until = idx + n_sentences
+                du_line_idx += 1
+
+            # if outside the range, we keep this line/sent
+            if idx >= drop_until:
                 kept_sentences.append(line_text)
                 if in_removed_span:
                     original_formatted.append("<<<\u001b[0m")
@@ -355,15 +362,27 @@ class SentenceDedupFilter(PipelineStep):
                     list(tqdm(pool.map(read_duplicates, self.data_folder.open_files(files)), total=len(files))), axis=0
                 )
             all_dups.sort()
+        _, doc_starts = np.unique(all_dups["doc"], return_index=True)
 
         logger.info("Loaded duplicate indexes.")
 
-        du_file = merge_docs(all_dups, self.config.n_sentences)
+        dups_doc_i = 0
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
-            for idx, doc in enumerate(data):
+            for doc_idx, doc in enumerate(data):
                 self.stat_update(StatHints.total)
                 with self.stats.time_stats:
-                    filtered_text, original_formatted = self.remove_dup_sentences(doc, du_lines=du_file.get(idx))
+                    if dups_doc_i >= len(doc_starts) or all_dups["doc"][doc_starts[dups_doc_i]] > doc_idx:
+                        filtered_text, original_formatted = doc.text, None
+                    else:
+                        sents_span_l, sents_span_r = (
+                            doc_starts[dups_doc_i],
+                            doc_starts[dups_doc_i + 1] if dups_doc_i + 1 < len(doc_starts) else None,
+                        )
+                        filtered_text, original_formatted = self.remove_dup_sentences(
+                            doc, all_dups["sent"][sents_span_l:sents_span_r], self.config.n_sentences
+                        )
+                        dups_doc_i += 1
+
                 if (
                     filtered_text == doc.text
                     or len(word_tokenize(filtered_text, self.language)) > self.config.min_doc_words
