@@ -33,6 +33,8 @@ sent_dedup_config = SentDedupConfig(
     min_doc_words=50,
 )
 
+FINDER_WORKERS = 10  # this will speed up/parallelize step 2
+
 
 def run_example():
     pipeline_1 = [
@@ -41,7 +43,7 @@ def run_example():
         GopherQualityFilter(min_stop_words=0),
         LanguageFilter(language_threshold=0.5, languages=(Languages.english,)),
         JsonlWriter("intermediate/"),
-        SentenceDedupSignature(output_folder="c4/sigs", config=sent_dedup_config),
+        SentenceDedupSignature(output_folder="c4/sigs", config=sent_dedup_config, finder_workers=FINDER_WORKERS),
     ]
 
     pipeline_2 = [SentenceFindDedups(data_folder="c4/sigs", output_folder="c4/dups", config=sent_dedup_config)]
@@ -53,7 +55,7 @@ def run_example():
 
     executor_1: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_1, workers=4, tasks=4)
 
-    executor_2: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_2, workers=1, tasks=1)
+    executor_2: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_2, workers=1, tasks=FINDER_WORKERS)
 
     executor_3: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_3, workers=4, tasks=4)
 
