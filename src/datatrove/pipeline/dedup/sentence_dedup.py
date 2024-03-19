@@ -348,8 +348,6 @@ class SentenceDedupFilter(PipelineStep):
 
         logger.info(f"Loading duplicate indexes from the following {len(files)} results files: " + ", ".join(files))
 
-        print("FS: ", files)
-
         all_dups = np.array([], dtype=[("doc", "<u4"), ("sent", "<u2")])
         if files:
             with ThreadPoolExecutor() as pool:
