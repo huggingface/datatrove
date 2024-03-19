@@ -142,7 +142,7 @@ class DataFolder(DirFileSystem):
                     self.find(subdirectory, maxdepth=1 if not recursive else None, detail=True, **extra_options)
                     if not glob_pattern
                     else self.glob(
-                        self.fs.sep.join([glob_pattern, subdirectory]),
+                        self.fs.sep.join([subdirectory, glob_pattern]) if subdirectory else glob_pattern,
                         maxdepth=1 if not recursive else None,
                         detail=True,
                         **extra_options,

@@ -26,7 +26,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, seek_to_start, sha1_hash64, simplify_text
+from .utils import ExtensionHelperSD, merge_docs, read_tuples_from_file, sha1_hash64, simplify_text
 
 
 @dataclass
@@ -62,7 +62,6 @@ class SentenceDedupSignature(PipelineStep):
 
     Args:
         output_folder: folder where signatures are saved
-        n_sentences: create chunks of n sentences where duplicates are checked.
     """
 
     type = "🫂 - DEDUPS"
@@ -72,24 +71,46 @@ class SentenceDedupSignature(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
+        finder_workers: int = 1,
         config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
         language: str = "english",
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
+        if finder_workers <= 0:
+            raise ValueError("finder_workers must be >= 1")
+        elif finder_workers > 1:
+            logger.warning(f"Remember to also set the name of tasks of the finder block to {finder_workers=}!")
+        self.finder_workers = finder_workers
         self.config = config
         self.language = language
 
     def save_hashes(self, rank: int, signatures):
-        signatures.sort()
+        # explicitly define little endiannes
+        signatures = np.array(signatures, dtype=[("hash", "<u8"), ("doc", "<u4"), ("sent", "<u2")])
+        signatures.sort(axis=0)
 
-        with self.output_folder.open(f"{rank:05d}{ExtensionHelperSD.stage_1_signature}", mode="wb") as f:
-            for hs in signatures:
-                f.write(struct.pack("<Q", hs.hash_value))
-                f.write(struct.pack("<I", hs.doc_id))
-                f.write(struct.pack("<H", hs.sent_id))
+        hashes_per_worker = np.iinfo(np.uint64).max // self.finder_workers
+        left_idx = 0
+        for hash_i in range(self.finder_workers):
+            with self.output_folder.open(
+                f"{hash_i:04d}/{rank:05d}{ExtensionHelperSD.stage_1_signature}", mode="wb"
+            ) as f:
+                # last bucket needs to have everything
+                right_hash = (
+                    (hash_i + 1) * hashes_per_worker if hash_i != self.finder_workers - 1 else np.iinfo(np.uint64).max
+                )
+                # find last hash that goes in this bucket. This obeys the following rule:
+                # signatures['hash'][right_idx - 1] <= right_hash <= signatures['hash'][right_idx]
+                right_idx = left_idx + signatures["hash"][left_idx:].searchsorted(right_hash, side="right")
+                # save to file
+                if right_idx > left_idx:
+                    signatures[left_idx:right_idx].tofile(f)
+                # we've reached the end of our data
+                if right_idx >= len(signatures):
+                    break
 
-    def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[HashSig]:
+    def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[tuple[int, int, int]]:
         from nltk import ngrams
         from nltk.tokenize import sent_tokenize
 
@@ -100,12 +121,9 @@ class SentenceDedupSignature(PipelineStep):
         sentences_tokens = [simplify_text(sent) for sent in sentences]
         n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.config.n_sentences)]
         hashes = [
-            HashSig(
-                hash_value=sha1_hash64(n_sent_gram.encode("utf-8")),
-                doc_id=doc_idx,
-                sent_id=sentence_idx,
-            )
+            (sha1_hash64(n_sent_gram.encode("utf-8")), doc_idx, sentence_idx)
             for sentence_idx, n_sent_gram in enumerate(n_sent_grams)
+            if n_sent_gram.strip() != ""  # we actually do not want to remove all the \n everywhere
         ]
 
         return hashes
@@ -131,18 +149,13 @@ class SentenceDedupSignature(PipelineStep):
 
 
 def read_sigs(
-    file: AbstractBufferedFile, file_id: int, index_file: bool = False, min_hash: int = 0, max_hash: int = -1
+    file: AbstractBufferedFile, file_id: int, index_file: bool = False, lines_to_buffer: int = 5
 ) -> Generator[HashSig, None, None]:
     line_format = "QIH" if not index_file else "Q"
     last = None
     with file as f:
-        seek_to_start(f, min_hash, line_format, "Q")
-        for data in read_tuples_from_file(f, line_format):
-            assert (
-                data[0] >= min_hash and last is None or data[0] >= last
-            ), f"Hash order error. {f.tell()=}, {min_hash=}, {data[0]=}, {last=}"
-            if max_hash != -1 and data[0] > max_hash:
-                break
+        for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
+            assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
                 HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1)
@@ -173,34 +186,41 @@ class SentenceFindDedups(PipelineStep):
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
         config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
+        lines_to_buffer: int = 5,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
         self.config = config
+        self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
-        # assert world_size == 1, "SentenceFindDedups can only run on a single worker."
-        # each worker will process [hash_min, hash_max]
-        hashes_per_worker = np.iinfo(np.uint64).max // world_size
-        hash_min, hash_max = hashes_per_worker * rank, -1 if rank + 1 == world_size else hashes_per_worker * (rank + 1)
-
-        logger.info(f"Running worker {rank}/{world_size} with hash range: {[hash_min, hash_max]}")
-
         with self.stats.time_stats:
-            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
+            if world_size == 1:
+                # check that there was not a mistake in setting this values
+                sig_files = self.data_folder.list_files(glob_pattern="*/*" + ExtensionHelperSD.stage_1_signature)
+                if any(not sig_file.startswith("0000/") for sig_file in sig_files):
+                    raise ValueError(
+                        f"{world_size=} but found sig files for different hash buckets. Set tasks=finder_workers"
+                    )
+            else:
+                sig_files = self.data_folder.list_files(
+                    subdirectory=f"{rank:04d}", glob_pattern=ExtensionHelperSD.stage_1_signature
+                )
             sig_readers = [
-                read_sigs(file, file_i, min_hash=hash_min, max_hash=hash_max)
-                for file_i, file in enumerate(self.data_folder.open_files(sig_files, cache_type="none"))
+                read_sigs(file, file_i, lines_to_buffer=self.lines_to_buffer)
+                for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
             index_files = self.index_folder.list_files() if self.index_folder else None
             if index_files:
                 logger.info(f"Found index file(s): {', '.join(index_files)}")
                 sig_readers.extend(
                     [
-                        read_sigs(file, len(sig_readers) + file_i, index_file=True)
-                        for file_i, file in enumerate(self.data_folder.open_files(index_files, cache_type="none"))
+                        read_sigs(
+                            file, len(sig_readers) + file_i, index_file=True, lines_to_buffer=self.lines_to_buffer
+                        )
+                        for file_i, file in enumerate(self.data_folder.open_files(index_files))
                     ]
                 )
 
@@ -358,22 +378,21 @@ class SentenceDedupBuildIndex(PipelineStep):
     name = "💥 sentence-deduplication build index"
 
     def __init__(
-        self,
-        data_folder: DataFolderLike,
-        output_folder: DataFolderLike,
-        index_name: str,
+        self, data_folder: DataFolderLike, output_folder: DataFolderLike, index_name: str, lines_to_buffer: int = 5
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
         self.output_folder = get_datafolder(output_folder)
         self.index_name = index_name
+        self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
         with self.stats.time_stats:
             sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
-                read_sigs(file, file_i) for file_i, file in enumerate(self.data_folder.open_files(sig_files))
+                read_sigs(file, file_i, lines_to_buffer=self.lines_to_buffer)
+                for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
 
             pq = [next(sig_reader) for sig_reader in sig_readers]

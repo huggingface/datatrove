@@ -4,7 +4,7 @@ import re
 import struct
 import unicodedata
 from collections import defaultdict
-from functools import cache, partial
+from functools import cache
 from typing import BinaryIO
 
 from fsspec.spec import AbstractBufferedFile
@@ -29,19 +29,27 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 )
 
 
-def read_tuples_from_file(file: BinaryIO, *formats):
+def read_tuples_from_file(file: BinaryIO, *formats, lines_to_buffer: int = 5):
     """Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
 
     Args:
         file: the file to read from
         *formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
+        lines_to_buffer: number of lines to read at a time
 
     Returns:tuples with data specified in formats
 
     """
+    if lines_to_buffer != -1 and lines_to_buffer < 1:
+        raise ValueError("lines_to_buffer must be >= 1 or -1 (for unlimited)")
     fstring = "<" + "".join(formats)
-    yield from map(partial(struct.unpack, fstring), iter(partial(file.read, struct.calcsize(fstring)), b""))
+    reader = struct.Struct(fstring)
+    while True:
+        chunk = file.read(lines_to_buffer * reader.size if lines_to_buffer != -1 else -1)
+        if not chunk:
+            break
+        yield from reader.iter_unpack(chunk)
 
 
 def simplify_text(text: str) -> str:
