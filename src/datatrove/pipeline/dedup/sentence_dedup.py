@@ -241,6 +241,8 @@ class SentenceFindDedups(PipelineStep):
 
             output_mg = self.output_folder.get_output_file_manager(mode="wb")
 
+            packer = struct.Struct("<IH")
+
             last: HashSig | None = None
             while pq:
                 v: HashSig = heapq.heappop(pq)
@@ -252,8 +254,7 @@ class SentenceFindDedups(PipelineStep):
                     # OR there are no index files
                     # OR we are also matching within the main dataset
                     if last.is_from_index() or not index_files or not self.config.only_dedup_in_index:
-                        output_mg.write(out_filename, struct.pack("<I", v.doc_id))
-                        output_mg.write(out_filename, struct.pack("<H", v.sent_id))
+                        output_mg.write(out_filename, packer.pack(v.doc_id, v.sent_id))
                 last = v
                 new_v = next(sig_readers[v.file_id], None)
 
