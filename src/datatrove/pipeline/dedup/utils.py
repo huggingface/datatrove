@@ -1,12 +1,12 @@
 import hashlib
+import os
 import re
 import struct
 import unicodedata
-from collections import defaultdict
-from functools import partial
+from functools import cache
 from typing import BinaryIO
 
-import numpy as np
+from fsspec.spec import AbstractBufferedFile
 
 
 class ExtensionHelperSD:
@@ -28,19 +28,27 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
 )
 
 
-def read_tuples_from_file(file: BinaryIO, *formats):
+def read_tuples_from_file(file: BinaryIO, *formats, lines_to_buffer: int = 5):
     """Utility to easily parse binary files. formats is a list of struct format characters.
         yields tuples of size len(formats) with the data read
 
     Args:
         file: the file to read from
         *formats: list of struct format chars. Example, for 2 uint32 and 1 uint64: ['I', 'I', 'Q']
+        lines_to_buffer: number of lines to read at a time
 
     Returns:tuples with data specified in formats
 
     """
+    if lines_to_buffer != -1 and lines_to_buffer < 1:
+        raise ValueError("lines_to_buffer must be >= 1 or -1 (for unlimited)")
     fstring = "<" + "".join(formats)
-    yield from map(partial(struct.unpack, fstring), iter(partial(file.read, struct.calcsize(fstring)), b""))
+    reader = struct.Struct(fstring)
+    while True:
+        chunk = file.read(lines_to_buffer * reader.size if lines_to_buffer != -1 else -1)
+        if not chunk:
+            break
+        yield from reader.iter_unpack(chunk)
 
 
 def simplify_text(text: str) -> str:
@@ -68,25 +76,6 @@ def simplify_text(text: str) -> str:
     return text.strip()
 
 
-def _b2i(b: bytes) -> int:
-    return np.frombuffer(b, dtype=np.uint64, count=1, offset=0).item(0)
-
-
-def str_hash(s: str) -> int:
-    h = hashlib.sha1(bytes(s, encoding="utf-8"))
-    return _b2i(h.digest())
-
-
-def merge_docs(sen_list, n_sentences: int = 3) -> dict:
-    def to_sentences(idx: int):
-        return {idx + i for i in range(n_sentences)}
-
-    merged = defaultdict(set)
-    for doc_id, sent_id in sen_list:
-        merged[doc_id].update(to_sentences(sent_id))
-    return merged  # {doc_id: set of sent ids}
-
-
 # https://github.com/ekzhu/datasketch/blob/master/datasketch/hashfunc.py
 def sha1_hash32(data):
     """A 32-bit hash function based on SHA1.
@@ -110,3 +99,46 @@ def sha1_hash64(data):
         int: an integer hash value that can be encoded using 64 bits.
     """
     return struct.unpack("<Q", hashlib.sha1(data).digest()[:8])[0]
+
+
+def seek_to_start(f: AbstractBufferedFile, start_hash: int, line_format: str, hash_format: str):
+    if start_hash == 0:
+        return
+    line_size = struct.calcsize(line_format)
+    nr_lines = f.size // line_size
+
+    @cache
+    def read_line_start(line):
+        assert 0 <= line < nr_lines
+        f.seek(line * line_size, os.SEEK_SET)
+        return struct.unpack(hash_format, f.read(struct.calcsize(hash_format)))[0]
+
+    # save some time with binary search
+    # this file is strictly bigger
+    if read_line_start(0) >= start_hash:
+        f.seek(0, os.SEEK_SET)
+        return
+
+    # this file is strictly smaller, ignore it completely
+    if read_line_start(nr_lines - 1) < start_hash:
+        f.seek(0, os.SEEK_END)
+        return
+
+    # binary search to find start line
+    start_line, hi = 0, nr_lines
+    # Note, the comparison uses "<" to match the
+    # __lt__() logic in list.sort() and in heapq.
+    while start_line < hi:
+        mid = (start_line + hi) // 2
+        if read_line_start(mid) < start_hash:
+            start_line = mid + 1
+        else:
+            hi = mid
+
+    if start_line > nr_lines:
+        raise ValueError
+
+    # verification check. we know start_line > 0 from the check above
+    if (prev_hash := read_line_start(start_line - 1)) >= start_hash:
+        raise ValueError(f"Wrong bsearch start line: {prev_hash=} >= {start_hash=}")
+    f.seek(start_line * line_size, os.SEEK_SET)
