@@ -52,7 +52,7 @@ processing = [
     "inscriptis",
 #    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
-    "trafilatura",
+    "trafilatura>=1.8.0",
     "tokenizers",
 ]
 quality = [
