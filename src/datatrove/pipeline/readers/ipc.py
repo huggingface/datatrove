@@ -20,6 +20,8 @@ class IpcReader(BaseDiskReader):
         default_metadata: default metadata to add to all documents
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
+        shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
+            with dedup blocks
     """
 
     name = "🪶 Ipc"
@@ -37,9 +39,19 @@ class IpcReader(BaseDiskReader):
         default_metadata: dict = None,
         recursive: bool = True,
         glob_pattern: str | None = None,
+        shuffle_files: bool = False,
     ):
         super().__init__(
-            data_folder, limit, progress, adapter, text_key, id_key, default_metadata, recursive, glob_pattern
+            data_folder,
+            limit,
+            progress,
+            adapter,
+            text_key,
+            id_key,
+            default_metadata,
+            recursive,
+            glob_pattern,
+            shuffle_files,
         )
         self.stream = stream
         # TODO: add option to disable reading metadata (https://github.com/apache/arrow/issues/13827 needs to be addressed first)
