@@ -290,6 +290,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
+        bos_token: str = "<|startoftext|>",  # whether to add the EOS token after each document
         save_loss_metadata: bool = False,  # save the loss information
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
         batch_size: int = 10000,  # batch size for tokenization
@@ -312,6 +313,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         self.save_filename = save_filename
         self.tokenizer_name = tokenizer_name
         self.eos_token = eos_token
+        self.bos_token = bos_token
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle
         self.batch_size = batch_size

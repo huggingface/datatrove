@@ -39,8 +39,8 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
                 self._tokenizer.post_processor = self._post_processor
             elif self.eos_token:
                 self._tokenizer.post_processor = TemplateProcessing(
-                    single="$A <EOS>",
-                    special_tokens=[("<EOS>", self.tokenizer.token_to_id(self.eos_token))],
+                    single="<BOS> $A <EOS>",
+                    special_tokens=[("<EOS>", self.tokenizer.token_to_id(self.bos_token)), ("<EOS>", self.tokenizer.token_to_id(self.eos_token))],
                     pair=None,
                 )
         return self._tokenizer
