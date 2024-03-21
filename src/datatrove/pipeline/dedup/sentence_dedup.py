@@ -10,6 +10,7 @@ from: https://jmlr.org/papers/volume21/20-074/20-074.pdf (C4)
 import contextlib
 import dataclasses
 import heapq
+import re
 import struct
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -120,9 +121,16 @@ class SentenceDedupSignature(PipelineStep):
             return []
 
         sentences_tokens = [simplify_text(sent) for sent in sentences]
-        n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.config.n_sentences)]
+        sents_to_hash = []
+        pattern = re.compile(r"\d+")
+        for sent in sentences_tokens:
+            if not pattern.search(sent):
+                sents_to_hash.append("")
+            else:
+                sents_to_hash.append(pattern.sub("0", sent))
+        n_sent_grams: list = [" ".join(x) for x in ngrams(sents_to_hash, self.config.n_sentences)]
         hashes = [
-            (sha1_hash64(n_sent_gram.encode("utf-8")), doc_idx, sentence_idx)
+            (sha1_hash64(n_sent_gram.encode("utf-8")), doc_idx, sentence_idx)  # hash, docid, sentid
             for sentence_idx, n_sent_gram in enumerate(n_sent_grams)
             if n_sent_gram.strip() != ""  # we actually do not want to remove all the \n everywhere
         ]
