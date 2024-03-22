@@ -230,12 +230,11 @@ class ESRangeRemover(PipelineStepWithTokenizer):
             SEPARATOR_BYTES <= a < b <= bytes_len
         ), f"{SEPARATOR_BYTES=} < {a=} < {b=} < {bytes_len=} is NOT satisfied"
 
-        # TODO IMPROVE
-        if (b - a) % 2 != 0:
-            if b == bytes_len:
-                a += 1
-            else:
-                b += 1
+        if b % 2 == 1:
+            b -= 1
+        if a % 2 == 1:
+            a += 1
+        b = max(a, b)
 
         return a, b
 
