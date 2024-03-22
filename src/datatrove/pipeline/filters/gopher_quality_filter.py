@@ -70,13 +70,15 @@ class GopherQualityFilter(BaseFilter):
 
         text = doc.text
         words = word_tokenize(text)  # TODO we should use language id filter
+        n_words = len(words)
+
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]
+        n_non_symbol_words_words = len(non_symbol_words)
 
         # words < min_doc_words or words > max_doc_words
-        n_words = len(non_symbol_words)
-        if self.min_doc_words and n_words < self.min_doc_words:
+        if self.min_doc_words and n_non_symbol_words_words < self.min_doc_words:
             return False, "gopher_short_doc"
-        if self.max_doc_words and n_words > self.max_doc_words:
+        if self.max_doc_words and n_non_symbol_words_words > self.max_doc_words:
             return False, "gopher_long_doc"
 
         # mean word length is outside the range of 3 to 10 characters
