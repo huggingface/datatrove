@@ -54,6 +54,7 @@ processing = [
     "tldextract",
     "trafilatura",
     "tokenizers",
+    "ftfy"
 ]
 quality = [
   "ruff>=0.1.5"
