@@ -12,7 +12,7 @@ import dataclasses
 import heapq
 import struct
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import BinaryIO, Generator
 
 import numpy as np
@@ -24,7 +24,7 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_tuples_from_file
-from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, sha1_hash64, simplify_text
+from datatrove.utils.text import TextNormConfig, sha1_hash64, simplify_text
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
 from ..writers.disk_base import DiskWriter
@@ -36,7 +36,7 @@ class SentDedupConfig:
     split_sentences: bool = True  # set to False to split on \n instead
     only_dedup_in_index: bool = True
     min_doc_words: int = 50
-    norm_config: TextNormConfig = DEF_TEXT_NORM_CONFIG
+    norm_config: TextNormConfig = field(default_factory=TextNormConfig)
 
 
 DEFAULT_SENT_DEDUP_CONFIG = SentDedupConfig()
