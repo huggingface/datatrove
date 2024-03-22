@@ -21,5 +21,4 @@ class SymbolLinesFormatter(BaseFormatter):
         self.symbol_regex = re.compile(rf"(^(([{puncts}]+[^\S\r\n]*)+\n?)+$((?<!\n)\n)?)", flags=re.MULTILINE)
 
     def format(self, text: str) -> str:
-        print(self.symbol_regex.findall(text))
         return self.symbol_regex.sub(self.replace_char, text)
