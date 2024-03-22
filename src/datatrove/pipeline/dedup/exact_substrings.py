@@ -24,7 +24,7 @@ from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 
 from ...utils.tokenization import PipelineStepWithTokenizer
-from .utils import ExtensionHelperES as EH
+from ...utils.typeshelper import ExtensionHelperES as EH
 
 
 SEPARATOR_BYTES = 12

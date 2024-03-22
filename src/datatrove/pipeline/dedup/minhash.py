@@ -3,7 +3,7 @@ import heapq
 import os
 import re
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Generator
 
 import numpy as np
@@ -13,14 +13,9 @@ from loguru import logger
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import (
-    read_tuples_from_file,
-    seek_to_start,
-    sha1_hash32,
-    sha1_hash64,
-    simplify_text,
-)
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.binaryio import read_tuples_from_file, seek_to_start
+from datatrove.utils.text import TextNormConfig, sha1_hash32, sha1_hash64, simplify_text
 from datatrove.utils.typeshelper import StatHints
 
 
@@ -57,6 +52,8 @@ class MinhashConfig:
 
     use_64bit_hashes: bool = False
     seed: int = 1
+
+    norm_config: TextNormConfig = field(default_factory=TextNormConfig)
 
     @property
     def hash_dtype(self):
@@ -209,7 +206,7 @@ class MinhashDedupSignature(PipelineStep):
         return np.fromiter(
             [
                 self._hash_func(" ".join(x).encode("utf-8"))
-                for x in ngrams(word_tokenize(simplify_text(text)), self.config.n_grams)
+                for x in ngrams(word_tokenize(simplify_text(text, self.config.norm_config)), self.config.n_grams)
             ],
             dtype=np.uint64,
         ).reshape((-1, 1))

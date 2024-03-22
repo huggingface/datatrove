@@ -12,7 +12,7 @@ import dataclasses
 import heapq
 import struct
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import BinaryIO, Generator
 
 import numpy as np
@@ -23,10 +23,11 @@ from tqdm import tqdm
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.typeshelper import StatHints
+from datatrove.utils.binaryio import read_tuples_from_file
+from datatrove.utils.text import TextNormConfig, sha1_hash64, simplify_text
+from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, read_tuples_from_file, sha1_hash64, simplify_text
 
 
 @dataclass
@@ -35,6 +36,7 @@ class SentDedupConfig:
     split_sentences: bool = True  # set to False to split on \n instead
     only_dedup_in_index: bool = True
     min_doc_words: int = 50
+    norm_config: TextNormConfig = field(default_factory=TextNormConfig)
 
 
 DEFAULT_SENT_DEDUP_CONFIG = SentDedupConfig()
@@ -119,7 +121,7 @@ class SentenceDedupSignature(PipelineStep):
         if len(sentences) < self.config.n_sentences:
             return []
 
-        sentences_tokens = [simplify_text(sent) for sent in sentences]
+        sentences_tokens = [simplify_text(sent, self.config.norm_config) for sent in sentences]
         n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.config.n_sentences)]
         hashes = [
             (sha1_hash64(n_sent_gram.encode("utf-8")), doc_idx, sentence_idx)
@@ -267,7 +269,9 @@ class SentenceFindDedups(PipelineStep):
 def read_duplicates(file: BinaryIO) -> np.ndarray:
     """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
     with file as f:
-        return np.fromfile(f, dtype=[("doc", "<u4"), ("sent", "<u2")])
+        return np.fromfile(
+            f, dtype=[("doc", "<u4"), ("sent", "<u2")]
+        )  # np.fromfile(f, dtype=np.dtype({'names': ['doc', 'sent'], 'formats': ['<u4', '<u2'], 'offsets': [8, 12], 'itemsize': 16}))
 
 
 class SentenceDedupFilter(PipelineStep):

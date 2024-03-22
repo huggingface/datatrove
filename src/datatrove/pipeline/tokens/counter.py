@@ -20,7 +20,7 @@ class TokensCounter(PipelineStepWithTokenizer):
         self,
         tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
         count_eos_token: bool = False,  # whether to count the EOS token on each document
-        overwrite: bool = False,  # re-tokenize and recompute nb of tokens even if they are already in metadata["tokens_count"]
+        overwrite: bool = True,  # re-tokenize and recompute nb of tokens even if they are already in metadata["tokens_count"]
     ):
         """
 
