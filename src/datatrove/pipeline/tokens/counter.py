@@ -49,9 +49,10 @@ class TokensCounter(PipelineStepWithTokenizer):
             if "token_count" in document.metadata and not self.overwrite:
                 count = document.metadata["token_count"]
             else:
-                count = len(self.tokenizer.encode(document.text).ids)
-                if self.count_eos_token:
-                    count += 1
+                with self.track_time():
+                    count = len(self.tokenizer.encode(document.text).ids)
+                    if self.count_eos_token:
+                        count += 1
                 document.metadata["token_count"] = count
             self.stat_update("tokens", value=count)
             yield document
