@@ -78,7 +78,7 @@ if __name__ == "__main__":
                 output_folder=WORKING_DIR,
                 local_working_dir=LOCAL_WORKING_DIR,
                 save_filename=f"{DATASET_NAME}_tokenized",
-                tokenizer_name=args.tokenizer,
+                tokenizer_name_or_path=args.tokenizer,
             ),
         ],
         # If you have a very small dataset, feel free to set this to "1" and remove the merge_executor

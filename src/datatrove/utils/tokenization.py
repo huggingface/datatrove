@@ -25,16 +25,16 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
     def __init__(self):
         super().__init__()
         self._tokenizer = None
-        self.tokenizer_name = None
+        self.tokenizer_name_or_path = None
         self._post_processor = None
         self.eos_token = None
 
     @property
     def tokenizer(self) -> "Tokenizer":
         if not self._tokenizer:
-            if not self.tokenizer_name:
-                raise ValueError("self.tokenizer_name needs to be set!")
-            self._tokenizer: "Tokenizer" = load_tokenizer(self.tokenizer_name)
+            if not self.tokenizer_name_or_path:
+                raise ValueError("self.tokenizer_name_or_path needs to be set!")
+            self._tokenizer: "Tokenizer" = load_tokenizer(self.tokenizer_name_or_path)
             if self._post_processor:
                 self._tokenizer.post_processor = self._post_processor
             elif self.eos_token:
