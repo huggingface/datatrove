@@ -54,16 +54,23 @@ class LanguageFilter(BaseFilter):
         return self._model
 
     def filter(self, doc: Document) -> bool:
-        """Args:
+        """
+        Determine whether a document's language is one of the specified languages and meets the language score threshold.
+        Uses existing language and score information in document metadata if available, otherwise predicts using the model.
+
+        Args:
             doc: document
 
         Returns:
-            is_filter
+            bool: True if the document's language is accepted and meets the score threshold, False otherwise.
         """
+        language = doc.metadata.get("language", None)
+        language_score = doc.metadata.get("language_score", None)
 
-        language, score = self.model.predict(doc.text.replace("\n", ""))
-        # language label is given in the form __label__<language_id>
-        language = language[0].split("__")[2]
-        doc.metadata["language"] = language
-        doc.metadata["language_score"] = score[0]
+        if language is None or language_score is None:
+            language, score = self.model.predict(doc.text.replace("\n", ""))
+            # language label is given in the form __label__<language_id>
+            language = language[0].split("__")[2]
+            doc.metadata["language"] = language
+            doc.metadata["language_score"] = score[0]
         return score > self.language_threshold and language in self.languages
