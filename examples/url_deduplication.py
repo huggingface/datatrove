@@ -6,13 +6,8 @@ from datatrove.pipeline.dedup.url_dedup import (
     UrlDedupSignature,
     UrlFindDedups,
 )
-from datatrove.pipeline.dedup.sentence_dedup import SentDedupConfig
-from datatrove.pipeline.extractors import Trafilatura
-from datatrove.pipeline.filters import GopherQualityFilter, LanguageFilter
-from datatrove.pipeline.readers import JsonlReader, WarcReader
+from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.writers.jsonl import JsonlWriter
-from datatrove.utils.typeshelper import Languages
-
 
 """
 example on how to use url-deduplication.
@@ -37,7 +32,7 @@ def run_example(args):
     pipeline_1 = [
         JsonlReader(args.input_folder),
         UrlDedupSignature(
-            output_folder=f"{args.base_output_folder}/url-sigs",
+            output_folder=f"{args.sigs_dup_folder}/sigs",
             config=url_dedup_config,
             finder_workers=FINDER_WORKERS,
         ),
@@ -45,15 +40,22 @@ def run_example(args):
 
     pipeline_2 = [
         UrlFindDedups(
-            data_folder=f"{args.base_output_folder}/url-sigs",
-            output_folder=f"{args.base_output_folder}/url-dups",
+            data_folder=f"{args.sigs_dup_folder}/sigs",
+            output_folder=f"{args.sigs_dup_folder}/dups",
             config=url_dedup_config,
         )
     ]
 
     pipeline_3 = [
-        JsonlReader(data_folder="intermediate/"),
-        UrlDedupFilter(data_folder="c4/dups", config=url_dedup_config),
+        JsonlReader(data_folder=args.input_folder),
+        UrlDedupFilter(
+            data_folder=f"{args.sigs_dup_folder}/dups",
+            config=url_dedup_config,
+            exclusion_writer=JsonlWriter(
+                output_folder=f"{args.base_output_folder}/removed"
+            ),
+        ),
+        JsonlWriter(output_folder=f"{args.base_output_folder}/output"),
     ]
 
     executor_1: PipelineExecutor = LocalPipelineExecutor(
@@ -76,6 +78,7 @@ def run_example(args):
 parser = argparse.ArgumentParser(description="URL Deduplication")
 parser.add_argument("input_folder", required=True, help="Input folder path")
 parser.add_argument("base_output_folder", required=True, help="Base output folder path")
+parser.add_argument("sigs-dup_folder", required=True, help="sigs-dup folder path")
 if __name__ == "__main__":
     args = parser.parse_args()
     run_example(args)
