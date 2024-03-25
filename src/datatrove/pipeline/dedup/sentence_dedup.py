@@ -267,14 +267,6 @@ class SentenceFindDedups(PipelineStep):
         output_mg.close()
 
 
-def read_duplicates(file: BinaryIO) -> np.ndarray:
-    """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
-    with file as f:
-        return np.fromfile(
-            f, dtype=[("doc", "<u4"), ("sent", "<u2")]
-        )  # np.fromfile(f, dtype=np.dtype({'names': ['doc', 'sent'], 'formats': ['<u4', '<u2'], 'offsets': [8, 12], 'itemsize': 16}))
-
-
 class SentenceDedupFilter(PipelineStep):
     """SentenceDedup: Third pipeline step
 
@@ -305,6 +297,16 @@ class SentenceDedupFilter(PipelineStep):
         self._tokenizer = load(f"tokenizers/punkt/{language}.pickle")
         self.exclusion_writer = exclusion_writer
         self.language = language
+
+    def read_duplicates(self, file: BinaryIO) -> np.ndarray:
+        """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
+        with file as f:
+            if self.data_folder.is_local():
+                return np.fromfile(
+                    f, dtype=[("doc", "<u4"), ("sent", "<u2")]
+                )  # np.fromfile(f, dtype=np.dtype({'names': ['doc', 'sent'], 'formats': ['<u4', '<u2'], 'offsets': [8, 12], 'itemsize': 16}))
+            else:
+                return np.frombuffer(f.read(), dtype=[("doc", "<u4"), ("sent", "<u2")])
 
     def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray) -> tuple[str, str]:
         from nltk.tokenize import word_tokenize
@@ -381,7 +383,8 @@ class SentenceDedupFilter(PipelineStep):
         if files:
             with ThreadPoolExecutor() as pool:
                 all_dups = np.concatenate(
-                    list(tqdm(pool.map(read_duplicates, self.data_folder.open_files(files)), total=len(files))), axis=0
+                    list(tqdm(pool.map(self.read_duplicates, self.data_folder.open_files(files)), total=len(files))),
+                    axis=0,
                 )
             all_dups.sort()
         _, doc_starts = np.unique(all_dups["doc"], return_index=True)
