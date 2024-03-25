@@ -110,6 +110,7 @@ class UrlDedupSignature(PipelineStep):
 
         hashes_per_worker = np.iinfo(np.uint64).max // self.finder_workers
         left_idx = 0
+        packer = struct.Struct("<QHI")
         for hash_i in range(self.finder_workers):
             with self.output_folder.open(
                 f"{hash_i:04d}/{rank:05d}{ExtensionHelperSD.stage_1_signature}",
@@ -128,7 +129,10 @@ class UrlDedupSignature(PipelineStep):
                 )
                 # save to file
                 if right_idx > left_idx:
-                    signatures[left_idx:right_idx].tofile(f)
+                    packed_signature = (
+                        packer.pack(*sig) for sig in signatures[left_idx:right_idx]
+                    )
+                    f.write(b"".join(packed_signature))
                 left_idx = right_idx
                 # we've reached the end of our data
                 if right_idx >= len(signatures):
