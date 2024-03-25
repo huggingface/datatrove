@@ -1,7 +1,5 @@
 import copy
-import random
 import shutil
-import string
 import tempfile
 import unittest
 
@@ -12,12 +10,6 @@ from datatrove.pipeline.dedup.url_dedup import (
     UrlDedupSignature,
     UrlFindDedups,
 )
-
-from ..utils import require_nltk
-
-
-def get_random_string(n: int = 20):
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "."
 
 
 DOCS = [
@@ -32,8 +24,7 @@ DOCS_1 = DOCS[:2]
 DOCS_2 = DOCS[2:]
 
 
-@require_nltk
-class SentenceDedup(unittest.TestCase):
+class UrlDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
@@ -53,16 +44,14 @@ class SentenceDedup(unittest.TestCase):
         docs = list(dedup_filter(data=copy.deepcopy(DOCS)))
         self.assertEqual(len(docs), 3)
         self.assertEqual(
-            set(doc.metadata["url"] for doc in docs),
-            set([doc.metadata["url"] for doc in DOCS]),
+            {doc.metadata["url"] for doc in docs},
+            {doc.metadata["url"] for doc in DOCS},
         )
 
     def test_url_deduplication_with_priority_highest_id(self):
         config = UrlDedupConfig(document_priority=lambda x: int(x.id))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
@@ -76,14 +65,12 @@ class SentenceDedup(unittest.TestCase):
 
         expected_ids = [3, 4, 5]
         self.assertEqual(len(docs), 3)
-        self.assertEqual(set(int(doc.id) for doc in docs), set(expected_ids))
+        self.assertEqual({int(doc.id) for doc in docs}, set(expected_ids))
 
     def test_url_deduplication_with_priority_lowest_id(self):
         config = UrlDedupConfig(document_priority=lambda x: 5 - int(x.id))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
@@ -97,14 +84,12 @@ class SentenceDedup(unittest.TestCase):
 
         expected_ids = [1, 3, 5]
         self.assertEqual(len(docs), 3)
-        self.assertEqual(set(int(doc.id) for doc in docs), set(expected_ids))
+        self.assertEqual({int(doc.id) for doc in docs}, set(expected_ids))
 
     def test_url_deduplication_with_normalization(self):
         config = UrlDedupConfig(url_normalizer=lambda x: x.replace("2", ""))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
@@ -118,15 +103,13 @@ class SentenceDedup(unittest.TestCase):
 
         self.assertEqual(len(docs), 2)
         self.assertEqual(
-            set(doc.metadata["url"] for doc in docs),
-            set(["https://example.com", "https://new-site.com"]),
+            {doc.metadata["url"] for doc in docs},
+            {"https://example.com", "https://new-site.com"},
         )
 
     def test_sd_worker(self):
         config = UrlDedupConfig(document_priority=lambda x: int(x.id))
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
 
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
@@ -145,16 +128,14 @@ class SentenceDedup(unittest.TestCase):
         self.assertEqual(len(dedup_1), 0)
         self.assertEqual(len(dedup_2), 3)
         self.assertEqual(
-            set(doc.metadata["url"] for doc in dedup_2),
-            set(doc.metadata["url"] for doc in DOCS),
+            {doc.metadata["url"] for doc in dedup_2},
+            {doc.metadata["url"] for doc in DOCS},
         )
 
     def test_distributed_find_dups(self):
         config = UrlDedupConfig(document_priority=lambda x: int(x.id))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config)
 
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
@@ -168,16 +149,12 @@ class SentenceDedup(unittest.TestCase):
         for rank in range(50):
             find_duplicates(rank=rank, world_size=50)
 
-        dedup_docs = list(
-            dedup_filter(data=copy.deepcopy(DOCS_1), rank=0, world_size=2)
-        )
+        dedup_docs = list(dedup_filter(data=copy.deepcopy(DOCS_1), rank=0, world_size=2))
 
-        dedup_docs_2 = list(
-            dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2)
-        )
+        dedup_docs_2 = list(dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2))
         self.assertEqual(len(dedup_docs), 0)
         self.assertEqual(len(dedup_docs_2), 3)
         self.assertEqual(
-            set(doc.metadata["url"] for doc in dedup_docs_2),
-            set(doc.metadata["url"] for doc in DOCS),
+            {doc.metadata["url"] for doc in dedup_docs_2},
+            {doc.metadata["url"] for doc in DOCS},
         )
