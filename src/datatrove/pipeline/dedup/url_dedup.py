@@ -85,7 +85,9 @@ class UrlDedupSignature(PipelineStep):
         if finder_workers <= 0:
             raise ValueError("finder_workers must be >= 1")
         elif finder_workers > 1:
-            logger.warning(f"Remember to also set the name of tasks of the finder block to {finder_workers=}!")
+            logger.warning(
+                f"Remember to also set the name of tasks of the finder block to {finder_workers=}!"
+            )
         self.finder_workers = finder_workers
         self.config = config
 
@@ -97,7 +99,9 @@ class UrlDedupSignature(PipelineStep):
         assert all(
             sig[1] >= 0 and sig[1] < priority_max for sig in signatures
         ), f"priority must be between 1 and {priority_max}"
-        signatures = np.array(signatures, dtype=[("hash", "<u8"), ("priority", "<u2"), ("doc", "<u4")])
+        signatures = np.array(
+            signatures, dtype=[("hash", "<u8"), ("priority", "<u2"), ("doc", "<u4")]
+        )
 
         # Ensure that the highest priority is always first
         signatures["priority"] = -signatures["priority"]
@@ -113,11 +117,15 @@ class UrlDedupSignature(PipelineStep):
             ) as f:
                 # last bucket needs to have everything
                 right_hash = (
-                    (hash_i + 1) * hashes_per_worker if hash_i != self.finder_workers - 1 else np.iinfo(np.uint64).max
+                    (hash_i + 1) * hashes_per_worker
+                    if hash_i != self.finder_workers - 1
+                    else np.iinfo(np.uint64).max
                 )
                 # find last hash that goes in this bucket. This obeys the following rule:
                 # signatures['hash'][right_idx - 1] <= right_hash <= signatures['hash'][right_idx]
-                right_idx = left_idx + signatures["hash"][left_idx:].searchsorted(right_hash, side="right")
+                right_idx = left_idx + signatures["hash"][left_idx:].searchsorted(
+                    right_hash, side="right"
+                )
                 # save to file
                 if right_idx > left_idx:
                     signatures[left_idx:right_idx].tofile(f)
@@ -126,11 +134,17 @@ class UrlDedupSignature(PipelineStep):
                 if right_idx >= len(signatures):
                     break
 
-    def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[tuple[int, int, int]]:
+    def get_hashes(
+        self, doc: Document, doc_idx: int
+    ) -> list[None] | list[tuple[int, int, int]]:
         normalized_url = (
-            self.config.url_normalizer(doc.metadata["url"]) if self.config.url_normalizer else doc.metadata["url"]
+            self.config.url_normalizer(doc.metadata["url"])
+            if self.config.url_normalizer
+            else doc.metadata["url"]
         )
-        priority = self.config.document_priority(doc) if self.config.document_priority else 0
+        priority = (
+            self.config.document_priority(doc) if self.config.document_priority else 0
+        )
         hashes = [(sha1_hash64(normalized_url.encode("utf-8")), priority, doc_idx)]
 
         return hashes
@@ -163,8 +177,12 @@ def read_sigs(
     line_format = "QHI" if not index_file else "Q"
     last = None
     with file as f:
-        for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
-            assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
+        for data in read_tuples_from_file(
+            f, line_format, lines_to_buffer=lines_to_buffer
+        ):
+            assert (
+                last is None or data[0] >= last
+            ), f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
                 HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=-1)
@@ -215,7 +233,9 @@ class UrlFindDedups(PipelineStep):
         with self.stats.time_stats:
             if world_size == 1:
                 # check that there was not a mistake in setting this values
-                sig_files = self.data_folder.list_files(glob_pattern="*/*" + ExtensionHelperSD.stage_1_signature)
+                sig_files = self.data_folder.list_files(
+                    glob_pattern="*/*" + ExtensionHelperSD.stage_1_signature
+                )
                 if any(not sig_file.startswith("0000/") for sig_file in sig_files):
                     raise ValueError(
                         f"{world_size=} but found sig files for different hash buckets. Set tasks=finder_workers"
@@ -240,7 +260,9 @@ class UrlFindDedups(PipelineStep):
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
                         )
-                        for file_i, file in enumerate(self.data_folder.open_files(index_files))
+                        for file_i, file in enumerate(
+                            self.data_folder.open_files(index_files)
+                        )
                     ]
                 )
 
@@ -307,7 +329,9 @@ class UrlDedupFilter(PipelineStep):
         with file as f:
             return np.fromfile(f, dtype="<u4")
 
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(
+        self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1
+    ) -> DocumentsPipeline:
         """step method for Filters.
         Drops documents that if .filter() is False
 
@@ -317,7 +341,10 @@ class UrlDedupFilter(PipelineStep):
         # for performance reasons when having for instance 12k*10k files
         files = [
             f
-            for f in [f"{folder}/{rank:05d}{ExtensionHelperSD.stage_2_duplicates}" for folder in folders]
+            for f in [
+                f"{folder}/{rank:05d}{ExtensionHelperSD.stage_2_duplicates}"
+                for folder in folders
+            ]
             if self.data_folder.exists(f)
         ]
 
@@ -329,7 +356,9 @@ class UrlDedupFilter(PipelineStep):
                 all_dups = np.concatenate(
                     list(
                         tqdm(
-                            pool.map(self.read_duplicates, self.data_folder.open_files(files)),
+                            pool.map(
+                                self.read_duplicates, self.data_folder.open_files(files)
+                            ),
                             total=len(files),
                         )
                     ),
@@ -340,14 +369,22 @@ class UrlDedupFilter(PipelineStep):
         logger.info("Loaded duplicate indexes.")
 
         dups_doc_i = 0
-        with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
-            for doc_idx, doc in enumerate(data):
-                self.stat_update(StatHints.total)
-                with self.stats.time_stats:
-                    if dups_doc_i < all_dups.shape[0] and all_dups[dups_doc_i] == doc_idx:
-                        if writer:
-                            writer.write(doc, rank=rank)
-                        dups_doc_i += 1
-                    else:
-                        self.update_doc_stats(doc)
-                        yield doc
+        with (
+            self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext()
+        ) as writer:
+            with self.stats.time_stats:
+                for doc_idx, doc in enumerate(data):
+                    self.stat_update(StatHints.total)
+                    with self.stats.time_stats:
+                        if (
+                            dups_doc_i < all_dups.shape[0]
+                            and all_dups[dups_doc_i] == doc_idx
+                        ):
+                            if writer:
+                                writer.write(doc, rank=rank)
+                            self.stat_update(StatHints.dropped)
+                            dups_doc_i += 1
+                        else:
+                            self.stat_update(StatHints.forwarded)
+                            self.update_doc_stats(doc)
+                            yield doc
