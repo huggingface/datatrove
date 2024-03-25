@@ -36,6 +36,7 @@ class SentDedupConfig:
     split_sentences: bool = True  # set to False to split on \n instead
     only_dedup_in_index: bool = True
     min_doc_words: int = 50
+    min_words_to_remove_span: int = 0
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
 
 
@@ -305,7 +306,9 @@ class SentenceDedupFilter(PipelineStep):
         self.exclusion_writer = exclusion_writer
         self.language = language
 
-    def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray, n_sentences: int = 3) -> tuple[str, str]:
+    def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray) -> tuple[str, str]:
+        from nltk.tokenize import word_tokenize
+
         sentence_spans = (
             list(self._tokenizer.span_tokenize(doc.text)) if self.config.split_sentences else doc.text.splitlines()
         )
@@ -314,7 +317,7 @@ class SentenceDedupFilter(PipelineStep):
         last_s = 0
         du_line_idx = 0  # pointer for duplicate lines
         drop_until = 0  # used to keep track of last matched span's end
-        in_removed_span = False
+        removed_span = []
         for idx, s in enumerate(sentence_spans):
             line_text = doc.text[last_s : s[1]] if self.config.split_sentences else s
             # track / increment dup_line ref
@@ -322,23 +325,34 @@ class SentenceDedupFilter(PipelineStep):
                 if du_lines[du_line_idx] < idx:
                     raise ValueError("Error with duplicate line index")
                 elif du_lines[du_line_idx] == idx:
-                    drop_until = idx + n_sentences
+                    drop_until = idx + self.config.n_sentences
                     du_line_idx += 1
 
             # if outside the range, we keep this line/sent
             if idx >= drop_until:
-                kept_sentences.append(line_text)
-                if in_removed_span:
+                if removed_span:
                     original_formatted.append("<<<\u001b[0m")
-                in_removed_span = False
-            elif not in_removed_span:
-                in_removed_span = True
+                    if (
+                        self.config.min_words_to_remove_span > 0
+                        and len(word_tokenize("\n".join(removed_span), self.language))
+                        <= self.config.min_words_to_remove_span
+                    ):
+                        kept_sentences.extend(removed_span)
+                    removed_span.clear()
+                kept_sentences.append(line_text)
+            elif not removed_span:
+                removed_span.append(line_text)
                 original_formatted.append("\033[91m>>>")
             original_formatted.append(line_text)
             if self.config.split_sentences:
                 last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
-        if in_removed_span:
+        if removed_span:
             original_formatted.append("<<<\u001b[0m")
+            if (
+                self.config.min_words_to_remove_span > 0
+                and len(word_tokenize("\n".join(removed_span), self.language)) <= self.config.min_words_to_remove_span
+            ):
+                kept_sentences.extend(removed_span)
         if len(kept_sentences) < len(sentence_spans):
             self.stat_update("removed_sentences", value=len(sentence_spans) - len(kept_sentences))
         self.stat_update("original_sentences", value=len(sentence_spans))
@@ -387,7 +401,7 @@ class SentenceDedupFilter(PipelineStep):
                             doc_starts[dups_doc_i + 1] if dups_doc_i + 1 < len(doc_starts) else None,
                         )
                         filtered_text, original_formatted = self.remove_dup_sentences(
-                            doc, all_dups["sent"][sents_span_l:sents_span_r], self.config.n_sentences
+                            doc, all_dups["sent"][sents_span_l:sents_span_r]
                         )
                         dups_doc_i += 1
 
