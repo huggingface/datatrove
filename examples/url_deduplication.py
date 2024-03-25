@@ -27,10 +27,12 @@ url_dedup_config = UrlDedupConfig(
 
 FINDER_WORKERS = 4  # this will speed up/parallelize step 2
 
+LIMIT = 100
+
 
 def run_example(args):
     pipeline_1 = [
-        JsonlReader(args.input_folder),
+        JsonlReader(args.input_folder, limit=LIMIT, progress=True),
         UrlDedupSignature(
             output_folder=f"{args.sigs_dup_folder}/sigs",
             config=url_dedup_config,
@@ -47,7 +49,7 @@ def run_example(args):
     ]
 
     pipeline_3 = [
-        JsonlReader(data_folder=args.input_folder),
+        JsonlReader(data_folder=args.input_folder, limit=LIMIT, progress=True),
         UrlDedupFilter(
             data_folder=f"{args.sigs_dup_folder}/dups",
             config=url_dedup_config,
@@ -76,9 +78,9 @@ def run_example(args):
 
 
 parser = argparse.ArgumentParser(description="URL Deduplication")
-parser.add_argument("input_folder", required=True, help="Input folder path")
-parser.add_argument("base_output_folder", required=True, help="Base output folder path")
-parser.add_argument("sigs-dup_folder", required=True, help="sigs-dup folder path")
+parser.add_argument("input_folder", help="Input folder path")
+parser.add_argument("base_output_folder", help="Base output folder path")
+parser.add_argument("sigs_dup_folder", help="sigs-dup folder path")
 if __name__ == "__main__":
     args = parser.parse_args()
     run_example(args)
