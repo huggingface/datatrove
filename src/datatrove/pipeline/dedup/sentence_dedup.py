@@ -108,7 +108,10 @@ class SentenceDedupSignature(PipelineStep):
                 right_idx = left_idx + signatures["hash"][left_idx:].searchsorted(right_hash, side="right")
                 # save to file
                 if right_idx > left_idx:
-                    signatures[left_idx:right_idx].tofile(f)
+                    if self.output_folder.is_local():
+                        signatures[left_idx:right_idx].tofile(f)
+                    else:
+                        f.write(signatures[left_idx:right_idx].tobytes())
                 left_idx = right_idx
                 # we've reached the end of our data
                 if right_idx >= len(signatures):
