@@ -45,7 +45,7 @@ class MetricStatsDict(defaultdict):
         return ", ".join(f"{key}: {stats}" for key, stats in self.items())
 
     def to_dict(self):
-        return {a: b.to_dict() for a, b in self.items()}
+        return {a: (b.to_dict() if hasattr(b, "to_dict") else b) for a, b in self.items()}
 
 
 class Stats:
