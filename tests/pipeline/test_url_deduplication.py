@@ -51,9 +51,7 @@ class UrlDedup(unittest.TestCase):
     def test_url_deduplication_with_priority_highest_id(self):
         config = UrlDedupConfig(document_priority=lambda x: int(x.id))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
@@ -72,9 +70,7 @@ class UrlDedup(unittest.TestCase):
     def test_url_deduplication_with_priority_lowest_id(self):
         config = UrlDedupConfig(document_priority=lambda x: 5 - int(x.id) + 1)
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
@@ -93,9 +89,7 @@ class UrlDedup(unittest.TestCase):
     def test_url_deduplication_with_normalization(self):
         config = UrlDedupConfig(url_normalizer=lambda x: x.replace("2", ""))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
@@ -115,9 +109,7 @@ class UrlDedup(unittest.TestCase):
 
     def test_sd_worker(self):
         config = UrlDedupConfig(document_priority=lambda x: int(x.id))
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
 
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
@@ -143,9 +135,7 @@ class UrlDedup(unittest.TestCase):
     def test_distributed_find_dups(self):
         config = UrlDedupConfig(document_priority=lambda x: int(x.id))
 
-        signature_creation = UrlDedupSignature(
-            output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config
-        )
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config)
 
         find_duplicates = UrlFindDedups(
             data_folder=self.tmp_dir + "/sigs",
@@ -159,13 +149,9 @@ class UrlDedup(unittest.TestCase):
         for rank in range(50):
             find_duplicates(rank=rank, world_size=50)
 
-        dedup_docs = list(
-            dedup_filter(data=copy.deepcopy(DOCS_1), rank=0, world_size=2)
-        )
+        dedup_docs = list(dedup_filter(data=copy.deepcopy(DOCS_1), rank=0, world_size=2))
 
-        dedup_docs_2 = list(
-            dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2)
-        )
+        dedup_docs_2 = list(dedup_filter(data=copy.deepcopy(DOCS_2), rank=1, world_size=2))
         self.assertEqual(len(dedup_docs), 0)
         self.assertEqual(len(dedup_docs_2), 3)
         self.assertEqual(
