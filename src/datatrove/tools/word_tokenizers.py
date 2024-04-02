@@ -190,7 +190,7 @@ WORD_TOKENIZERS: dict[str, WordTokenizer] = {
 }
 
 
-def get_word_tokenizer(language: Languages | str):
+def get_word_tokenizer(language: str):
     if language in WORD_TOKENIZERS:
         return WORD_TOKENIZERS[language]
     else:
