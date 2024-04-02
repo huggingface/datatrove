@@ -249,7 +249,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         # create the actual sbatch script
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
-            f"srun -l python -m datatrove.tools.launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
+            f"srun -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         # save it
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
