@@ -54,7 +54,15 @@ processing = [
     "tldextract",
     "trafilatura>=1.8.0",
     "tokenizers",
-    "ftfy"
+    "ftfy",
+    "stanza",
+    "spacy",
+    "pyvi",
+    "pythainlp",
+    "jieba",
+    "anbani",
+    "nlpashto",
+    "indic-nlp-library",
 ]
 quality = [
   "ruff>=0.1.5"
