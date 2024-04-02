@@ -3,6 +3,7 @@ import struct
 from functools import cache
 from typing import BinaryIO
 
+import numpy as np
 from fsspec.spec import AbstractBufferedFile
 
 
@@ -27,6 +28,14 @@ def read_tuples_from_file(file: BinaryIO, *formats, lines_to_buffer: int = 5):
         if not chunk:
             break
         yield from reader.iter_unpack(chunk)
+
+
+def read_np_from_file(file: AbstractBufferedFile, dtype, lines_to_buffer: int = 5):
+    """Utility which reads buffered data from a file and returns a numpy array.
+    It doesn't use np.fromfile, because not all fsspec implementations support it.
+    """
+    size = np.dtype(dtype).itemsize * lines_to_buffer
+    return np.frombuffer(file.read(size), dtype=dtype)
 
 
 def seek_to_start(f: AbstractBufferedFile, start_hash: int, line_format: str, hash_format: str):

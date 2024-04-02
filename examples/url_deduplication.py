@@ -1,3 +1,7 @@
+import argparse
+
+import numpy as np
+
 from datatrove.executor.base import PipelineExecutor
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.dedup.url_dedup import (
@@ -9,14 +13,11 @@ from datatrove.pipeline.dedup.url_dedup import (
 from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 
-"""
-example on how to use url-deduplication.
 
-to run deduplication we need to run three different pipelines
 """
-
-import argparse
-import numpy as np
+Example on how to use url-deduplication.
+To run url deduplication we need to run three different pipelines (same as sentence dedup)
+"""
 
 
 # modify url dedup hyper params here
@@ -27,7 +28,7 @@ url_dedup_config = UrlDedupConfig(
 
 FINDER_WORKERS = 4  # this will speed up/parallelize step 2
 
-LIMIT = 100
+LIMIT = -1  # for testing
 
 
 def run_example(args):
@@ -53,24 +54,16 @@ def run_example(args):
         UrlDedupFilter(
             data_folder=f"{args.sigs_dup_folder}/dups",
             config=url_dedup_config,
-            exclusion_writer=JsonlWriter(
-                output_folder=f"{args.base_output_folder}/removed"
-            ),
+            exclusion_writer=JsonlWriter(output_folder=f"{args.base_output_folder}/removed"),
         ),
         JsonlWriter(output_folder=f"{args.base_output_folder}/output"),
     ]
 
-    executor_1: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_1, workers=4, tasks=4
-    )
+    executor_1: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_1, tasks=4)
 
-    executor_2: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_2, workers=1, tasks=FINDER_WORKERS
-    )
+    executor_2: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_2, tasks=FINDER_WORKERS)
 
-    executor_3: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_3, workers=4, tasks=4
-    )
+    executor_3: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_3, tasks=4)
 
     print(executor_1.run())
     print(executor_2.run())
