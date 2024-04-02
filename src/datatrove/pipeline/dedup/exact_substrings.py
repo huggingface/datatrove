@@ -18,13 +18,13 @@ import struct
 from typing import BinaryIO, Generator
 
 import numpy as np
-import tokenizers
 from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 
-from .utils import ExtensionHelperES as EH
+from ...utils.tokenization import PipelineStepWithTokenizer
+from ...utils.typeshelper import ExtensionHelperES as EH
 
 
 SEPARATOR_BYTES = 12
@@ -37,24 +37,23 @@ def prepare_doc(tokenizer, doc: str, rank: int, doc_id: int):
     return b_doc
 
 
-class ESDatasetToSequence(PipelineStep):
+class ESDatasetToSequence(PipelineStepWithTokenizer):
     """STAGE 1
     Creates a sequence of all docs pre-prepended by a unique separator. It also saves a second file with the
     bytes length of each individual doc.
 
     Args:
         output_folder: folder where sequences are saved
-        tokenizer_name: name of tokenizer as in HF tokenizers.
+        tokenizer_name_or_path: name or path of tokenizer as in HF tokenizers.
     """
 
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
-    _requires_dependencies = ["tokenizers"]
 
-    def __init__(self, output_folder: DataFolderLike, tokenizer_name: str = "gpt2"):
+    def __init__(self, output_folder: DataFolderLike, tokenizer_name_or_path: str = "gpt2"):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer_name_or_path = tokenizer_name_or_path
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         """Saves the byte sizes of each doc in a file.
@@ -146,21 +145,21 @@ def sequence_reader(file: BinaryIO, size_file: BinaryIO) -> Generator[list, None
                 yield f.read(n_bytes)
 
 
-class ESRangeRemover(PipelineStep):
+class ESRangeRemover(PipelineStepWithTokenizer):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
-    _requires_dependencies = ["nltk", "tokenizers"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
         sequence_folder: DataFolderLike,
-        tokenizer_name: str = "gpt2",
+        tokenizer_name_or_path: str = "gpt2",
         min_doc_words: int = 50,
         language: str = "english",
     ):
         super().__init__()
         self.sequence_folder = get_datafolder(sequence_folder)
-        self.tokenizer = tokenizers.Tokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer_name_or_path = tokenizer_name_or_path
         self.min_doc_words = min_doc_words
         self.sequence_bytes_offset = None
         self.dup_ranges = None

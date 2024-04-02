@@ -24,7 +24,7 @@ from datatrove.utils.logging import get_random_str, get_timestamp
 
 def requeue_handler(signum, _frame):
     signame = signal.Signals(signum).name
-    logger.warning(f"Received signal {signame} ({signame}). Requeueing and exiting...")
+    logger.warning(f"Received signal {signum} ({signame}). Requeueing and exiting...")
     subprocess.run(["scontrol", "requeue", "${SLURM_JOB_ID}"])
     sys.exit(15)
 
@@ -292,8 +292,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "array": f"0-{max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
             "requeue": "",
             "qos": self.qos,
-            "mail-type": self.mail_type,
-            "mail-user": self.mail_user,
+            **({"mail-type": self.mail_type, "mail-user": self.mail_user} if self.mail_user else {}),
             **self._sbatch_args,
         }
 

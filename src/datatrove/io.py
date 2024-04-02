@@ -118,6 +118,7 @@ class DataFolder(DirFileSystem):
         subdirectory: str = "",
         recursive: bool = True,
         glob_pattern: str | None = None,
+        include_directories: bool = False,
     ) -> list[str]:
         """
         Get a list of files on this directory. If `subdirectory` is given will search in `path/subdirectory`. If
@@ -135,20 +136,22 @@ class DataFolder(DirFileSystem):
         extra_options = {}
         if isinstance(self.fs, HfFileSystem):
             extra_options["expand_info"] = False  # speed up
+        if include_directories:
+            extra_options["withdirs"] = True
         return sorted(
             [
                 f
                 for f, info in (
-                    self.find(subdirectory, maxdepth=0 if not recursive else None, detail=True, **extra_options)
+                    self.find(subdirectory, maxdepth=1 if not recursive else None, detail=True, **extra_options)
                     if not glob_pattern
                     else self.glob(
-                        self.fs.sep.join([glob_pattern, subdirectory]),
-                        maxdepth=0 if not recursive else None,
+                        self.fs.sep.join([subdirectory, glob_pattern]) if subdirectory else glob_pattern,
+                        maxdepth=1 if not recursive else None,
                         detail=True,
                         **extra_options,
                     )
                 ).items()
-                if info["type"] != "directory"
+                if include_directories or info["type"] != "directory"
             ]
         )
 
