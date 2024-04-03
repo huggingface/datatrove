@@ -78,6 +78,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         is being reclaimed and jobs must be stopped for example. Set to None to disable
         mail_type: see https://slurm.schedmd.com/sbatch.html. Common values are (NONE, BEGIN, END, FAIL, REQUEUE, ALL)
         mail_user: email address to send notifications to
+        requeue: requeue the job if it fails
 
     """
 
@@ -109,6 +110,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         requeue_signals: tuple[str] | None = ("SIGUSR1",),
         mail_type: str = "ALL",
         mail_user: str = None,
+        requeue: bool = True,
     ):
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
@@ -143,6 +145,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 else self.logging_dir.resolve_paths("slurm_logs")
             )
         )
+        self.requeue = requeue
 
     def run(self):
         """
@@ -281,7 +284,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         # this one we actually have to create as slurm will be writing here
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
-        return {
+        sbatch_args = {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
             "partition": self.partition,
@@ -290,11 +293,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "output": slurm_logfile,
             "error": slurm_logfile,
             "array": f"0-{max_array - 1}{f'%{self.workers}' if self.workers != -1 else ''}",
-            "requeue": "",
-            "qos": self.qos,
             **({"mail-type": self.mail_type, "mail-user": self.mail_user} if self.mail_user else {}),
             **self._sbatch_args,
         }
+        if self.requeue:
+            sbatch_args["requeue"] = ""
+        if self.qos:
+            sbatch_args["qos"] = self.qos
+        return sbatch_args
 
     def get_launch_file_contents(self, sbatch_args: dict, run_script: str) -> str:
         """
