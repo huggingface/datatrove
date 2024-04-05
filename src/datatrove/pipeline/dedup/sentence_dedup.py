@@ -355,7 +355,7 @@ class SentenceDedupFilter(PipelineStep):
             original_formatted.append("<<<\u001b[0m")
             if (
                 self.config.min_words_to_remove_span > 0
-                and len(word_tokenize("\n".join(removed_span), self.language)) <= self.config.min_words_to_remove_span
+                and len(word_tokenize("\n".join(removed_span), self.language)) < self.config.min_words_to_remove_span
             ):
                 kept_sentences.extend(removed_span)
         if len(kept_sentences) < len(sentence_spans):
