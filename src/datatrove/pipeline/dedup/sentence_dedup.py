@@ -340,7 +340,7 @@ class SentenceDedupFilter(PipelineStep):
                     if (
                         self.config.min_words_to_remove_span > 0
                         and len(word_tokenize("\n".join(removed_span), self.language))
-                        <= self.config.min_words_to_remove_span
+                        < self.config.min_words_to_remove_span
                     ):
                         kept_sentences.extend(removed_span)
                     removed_span.clear()
