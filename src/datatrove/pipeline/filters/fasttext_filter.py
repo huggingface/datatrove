@@ -9,6 +9,7 @@ from datatrove.data import Document
 from datatrove.io import download_file
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.text import split_into_parts
 
 
 class FastTextClassifierFilter(BaseFilter):
@@ -45,11 +46,13 @@ class FastTextClassifierFilter(BaseFilter):
         save_labels_in_metadata: bool = True,
         exclusion_writer: DiskWriter = None,
         newline_replacement="",
+        filter_mode: str = "DOCUMENT",
     ):
         super().__init__(exclusion_writer)
         self.model_url = model_url
         self.keep_labels = keep_labels
         self.remove_labels = remove_labels
+        self.filter_mode = filter_mode
         if keep_labels and remove_labels:
             raise ValueError("You can only supply one of `keep_labels` or `remove_labels`.")
         self.newline_replacement = newline_replacement
@@ -76,15 +79,24 @@ class FastTextClassifierFilter(BaseFilter):
         return self._model
 
     def filter(self, doc: Document) -> bool:
-        labels, scores = self.model.predict(doc.text.replace("\n", self.newline_replacement))
-        label_scores = dict(zip(labels, scores))
-        if self.save_labels_in_metadata:
-            doc.metadata.update(label_scores)
-        if self.keep_labels:
-            return any(
-                label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.keep_labels
-            )
-        else:
-            return not self.remove_labels or not any(
-                label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.remove_labels
-            )
+        def check_label_scores(unit_scores):
+            if self.keep_labels:
+                return any(
+                    unit_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.keep_labels
+                )
+            else:
+                return not self.remove_labels or not any(
+                    unit_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.remove_labels
+                )
+
+        units = split_into_parts(doc.text, mode=self.filter_mode)
+        kept_spans = []
+        for unit in units:
+            labels, scores = self.model.predict(unit.strip().replace("\n", self.newline_replacement))
+            label_scores = dict(zip(labels, scores))
+            if self.filter_mode == "DOCUMENT" and self.save_labels_in_metadata:
+                doc.metadata.update(label_scores)
+            if check_label_scores(label_scores):
+                kept_spans.append(unit)
+        doc.text = "".join(kept_spans)
+        return not not doc.text

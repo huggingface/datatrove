@@ -88,3 +88,30 @@ def sha1_hash64(data):
         int: an integer hash value that can be encoded using 64 bits.
     """
     return struct.unpack("<Q", hashlib.sha1(data).digest()[:8])[0]
+
+
+def split_into_parts(text, mode="DOCUMENT", language="english"):
+    if mode == "DOCUMENT":
+        return [text]
+    elif mode == "SENTENCE":
+        from nltk import load
+
+        spans = [b for _, b in load(f"tokenizers/punkt/{language}.pickle").span_tokenize(text)]
+        return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
+    elif mode == "PARAGRAPH":
+        # merge whitespace with prev line
+        og_lines = text.splitlines()
+        lines = []
+        next_line = []
+        for li, line in enumerate(og_lines):
+            if line.strip() and next_line:
+                lines.append("".join(next_line))
+                next_line = []
+            next_line.append(line)
+            if li != len(og_lines) - 1:
+                next_line.append("\n")
+        if next_line:
+            lines.append("".join(next_line))
+        return lines
+    else:
+        raise ValueError(f"Unknown {mode=}")
