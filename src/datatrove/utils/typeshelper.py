@@ -23,6 +23,10 @@ class Languages:
     romanian = "ro"
     german = "de"
     latin = "la"
+    chinese = "zh"
+    japense = "ja"
+    korean = "ko"
+    russian = "ru"
 
 
 class StatHints:
