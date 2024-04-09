@@ -30,10 +30,23 @@ def read_tuples_from_file(file: BinaryIO, *formats, lines_to_buffer: int = 5):
         yield from reader.iter_unpack(chunk)
 
 
-def read_np_from_file(file: AbstractBufferedFile, dtype, lines_to_buffer: int = 5):
+def read_np_from_file(
+    file: AbstractBufferedFile,
+    dtype,
+    lines_to_buffer: int = 5,
+    is_local_file: bool = True,
+):
     """Utility which reads buffered data from a file and returns a numpy array.
     It doesn't use np.fromfile, because not all fsspec implementations support it.
     """
+
+    if lines_to_buffer < -1 or lines_to_buffer == 0:
+        raise ValueError("lines_to_buffer must be >= 1 or -1 (for unlimited)")
+
+    if is_local_file:
+        return np.fromfile(file, dtype=dtype, count=lines_to_buffer)
+
+    # No need to check negative lines_to_buffer as file.read will handle that
     size = np.dtype(dtype).itemsize * lines_to_buffer
     return np.frombuffer(file.read(size), dtype=dtype)
 

@@ -154,10 +154,11 @@ def read_sigs(
     file_id: int,
     index_file: bool = False,
     lines_to_buffer: int = 5,
+    is_local_file: bool = True,
 ) -> Generator[HashSig, None, None]:
     last = None
     with file as f:
-        for data in read_np_from_file(f, sig_dtype, lines_to_buffer=lines_to_buffer):
+        for data in read_np_from_file(f, sig_dtype, lines_to_buffer=lines_to_buffer, is_local_file=is_local_file):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
@@ -220,7 +221,12 @@ class UrlFindDedups(PipelineStep):
                     glob_pattern=ExtensionHelperSD.stage_1_signature,
                 )
             sig_readers = [
-                read_sigs(file, file_i, lines_to_buffer=self.lines_to_buffer)
+                read_sigs(
+                    file,
+                    file_i,
+                    lines_to_buffer=self.lines_to_buffer,
+                    is_local_file=self.data_folder.is_local(),
+                )
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
             index_files = self.index_folder.list_files() if self.index_folder else None
@@ -233,6 +239,7 @@ class UrlFindDedups(PipelineStep):
                             len(sig_readers) + file_i,
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
+                            is_local_file=self.data_folder.is_local(),
                         )
                         for file_i, file in enumerate(self.data_folder.open_files(index_files))
                     ]
@@ -296,7 +303,7 @@ class UrlDedupFilter(PipelineStep):
     def read_duplicates(self, file: AbstractBufferedFile) -> np.ndarray:
         """Helper function to read duplicates from a binary file storing (doc_id) as created by the second stage."""
         with file as f:
-            return np.fromfile(f, dtype="<u4")
+            return read_np_from_file(f, dtype="<u4", lines_to_buffer=-1)
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         folders = self.data_folder.list_files(include_directories=True, recursive=False)
