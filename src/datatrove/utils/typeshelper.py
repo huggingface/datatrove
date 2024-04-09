@@ -24,7 +24,7 @@ class Languages:
     german = "de"
     latin = "la"
     chinese = "zh"
-    japense = "ja"
+    japanese = "ja"
     korean = "ko"
     russian = "ru"
 
