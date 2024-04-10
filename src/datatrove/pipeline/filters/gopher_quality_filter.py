@@ -68,7 +68,7 @@ class GopherQualityFilter(BaseFilter):
 
         """
         text = doc.text
-        language = doc.metadata.get("language", "en")
+        language = doc.metadata["language"]
         tokenizer = get_word_tokenizer(language)
         words = tokenizer.tokenize(text)
         n_words = len(words)
