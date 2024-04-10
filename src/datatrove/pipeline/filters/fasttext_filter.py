@@ -98,5 +98,8 @@ class FastTextClassifierFilter(BaseFilter):
                 doc.metadata.update(label_scores)
             if check_label_scores(label_scores):
                 kept_spans.append(unit)
+                self.stat_update("kept_span")
+            else:
+                self.stat_update("removed_span")
         doc.text = "".join(kept_spans)
-        return not not doc.text
+        return not not doc.text.strip()
