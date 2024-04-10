@@ -3,6 +3,7 @@ import numpy as np
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.tools.word_tokenizers import get_word_tokenizer
 from datatrove.utils.text import PUNCTUATION_SET
 
 
@@ -66,10 +67,10 @@ class GopherQualityFilter(BaseFilter):
         Returns: False if sample.text does not pass any of the the heuristic tests
 
         """
-        from nltk.tokenize import word_tokenize
-
         text = doc.text
-        words = word_tokenize(text)  # TODO we should use language id filter
+        language = doc.metadata.get("language", "en")
+        tokenizer = get_word_tokenizer(language)
+        words = tokenizer.tokenize(text)
         n_words = len(words)
 
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]
