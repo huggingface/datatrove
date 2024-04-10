@@ -54,7 +54,9 @@ processing = [
     "tldextract",
     "trafilatura>=1.8.0",
     "tokenizers",
-    "ftfy",
+    "ftfy"
+]
+tokenization = [
     "spacy",
 ]
 quality = [
@@ -64,6 +66,7 @@ testing = [
   "datatrove[cli]",
   "datatrove[io]",
   "datatrove[processing]",
+  "datatrove[tokenization]",
   "datatrove[s3]",
   "pytest",
   "pytest-timeout",

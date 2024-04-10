@@ -3,7 +3,7 @@ import numpy as np
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.tools.word_tokenizers import get_word_tokenizer
+from datatrove.tools.word_tokenizers import MultilingualTokenizer, default_tokenizer
 from datatrove.utils.text import PUNCTUATION_SET
 
 
@@ -27,6 +27,7 @@ class GopherQualityFilter(BaseFilter):
         min_stop_words: int | None = 2,
         stop_words: list[str] | None = None,
         exclusion_writer: DiskWriter = None,
+        tokenizer: MultilingualTokenizer = default_tokenizer,
     ):
         """
         Filter to apply Gopher's quality heuristic rules.
@@ -56,6 +57,7 @@ class GopherQualityFilter(BaseFilter):
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
+        self.tokenizer = tokenizer
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
@@ -68,9 +70,8 @@ class GopherQualityFilter(BaseFilter):
 
         """
         text = doc.text
-        language = doc.metadata["language"]
-        tokenizer = get_word_tokenizer(language)
-        words = tokenizer.tokenize(text)
+        language = doc.metadata.get("language", "en")
+        words = self.tokenizer.tokenize(text, language)
         n_words = len(words)
 
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Callable
 
 import spacy
 from nltk.tokenize import word_tokenize
@@ -14,6 +15,7 @@ class WordTokenizer(ABC):
 
 class NLTKTokenizer(WordTokenizer):
     def __init__(self, punkt_language: str):
+        super().__init__()
         self.punkt_language = punkt_language
 
     def tokenize(self, text) -> list[str]:
@@ -22,6 +24,7 @@ class NLTKTokenizer(WordTokenizer):
 
 class SpaCyTokenizer(WordTokenizer):
     def __init__(self, spacy_language: str, config=None):
+        super().__init__()
         if config is None:
             self.tokenizer = spacy.blank(spacy_language)
         else:
@@ -36,14 +39,30 @@ class SpaCyTokenizer(WordTokenizer):
         ]
 
 
-WORD_TOKENIZERS: dict[str, WordTokenizer] = {
-    Languages.english: NLTKTokenizer("english"),
-    Languages.korean: SpaCyTokenizer("ko", {"nlp": {"tokenizer": {"@tokenizers": "spacy.Tokenizer.v1"}}}),
+class MultilingualTokenizer:
+    def __init__(self, factory_dict: dict[str, Callable[[], WordTokenizer]]):
+        self._factory_dict = factory_dict
+        self._tokenizers = {}
+
+    def _get_tokenizer(self, language: str) -> WordTokenizer:
+        if language not in self._tokenizers:
+            if language not in self._factory_dict:
+                raise ValueError(f"'{language}' tokenizer is not set.")
+            tokenizer = self._factory_dict[language]()
+            self._tokenizers[language] = tokenizer
+        return self._tokenizers[language]
+
+    @property
+    def languages(self) -> list[str]:
+        return list(self._factory_dict.keys())
+
+    def tokenize(self, text: str, language: str) -> list[str]:
+        return self._get_tokenizer(language).tokenize(text)
+
+
+WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
+    Languages.english: lambda: NLTKTokenizer("english"),
+    Languages.korean: lambda: SpaCyTokenizer("ko", {"nlp": {"tokenizer": {"@tokenizers": "spacy.Tokenizer.v1"}}}),
 }
 
-
-def get_word_tokenizer(language: str):
-    if language in WORD_TOKENIZERS:
-        return WORD_TOKENIZERS[language]
-    else:
-        return WORD_TOKENIZERS[Languages.english]
+default_tokenizer = MultilingualTokenizer(WORD_TOKENIZER_FACTORY)
