@@ -96,6 +96,7 @@ def require_datasets(test_case):
         test_case = unittest.skip("test requires datasets")(test_case)
     return test_case
 
+
 def require_xxhash(test_case):
     try:
         import xxhash  # noqa: F401

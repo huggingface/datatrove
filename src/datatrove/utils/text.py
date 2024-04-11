@@ -4,6 +4,7 @@ import struct
 import unicodedata
 from dataclasses import dataclass
 
+import xxhash
 
 
 PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
@@ -95,13 +96,12 @@ def sha1_hash64(data):
 
 
 def xxhash32(data):
-    import xxhash
     return xxhash.xxh32_intdigest(data)
 
 
 def xxhash64(data: str):
-    import xxhash
     return xxhash.xxh64_intdigest(data)
+
 
 SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
 SPLIT_TEXT_SENTENCES = "SENTENCE"

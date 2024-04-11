@@ -1,7 +1,6 @@
-import itertools
 import os
 import struct
-from functools import cache, partial
+from functools import cache
 from typing import BinaryIO
 
 import numpy as np
@@ -42,17 +41,14 @@ def read_np_from_file(
         file: the file to read from
         dtype: expected dtype of data
         is_local_file: whether the file is a local file (enables optimizations)
-    
-    Yields:
-        numpy array of size lines_to_buffer
+    Returns:
+        numpy array of data from the file
     """
     with file:
         if is_local_file:
             return np.fromfile(file, dtype=dtype)
         else:
             return np.frombuffer(file.read(), dtype=dtype)
-
-
 
 
 def seek_to_start(f: AbstractBufferedFile, start_hash: int, line_format: str, hash_format: str):
@@ -71,7 +67,7 @@ def seek_to_start(f: AbstractBufferedFile, start_hash: int, line_format: str, ha
     # this file is strictly bigger
     if read_line_start(0) >= start_hash:
         f.seek(0, os.SEEK_SET)
-        return 
+        return
 
     # this file is strictly smaller, ignore it completely
     if read_line_start(nr_lines - 1) < start_hash:

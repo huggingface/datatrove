@@ -4,9 +4,9 @@ URL based deduplication.
 
 import contextlib
 import heapq
+import struct
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-import struct
 from typing import BinaryIO, Callable, Generator
 
 import numpy as np
@@ -78,7 +78,6 @@ class UrlDedupSignature(PipelineStep):
     type = "🫂 - DEDUPS"
     name = "💥 url-deduplication stage 1"
     _requires_dependencies = ["xxhash"]
-    
 
     def __init__(
         self,
