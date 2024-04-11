@@ -10,6 +10,7 @@ from datatrove.pipeline.dedup.url_dedup import (
     UrlDedupSignature,
     UrlFindDedups,
 )
+from tests.utils import require_xxhash
 
 
 DOCS = [
@@ -24,6 +25,7 @@ DOCS_1 = DOCS[:2]
 DOCS_2 = DOCS[2:]
 
 
+@require_xxhash
 class UrlDedup(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
