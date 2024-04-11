@@ -34,6 +34,8 @@ class FastTextClassifierFilter(BaseFilter):
         keep_labels: tuple of (label name without "__label__", min score) (or list of such tuples)
         remove_labels: tuple of (label name without "__label__", min score) (or list of such tuples)
         save_labels_in_metadata: whether to save all the label scores in the document metadata
+        newline_replacement: str to replace \n with before predicting scores
+        filter_mode: predict and filter on DOCUMENT, PARAGRAPH or SENTENCE level
         exclusion_writer:
     """
 
@@ -43,10 +45,10 @@ class FastTextClassifierFilter(BaseFilter):
     def __init__(
         self,
         model_url: str,
-        keep_labels: Tuple[str, float] | list[Tuple[str, float]] = None,
-        remove_labels: Tuple[str, float] | list[Tuple[str, float]] = None,
+        keep_labels: Tuple[str, float] | list[Tuple[str, float]] | None = None,
+        remove_labels: Tuple[str, float] | list[Tuple[str, float]] | None = None,
         save_labels_in_metadata: bool = True,
-        exclusion_writer: DiskWriter = None,
+        exclusion_writer: DiskWriter | None = None,
         newline_replacement="",
         filter_mode: str = SPLIT_TEXT_DOCUMENTS,
     ):
