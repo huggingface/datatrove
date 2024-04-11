@@ -22,6 +22,7 @@ To run url deduplication we need to run three different pipelines (same as sente
 
 # modify url dedup hyper params here
 url_dedup_config = UrlDedupConfig(
+    # this will keep the longest document for each url
     document_priority=lambda doc: min(np.iinfo(np.uint16).max, len(doc.text) // 4),
     url_normalizer=lambda url: url.lower(),
 )
