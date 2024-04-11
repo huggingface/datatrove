@@ -102,3 +102,34 @@ def xxhash32(data):
 def xxhash64(data: str):
     import xxhash
     return xxhash.xxh64_intdigest(data)
+
+SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
+SPLIT_TEXT_SENTENCES = "SENTENCE"
+SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
+
+
+def split_into_parts(text, mode="DOCUMENT", language="english"):
+    if mode == SPLIT_TEXT_DOCUMENTS:
+        return [text]
+    elif mode == SPLIT_TEXT_SENTENCES:
+        from nltk import load
+
+        spans = [b for _, b in load(f"tokenizers/punkt/{language}.pickle").span_tokenize(text)]
+        return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
+    elif mode == SPLIT_TEXT_PARAGRAPHS:
+        # merge whitespace with prev line
+        og_lines = text.splitlines()
+        lines = []
+        next_line = []
+        for li, line in enumerate(og_lines):
+            if line.strip() and next_line:
+                lines.append("".join(next_line))
+                next_line = []
+            next_line.append(line)
+            if li != len(og_lines) - 1:
+                next_line.append("\n")
+        if next_line:
+            lines.append("".join(next_line))
+        return lines
+    else:
+        raise ValueError(f"Unknown {mode=}")
