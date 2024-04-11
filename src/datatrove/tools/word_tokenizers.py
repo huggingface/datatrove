@@ -1,9 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Callable
 
-import spacy
-from nltk.tokenize import word_tokenize
-
 from datatrove.utils.typeshelper import Languages
 
 
@@ -19,11 +16,15 @@ class NLTKTokenizer(WordTokenizer):
         self.punkt_language = punkt_language
 
     def tokenize(self, text) -> list[str]:
+        from nltk.tokenize import word_tokenize
+
         return word_tokenize(text, language=self.punkt_language)
 
 
 class SpaCyTokenizer(WordTokenizer):
     def __init__(self, spacy_language: str, config=None):
+        import spacy
+
         super().__init__()
         if config is None:
             self.tokenizer = spacy.blank(spacy_language)
