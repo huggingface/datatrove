@@ -1,6 +1,8 @@
 import os
+from collections import defaultdict
 from typing import Tuple
 
+import numpy as np
 from fsspec.core import strip_protocol
 from huggingface_hub import cached_assets_path
 from loguru import logger
@@ -9,6 +11,7 @@ from datatrove.data import Document
 from datatrove.io import download_file
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts
 
 
 class FastTextClassifierFilter(BaseFilter):
@@ -31,6 +34,8 @@ class FastTextClassifierFilter(BaseFilter):
         keep_labels: tuple of (label name without "__label__", min score) (or list of such tuples)
         remove_labels: tuple of (label name without "__label__", min score) (or list of such tuples)
         save_labels_in_metadata: whether to save all the label scores in the document metadata
+        newline_replacement: str to replace \n with before predicting scores
+        filter_mode: predict and filter on DOCUMENT, PARAGRAPH or SENTENCE level
         exclusion_writer:
     """
 
@@ -40,16 +45,18 @@ class FastTextClassifierFilter(BaseFilter):
     def __init__(
         self,
         model_url: str,
-        keep_labels: Tuple[str, float] | list[Tuple[str, float]] = None,
-        remove_labels: Tuple[str, float] | list[Tuple[str, float]] = None,
+        keep_labels: Tuple[str, float] | list[Tuple[str, float]] | None = None,
+        remove_labels: Tuple[str, float] | list[Tuple[str, float]] | None = None,
         save_labels_in_metadata: bool = True,
-        exclusion_writer: DiskWriter = None,
+        exclusion_writer: DiskWriter | None = None,
         newline_replacement="",
+        filter_mode: str = SPLIT_TEXT_DOCUMENTS,
     ):
         super().__init__(exclusion_writer)
         self.model_url = model_url
         self.keep_labels = keep_labels
         self.remove_labels = remove_labels
+        self.filter_mode = filter_mode
         if keep_labels and remove_labels:
             raise ValueError("You can only supply one of `keep_labels` or `remove_labels`.")
         self.newline_replacement = newline_replacement
@@ -76,15 +83,30 @@ class FastTextClassifierFilter(BaseFilter):
         return self._model
 
     def filter(self, doc: Document) -> bool:
-        labels, scores = self.model.predict(doc.text.replace("\n", self.newline_replacement))
-        label_scores = dict(zip(labels, scores))
+        def check_label_scores(unit_scores):
+            if self.keep_labels:
+                return any(
+                    unit_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.keep_labels
+                )
+            else:
+                return not self.remove_labels or not any(
+                    unit_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.remove_labels
+                )
+
+        units = split_into_parts(doc.text, mode=self.filter_mode)
+        kept_spans = []
+        label_scores = defaultdict(list)
+        for unit in units:
+            labels, scores = self.model.predict(unit.strip().replace("\n", self.newline_replacement))
+            if self.save_labels_in_metadata:
+                for label, score in zip(labels, scores):
+                    label_scores[label].append(score)
+            if check_label_scores(dict(zip(labels, scores))):
+                kept_spans.append(unit)
+                self.stat_update("kept_span")
+            else:
+                self.stat_update("removed_span")
+        doc.text = "".join(kept_spans)
         if self.save_labels_in_metadata:
-            doc.metadata.update(label_scores)
-        if self.keep_labels:
-            return any(
-                label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.keep_labels
-            )
-        else:
-            return not self.remove_labels or not any(
-                label_scores.get(f"__label__{label}", -9e9) >= min_score for label, min_score in self.remove_labels
-            )
+            doc.metadata.update({label: np.mean(scores).item() for label, scores in label_scores.items()})
+        return not not doc.text.strip()
