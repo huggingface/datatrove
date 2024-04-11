@@ -90,15 +90,20 @@ def sha1_hash64(data):
     return struct.unpack("<Q", hashlib.sha1(data).digest()[:8])[0]
 
 
+SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
+SPLIT_TEXT_SENTENCES = "SENTENCE"
+SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
+
+
 def split_into_parts(text, mode="DOCUMENT", language="english"):
-    if mode == "DOCUMENT":
+    if mode == SPLIT_TEXT_DOCUMENTS:
         return [text]
-    elif mode == "SENTENCE":
+    elif mode == SPLIT_TEXT_SENTENCES:
         from nltk import load
 
         spans = [b for _, b in load(f"tokenizers/punkt/{language}.pickle").span_tokenize(text)]
         return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
-    elif mode == "PARAGRAPH":
+    elif mode == SPLIT_TEXT_PARAGRAPHS:
         # merge whitespace with prev line
         og_lines = text.splitlines()
         lines = []

@@ -1,6 +1,8 @@
 import os
+from collections import defaultdict
 from typing import Tuple
 
+import numpy as np
 from fsspec.core import strip_protocol
 from huggingface_hub import cached_assets_path
 from loguru import logger
@@ -9,7 +11,7 @@ from datatrove.data import Document
 from datatrove.io import download_file
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.text import split_into_parts
+from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts
 
 
 class FastTextClassifierFilter(BaseFilter):
@@ -46,7 +48,7 @@ class FastTextClassifierFilter(BaseFilter):
         save_labels_in_metadata: bool = True,
         exclusion_writer: DiskWriter = None,
         newline_replacement="",
-        filter_mode: str = "DOCUMENT",
+        filter_mode: str = SPLIT_TEXT_DOCUMENTS,
     ):
         super().__init__(exclusion_writer)
         self.model_url = model_url
@@ -91,15 +93,18 @@ class FastTextClassifierFilter(BaseFilter):
 
         units = split_into_parts(doc.text, mode=self.filter_mode)
         kept_spans = []
+        label_scores = defaultdict(list)
         for unit in units:
             labels, scores = self.model.predict(unit.strip().replace("\n", self.newline_replacement))
-            label_scores = dict(zip(labels, scores))
-            if self.filter_mode == "DOCUMENT" and self.save_labels_in_metadata:
-                doc.metadata.update(label_scores)
-            if check_label_scores(label_scores):
+            if self.save_labels_in_metadata:
+                for label, score in zip(labels, scores):
+                    label_scores[label].append(score)
+            if check_label_scores(dict(zip(labels, scores))):
                 kept_spans.append(unit)
                 self.stat_update("kept_span")
             else:
                 self.stat_update("removed_span")
         doc.text = "".join(kept_spans)
+        if self.save_labels_in_metadata:
+            doc.metadata.update({label: np.mean(scores).item() for label, scores in label_scores.items()})
         return not not doc.text.strip()
