@@ -1,6 +1,7 @@
+import itertools
 import os
 import struct
-from functools import cache
+from functools import cache, partial
 from typing import BinaryIO
 
 import numpy as np
@@ -31,24 +32,27 @@ def read_tuples_from_file(file: BinaryIO, *formats, lines_to_buffer: int = 5):
 
 
 def read_np_from_file(
-    file: AbstractBufferedFile,
-    dtype,
-    lines_to_buffer: int = 5,
+    file: BinaryIO,
+    dtype: np.dtype,
     is_local_file: bool = True,
-):
-    """Utility which reads buffered data from a file and returns a numpy array.
-    It doesn't use np.fromfile, because not all fsspec implementations support it.
+) -> np.ndarray:
     """
+    Utility which reads data from a file and returns a numpy array.
+    Args:
+        file: the file to read from
+        dtype: expected dtype of data
+        is_local_file: whether the file is a local file (enables optimizations)
+    
+    Yields:
+        numpy array of size lines_to_buffer
+    """
+    with file:
+        if is_local_file:
+            return np.fromfile(file, dtype=dtype)
+        else:
+            return np.frombuffer(file.read(), dtype=dtype)
 
-    if lines_to_buffer < -1 or lines_to_buffer == 0:
-        raise ValueError("lines_to_buffer must be >= 1 or -1 (for unlimited)")
 
-    if is_local_file:
-        return np.fromfile(file, dtype=dtype, count=lines_to_buffer)
-
-    # No need to check negative lines_to_buffer as file.read will handle that
-    size = np.dtype(dtype).itemsize * lines_to_buffer
-    return np.frombuffer(file.read(size), dtype=dtype)
 
 
 def seek_to_start(f: AbstractBufferedFile, start_hash: int, line_format: str, hash_format: str):
@@ -67,7 +71,7 @@ def seek_to_start(f: AbstractBufferedFile, start_hash: int, line_format: str, ha
     # this file is strictly bigger
     if read_line_start(0) >= start_hash:
         f.seek(0, os.SEEK_SET)
-        return
+        return 
 
     # this file is strictly smaller, ignore it completely
     if read_line_start(nr_lines - 1) < start_hash:

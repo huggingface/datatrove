@@ -6,7 +6,8 @@ import contextlib
 import heapq
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Callable, Generator
+import struct
+from typing import BinaryIO, Callable, Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
@@ -16,7 +17,7 @@ from tqdm import tqdm
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.binaryio import read_np_from_file
+from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
 from datatrove.utils.text import xxhash64
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
@@ -59,8 +60,8 @@ class HashSig:
         )
 
 
-sig_dtype = np.dtype([("hash", "<u8"), ("priority", "<u2"), ("doc", "<u4")])
-dup_dtype = sig_dtype[2]
+SIG_DTYPE = np.dtype([("hash", "<u8"), ("priority", "<u2"), ("doc", "<u4")])
+DUP_DTYPE = SIG_DTYPE[2]
 
 
 class UrlDedupSignature(PipelineStep):
@@ -76,6 +77,8 @@ class UrlDedupSignature(PipelineStep):
 
     type = "🫂 - DEDUPS"
     name = "💥 url-deduplication stage 1"
+    _requires_dependencies = ["xxhash"]
+    
 
     def __init__(
         self,
@@ -93,13 +96,13 @@ class UrlDedupSignature(PipelineStep):
         self.config = config
 
     def save_hashes(self, rank: int, signatures):
-        priority_max = np.iinfo(np.dtype("<u2")).max
+        priority_max = np.iinfo(SIG_DTYPE["priority"]).max
 
         # 0 will stay as is, so we can't use 0 as a priority
         assert all(
             sig[1] >= 1 and sig[1] <= priority_max for sig in signatures
         ), f"priority must be between 1 and {priority_max}"
-        signatures = np.array(signatures, dtype=sig_dtype)
+        signatures = np.array(signatures, dtype=SIG_DTYPE)
 
         # Ensure that the highest priority is always first
         signatures["priority"] = -signatures["priority"]
@@ -154,11 +157,11 @@ def read_sigs(
     file_id: int,
     index_file: bool = False,
     lines_to_buffer: int = 5,
-    is_local_file: bool = True,
 ) -> Generator[HashSig, None, None]:
     last = None
+    line_format = "QHI" if not index_file else "Q"
     with file as f:
-        for data in read_np_from_file(f, sig_dtype, lines_to_buffer=lines_to_buffer, is_local_file=is_local_file):
+        for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
@@ -225,7 +228,6 @@ class UrlFindDedups(PipelineStep):
                     file,
                     file_i,
                     lines_to_buffer=self.lines_to_buffer,
-                    is_local_file=self.data_folder.is_local(),
                 )
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
@@ -239,7 +241,6 @@ class UrlFindDedups(PipelineStep):
                             len(sig_readers) + file_i,
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
-                            is_local_file=self.data_folder.is_local(),
                         )
                         for file_i, file in enumerate(self.data_folder.open_files(index_files))
                     ]
@@ -261,11 +262,12 @@ class UrlFindDedups(PipelineStep):
 
             output_mg = self.output_folder.get_output_file_manager(mode="wb")
             last: HashSig | None = None
+            packer = struct.Struct("<I")
             while pq:
                 v: HashSig = heapq.heappop(pq)
                 if last and last.hash_value == v.hash_value and not v.is_from_index():
                     out_filename = f"{rank:04d}/{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}"
-                    doc_id_bytes = np.array([v.doc_id], dtype=dup_dtype).tobytes()
+                    doc_id_bytes = packer.pack(v.doc_id)
                     output_mg.write(out_filename, doc_id_bytes)
                 last = v
                 new_v = next(sig_readers[v.file_id], None)
@@ -300,12 +302,12 @@ class UrlDedupFilter(PipelineStep):
         self.config = config
         self.exclusion_writer = exclusion_writer
 
-    def read_duplicates(self, file: AbstractBufferedFile) -> np.ndarray:
+    def read_duplicates(self, file: BinaryIO) -> np.ndarray:
         """Helper function to read duplicates from a binary file storing (doc_id) as created by the second stage."""
         with file as f:
-            return read_np_from_file(f, dtype="<u4", lines_to_buffer=-1)
+            return read_np_from_file(f, dtype=DUP_DTYPE)
 
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         folders = self.data_folder.list_files(include_directories=True, recursive=False)
         # for performance reasons when having for instance 12k*10k files
         files = [
@@ -316,7 +318,7 @@ class UrlDedupFilter(PipelineStep):
 
         logger.info(f"Loading duplicate indexes from {len(files)} results files.")
 
-        all_dups = np.array([], dtype=dup_dtype)
+        all_dups = np.array([], dtype=DUP_DTYPE)
         if files:
             with ThreadPoolExecutor() as pool:
                 all_dups = np.concatenate(
