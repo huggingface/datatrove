@@ -16,7 +16,6 @@ SAMPLE_TEXT = (
 class TestWordTokenizers(unittest.TestCase):
     def test_word_tokenizers(self):
         for language in default_tokenizer.languages:
-            print(language)
             tokens = default_tokenizer.tokenize(SAMPLE_TEXT, language)
             assert len(tokens) >= 1, f"'{language}' tokenizer assertion failed"
             is_stripped = [token == token.strip() for token in tokens]
