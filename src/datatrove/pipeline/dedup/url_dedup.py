@@ -304,7 +304,7 @@ class UrlDedupFilter(PipelineStep):
     def read_duplicates(self, file: BinaryIO) -> np.ndarray:
         """Helper function to read duplicates from a binary file storing (doc_id) as created by the second stage."""
         with file as f:
-            return read_np_from_file(f, dtype=DUP_DTYPE)
+            return read_np_from_file(f, dtype=DUP_DTYPE, is_local_file=self.data_folder.is_local())
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         folders = self.data_folder.list_files(include_directories=True, recursive=False)
