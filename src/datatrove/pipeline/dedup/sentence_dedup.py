@@ -303,7 +303,7 @@ class SentenceDedupFilter(PipelineStep):
 
     def read_duplicates(self, file: BinaryIO) -> np.ndarray:
         """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
-        return read_np_from_file(file, dtype=np.dtype([("doc", "<u4"), ("sent", "<u2")]))
+        return read_np_from_file(file, dtype=np.dtype([("doc", "<u4"), ("sent", "<u2")]), is_local_file=self.data_folder.is_local())
 
     def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray) -> tuple[str, str]:
         from nltk.tokenize import word_tokenize
