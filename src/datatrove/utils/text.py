@@ -4,9 +4,14 @@ import struct
 import unicodedata
 from dataclasses import dataclass
 
+import xxhash
+
 
 PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
-    map(chr, (x for a, b in ((0, 9), (11, 13), (13, 32), (127, 160)) for x in range(a, b)))
+    map(
+        chr,
+        (x for a, b in ((0, 9), (11, 13), (13, 32), (127, 160)) for x in range(a, b)),
+    )
 )
 PUNCTUATION_SET = set(PUNCTUATION)
 
@@ -88,6 +93,14 @@ def sha1_hash64(data):
         int: an integer hash value that can be encoded using 64 bits.
     """
     return struct.unpack("<Q", hashlib.sha1(data).digest()[:8])[0]
+
+
+def xxhash32(data):
+    return xxhash.xxh32_intdigest(data)
+
+
+def xxhash64(data: str):
+    return xxhash.xxh64_intdigest(data)
 
 
 SPLIT_TEXT_DOCUMENTS = "DOCUMENT"

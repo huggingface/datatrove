@@ -54,7 +54,8 @@ processing = [
     "tldextract",
     "trafilatura>=1.8.0",
     "tokenizers",
-    "ftfy"
+    "ftfy",
+    "xxhash"
 ]
 quality = [
   "ruff>=0.1.5"
