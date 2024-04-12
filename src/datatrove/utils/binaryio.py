@@ -33,7 +33,7 @@ def read_tuples_from_file(file: BinaryIO, *formats, lines_to_buffer: int = 5):
 def read_np_from_file(
     file: BinaryIO,
     dtype: np.dtype,
-    is_local_file: bool = True,
+    is_local_file: bool = False,
 ) -> np.ndarray:
     """
     Utility which reads data from a file and returns a numpy array.
