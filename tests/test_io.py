@@ -1,11 +1,16 @@
+import multiprocessing
 import shutil
 import tempfile
+import time
 import unittest
 
 import boto3
 import moto
 
-from datatrove.io import get_datafolder
+from datatrove.io import download_file_safely, get_datafolder, download_file
+from unittest.mock import Mock, patch
+from multiprocessing import Process
+import time
 
 
 EXAMPLE_DIRS = ("/home/testuser/somedir", "file:///home/testuser2/somedir", "s3://test-bucket/somedir")
@@ -15,6 +20,11 @@ FULL_PATHS = (
     "s3://test-bucket/somedir/file.txt",
 )
 
+def download_wait_mock(remote_path, local_path):
+    # We have to define mocking here, as multiprocessing can't pickle non top-level fc
+    with patch('datatrove.io.download_file') as mock:
+        mock.side_effect = lambda *args, **kwargs: time.sleep(3)
+        download_file_safely(remote_path, local_path)
 
 @moto.mock_aws
 class TestIO(unittest.TestCase):
@@ -34,3 +44,15 @@ class TestIO(unittest.TestCase):
         with df.open("subdir1/subdir2/some_path.txt", "wt") as f:
             f.write("hello")
         assert df.isdir("subdir1/subdir2")
+    
+    def test_download_safely(self):
+        # This could be a bit flaky test due to time.sleep, but it's a good way to test the locking
+
+        start = time.time()
+        df = get_datafolder(self.tmp_dir)
+
+        with multiprocessing.Pool(2) as pool:
+            pool.starmap(download_wait_mock, [("dummy_remote_path", self.tmp_dir + "/file") for _ in range(2)])
+
+        # if locking works this should NOT be faster than 6 seconds, as the wait times must be sequential
+        self.assertGreater(time.time() - start, 6)

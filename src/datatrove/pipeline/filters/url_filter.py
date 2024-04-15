@@ -2,6 +2,7 @@ import os
 import re
 import tarfile
 from typing import Iterable
+from fasteners import InterProcessLock
 
 from huggingface_hub import cached_assets_path
 
@@ -69,11 +70,13 @@ class URLFilter(BaseFilter):
         if self._downloaded:
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
-        if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
-            os.path.join(download_dir, "adult", "urls")
-        ):
-            with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
+
+        with (InterProcessLock(os.path.join(download_dir, "url_filterblacklists.tar.gz.lock")),  tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar):
+            if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
+                os.path.join(download_dir, "adult", "urls")
+            ):
                 tar.extractall(download_dir)
+        
         self.block_listed_domains = get_list(
             download_dir, "adult/domains", self.block_listed_domains, do_normalize=False
         )

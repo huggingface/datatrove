@@ -2,6 +2,7 @@ import os.path
 from glob import has_magic
 from typing import IO, TypeAlias
 
+from fasteners import InterProcessLock
 from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
 from fsspec.callbacks import NoOpCallback, TqdmCallback
@@ -300,6 +301,13 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
         if progress
         else NoOpCallback(),
     )
+
+
+def download_file_safely(remote_path: str, local_path: str, progress: bool = True):
+    with InterProcessLock(f"{local_path}.lock"):
+        if os.path.exists(local_path):
+            return
+        download_file(remote_path, local_path, progress)
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

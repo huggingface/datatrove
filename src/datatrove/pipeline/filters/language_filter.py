@@ -4,7 +4,7 @@ from huggingface_hub import cached_assets_path
 from loguru import logger
 
 from datatrove.data import Document
-from datatrove.io import download_file
+from datatrove.io import download_file_safely
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import Languages
@@ -48,7 +48,7 @@ class LanguageFilter(BaseFilter):
             model_file = os.path.join(download_dir, "lid.176.bin")
             if not os.path.isfile(model_file):
                 logger.info("⬇️ Downloading fast-text language identifier model...")
-                download_file(LANGUAGE_ID_MODEL_URL, model_file)
+                download_file_safely(LANGUAGE_ID_MODEL_URL, model_file)
                 logger.info("⬇️ Downloaded fast-text language identifier model.")
             self._model = _FastText(model_file)
         return self._model

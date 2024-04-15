@@ -6,7 +6,7 @@ from huggingface_hub import cached_assets_path
 from loguru import logger
 
 from datatrove.data import Document
-from datatrove.io import download_file
+from datatrove.io import download_file_safely
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
@@ -70,7 +70,7 @@ class FastTextClassifierFilter(BaseFilter):
             model_file = os.path.join(download_dir, strip_protocol(self.model_url).replace("/", "_"))
             if not os.path.isfile(model_file):
                 logger.info(f'⬇️ Downloading fast-text model from "{self.model_url}"...')
-                download_file(self.model_url, model_file)
+                download_file_safely(self.model_url, model_file)
                 logger.info(f'⬇️ Downloaded fast-text model to "{model_file}".')
             self._model = _FastText(model_file)
         return self._model
