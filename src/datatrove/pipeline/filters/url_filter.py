@@ -5,6 +5,7 @@ from typing import Iterable
 
 from fasteners import InterProcessLock
 from huggingface_hub import cached_assets_path
+from loguru import logger
 
 from datatrove.data import Document
 from datatrove.utils._import_utils import ASSETS_PATH
@@ -71,14 +72,14 @@ class URLFilter(BaseFilter):
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
 
-        with (
-            InterProcessLock(os.path.join(download_dir, "url_filterblacklists.tar.gz.lock")),
-            tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar,
-        ):
+        with InterProcessLock(os.path.join(download_dir, "url_filterblacklists.tar.gz.lock")):
             if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
                 os.path.join(download_dir, "adult", "urls")
             ):
-                tar.extractall(download_dir)
+                logger.info("💥 Extracting url filter blacklists...")
+                with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
+                    tar.extractall(download_dir)
+                logger.info("💥 Extracted url filter blacklists.")
 
         self.block_listed_domains = get_list(
             download_dir, "adult/domains", self.block_listed_domains, do_normalize=False
