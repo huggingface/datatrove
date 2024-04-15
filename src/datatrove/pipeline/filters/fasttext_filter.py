@@ -80,6 +80,14 @@ class FastTextClassifierFilter(BaseFilter):
                 download_file(self.model_url, model_file)
                 logger.info(f'⬇️ Downloaded fast-text model to "{model_file}".')
             self._model = _FastText(model_file)
+            # check label values
+            available_labels = [x.removeprefix("__label__") for x in self._model.labels]
+            for label, _ in self.keep_labels or [] + self.remove_labels or []:
+                if label not in available_labels:
+                    raise ValueError(
+                        f"Label '{label}' passed as keep_labels or remove_labels is not available in this "
+                        f"FastText model. Available labels: {available_labels}"
+                    )
         return self._model
 
     def filter(self, doc: Document) -> bool:
@@ -97,7 +105,7 @@ class FastTextClassifierFilter(BaseFilter):
         kept_spans = []
         label_scores = defaultdict(list)
         for unit in units:
-            labels, scores = self.model.predict(unit.strip().replace("\n", self.newline_replacement))
+            labels, scores = self.model.predict(unit.strip().replace("\n", self.newline_replacement), k=-1)
             if self.save_labels_in_metadata:
                 for label, score in zip(labels, scores):
                     label_scores[label].append(score)
