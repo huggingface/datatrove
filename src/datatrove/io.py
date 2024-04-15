@@ -304,7 +304,17 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
 
 
 def download_file_safely(remote_path: str, local_path: str, progress: bool = True):
+    """
+    Download a file from a remote path to a local path.
+    This function is process-safe and will only download the file if it hasn't been downloaded already.
+    Args:
+        remote_path: str: The remote path to the file to download
+        local_path: str: The local path to save the file to
+        progress: bool: Whether to show a progress bar (Default value = True)
+    """
     with InterProcessLock(f"{local_path}.lock"):
+        # Make sure to do exists check process-locked as otherwise race condition can happen, and processes,
+        # which don't perform the download, could try to open the file before it's fully downloaded
         if os.path.exists(local_path):
             return
         download_file(remote_path, local_path, progress)
