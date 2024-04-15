@@ -1,15 +1,15 @@
 import os.path
 from glob import has_magic
-from typing import IO, Callable, TypeAlias
+from typing import IO, TypeAlias
 
-from fasteners import InterProcessLock
 from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
 from fsspec.callbacks import NoOpCallback, TqdmCallback
-from fsspec.core import get_fs_token_paths, url_to_fs
+from fsspec.core import get_fs_token_paths, strip_protocol, url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
-from huggingface_hub import HfFileSystem
+from huggingface_hub import HfFileSystem, cached_assets_path
+from loguru import logger
 
 
 class OutputFileManager:
@@ -303,27 +303,33 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
     )
 
 
-def download_file_safely(remote_path: str, local_path: str, progress: bool = True, download_start_callback: Callable[[], None] | None = None, download_end_callback: Callable[[], None] | None = None):
+def cached_asset_path_or_download(
+    remote_path: str, progress: bool = True, namespace: str = "default", subfolder: str = "default", desc: str = "file"
+):
     """
     Download a file from a remote path to a local path.
     This function is process-safe and will only download the file if it hasn't been downloaded already.
     Args:
+        namespace: will group diff blocks. example: "filters"
+        subfolder: relative to the specific block calling this function. Example: "language_filter"
         remote_path: str: The remote path to the file to download
-        local_path: str: The local path to save the file to
         progress: bool: Whether to show a progress bar (Default value = True)
-        download_start_callback: Callable[[], None] | None: A callback to run before the download starts
-        download_end_callback: Callable[[], None] | None: A callback to run after the download ends
+        desc: description of the file being downloaded
     """
+    from fasteners import InterProcessLock
+
+    download_dir = cached_assets_path(library_name="datatrove", namespace=namespace, subfolder=subfolder)
+    local_path = os.path.join(download_dir, strip_protocol(remote_path).replace("/", "_"))
+
     with InterProcessLock(f"{local_path}.lock"):
         # Make sure to do exists check process-locked as otherwise race condition can happen, and processes,
         # which don't perform the download, could try to open the file before it's fully downloaded
         if os.path.exists(local_path):
             return
-        if download_start_callback:
-            download_start_callback()
+        logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
         download_file(remote_path, local_path, progress)
-        if download_end_callback:
-            download_end_callback()
+        logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
+    return local_path
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

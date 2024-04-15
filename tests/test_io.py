@@ -8,7 +8,7 @@ from unittest.mock import patch
 import boto3
 import moto
 
-from datatrove.io import download_file_safely, get_datafolder
+from datatrove.io import cached_asset_path_or_download, get_datafolder
 
 
 EXAMPLE_DIRS = ("/home/testuser/somedir", "file:///home/testuser2/somedir", "s3://test-bucket/somedir")
@@ -23,7 +23,7 @@ def download_wait_mock(remote_path, local_path):
     # We have to define mocking here, as multiprocessing can't pickle non top-level fc
     with patch("datatrove.io.download_file") as mock:
         mock.side_effect = lambda *args, **kwargs: time.sleep(3)
-        download_file_safely(remote_path, local_path)
+        cached_asset_path_or_download(remote_path, local_path)
 
 
 @moto.mock_aws

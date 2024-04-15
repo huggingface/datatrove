@@ -3,7 +3,6 @@ import re
 import tarfile
 from typing import Iterable
 
-from fasteners import InterProcessLock
 from huggingface_hub import cached_assets_path
 from loguru import logger
 
@@ -68,6 +67,8 @@ class URLFilter(BaseFilter):
         self.tldextractor = TLDExtract()
 
     def download_data(self):
+        from fasteners import InterProcessLock
+
         if self._downloaded:
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
