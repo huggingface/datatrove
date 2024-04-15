@@ -324,11 +324,10 @@ def cached_asset_path_or_download(
     with InterProcessLock(f"{local_path}.lock"):
         # Make sure to do exists check process-locked as otherwise race condition can happen, and processes,
         # which don't perform the download, could try to open the file before it's fully downloaded
-        if os.path.exists(local_path):
-            return
-        logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
-        download_file(remote_path, local_path, progress)
-        logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
+        if not os.path.exists(local_path):
+            logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
+            download_file(remote_path, local_path, progress)
+            logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
     return local_path
 
 
