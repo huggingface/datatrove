@@ -1,6 +1,6 @@
 import os.path
 from glob import has_magic
-from typing import IO, TypeAlias
+from typing import IO, Callable, TypeAlias
 
 from fasteners import InterProcessLock
 from fsspec import AbstractFileSystem
@@ -303,7 +303,7 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
     )
 
 
-def download_file_safely(remote_path: str, local_path: str, progress: bool = True):
+def download_file_safely(remote_path: str, local_path: str, progress: bool = True, download_start_callback: Callable[[], None] | None = None, download_end_callback: Callable[[], None] | None = None):
     """
     Download a file from a remote path to a local path.
     This function is process-safe and will only download the file if it hasn't been downloaded already.
@@ -311,13 +311,19 @@ def download_file_safely(remote_path: str, local_path: str, progress: bool = Tru
         remote_path: str: The remote path to the file to download
         local_path: str: The local path to save the file to
         progress: bool: Whether to show a progress bar (Default value = True)
+        download_start_callback: Callable[[], None] | None: A callback to run before the download starts
+        download_end_callback: Callable[[], None] | None: A callback to run after the download ends
     """
     with InterProcessLock(f"{local_path}.lock"):
         # Make sure to do exists check process-locked as otherwise race condition can happen, and processes,
         # which don't perform the download, could try to open the file before it's fully downloaded
         if os.path.exists(local_path):
             return
+        if download_start_callback:
+            download_start_callback()
         download_file(remote_path, local_path, progress)
+        if download_end_callback:
+            download_end_callback()
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

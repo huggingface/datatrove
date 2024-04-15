@@ -75,10 +75,13 @@ class FastTextClassifierFilter(BaseFilter):
             download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="fasttext")
 
             model_file = os.path.join(download_dir, strip_protocol(self.model_url).replace("/", "_"))
-            if not os.path.isfile(model_file):
-                logger.info(f'⬇️ Downloading fast-text model from "{self.model_url}"...')
-                download_file_safely(self.model_url, model_file)
-                logger.info(f'⬇️ Downloaded fast-text model to "{model_file}".')
+
+            download_file_safely(
+                self.model_url,
+                model_file,
+                download_start_callback=lambda: logger.info(f'⬇️ Downloading fast-text model from "{self.model_url}"...'),
+                download_end_callback=lambda: logger.info(f'⬇️ Downloaded fast-text model to "{model_file}".'),
+            )
             self._model = _FastText(model_file)
         return self._model
 

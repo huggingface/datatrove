@@ -46,10 +46,7 @@ class LanguageFilter(BaseFilter):
                 library_name="datatrove", namespace="filters", subfolder="language_filter"
             )
             model_file = os.path.join(download_dir, "lid.176.bin")
-            if not os.path.isfile(model_file):
-                logger.info("⬇️ Downloading fast-text language identifier model...")
-                download_file_safely(LANGUAGE_ID_MODEL_URL, model_file)
-                logger.info("⬇️ Downloaded fast-text language identifier model.")
+            download_file_safely(LANGUAGE_ID_MODEL_URL, model_file, download_start_callback=lambda: logger.info("⬇️ Downloading fast-text language identifier model..."), download_end_callback=lambda: logger.info("⬇️ Downloaded fast-text language identifier model."))
             self._model = _FastText(model_file)
         return self._model
 
