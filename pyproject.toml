@@ -55,7 +55,8 @@ processing = [
     "trafilatura>=1.8.0",
     "tokenizers",
     "ftfy",
-    "fasteners"
+    "fasteners",
+    "xxhash"
 ]
 quality = [
   "ruff>=0.1.5"
