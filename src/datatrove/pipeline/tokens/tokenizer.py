@@ -150,7 +150,7 @@ class TokenizedFile:
             loss_values (np.ndarray | None): optional loss values to write
         """
         # get the bytes for uint16 (H)
-        self.write_bytes(struct.pack("<%sH" % len(tokens), *tokens))
+        self.write_bytes(struct.pack("<%sI" % len(tokens), *tokens))
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
