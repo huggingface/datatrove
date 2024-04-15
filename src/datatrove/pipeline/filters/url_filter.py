@@ -42,7 +42,7 @@ class URLFilter(BaseFilter):
     """
 
     name = "😈 Url-filter"
-    _requires_dependencies = ["tldextract"]
+    _requires_dependencies = ["tldextract", "fasteners"]
 
     def __init__(
         self,

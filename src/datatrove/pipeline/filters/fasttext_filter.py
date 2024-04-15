@@ -40,7 +40,7 @@ class FastTextClassifierFilter(BaseFilter):
     """
 
     name = "🤖 fastText"
-    _requires_dependencies = [("fasttext", "fasttext-wheel")]
+    _requires_dependencies = [("fasttext", "fasttext-wheel", "fasteners")]
 
     def __init__(
         self,

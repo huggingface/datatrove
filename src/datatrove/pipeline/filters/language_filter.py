@@ -15,7 +15,7 @@ LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-mode
 
 class LanguageFilter(BaseFilter):
     name = "🌍 Language ID"
-    _requires_dependencies = [("fasttext", "fasttext-wheel")]
+    _requires_dependencies = [("fasttext", "fasttext-wheel", "fasteners")]
 
     def __init__(
         self,
