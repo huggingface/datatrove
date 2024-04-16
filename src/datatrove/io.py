@@ -1,4 +1,3 @@
-import contextlib
 import os.path
 from glob import has_magic
 from typing import IO, Callable, TypeAlias
@@ -304,42 +303,29 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
     )
 
 
-@contextlib.contextmanager
-def safely_process(file: str, is_processed: Callable[[], bool]):
+def safely_create_file(file_to_lock: str, do_processing: Callable):
     """
-    Context manager for process-safe file manipulation.
-    Will check if the file has been processed and if not, will process-lock and let caller do the processing.
-    If the file has been processed, the lock will not be acquired and the context manager will be a no-op.
-    This can be verified by determining if the returned value is None.
+    Gets a lock to download/process and create some file(s). When processing is done a ".completed" file is created.
+    If this file already exists, we skip the processing. Otherwise, we try to acquire a lock and when we get it if the
+    completed file has not been created yet, we run the processing.
+
     Args:
-        file: str: The file to process
-        is_processed: Callable[[], bool]: A function that checks if the file has been processed
-    Yields:
-        None if no processing is needed (file is already processed)
-        Lock object if processing is needed
+        file_to_lock: str: lock will be "lock_path.lock" and completed file "lock_path.completed"
+        do_processing: callback with the code to run to process/create the files
     """
     from fasteners import InterProcessLock
 
-    lock = InterProcessLock(f"{file}.lock")
+    completed_file = f"{file_to_lock}.completed"
 
-    # If the processing was already done and no lock exists, we exit prematurely.
-
-    # AFAIK, there is no way to check if there is existing lock in win32 api,
-    # while this is possible on POSIX Linux, fcntl doesn't support such syscall for some reason,
-    # https://github.com/python/cpython/issues/96694.
-    # We thus check for file presence. This can have false positives as the file might not be cleaned properly.
-    if not lock.exists() and is_processed():
-        yield None
+    # if the completed file exists, we exit straight away
+    if os.path.exists(completed_file):
         return
 
-    with lock:
-        # Make sure to do  check process-locked as otherwise race condition can happen, and processes,
-        # which don't perform the download, could try to open the file before it's fully downloaded
-        if is_processed():
-            yield None
-            return
-
-        yield lock
+    # file is either being downloaded or needs to be downloaded
+    with InterProcessLock(f"{file_to_lock}.lock"):
+        if not os.path.exists(completed_file):
+            do_processing()
+            open(completed_file, "a").close()
 
 
 def cached_asset_path_or_download(
@@ -359,11 +345,12 @@ def cached_asset_path_or_download(
     download_dir = cached_assets_path(library_name="datatrove", namespace=namespace, subfolder=subfolder)
     local_path = os.path.join(download_dir, strip_protocol(remote_path).replace("/", "_"))
 
-    with safely_process(local_path, lambda: os.path.exists(local_path)) as lock:
-        if lock:
-            logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
-            download_file(remote_path, local_path, progress)
-            logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
+    def do_download_file():
+        logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
+        download_file(remote_path, local_path, progress)
+        logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
+
+    safely_create_file(local_path, do_download_file)
     return local_path
 
 
