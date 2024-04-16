@@ -7,6 +7,7 @@ from huggingface_hub import cached_assets_path
 from loguru import logger
 
 from datatrove.data import Document
+from datatrove.io import safely_process
 from datatrove.utils._import_utils import ASSETS_PATH
 
 from ..writers.disk_base import DiskWriter
@@ -67,16 +68,16 @@ class URLFilter(BaseFilter):
         self.tldextractor = TLDExtract()
 
     def download_data(self):
-        from fasteners import InterProcessLock
-
         if self._downloaded:
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
 
-        with InterProcessLock(os.path.join(download_dir, "url_filterblacklists.tar.gz.lock")):
-            if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
-                os.path.join(download_dir, "adult", "urls")
-            ):
+        with safely_process(
+            os.path.join(download_dir, "url_filterblacklists.tar.gz"),
+            lambda: os.path.exists(os.path.join(download_dir, "adult", "domains"))
+            and os.path.exists(os.path.join(download_dir, "adult", "urls")),
+        ) as lock:
+            if lock:
                 logger.info("💥 Extracting url filter blacklists...")
                 with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
                     tar.extractall(download_dir)

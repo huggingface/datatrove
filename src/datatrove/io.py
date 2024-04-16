@@ -1,6 +1,7 @@
+import contextlib
 import os.path
 from glob import has_magic
-from typing import IO, TypeAlias
+from typing import IO, Callable, TypeAlias
 
 from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
@@ -303,6 +304,44 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
     )
 
 
+@contextlib.contextmanager
+def safely_process(file: str, is_processed: Callable[[], bool]):
+    """
+    Context manager for process-safe file manipulation.
+    Will check if the file has been processed and if not, will process-lock and let caller do the processing.
+    If the file has been processed, the lock will not be acquired and the context manager will be a no-op.
+    This can be verified by determining if the returned value is None.
+    Args:
+        file: str: The file to process
+        is_processed: Callable[[], bool]: A function that checks if the file has been processed
+    Yields:
+        None if no processing is needed (file is already processed)
+        Lock object if processing is needed
+    """
+    from fasteners import InterProcessLock
+
+    lock = InterProcessLock(f"{file}.lock")
+
+    # If the processing was already done and no lock exists, we exit prematurely.
+
+    # AFAIK, there is no way to check if there is existing lock in win32 api,
+    # while this is possible on POSIX Linux, fcntl doesn't support such syscall for some reason,
+    # https://github.com/python/cpython/issues/96694.
+    # We thus check for file presence. This can have false positives as the file might not be cleaned properly.
+    if not lock.exists() and is_processed():
+        yield None
+        return
+
+    with lock:
+        # Make sure to do  check process-locked as otherwise race condition can happen, and processes,
+        # which don't perform the download, could try to open the file before it's fully downloaded
+        if is_processed():
+            yield None
+            return
+
+        yield lock
+
+
 def cached_asset_path_or_download(
     remote_path: str, progress: bool = True, namespace: str = "default", subfolder: str = "default", desc: str = "file"
 ):
@@ -316,15 +355,12 @@ def cached_asset_path_or_download(
         progress: bool: Whether to show a progress bar (Default value = True)
         desc: description of the file being downloaded
     """
-    from fasteners import InterProcessLock
 
     download_dir = cached_assets_path(library_name="datatrove", namespace=namespace, subfolder=subfolder)
     local_path = os.path.join(download_dir, strip_protocol(remote_path).replace("/", "_"))
 
-    with InterProcessLock(f"{local_path}.lock"):
-        # Make sure to do exists check process-locked as otherwise race condition can happen, and processes,
-        # which don't perform the download, could try to open the file before it's fully downloaded
-        if not os.path.exists(local_path):
+    with safely_process(local_path, lambda: os.path.exists(local_path)) as lock:
+        if lock:
             logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
             download_file(remote_path, local_path, progress)
             logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
