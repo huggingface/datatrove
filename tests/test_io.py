@@ -1,14 +1,15 @@
 import multiprocessing
+import os
 import shutil
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from functools import partial
 
 import boto3
 import moto
 
-from datatrove.io import cached_asset_path_or_download, get_datafolder
+from datatrove.io import get_datafolder, safely_create_file
 
 
 EXAMPLE_DIRS = ("/home/testuser/somedir", "file:///home/testuser2/somedir", "s3://test-bucket/somedir")
@@ -19,11 +20,10 @@ FULL_PATHS = (
 )
 
 
-def cached_asset_path_or_download_wait_mock(remote_path, local_path):
-    # We have to define mocking here, as multiprocessing can't pickle non top-level fc
-    with patch("datatrove.io.download_file") as mock:
-        mock.side_effect = lambda *args, **kwargs: time.sleep(3)
-        cached_asset_path_or_download(remote_path, local_path)
+def fake_do_download(cc, ll):
+    time.sleep(0.5)
+    with ll:
+        cc.value += 1
 
 
 @moto.mock_aws
@@ -45,14 +45,30 @@ class TestIO(unittest.TestCase):
             f.write("hello")
         assert df.isdir("subdir1/subdir2")
 
-    def test_cached_asset_path_or_download_locking(self):
-        # This could be a bit flaky test due to time.sleep, but it's a good way to test the locking
-
-        start = time.time()
-        with multiprocessing.Pool(2) as pool:
-            pool.starmap(
-                cached_asset_path_or_download_wait_mock, [("dummy_remote_path", "dummy_local_path") for _ in range(2)]
+    def test_safely_create_file_locking(self):
+        for runi, (completed_exists, lock_exists, expec_calls) in enumerate(
+            (
+                (True, True, 0),
+                (False, True, 1),
+                (False, False, 1),
             )
+        ):
+            manager = multiprocessing.Manager()
+            counter = manager.Value("i", 0)
+            lock = manager.Lock()
 
-        # if locking works this should NOT be faster than 6 seconds, as the wait times must be sequential
-        self.assertGreater(time.time() - start, 6)
+            file_path = os.path.join(self.tmp_dir, str(runi), "myfile")
+            os.makedirs(os.path.join(self.tmp_dir, str(runi)))
+
+            with manager.Pool(2) as pool:
+                if completed_exists:
+                    open(file_path + ".completed", "a").close()
+                if lock_exists:
+                    open(file_path + ".lock", "a").close()
+
+                pool.starmap(
+                    partial(safely_create_file, do_processing=partial(fake_do_download, cc=counter, ll=lock)),
+                    [(file_path,) for _ in range(2)],
+                )
+
+                self.assertEqual(counter.value, expec_calls)
