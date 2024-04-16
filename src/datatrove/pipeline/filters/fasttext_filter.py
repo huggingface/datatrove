@@ -1,14 +1,10 @@
-import os
 from collections import defaultdict
 from typing import Tuple
 
 import numpy as np
-from fsspec.core import strip_protocol
-from huggingface_hub import cached_assets_path
-from loguru import logger
 
 from datatrove.data import Document
-from datatrove.io import download_file
+from datatrove.io import cached_asset_path_or_download
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts
@@ -40,7 +36,7 @@ class FastTextClassifierFilter(BaseFilter):
     """
 
     name = "🤖 fastText"
-    _requires_dependencies = [("fasttext", "fasttext-wheel")]
+    _requires_dependencies = [("fasttext", "fasttext-wheel"), "fasteners"]
 
     def __init__(
         self,
@@ -72,13 +68,9 @@ class FastTextClassifierFilter(BaseFilter):
         if not self._model:
             from fasttext.FastText import _FastText
 
-            download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="fasttext")
-
-            model_file = os.path.join(download_dir, strip_protocol(self.model_url).replace("/", "_"))
-            if not os.path.isfile(model_file):
-                logger.info(f'⬇️ Downloading fast-text model from "{self.model_url}"...')
-                download_file(self.model_url, model_file)
-                logger.info(f'⬇️ Downloaded fast-text model to "{model_file}".')
+            model_file = cached_asset_path_or_download(
+                self.model_url, namespace="filters", subfolder="fasttext", desc="fast-text model"
+            )
             self._model = _FastText(model_file)
             # check label values
             available_labels = [x.removeprefix("__label__") for x in self._model.labels]
