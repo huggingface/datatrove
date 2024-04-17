@@ -123,7 +123,7 @@ class TokenizedFile:
             self.doc_ends.extend([d + self.write_idx for d in doc_ends])
             # 1 token = 2 bytes (uint16)
             # 1 token = 4 bytes (uint32)
-            
+
             self.write_idx += len(tk_bytes) // self.num_bytes
         else:
             # We've written a single document
@@ -376,7 +376,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
                         # crop final section without loss
                         tokens = tokens[: len(loss_values)]
                     # get the bytes for uint16 (H) or uint32 (I) depending on the value of max(tokens)
-                    if max(tokens) < 2 ** 16:
+                    if max(tokens) < 2**16:
                         tk_type = "H"
                     else:
                         tk_type = "I"
