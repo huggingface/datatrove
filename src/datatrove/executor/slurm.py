@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import random
 import signal
@@ -176,7 +175,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
                 if self.randomize_start:
                     time.sleep(random.randint(0, 60 * 3))
-                self._run_for_rank(rank)
+                self._run_for_rank(slurm_rank)
         else:
             # we still have to launch the job
             self.launch_job()
