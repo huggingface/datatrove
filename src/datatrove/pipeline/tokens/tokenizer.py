@@ -122,11 +122,14 @@ class TokenizedFile:
             # We've written several documents at once
             self.doc_ends.extend([d + self.write_idx for d in doc_ends])
             # 1 token = 2 bytes (uint16)
-            self.write_idx += len(tk_bytes) // 2
+            # 1 token = 4 bytes (uint32)
+            
+            self.write_idx += len(tk_bytes) // self.num_bytes
         else:
             # We've written a single document
             # 1 token = 2 bytes (uint16)
-            self.write_idx += len(tk_bytes) // 2
+            # 1 token = 4 bytes (uint32)
+            self.write_idx += len(tk_bytes) // self.num_bytes
             # save each document's boundary
             self.doc_ends.append(self.write_idx)
 
@@ -149,8 +152,7 @@ class TokenizedFile:
             tokens (list[int]): the tokens to write
             loss_values (np.ndarray | None): optional loss values to write
         """
-        # get the bytes for uint16 (H)
-        self.write_bytes(struct.pack("<%sI" % len(tokens), *tokens))
+        self.write_bytes(struct.pack(f"<{len(tokens)}{self.tk_type}", *tokens))
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
@@ -204,9 +206,10 @@ class TokenizedFile:
             for doc_id in ordering:
                 # get start and end from the boundaries
                 start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
-                # copy the bytes. each token is 2 bytes
-                tokens_file.seek(start * 2)
-                new_file.write_bytes(tokens_file.read((end - start) * 2))
+                # copy the bytes. each token is self.num_bytes bytes
+                setattr(new_file, "num_bytes", self.num_bytes)
+                tokens_file.seek(start * new_file.num_bytes)
+                new_file.write_bytes(tokens_file.read((end - start) * new_file.num_bytes))
                 # copy loss values (1 byte per token)
                 if loss_file:
                     loss_file.seek(start)
@@ -319,6 +322,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
         self.max_tokens_per_file = max_tokens_per_file
+        self.num_bytes = 2
 
     def get_loss_values(self, document: Document, encoded: "Encoding"):
         """Get the loss mask for the document, if needed.
@@ -371,6 +375,13 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
                     if loss_values is not None and len(loss_values) < len(tokens):
                         # crop final section without loss
                         tokens = tokens[: len(loss_values)]
+                    # get the bytes for uint16 (H) or uint32 (I) depending on the value of max(tokens)
+                    if max(tokens) < 2 ** 16:
+                        tk_type = "H"
+                    else:
+                        tk_type = "I"
+                    unshuff.tk_type = tk_type
+                    unshuff.num_bytes = 2 if tk_type == "H" else 4
                     # write bytes to disk
                     unshuff.write(tokens, loss_values)
                     # save stats
@@ -394,6 +405,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         unshuf_filename = get_output_filename(self.save_filename, rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
+        self.num_bytes = outputfile.num_bytes
         if len(outputfile) == 0:
             logger.warning("No data saved.")
             return
