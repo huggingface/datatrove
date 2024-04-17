@@ -53,6 +53,7 @@ class DocumentTokenizerMerger(PipelineStep):
         save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
         progress: bool = True,
+        num_bytes: int = 2,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -66,6 +67,7 @@ class DocumentTokenizerMerger(PipelineStep):
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
         self.progress = progress
+        self.num_bytes = num_bytes
 
     def get_ordering(self, all_doc_ends):
         """
@@ -107,7 +109,7 @@ class DocumentTokenizerMerger(PipelineStep):
 
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
         token_inputs = list(
-            map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
+            map(partial(get_data_reader, nb_bytes=self.num_bytes), self.input_folder.open_files(datafiles), doc_ends)
         )
         loss_inputs = (
             list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
@@ -150,10 +152,13 @@ class DocumentTokenizerMerger(PipelineStep):
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
+
+            setattr(output_file, "num_bytes", self.num_bytes)
+
             output_file.write_bytes(tokens)
             if loss_inputs:
                 output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
-            self.stat_update("tokens", value=len(tokens) // 2)
+            self.stat_update("tokens", value=len(tokens) // self.num_bytes)
         # cleanup
         output_file.close()
         if self.save_final_metadata:
