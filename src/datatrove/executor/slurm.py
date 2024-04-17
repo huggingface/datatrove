@@ -112,7 +112,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_type: str = "ALL",
         mail_user: str = None,
         requeue: bool = True,
-        srun_args: dict = {},
+        srun_args: dict = None,
         tasks_per_job: int = 1,
     ):
         super().__init__(pipeline, logging_dir, skip_completed)
@@ -252,7 +252,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         max_array = min(len(ranks_to_run), self.max_array_size) if self.max_array_size != -1 else len(ranks_to_run)
 
         # create the actual sbatch script
-        srun_args_str = " ".join([f"--{k}={v}" for k, v in self.srun_args.items()])
+        srun_args_str = " ".join([f"--{k}={v}" for k, v in self.srun_args.items()]) if self.srun_args else ""
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
             f"srun {srun_args_str} -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
