@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 import signal
@@ -79,7 +80,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_type: see https://slurm.schedmd.com/sbatch.html. Common values are (NONE, BEGIN, END, FAIL, REQUEUE, ALL)
         mail_user: email address to send notifications to
         requeue: requeue the job if it fails
-
+        tasks_per_job: each slurm job in the job array will run this many datatrove tasks. This reduces the total nb of slurm jobs launched.
     """
 
     def __init__(
@@ -112,6 +113,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_user: str = None,
         requeue: bool = True,
         srun_args: dict = {},
+        tasks_per_job: int = 1,
     ):
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
@@ -119,6 +121,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.partition = partition
         self.cpus_per_task = cpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
+        self.tasks_per_job = tasks_per_job
         self.time = time
         self.job_name = job_name
         self.qos = qos
@@ -137,7 +140,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.requeue_signals = requeue_signals
         self.mail_type = mail_type
         self.mail_user = mail_user
-        self.srun_args = srun_args
         self.slurm_logs_folder = (
             slurm_logs_folder
             if slurm_logs_folder
@@ -148,6 +150,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             )
         )
         self.requeue = requeue
+        self.srun_args = srun_args
 
     def run(self):
         """
@@ -162,18 +165,18 @@ class SlurmPipelineExecutor(PipelineExecutor):
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
             )
+            ranks_to_run_range = (slurm_rank * self.tasks_per_job, (slurm_rank + 1) * self.tasks_per_job)
             with self.logging_dir.open("ranks_to_run.json", "r") as ranks_to_run_file:
                 all_ranks = json.load(ranks_to_run_file)
-            if slurm_rank >= len(all_ranks):
+            if ranks_to_run_range[0] >= len(all_ranks):
                 return
-            rank = all_ranks[slurm_rank]
 
             for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
-            if self.randomize_start:
-                time.sleep(random.randint(0, 60 * 3))
-            self._run_for_rank(rank)
+                if self.randomize_start:
+                    time.sleep(random.randint(0, 60 * 3))
+                self._run_for_rank(rank)
         else:
             # we still have to launch the job
             self.launch_job()
