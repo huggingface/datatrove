@@ -97,6 +97,7 @@ class TestTokenization(unittest.TestCase):
                     shuffle=seed is not None,
                     save_loss_metadata=True,
                     seed=seed,
+                    num_bytes=document_tokenizer.num_bytes,
                 )
                 merger(None)
 
