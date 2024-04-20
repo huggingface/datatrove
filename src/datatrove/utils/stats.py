@@ -47,6 +47,10 @@ class MetricStatsDict(defaultdict):
     def to_dict(self):
         return {a: b.to_dict() for a, b in self.items()}
 
+    @classmethod
+    def from_dict(cls, data):
+        return MetricStatsDict(init={a: MetricStats.from_dict(b) for a, b in data.items()})
+
 
 class Stats:
     """
@@ -304,7 +308,7 @@ class MetricStats:
         if isinstance(data, dict):
             total = data.get("total")
             mean = data.get("mean", 1)
-            n = data.get("n", total if mean != 1 else 1)
+            n = data.get("n", total if mean == 1 else 1)
             return cls(
                 total=total,
                 n=n,
