@@ -14,6 +14,7 @@ from datatrove.pipeline.filters import (
     LanguageFilter,
     URLFilter,
 )
+from datatrove.pipeline.formatters import PIIFormatter
 from datatrove.pipeline.readers import JsonlReader, WarcReader
 from datatrove.pipeline.tokens import TokensCounter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
@@ -158,6 +159,8 @@ stage4 = SlurmPipelineExecutor(
         TokensCounter(),  # you can remove this one, it's just a nice way to know how many tokens we have
         # before and after dedup
         MinhashDedupFilter(input_folder=f"{S3_MINHASH_BASE_PATH}/{DUMP_TO_PROCESS}/remove_ids"),
+        # run the PII removal
+        PIIFormatter(),
         JsonlWriter(f"{S3_MINHASH_BASE_PATH}/{DUMP_TO_PROCESS}/deduped_output"),
     ],
     tasks=TOTAL_TASKS,
