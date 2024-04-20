@@ -1,11 +1,10 @@
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats import GROUP, SummaryStats
+from datatrove.pipeline.stats.summary_stats import GROUP, BaseStats
 from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 
-class TokenStats(SummaryStats, PipelineStepWithTokenizer):
+class TokenStats(BaseStats, PipelineStepWithTokenizer):
     """
     Token stats of a document.
 
@@ -24,7 +23,7 @@ class TokenStats(SummaryStats, PipelineStepWithTokenizer):
         groups_to_compute: list[GROUP] = ["fqdn", "suffix", "summary", "histogram"],
         histogram_rounding: int = 3,
     ) -> None:
-        SummaryStats.__init__(self, output_folder, groups_to_compute, histogram_rounding)
+        BaseStats.__init__(self, output_folder, groups_to_compute, histogram_rounding)
         PipelineStepWithTokenizer.__init__(self)
         self.tokenizer_name_or_path = tokenizer_name_or_path
 
@@ -37,4 +36,3 @@ class TokenStats(SummaryStats, PipelineStepWithTokenizer):
             "token_count": len(tokens),
             "unique_token_count": len(set(tokens)),
         }
-

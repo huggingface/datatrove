@@ -10,10 +10,10 @@ from datatrove.pipeline.stats.summary_stats import (
     DEFAULT_TOP_K_CONFIG,
     GROUP,
     STATS_MERGED_NAME,
+    BaseStats,
     DocStats,
     LineStats,
     StatsMerger,
-    SummaryStats,
     TokenStats,
     TopKConfig,
     WordsContaminationStats,
@@ -23,13 +23,19 @@ from datatrove.utils.stats import MetricStatsDict
 from tests.utils import require_tldextract
 
 
-class DummyStats(SummaryStats):
-    def __init__(self, output_folder, groups=get_args(GROUP), histogram_round_digits=2, top_k_config=DEFAULT_TOP_K_CONFIG):
-        super().__init__(output_folder, groups_to_compute=groups, histogram_round_digits=histogram_round_digits, top_k_config=top_k_config)
+class DummyStats(BaseStats):
+    def __init__(
+        self, output_folder, groups=get_args(GROUP), histogram_round_digits=2, top_k_config=DEFAULT_TOP_K_CONFIG
+    ):
+        super().__init__(
+            output_folder,
+            groups_to_compute=groups,
+            histogram_round_digits=histogram_round_digits,
+            top_k_config=top_k_config,
+        )
 
     def extract_stats(self, doc: Document):
         return {"stat": float(doc.text)}
-
 
 
 DOCS = [
@@ -38,6 +44,7 @@ DOCS = [
     Document("1", "2", metadata={"url": "test2.cz"}),
     Document("1", "3", metadata={"url": "test3.cz"}),
 ]
+
 
 @require_tldextract
 class TestSummaryStats(unittest.TestCase):
@@ -59,7 +66,6 @@ class TestSummaryStats(unittest.TestCase):
             self.assertEqual(stats["test1.co.uk"].total, 3.5)
             self.assertEqual(stats["test2.cz"].total, 1)
             self.assertEqual(stats["test3.cz"].total, 1)
-
 
         with self.tmp_dir.open("suffix/stat/00000.json") as f:
             stats = MetricStatsDict.from_dict(json.load(f))
@@ -116,10 +122,6 @@ class TestSummaryStats(unittest.TestCase):
             self.assertEqual(stats["test2.cz"].total, 0)
 
 
-
-
-
-
 @require_tldextract
 class TestStatsModules(unittest.TestCase):
     def setUp(self):
@@ -127,8 +129,7 @@ class TestStatsModules(unittest.TestCase):
         self.tmp_dir = get_datafolder(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp_dir.path)
 
-    def load_computed_means(self,stat_names: list[str]) -> dict:
-
+    def load_computed_means(self, stat_names: list[str]) -> dict:
         def load_stat_total(f) -> dict:
             stat = MetricStatsDict.from_dict(json.load(f))
             return {k: v.total for k, v in stat.items()}
@@ -138,8 +139,6 @@ class TestStatsModules(unittest.TestCase):
             with self.tmp_dir.open(f"histogram/{stat}/00000.json") as f:
                 computed_stats[stat] = load_stat_total(f)
         return computed_stats
-
-
 
     def test_line_stats(self):
         docs = [
@@ -191,7 +190,12 @@ class TestStatsModules(unittest.TestCase):
             "short_word_ratio_3": {"0.333": 1, "0.0": 2},
             "long_word_ratio_7": {"0.0": 2, "1.0": 1},
         }
-        word_stats = WordStats(self.tmp_dir, short_word_max_chars_threshold=[3], long_word_max_chars_threshold=[7], groups_to_compute=["histogram"])
+        word_stats = WordStats(
+            self.tmp_dir,
+            short_word_max_chars_threshold=[3],
+            long_word_max_chars_threshold=[7],
+            groups_to_compute=["histogram"],
+        )
         list(word_stats.run(docs))
         computed_stats = self.load_computed_means(list(expected_word_stats.keys()))
         self.assertEqual(computed_stats, expected_word_stats)
@@ -228,9 +232,3 @@ class TestStatsModules(unittest.TestCase):
 
         computed_stats = self.load_computed_means(list(expected_token_counter.keys()))
         self.assertEqual(computed_stats, expected_token_counter)
-
-
-
-
-
-

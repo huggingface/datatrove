@@ -15,6 +15,7 @@ from datatrove.utils.stats import MetricStatsDict
 
 GROUP = Literal["summary", "histogram", "fqdn", "suffix"]
 
+
 @dataclass
 class TopKConfig:
     """
@@ -26,22 +27,20 @@ class TopKConfig:
     leads to inconsistent top_k_keys between nodes. To acount for this, set around
     0.8*top_k as the number of top_k_keys for merging step.
     """
+
     top_k_groups: List[GROUP]
     top_k: int
 
-DEFAULT_TOP_K_CONFIG = TopKConfig(
-    top_k_groups=["fqdn", "suffix"],
-    top_k=100_000
-)
+
+DEFAULT_TOP_K_CONFIG = TopKConfig(top_k_groups=["fqdn", "suffix"], top_k=100_000)
 
 STAT_TYPE = int | float
 
 
-class SummaryStats(PipelineStep):
-
+class BaseStats(PipelineStep):
     """
     Datatrove block for computing statistics of dataset.
-    Each stat will be saved in output_folder/{group}/{stat_name}/{rank:05d}.json
+    Each stat is of type MetricStatsDict saved in output_folder/{group}/{stat_name}/{rank:05d}.json
     Args:
         output_folder: The folder where the statistics will be saved.
         groups_to_compute: The groups of statistics to compute.
@@ -51,6 +50,7 @@ class SummaryStats(PipelineStep):
             Each group in top_k_groups will truncate the statistics to the top k keys.
             This lowers memory usage and speeds up the merging in second-stage.
     """
+
     type = "📊 - STATS"
     name = "👑 Summary stats"
     _requires_dependencies = ["tldextract"]
@@ -62,15 +62,14 @@ class SummaryStats(PipelineStep):
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
-
         from tldextract import TLDExtract
+
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.groups = groups_to_compute
         self.histogram_round_digits = histogram_round_digits
         self.top_k_cfg = top_k_config
         self.tld_extractor = TLDExtract()
-
 
     @abstractmethod
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
@@ -89,14 +88,8 @@ class SummaryStats(PipelineStep):
         else:
             raise ValueError(f"Unknown group name: {group_name}")
 
-    def run(
-        self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1
-    ) -> DocumentsPipeline:
-
-        groups_dicts = {
-            group: defaultdict(MetricStatsDict)
-            for group in self.groups
-        }
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        groups_dicts = {group: defaultdict(MetricStatsDict) for group in self.groups}
         with self.track_time():
             for doc in data:
                 try:
@@ -104,7 +97,6 @@ class SummaryStats(PipelineStep):
                 except Exception as e:
                     logger.error(f"Error while extracting stats from document {doc.id}", exc_info=e)
                     continue
-
 
                 for group, counters in groups_dicts.items():
                     for stat, value in doc_stats.items():
@@ -121,12 +113,11 @@ class SummaryStats(PipelineStep):
                 if group in self.top_k_cfg.top_k_groups:
                     # We don't have to compure this for every stat in group, as stat.n will be constant
                     if group_top_k_keys is None:
-                        group_top_k_keys = heapq.nlargest(self.top_k_cfg.top_k, stat_values, key=lambda x: stat_values.get(x).n)
+                        group_top_k_keys = heapq.nlargest(
+                            self.top_k_cfg.top_k, stat_values, key=lambda x: stat_values.get(x).n
+                        )
 
                     stat_values = MetricStatsDict(init={s: stat_values.get(s) for s in group_top_k_keys})
 
-
-                with self.output_folder.open(
-                    f"{group}/{stat_name}/{rank:05d}.json", "wt"
-                ) as f:
+                with self.output_folder.open(f"{group}/{stat_name}/{rank:05d}.json", "wt") as f:
                     json.dump(stat_values.to_dict(), f)

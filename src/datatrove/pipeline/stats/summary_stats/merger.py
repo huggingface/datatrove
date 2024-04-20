@@ -1,4 +1,3 @@
-
 import heapq
 import json
 from pathlib import Path
@@ -15,23 +14,37 @@ from datatrove.utils.stats import MetricStats, MetricStatsDict
 
 STATS_MERGED_NAME = "stats-merged.json"
 
+
 class StatsMerger(PipelineStep):
+    """
+    Datatrove block for merging partial stats files into a single file.
+    Each stat is of type MetricStatsDict saved in output_folder/{group}/{stat_name}/stats-merged.json
+    Args:
+        input_folder: The folder used for saving stats files of SummaryStats block.
+        output_folder: The folder where the merged stats will be saved.
+        remove_input: Whether to remove the input files after merging.
+        top_k: The configuration for compressing the statistics.
+            Each group in top_k_groups will truncate the statistics to the top k keys.
+    """
+
     type = "📊 - STATS"
     name = "🔗 Merging stats"
 
-    def __init__(self, input_folder: DataFolderLike, output_folder: DataFolderLike, remove_input: bool = False, top_k: TopKConfig = DEFAULT_TOP_K_CONFIG) -> None:
+    def __init__(
+        self,
+        input_folder: DataFolderLike,
+        output_folder: DataFolderLike,
+        remove_input: bool = False,
+        top_k: TopKConfig = DEFAULT_TOP_K_CONFIG,
+    ) -> None:
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.remove_input = remove_input
         self.top_k_config = top_k
 
-
     def get_leaf_non_empty_folders(self):
-        return sorted([
-            path for path, folders, files in self.input_folder.walk("") if not folders and files
-        ])
-
+        return sorted([path for path, folders, files in self.input_folder.walk("") if not folders and files])
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
@@ -63,25 +76,9 @@ class StatsMerger(PipelineStep):
                         stat = MetricStatsDict(init={s: stat.get(s) for s in top_k_keys})
                     json.dump(stat.to_dict(), f)
 
-
                 if self.remove_input:
                     for file in input_files:
                         self.input_folder.rm(file)
 
         if data:
             yield from data
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

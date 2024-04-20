@@ -2,17 +2,18 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, GROUP, SummaryStats, TopKConfig
+from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, GROUP, BaseStats, TopKConfig
 
 
 def get_short_word_ratio(words: list[str], threshold: int) -> float:
     return sum([1 for word in words if len(word) <= threshold]) / len(words)
 
+
 def get_long_word_ratio(words: list[str], threshold: int) -> float:
     return sum([1 for word in words if len(word) >= threshold]) / len(words)
 
 
-class WordStats(SummaryStats):
+class WordStats(BaseStats):
     type = "📊 - STATS"
     name = "🈂️ Word stats"
     _requires_dependencies = ["nltk", "tldextract"]
@@ -36,20 +37,16 @@ class WordStats(SummaryStats):
         self.short_word_max_chars_threshold = short_word_max_chars_threshold or [3]
         self.long_word_max_chars_threshold = long_word_max_chars_threshold or [7]
 
-
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
         from nltk.tokenize import word_tokenize
+
         words = word_tokenize(doc.text)
         lines = doc.text.splitlines()
 
         return {
             "n_words": len(words),
-            "avg_word_length": sum(
-                [len(word) for word in words]
-            )
-            / len(words),
-            "avg_words_per_line": len(words)
-            / len(lines),
+            "avg_word_length": sum([len(word) for word in words]) / len(words),
+            "avg_words_per_line": len(words) / len(lines),
             **{
                 f"short_word_ratio_{chars}": get_short_word_ratio(words, chars)
                 for chars in self.short_word_max_chars_threshold
@@ -59,4 +56,3 @@ class WordStats(SummaryStats):
                 for chars in self.long_word_max_chars_threshold
             },
         }
-
