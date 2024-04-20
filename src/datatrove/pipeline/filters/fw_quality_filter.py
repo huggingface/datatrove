@@ -1,30 +1,35 @@
 from datatrove.pipeline.filters.base_filter import BaseFilter
 
+
 class FWQualityFilter(BaseFilter):
     name = "fineweb quality filter"
     _requires_dependencies = ["nltk"]
 
     def __init__(
-            self,
-            exclusion_writer,
-            line_punct_thr: float = 0.12,
-            line_punct_exclude_zero=False,
-            short_line_thr: float = 0.67,
-            short_line_length: int = 30,
-            char_duplicates_ratio: float = 0.01
-        ):
+        self,
+        exclusion_writer,
+        line_punct_thr: float = 0.12,
+        line_punct_exclude_zero=False,
+        short_line_thr: float = 0.67,
+        short_line_length: int = 30,
+        char_duplicates_ratio: float = 0.01,
+        new_line_ratio: float = 0.1,
+    ):
         super().__init__(exclusion_writer)
         self.line_punct_thr = line_punct_thr
         self.line_punct_exclude_zero = line_punct_exclude_zero
         self.short_line_threshold = short_line_thr
         self.short_line_length = short_line_length
         self.char_duplicates_ratio = char_duplicates_ratio
+        self.new_line_ratio = new_line_ratio
 
     def filter(self, doc) -> bool | tuple[bool, str]:
+        from nltk.tokenize import word_tokenize
+
         from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 
         def remove_empty_lines(lines: list[str]):
-            return [l for l in lines if l.strip() != ""]
+            return [line for line in lines if line.strip() != ""]
 
         stop_chars = (".", "'", '"', "!", "?")
 
@@ -33,9 +38,7 @@ class FWQualityFilter(BaseFilter):
         if ratio <= self.line_punct_thr and not (ratio == 0 and self.line_punct_exclude_zero):
             return False, "line_punct_ratio"
 
-        ratio = sum(1 for line in lines if len(line) <= self.short_line_length) / len(
-            lines
-        )
+        ratio = sum(1 for line in lines if len(line) <= self.short_line_length) / len(lines)
         if ratio >= self.short_line_threshold:
             return False, "short_line_ratio"
 
@@ -43,5 +46,11 @@ class FWQualityFilter(BaseFilter):
 
         if ratio >= self.char_duplicates_ratio:
             return False, "char_dup_ratio"
+
+        text = doc.text
+        words = word_tokenize(text)  # TODO we should use language id filter
+        new_line = text.count("\n")
+        if new_line / len(words) > self.new_line_ratio:
+            return False, "Suspected list"
 
         return True
