@@ -18,7 +18,7 @@ class WordsContaminationStats(BaseStats):
 
     type = "📊 - STATS"
     name = "😷 Words contamination"
-    _requires_dependencies = ["nltk", "tldextract"]
+    _requires_dependencies = ["nltk"] + BaseStats._requires_dependencies
 
     def __init__(
         self,

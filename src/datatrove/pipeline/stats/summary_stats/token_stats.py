@@ -16,6 +16,8 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
     type = "📊 - STATS"
     name = "🔗 Token counter"
 
+    _requires_dependencies = ["tokenizers"] + BaseStats._requires_dependencies
+
     def __init__(
         self,
         output_folder: DataFolderLike,

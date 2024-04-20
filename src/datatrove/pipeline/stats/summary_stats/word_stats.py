@@ -16,7 +16,7 @@ def get_long_word_ratio(words: list[str], threshold: int) -> float:
 class WordStats(BaseStats):
     type = "📊 - STATS"
     name = "🈂️ Word stats"
-    _requires_dependencies = ["nltk", "tldextract"]
+    _requires_dependencies = ["nltk"] + BaseStats._requires_dependencies
 
     def __init__(
         self,

@@ -20,7 +20,7 @@ from datatrove.pipeline.stats.summary_stats import (
     WordStats,
 )
 from datatrove.utils.stats import MetricStatsDict
-from tests.utils import require_tldextract
+from tests.utils import require_nltk, require_tldextract, require_tokenizers
 
 
 class DummyStats(BaseStats):
@@ -123,6 +123,8 @@ class TestSummaryStats(unittest.TestCase):
 
 
 @require_tldextract
+@require_tokenizers
+@require_nltk
 class TestStatsModules(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory

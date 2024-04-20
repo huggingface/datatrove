@@ -73,6 +73,14 @@ class BaseStats(PipelineStep):
 
     @abstractmethod
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
+        """
+        Abstract method for extracting stats from a document.
+        Args:
+            doc: The document to extract stats from.
+
+        Returns:
+            A dictionary of statistics, where the key is the stat name and the value is the stat value.
+        """
         raise NotImplementedError()
 
     def get_kv(self, doc: Document, value: STAT_TYPE, group_name: GROUP) -> tuple[str, STAT_TYPE]:
