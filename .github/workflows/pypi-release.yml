@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
+  testing:
     uses: ./.github/workflows/ci.yml
   release:
     needs: ci
@@ -34,11 +34,10 @@ jobs:
         run: twine upload dist/* --repository=testpypi
 
       - name: Test installing from test PyPI and running tests
-        env:
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
           pip install -i https://testpypi.python.org/pypi --extra-index-url https://pypi.org/simple datatrove[testing]
           python -m nltk.downloader punkt
+          make test
 
       - name: Get tag name
         id: get_tag_name
@@ -52,10 +51,9 @@ jobs:
             github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: 'refs/tags/${{ steps.get_tag_name.outputs.TAG_NAME }}',
+              ref: 'refs/tags/v${{ steps.get_tag_name.outputs.TAG_NAME }}',
               sha: context.sha
             })
-
 
       - name: Publish to PyPI
         env:
