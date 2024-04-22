@@ -6,7 +6,7 @@ jobs:
   testing:
     uses: ./.github/workflows/testing.yml
   release:
-    needs: ci
+    needs: testing
     runs-on: ubuntu-latest
     env:
       TWINE_USERNAME: __token__
