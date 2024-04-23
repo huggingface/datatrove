@@ -228,8 +228,9 @@ class C4BadWordsFilter(BaseFilter):
         fail_on_missing_language: bool = True,
         seed: int = None,
         default_language: str = "en",
+        exclusion_writer: DiskWriter = None,
     ):
-        super().__init__()
+        super().__init__(exclusion_writer)
         self.keep_fraction = keep_fraction
         self.fail_on_missing_language = fail_on_missing_language
         self._badwords_regex: dict[str, re.Pattern] = {}
