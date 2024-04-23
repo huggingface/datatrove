@@ -1,4 +1,3 @@
-import itertools
 import struct
 from typing import TYPE_CHECKING
 
@@ -9,7 +8,7 @@ from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolder, DataFolderLike, get_datafolder
-from datatrove.utils.tokenization import PipelineStepWithTokenizer
+from datatrove.utils.tokenization import PipelineStepWithTokenizer, batched
 
 
 SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas for final filtered common crawl docs)
@@ -18,26 +17,6 @@ SHUFFLING_CACHE_TYPE = "none"  # do not cache as we are only jumping around and 
 
 if TYPE_CHECKING:
     from tokenizers import Encoding
-
-
-def batched(iterable, n):
-    """In python 3.12+ we could use itertools.batched instead
-
-    One difference with itertools.batched: we return a list instead of a tuple
-
-    Args:
-      iterable:
-      n:
-
-    Returns:
-
-    """
-    # batched('ABCDEFG', 3) --> ABC DEF G
-    if n < 1:
-        raise ValueError("n must be at least one")
-    it = iter(iterable)
-    while batch := list(itertools.islice(it, n)):
-        yield batch
 
 
 class TokenizedFile:
