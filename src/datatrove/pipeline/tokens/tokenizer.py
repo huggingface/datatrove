@@ -30,6 +30,8 @@ class TokenizedFile:
         save_index (bool): whether to save the index file (document boundaries)
         save_loss_metadata (bool): whether to save the loss metadata (to mask some tokens during training)
         upload_block_size (int): the fsspec size of the upload block for remote filesystems (S3)
+        token_size (int): size of each token, in bytes
+
     """
 
     def __init__(
@@ -41,6 +43,7 @@ class TokenizedFile:
         upload_block_size: int | None = None,
         tokenizer_name_or_path: str | None = None,
         save_final_metadata: bool = False,
+        token_size: int = 2,
     ):
         self.output_folder = get_datafolder(output_folder)
         self.filename = filename
@@ -48,6 +51,8 @@ class TokenizedFile:
         self.save_loss_metadata = save_loss_metadata
         self.upload_block_size = upload_block_size
         self.write_idx = 0
+        self.token_size = token_size
+        self.token_format = "I" if self.token_size == 4 else "H"
         self.doc_ends = []
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.save_final_metadata = save_final_metadata
@@ -100,12 +105,10 @@ class TokenizedFile:
         if doc_ends is not None:
             # We've written several documents at once
             self.doc_ends.extend([d + self.write_idx for d in doc_ends])
-            # 1 token = 2 bytes (uint16)
-            self.write_idx += len(tk_bytes) // 2
+            self.write_idx += len(tk_bytes) // self.token_size
         else:
             # We've written a single document
-            # 1 token = 2 bytes (uint16)
-            self.write_idx += len(tk_bytes) // 2
+            self.write_idx += len(tk_bytes) // self.token_size
             # save each document's boundary
             self.doc_ends.append(self.write_idx)
 
@@ -128,8 +131,8 @@ class TokenizedFile:
             tokens (list[int]): the tokens to write
             loss_values (np.ndarray | None): optional loss values to write
         """
-        # get the bytes for uint16 (H)
-        self.write_bytes(struct.pack("<%sH" % len(tokens), *tokens))
+        # get the bytes
+        self.write_bytes(struct.pack(f"<%s{self.token_format}" % len(tokens), *tokens))
         if loss_values is not None:
             self.write_loss_bytes(struct.pack("<%s?" % len(loss_values), *loss_values))
 
@@ -176,6 +179,7 @@ class TokenizedFile:
                 upload_block_size=self.upload_block_size,
                 tokenizer_name_or_path=self.tokenizer_name_or_path,
                 save_final_metadata=self.save_final_metadata,
+                token_size=self.token_size,
             )
             logger.info(f"Shuffling in {destination}...")
             # shuffle doc_id
@@ -183,9 +187,9 @@ class TokenizedFile:
             for doc_id in ordering:
                 # get start and end from the boundaries
                 start, end = self.doc_ends[doc_id - 1] if doc_id > 0 else 0, self.doc_ends[doc_id]
-                # copy the bytes. each token is 2 bytes
-                tokens_file.seek(start * 2)
-                new_file.write_bytes(tokens_file.read((end - start) * 2))
+                # copy the bytes. each token is token_size bytes
+                tokens_file.seek(start * self.token_size)
+                new_file.write_bytes(tokens_file.read((end - start) * self.token_size))
                 # copy loss values (1 byte per token)
                 if loss_file:
                     loss_file.seek(start)
@@ -202,6 +206,7 @@ class TokenizedFile:
                         upload_block_size=self.upload_block_size,
                         tokenizer_name_or_path=self.tokenizer_name_or_path,
                         save_final_metadata=self.save_final_metadata,
+                        token_size=self.token_size,
                     )
                     logger.info(f"Shuffling in {destination}...")
                     total_tokens_written = 0
@@ -220,13 +225,21 @@ class TokenizedFile:
         """
         tokenizer_name = self.tokenizer_name_or_path
         if not tokenizer_name:
-            tokenizer_name = "Unknown Tokenizer"
+            tokenizer_name = "Unknown Tokenizer" + "|" + str(self.token_size)
         if filename is None:
             filename = self.filename
         with self.output_folder.open(f"{filename}.metadata", "wt") as f:
             if token_count == -1:
                 token_count = self.write_idx
-            f.write("\n".join([tokenizer_name, str(token_count), humanize.metric(token_count, unit="T")]))
+            f.write(
+                "\n".join(
+                    [
+                        tokenizer_name + "|" + str(self.token_size),
+                        str(token_count),
+                        humanize.metric(token_count, unit="T"),
+                    ]
+                )
+            )
 
 
 def get_output_filename(save_filename, rank: int, name: str, sub_rank: int = None):
@@ -339,6 +352,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
             upload_block_size=self.upload_block_size,
             tokenizer_name_or_path=self.tokenizer_name_or_path,
             save_final_metadata=self.save_final_metadata,
+            token_size=self.token_size,
         )
         # tokenize document's text in batches to go faster – we compute loss values independently if needed
         for batch in batched(data, self.batch_size):
