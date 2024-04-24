@@ -7,8 +7,8 @@ from loguru import logger
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.dedup.utils import sha1_hash32, simplify_text
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, sha1_hash32, simplify_text
 from datatrove.utils.typeshelper import StatHints
 
 
@@ -59,6 +59,7 @@ class SingleBloomFilter(PipelineStep):
         duplicate_threshold: float = 0.8,
         n_grams: int = 13,
         seed: int = 0,
+        norm_config: TextNormConfig = DEF_TEXT_NORM_CONFIG,
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
@@ -73,6 +74,7 @@ class SingleBloomFilter(PipelineStep):
         self.bit_vector = bytearray(([0] * self.m_bytes))
         self.save_bloom_filter = save_bloom_filter
         self.exclusion_writer = exclusion_writer
+        self.norm_config = norm_config
         assert self.m < MAX_HASH
 
         self.seed = seed
@@ -117,7 +119,7 @@ class SingleBloomFilter(PipelineStep):
         return np.fromiter(
             [
                 sha1_hash32(" ".join(x).encode("utf-8"))
-                for x in ngrams(word_tokenize(simplify_text(text)), self.n_grams)
+                for x in ngrams(word_tokenize(simplify_text(text, self.norm_config)), self.n_grams)
             ],
             dtype=np.uint64,
         ).reshape((-1, 1))

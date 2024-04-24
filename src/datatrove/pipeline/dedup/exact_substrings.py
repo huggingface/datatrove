@@ -24,7 +24,7 @@ from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 
 from ...utils.tokenization import PipelineStepWithTokenizer
-from .utils import ExtensionHelperES as EH
+from ...utils.typeshelper import ExtensionHelperES as EH
 
 
 SEPARATOR_BYTES = 12
@@ -44,16 +44,16 @@ class ESDatasetToSequence(PipelineStepWithTokenizer):
 
     Args:
         output_folder: folder where sequences are saved
-        tokenizer_name: name of tokenizer as in HF tokenizers.
+        tokenizer_name_or_path: name or path of tokenizer as in HF tokenizers.
     """
 
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 1"
 
-    def __init__(self, output_folder: DataFolderLike, tokenizer_name: str = "gpt2"):
+    def __init__(self, output_folder: DataFolderLike, tokenizer_name_or_path: str = "gpt2"):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.tokenizer_name = tokenizer_name
+        self.tokenizer_name_or_path = tokenizer_name_or_path
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         """Saves the byte sizes of each doc in a file.
@@ -153,13 +153,13 @@ class ESRangeRemover(PipelineStepWithTokenizer):
     def __init__(
         self,
         sequence_folder: DataFolderLike,
-        tokenizer_name: str = "gpt2",
+        tokenizer_name_or_path: str = "gpt2",
         min_doc_words: int = 50,
         language: str = "english",
     ):
         super().__init__()
         self.sequence_folder = get_datafolder(sequence_folder)
-        self.tokenizer_name = tokenizer_name
+        self.tokenizer_name_or_path = tokenizer_name_or_path
         self.min_doc_words = min_doc_words
         self.sequence_bytes_offset = None
         self.dup_ranges = None
@@ -230,12 +230,11 @@ class ESRangeRemover(PipelineStepWithTokenizer):
             SEPARATOR_BYTES <= a < b <= bytes_len
         ), f"{SEPARATOR_BYTES=} < {a=} < {b=} < {bytes_len=} is NOT satisfied"
 
-        # TODO IMPROVE
-        if (b - a) % 2 != 0:
-            if b == bytes_len:
-                a += 1
-            else:
-                b += 1
+        if b % 2 == 1:
+            b -= 1
+        if a % 2 == 1:
+            a += 1
+        b = max(a, b)
 
         return a, b
 

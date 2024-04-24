@@ -1,14 +1,15 @@
 import os.path
 from glob import has_magic
-from typing import IO, TypeAlias
+from typing import IO, Callable, TypeAlias
 
 from fsspec import AbstractFileSystem
 from fsspec import open as fsspec_open
 from fsspec.callbacks import NoOpCallback, TqdmCallback
-from fsspec.core import get_fs_token_paths, url_to_fs
+from fsspec.core import get_fs_token_paths, strip_protocol, url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
-from huggingface_hub import HfFileSystem
+from huggingface_hub import HfFileSystem, cached_assets_path
+from loguru import logger
 
 
 class OutputFileManager:
@@ -300,6 +301,57 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
         if progress
         else NoOpCallback(),
     )
+
+
+def safely_create_file(file_to_lock: str, do_processing: Callable):
+    """
+    Gets a lock to download/process and create some file(s). When processing is done a ".completed" file is created.
+    If this file already exists, we skip the processing. Otherwise, we try to acquire a lock and when we get it if the
+    completed file has not been created yet, we run the processing.
+
+    Args:
+        file_to_lock: str: lock will be "lock_path.lock" and completed file "lock_path.completed"
+        do_processing: callback with the code to run to process/create the files
+    """
+    from fasteners import InterProcessLock
+
+    completed_file = f"{file_to_lock}.completed"
+
+    # if the completed file exists, we exit straight away
+    if os.path.exists(completed_file):
+        return
+
+    # file is either being downloaded or needs to be downloaded
+    with InterProcessLock(f"{file_to_lock}.lock"):
+        if not os.path.exists(completed_file):
+            do_processing()
+            open(completed_file, "a").close()
+
+
+def cached_asset_path_or_download(
+    remote_path: str, progress: bool = True, namespace: str = "default", subfolder: str = "default", desc: str = "file"
+):
+    """
+    Download a file from a remote path to a local path.
+    This function is process-safe and will only download the file if it hasn't been downloaded already.
+    Args:
+        namespace: will group diff blocks. example: "filters"
+        subfolder: relative to the specific block calling this function. Example: "language_filter"
+        remote_path: str: The remote path to the file to download
+        progress: bool: Whether to show a progress bar (Default value = True)
+        desc: description of the file being downloaded
+    """
+
+    download_dir = cached_assets_path(library_name="datatrove", namespace=namespace, subfolder=subfolder)
+    local_path = os.path.join(download_dir, strip_protocol(remote_path).replace("/", "_"))
+
+    def do_download_file():
+        logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
+        download_file(remote_path, local_path, progress)
+        logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
+
+    safely_create_file(local_path, do_download_file)
+    return local_path
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder

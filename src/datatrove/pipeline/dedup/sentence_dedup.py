@@ -12,7 +12,7 @@ import dataclasses
 import heapq
 import struct
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import BinaryIO, Generator
 
 import numpy as np
@@ -23,10 +23,11 @@ from tqdm import tqdm
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.typeshelper import StatHints
+from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
+from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, sha1_hash64, simplify_text, split_into_parts
+from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
 from ..writers.disk_base import DiskWriter
-from .utils import ExtensionHelperSD, read_tuples_from_file, sha1_hash64, simplify_text
 
 
 @dataclass
@@ -35,6 +36,9 @@ class SentDedupConfig:
     split_sentences: bool = True  # set to False to split on \n instead
     only_dedup_in_index: bool = True
     min_doc_words: int = 50
+    min_num_sentences: int = 3  # remove docs that end up with fewer than 3 sentences
+    min_words_to_remove_span: int = 0
+    norm_config: TextNormConfig = field(default_factory=TextNormConfig)
 
 
 DEFAULT_SENT_DEDUP_CONFIG = SentDedupConfig()
@@ -105,7 +109,10 @@ class SentenceDedupSignature(PipelineStep):
                 right_idx = left_idx + signatures["hash"][left_idx:].searchsorted(right_hash, side="right")
                 # save to file
                 if right_idx > left_idx:
-                    signatures[left_idx:right_idx].tofile(f)
+                    if self.output_folder.is_local():
+                        signatures[left_idx:right_idx].tofile(f)
+                    else:
+                        f.write(signatures[left_idx:right_idx].tobytes())
                 left_idx = right_idx
                 # we've reached the end of our data
                 if right_idx >= len(signatures):
@@ -119,7 +126,7 @@ class SentenceDedupSignature(PipelineStep):
         if len(sentences) < self.config.n_sentences:
             return []
 
-        sentences_tokens = [simplify_text(sent) for sent in sentences]
+        sentences_tokens = [simplify_text(sent, self.config.norm_config) for sent in sentences]
         n_sent_grams: list = [" ".join(x) for x in ngrams(sentences_tokens, self.config.n_sentences)]
         hashes = [
             (sha1_hash64(n_sent_gram.encode("utf-8")), doc_idx, sentence_idx)
@@ -264,12 +271,6 @@ class SentenceFindDedups(PipelineStep):
         output_mg.close()
 
 
-def read_duplicates(file: BinaryIO) -> np.ndarray:
-    """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
-    with file as f:
-        return np.fromfile(f, dtype=[("doc", "<u4"), ("sent", "<u2")])
-
-
 class SentenceDedupFilter(PipelineStep):
     """SentenceDedup: Third pipeline step
 
@@ -301,7 +302,15 @@ class SentenceDedupFilter(PipelineStep):
         self.exclusion_writer = exclusion_writer
         self.language = language
 
-    def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray, n_sentences: int = 3) -> tuple[str, str]:
+    def read_duplicates(self, file: BinaryIO) -> np.ndarray:
+        """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
+        return read_np_from_file(
+            file, dtype=np.dtype([("doc", "<u4"), ("sent", "<u2")]), is_local_file=self.data_folder.is_local()
+        )
+
+    def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray) -> tuple[str, str]:
+        from nltk.tokenize import word_tokenize
+
         sentence_spans = (
             list(self._tokenizer.span_tokenize(doc.text)) if self.config.split_sentences else doc.text.splitlines()
         )
@@ -310,7 +319,7 @@ class SentenceDedupFilter(PipelineStep):
         last_s = 0
         du_line_idx = 0  # pointer for duplicate lines
         drop_until = 0  # used to keep track of last matched span's end
-        in_removed_span = False
+        removed_span = []
         for idx, s in enumerate(sentence_spans):
             line_text = doc.text[last_s : s[1]] if self.config.split_sentences else s
             # track / increment dup_line ref
@@ -318,23 +327,34 @@ class SentenceDedupFilter(PipelineStep):
                 if du_lines[du_line_idx] < idx:
                     raise ValueError("Error with duplicate line index")
                 elif du_lines[du_line_idx] == idx:
-                    drop_until = idx + n_sentences
+                    drop_until = idx + self.config.n_sentences
                     du_line_idx += 1
 
             # if outside the range, we keep this line/sent
             if idx >= drop_until:
-                kept_sentences.append(line_text)
-                if in_removed_span:
+                if removed_span:
                     original_formatted.append("<<<\u001b[0m")
-                in_removed_span = False
-            elif not in_removed_span:
-                in_removed_span = True
+                    if (
+                        self.config.min_words_to_remove_span > 0
+                        and len(word_tokenize("\n".join(removed_span), self.language))
+                        < self.config.min_words_to_remove_span
+                    ):
+                        kept_sentences.extend(removed_span)
+                    removed_span.clear()
+                kept_sentences.append(line_text)
+            elif not removed_span:
+                removed_span.append(line_text)
                 original_formatted.append("\033[91m>>>")
             original_formatted.append(line_text)
             if self.config.split_sentences:
                 last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
-        if in_removed_span:
+        if removed_span:
             original_formatted.append("<<<\u001b[0m")
+            if (
+                self.config.min_words_to_remove_span > 0
+                and len(word_tokenize("\n".join(removed_span), self.language)) < self.config.min_words_to_remove_span
+            ):
+                kept_sentences.extend(removed_span)
         if len(kept_sentences) < len(sentence_spans):
             self.stat_update("removed_sentences", value=len(sentence_spans) - len(kept_sentences))
         self.stat_update("original_sentences", value=len(sentence_spans))
@@ -363,7 +383,8 @@ class SentenceDedupFilter(PipelineStep):
         if files:
             with ThreadPoolExecutor() as pool:
                 all_dups = np.concatenate(
-                    list(tqdm(pool.map(read_duplicates, self.data_folder.open_files(files)), total=len(files))), axis=0
+                    list(tqdm(pool.map(self.read_duplicates, self.data_folder.open_files(files)), total=len(files))),
+                    axis=0,
                 )
             all_dups.sort()
         _, doc_starts = np.unique(all_dups["doc"], return_index=True)
@@ -383,13 +404,28 @@ class SentenceDedupFilter(PipelineStep):
                             doc_starts[dups_doc_i + 1] if dups_doc_i + 1 < len(doc_starts) else None,
                         )
                         filtered_text, original_formatted = self.remove_dup_sentences(
-                            doc, all_dups["sent"][sents_span_l:sents_span_r], self.config.n_sentences
+                            doc, all_dups["sent"][sents_span_l:sents_span_r]
                         )
                         dups_doc_i += 1
 
                 if (
-                    filtered_text == doc.text
-                    or len(word_tokenize(filtered_text, self.language)) > self.config.min_doc_words
+                    (
+                        filtered_text == doc.text  # no change
+                        or (
+                            (
+                                # min doc words
+                                self.config.min_doc_words <= 0
+                                or len(word_tokenize(filtered_text, self.language)) >= self.config.min_doc_words
+                            )
+                            and (
+                                # min num sentences
+                                self.config.min_num_sentences <= 0
+                                or len(split_into_parts(filtered_text, SPLIT_TEXT_SENTENCES, self.language))
+                                >= self.config.min_num_sentences
+                            )
+                        )
+                    )
+                    and filtered_text  # can not be completely empty
                 ):  # document is kept
                     self.update_doc_stats(doc)
                     if not filtered_text == doc.text and writer:

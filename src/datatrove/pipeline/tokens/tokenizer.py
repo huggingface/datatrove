@@ -60,7 +60,7 @@ class TokenizedFile:
         save_index: bool = True,
         save_loss_metadata: bool = False,
         upload_block_size: int | None = None,
-        tokenizer_name: str | None = None,
+        tokenizer_name_or_path: str | None = None,
         save_final_metadata: bool = False,
     ):
         self.output_folder = get_datafolder(output_folder)
@@ -70,7 +70,7 @@ class TokenizedFile:
         self.upload_block_size = upload_block_size
         self.write_idx = 0
         self.doc_ends = []
-        self.tokenizer_name = tokenizer_name
+        self.tokenizer_name_or_path = tokenizer_name_or_path
         self.save_final_metadata = save_final_metadata
 
         self.tokens_file = self.output_folder.open(self.filename, mode="wb", block_size=upload_block_size)
@@ -195,7 +195,7 @@ class TokenizedFile:
                 destination,
                 save_loss_metadata=self.save_loss_metadata,
                 upload_block_size=self.upload_block_size,
-                tokenizer_name=self.tokenizer_name,
+                tokenizer_name_or_path=self.tokenizer_name_or_path,
                 save_final_metadata=self.save_final_metadata,
             )
             logger.info(f"Shuffling in {destination}...")
@@ -221,7 +221,7 @@ class TokenizedFile:
                         destination,
                         save_loss_metadata=self.save_loss_metadata,
                         upload_block_size=self.upload_block_size,
-                        tokenizer_name=self.tokenizer_name,
+                        tokenizer_name_or_path=self.tokenizer_name_or_path,
                         save_final_metadata=self.save_final_metadata,
                     )
                     logger.info(f"Shuffling in {destination}...")
@@ -239,7 +239,7 @@ class TokenizedFile:
             token_count (int): the token count to save (Default value = -1)
             filename: str:  (Default value = None)
         """
-        tokenizer_name = self.tokenizer_name
+        tokenizer_name = self.tokenizer_name_or_path
         if not tokenizer_name:
             tokenizer_name = "Unknown Tokenizer"
         if filename is None:
@@ -268,7 +268,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         local_working_dir (str | None): a local working directory to use for temporary files (before internal shuffling)
             if None we shuffle in output_folder (can be very slow if it's a remote location)
         save_filename (str): the filename to use for the final tokenized files (default: None – use the default filename)
-        tokenizer_name (str): the name of the tokenizer to use, from the HuggingFace tokenizers library (default: "gpt2")
+        tokenizer_name_or_path (str): the name or path of the tokenizer to use, from the HuggingFace tokenizers library (default: "gpt2")
         eos_token (str): whether to add the EOS token after each document (default: "<|endoftext|>")
         save_loss_metadata (bool): save the loss information (default: False)
         shuffle (bool): whether to shuffle documents in the dataset (default: True)
@@ -288,7 +288,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         output_folder: DataFolderLike,
         local_working_dir: DataFolderLike | None = None,
         save_filename: str = None,  # if defined, the final output filename will be this
-        tokenizer_name: str = "gpt2",  # tokenizer to use, from HF
+        tokenizer_name_or_path: str = "gpt2",  # tokenizer to use, from HF or a local
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
         bos_token: str = "<|startoftext|>",  # whether to add the EOS token after each document
         save_loss_metadata: bool = False,  # save the loss information
@@ -311,7 +311,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
                 "local_working_dir is not set and output folder is not local. This may slow down the process."
             )
         self.save_filename = save_filename
-        self.tokenizer_name = tokenizer_name
+        self.tokenizer_name_or_path = tokenizer_name_or_path
         self.eos_token = eos_token
         self.bos_token = bos_token
         self.save_loss_metadata = save_loss_metadata
@@ -360,7 +360,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
             save_index=not self.shuffle,
             save_loss_metadata=self.save_loss_metadata,
             upload_block_size=self.upload_block_size,
-            tokenizer_name=self.tokenizer_name,
+            tokenizer_name_or_path=self.tokenizer_name_or_path,
             save_final_metadata=self.save_final_metadata,
         )
         # tokenize document's text in batches to go faster – we compute loss values independently if needed

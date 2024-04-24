@@ -11,7 +11,7 @@ from datatrove.pipeline.dedup.exact_substrings import (
     read_bytes,
     sequence_reader,
 )
-from datatrove.pipeline.dedup.utils import ExtensionHelperES
+from datatrove.utils.typeshelper import ExtensionHelperES
 
 from ..utils import require_nltk, require_tokenizers
 

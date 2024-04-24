@@ -1,10 +1,5 @@
-import os
-
-from huggingface_hub import cached_assets_path
-from loguru import logger
-
 from datatrove.data import Document
-from datatrove.io import download_file
+from datatrove.io import cached_asset_path_or_download
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.typeshelper import Languages
@@ -15,7 +10,7 @@ LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-mode
 
 class LanguageFilter(BaseFilter):
     name = "🌍 Language ID"
-    _requires_dependencies = [("fasttext", "fasttext-wheel")]
+    _requires_dependencies = [("fasttext", "fasttext-wheel"), "fasteners"]
 
     def __init__(
         self,
@@ -42,14 +37,12 @@ class LanguageFilter(BaseFilter):
         if not self._model:
             from fasttext.FastText import _FastText
 
-            download_dir = cached_assets_path(
-                library_name="datatrove", namespace="filters", subfolder="language_filter"
+            model_file = cached_asset_path_or_download(
+                LANGUAGE_ID_MODEL_URL,
+                namespace="filters",
+                subfolder="language_filter",
+                desc="fast-text language identifier model",
             )
-            model_file = os.path.join(download_dir, "lid.176.bin")
-            if not os.path.isfile(model_file):
-                logger.info("⬇️ Downloading fast-text language identifier model...")
-                download_file(LANGUAGE_ID_MODEL_URL, model_file)
-                logger.info("⬇️ Downloaded fast-text language identifier model.")
             self._model = _FastText(model_file)
         return self._model
 
