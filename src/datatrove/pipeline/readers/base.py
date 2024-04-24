@@ -91,7 +91,8 @@ class BaseReader(PipelineStep):
             if not self._empty_warning:
                 self._empty_warning = True
                 logger.warning(
-                    f"Found document without text, skipping. " f'Is your `text_key` ("{self.text_key}") correct?'
+                    f"Found document without text, skipping. "
+                    f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
                 )
             return None
         document = Document(**parsed_data)

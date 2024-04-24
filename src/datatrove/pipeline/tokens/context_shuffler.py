@@ -18,6 +18,7 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         output_folder: the output folder to write the shuffled documents to
         window_size: the size of the window to shuffle (default: 2048 + 1)
         seed: the seed for the random number generator (default: None)
+        token_size (int): size of each token, in bytes
     """
 
     name = "🗃 Context Shuffler"
@@ -29,11 +30,13 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         output_folder: DataFolderLike,
         window_size: int = 2048 + 1,
         seed: int = None,
+        token_size: int = 2,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.window_size = window_size
+        self.token_size = token_size
         self.rand = default_rng(seed)
 
     def get_ordering(self, all_doc_ends):
@@ -73,5 +76,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
                     with mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ) as unshuf:
                         with self.track_time():
                             for windowi in ordering:
-                                start, end = windowi * self.window_size * 2, (windowi + 1) * self.window_size * 2
+                                start, end = (
+                                    windowi * self.window_size * self.token_size,
+                                    (windowi + 1) * self.window_size * self.token_size,
+                                )
                                 fout.write(unshuf[start:end])
