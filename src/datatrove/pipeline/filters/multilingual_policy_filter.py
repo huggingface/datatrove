@@ -38,6 +38,8 @@ class MultilingualPolicyFilter(BaseFilter):
     Args:
         exclusion_writer: optionally pass in a writer that will save the dropped documents
         language: used to determine policy strings and for language specific punkt tokenizer from nltk
+        split_paragraph: by default (as in the paper) split on "\n".
+            Set to "False" to apply the filters to each sentence instead of to each line
         min_num_sentences: remove documents that do not have at least this number of sentences (after line filtering).
             set to -1 to disable
     """
@@ -49,11 +51,12 @@ class MultilingualPolicyFilter(BaseFilter):
         self,
         exclusion_writer: DiskWriter = None,
         language: str = "german",
+        split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
         min_num_sentences: int = 5,  # set to -1 to disableQ
     ):
         super().__init__(exclusion_writer)
         self.language = language
-
+        self.split_paragraph = split_paragraph
         self.min_num_sentences = min_num_sentences
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
