@@ -81,7 +81,7 @@ class MultilingualPolicyFilter(BaseFilter):
             if any(p in line_l for p in POLICY_SUBSTRINGS[self.language]):
                 self.stat_update("line-filter-policy")
                 continue
-            num_sentences += len(sent_tokenize(line, language=self.langauge)) if self.split_paragraph else 1
+            num_sentences += len(sent_tokenize(line, language=self.language)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
         if num_sentences < self.min_num_sentences:
