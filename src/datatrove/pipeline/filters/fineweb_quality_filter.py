@@ -8,7 +8,7 @@ class FineWebQualityFilter(BaseFilter):
 
     def __init__(
         self,
-        exclusion_writer: DiskWriter = None,,
+        exclusion_writer: DiskWriter = None,
         line_punct_thr: float = 0.12,
         line_punct_exclude_zero: bool = False,
         short_line_thr: float = 0.67,
