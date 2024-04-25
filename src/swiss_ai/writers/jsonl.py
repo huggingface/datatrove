@@ -56,12 +56,7 @@ class SwissAIJsonlWriter(DiskWriter):
         if metadata is None or type(metadata) is not dict:
             return False
 
-        required_metadata = metadata.get('required', None)
-
-        if required_metadata is None or type(required_metadata) is not dict:
-            return False
-
-        required_check = SwissAIJsonlWriter._check_required_metadata(required_metadata)
+        required_check = SwissAIJsonlWriter._check_required_metadata(metadata)
         if not required_check:
             return False
 

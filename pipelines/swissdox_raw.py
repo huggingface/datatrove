@@ -7,6 +7,8 @@ from datatrove.pipeline.tokens import TokensCounter, LengthCounter
 from datatrove.pipeline.writers import JsonlWriter
 from datatrove.executor.local import LocalPipelineExecutor
 
+os.environ["HF_BASE"] = "/work_space_data/hf_cache/"
+
 if __name__ == '__main__':
     pipeline = [
         RawSwissDoxReader(
