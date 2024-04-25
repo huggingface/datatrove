@@ -41,7 +41,7 @@ def add_task_logger(logging_dir: DataFolder, rank: int, local_rank: int = 0):
 
     """
     logger.remove()
-    logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "w")
+    logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "wt", encoding="utf-8")
     logger.add(sys.stderr, level="INFO" if local_rank == 0 else "ERROR")
     logger.add(logfile, colorize=True, level="DEBUG")
     logger.info(f"Launching pipeline for {rank=}")

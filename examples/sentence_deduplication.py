@@ -21,7 +21,7 @@ pipeline 1:
 pipeline 2:
     implements only SentenceFindDedups
 pipeline 3:
-    implements SentenceDedupFilter prepended by a reader of the same writer-kind used during stage 1. after the
+    implements SentenceDedupFilter prepended by a readers of the same writer-kind used during stage 1. after the
     SentenceDedupFilter.
 """
 

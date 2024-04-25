@@ -180,8 +180,8 @@ def load_doc_ends(file: BinaryIO) -> np.ndarray:
 def get_data_reader(
     file: BinaryIO, doc_ends: list, nb_bytes: int = 1, start_e: int = 0
 ) -> Generator[bytes, None, None]:
-    """Get a reader for the data in the file given a list of document ends and a number of bytes per element.
-        The reader will yield the data for each document in the file.
+    """Get a readers for the data in the file given a list of document ends and a number of bytes per element.
+        The readers will yield the data for each document in the file.
 
     Args:
         file: BinaryIO

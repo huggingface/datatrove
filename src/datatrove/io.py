@@ -37,7 +37,7 @@ class OutputFileManager:
 
         """
         if filename not in self._output_files:
-            self._output_files[filename] = self.fs.open(filename, mode=self.mode, compression=self.compression)
+            self._output_files[filename] = self.fs.open(filename, encoding='utf-8', mode=self.mode, compression=self.compression)
         return self._output_files[filename]
 
     def get_open_files(self):
