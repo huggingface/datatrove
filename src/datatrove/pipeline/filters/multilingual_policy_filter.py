@@ -19,6 +19,7 @@ class MultilingualPolicyFilter(BaseFilter):
             Set to "False" to apply the filters to each sentence instead of to each line
         min_num_sentences: remove documents that do not have at least this number of sentences (after line filtering).
             set to -1 to disable
+        policy_strings: list of policy substrings to remove
     """
 
     name = "⛰ Multilingual Policy"
@@ -30,18 +31,17 @@ class MultilingualPolicyFilter(BaseFilter):
             language: str = "german",
             split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
             min_num_sentences: int = 5,  # set to -1 to disableQ
-            #policy_strings: list[str] = ["terms of use",
-            #                             "privacy policy",
-            #                             "cookie policy",
-            #                             "uses cookies",
-            #                             "use of cookies",
-            #                             "use cookies", ]
+            policy_strings=None,
     ):
         super().__init__(exclusion_writer)
+        if policy_strings is None:
+            policy_strings = ["terms of use", "privacy policy", "cookie policy", "uses cookies", "use of cookies",
+                              "use cookies", ]
         self.language = language
         self.split_paragraph = split_paragraph
         self.min_num_sentences = min_num_sentences
-        #self.policy_strings = policy_strings
+        self.policy_strings = policy_strings
+
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         from nltk.tokenize import sent_tokenize
