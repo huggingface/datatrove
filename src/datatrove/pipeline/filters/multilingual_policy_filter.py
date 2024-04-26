@@ -22,7 +22,7 @@ class MultilingualPolicyFilter(BaseFilter):
         policy_strings: list of policy substrings to remove
     """
 
-    name = "⛰ Multilingual Policy"
+    name = "🌎 Multilingual Policy"
     _requires_dependencies = ["nltk"]
 
     def __init__(
@@ -61,9 +61,9 @@ class MultilingualPolicyFilter(BaseFilter):
             # check line has too long word
             line_l = line.lower()
             # lorem ipsum
-            #if any(p in line_l for p in self.policy_strings):
-            #    self.stat_update("line-filter-policy")
-            #    continue
+            if any(p in line_l for p in self.policy_strings):
+                self.stat_update("line-filter-policy")
+                continue
             num_sentences += len(sent_tokenize(line, language=self.language)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
