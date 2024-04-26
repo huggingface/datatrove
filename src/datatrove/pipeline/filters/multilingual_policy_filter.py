@@ -59,7 +59,7 @@ class MultilingualPolicyFilter(BaseFilter):
         self.language = language
         self.split_paragraph = split_paragraph
         self.min_num_sentences = min_num_sentences
-        self.policy_strings = policy_strings if policy_strings else POLICY_SUBSTRINGS[self.language]
+        self.policy_strings = policy_strings if policy_strings is not None else POLICY_SUBSTRINGS[self.language]
 
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
