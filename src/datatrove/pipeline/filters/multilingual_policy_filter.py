@@ -6,29 +6,6 @@ from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
-POLICY_SUBSTRINGS = {
-    "german": [
-        "benutzungsbedingungen",
-        "nutzungsbedingungen",
-        "nutzungsbestimmungen",
-        "datenschutzerklärung",
-        "datenschutzbestimmungen",
-        "datenschutzrichtlinie",
-        "cookie-richtlinie",
-        "verwendet cookies",
-        "benutzt cookies",
-        "cookies verwendet",
-        "verwendung von cookies",
-        "einsatz von cookies",
-        "nutzung von cookies",
-        "verwenden cookies",
-        "benutzen cookies"
-    ]
-}
-
-
-
-
 class MultilingualPolicyFilter(BaseFilter):
     """Applies C4 Policy filter for other languages
 
@@ -44,23 +21,27 @@ class MultilingualPolicyFilter(BaseFilter):
             set to -1 to disable
     """
 
-    name = "⛰ C4 Quality"
+    name = "⛰ Multilingual Policy"
     _requires_dependencies = ["nltk"]
 
     def __init__(
-        self,
-        exclusion_writer: DiskWriter = None,
-        language: str = "german",
-        split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
-        min_num_sentences: int = 5,  # set to -1 to disableQ
-        policy_strings: str = None
+            self,
+            exclusion_writer: DiskWriter = None,
+            language: str = "german",
+            split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
+            min_num_sentences: int = 5,  # set to -1 to disableQ
+            policy_strings: list[str] = ["terms of use",
+                                         "privacy policy",
+                                         "cookie policy",
+                                         "uses cookies",
+                                         "use of cookies",
+                                         "use cookies", ]
     ):
         super().__init__(exclusion_writer)
         self.language = language
         self.split_paragraph = split_paragraph
         self.min_num_sentences = min_num_sentences
-        self.policy_strings = policy_strings if policy_strings is not None else POLICY_SUBSTRINGS[self.language]
-
+        self.policy_strings = policy_strings
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         from nltk.tokenize import sent_tokenize
@@ -76,7 +57,6 @@ class MultilingualPolicyFilter(BaseFilter):
 
         for line in lines:
             line = line.strip()
-            words = line.split()
             self.stat_update("line-total")
             # check line has too long word
             line_l = line.lower()
@@ -115,8 +95,8 @@ class C4ParagraphFilter(BaseFilter):
         # Filter out docs that don't have at least three "paragraphs"
         # (lines >= `min_paragraph_len` chars).
         if (
-            len(lines) < self.min_paragraphs
-            or min(heapq.nlargest(3, [len(line) for line in lines])) < self.min_paragraph_len
+                len(lines) < self.min_paragraphs
+                or min(heapq.nlargest(3, [len(line) for line in lines])) < self.min_paragraph_len
         ):
             return False
         return True
