@@ -115,7 +115,7 @@ class GopherRepetitionFilter(BaseFilter):
         if self.dup_para_char_frac and char_duplicates / len(text) > self.dup_para_char_frac:
             return False, "dup_para_char_frac"
 
-        lines = text.splitlines()
+        lines = re.split('\n+', re.sub(r' *\n+ *', '\n', text))
         line_duplicates, char_duplicates = find_duplicates(lines)
         if self.dup_line_frac and line_duplicates / len(lines) > self.dup_line_frac:
             return False, "dup_line_frac"
