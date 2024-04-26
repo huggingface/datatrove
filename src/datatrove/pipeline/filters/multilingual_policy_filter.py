@@ -30,18 +30,18 @@ class MultilingualPolicyFilter(BaseFilter):
             language: str = "german",
             split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
             min_num_sentences: int = 5,  # set to -1 to disableQ
-            policy_strings: list[str] = ["terms of use",
-                                         "privacy policy",
-                                         "cookie policy",
-                                         "uses cookies",
-                                         "use of cookies",
-                                         "use cookies", ]
+            #policy_strings: list[str] = ["terms of use",
+            #                             "privacy policy",
+            #                             "cookie policy",
+            #                             "uses cookies",
+            #                             "use of cookies",
+            #                             "use cookies", ]
     ):
         super().__init__(exclusion_writer)
         self.language = language
         self.split_paragraph = split_paragraph
         self.min_num_sentences = min_num_sentences
-        self.policy_strings = policy_strings
+        #self.policy_strings = policy_strings
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         from nltk.tokenize import sent_tokenize
@@ -61,9 +61,9 @@ class MultilingualPolicyFilter(BaseFilter):
             # check line has too long word
             line_l = line.lower()
             # lorem ipsum
-            if any(p in line_l for p in self.policy_strings):
-                self.stat_update("line-filter-policy")
-                continue
+            #if any(p in line_l for p in self.policy_strings):
+            #    self.stat_update("line-filter-policy")
+            #    continue
             num_sentences += len(sent_tokenize(line, language=self.language)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
