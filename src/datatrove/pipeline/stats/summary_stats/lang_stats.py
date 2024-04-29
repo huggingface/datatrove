@@ -6,25 +6,32 @@ from datatrove.io import DataFolderLike, cached_asset_path_or_download
 from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, GROUP, BaseStats, TopKConfig
 
 class LanguagePredictor:
+    def __init__(self, language: str) -> None:
+        self.language = language
+
     @abstractmethod
     def predict(self, doc: Document) -> float:
         raise NotImplemented
 
 
 class CLDModel(LanguagePredictor):
-    def __init__(self) -> None:
+    def __init__(self, language: str) -> None:
+        super().__init__(language)
+
+    def predict(self, doc: Document) -> float:
         import cld3
-        super().__init__()
+        prediction = cld3.get_frequent_language(doc.text, 10)
+        lang_id = [x.language for x in prediction].index(self.language)
+        if lang_id == -1:
+            return 0.0
+        return prediction[lang_id].probability
 
-    def predict(self, doc: Document) -> tuple[str, float]:
-        prediction = cld3.get_language(doc.text)
-        return prediction.language, prediction.probability
 
-class FastTextModel:
+class FastTextModel(LanguagePredictor):
     LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, language: str) -> None:
+        super().__init__(language)
         self._model = None
 
     @property
@@ -42,25 +49,19 @@ class FastTextModel:
         return self._model
     
     def predict(self, doc: Document):
-        language, score = self.model.predict(doc.text.replace("\n", " "))
-        # language label is given in the form __label__<language_id>
-        language = language[0].split("__")[2]
-        return language, score[0]
+        langs, score = self.model.predict(doc.text.replace("\n", " "), k=10)
+        lang_id = [lang.split("__")[2] for lang in langs].index(self.language)
+        if lang_id == -1:
+            return 0.0
+        return score[lang_id]
 
-    def predict_normalized(self, doc: Document):
-        language, score = self.predict(doc)
-        return language, score / 100
-
-
-class DocStats(BaseStats, ):
+class LangStats(BaseStats):
     """
     Summary stats of document level metrics:
 
     Available stats:
-    length: Length of the document
-    white_space_ratio: Ratio of whitespace characters
-    non_alpha_digit_ratio: Ratio of non-alphabetic and non-digit characters
-    digit_ratio: Ratio of digits
+    cld3_{language}
+    fasttext_{language}
     """
 
     type = "📊 - STATS"
@@ -69,28 +70,19 @@ class DocStats(BaseStats, ):
     def __init__(
         self,
         output_folder: DataFolderLike,
+        language: str,
         histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(output_folder, groups_to_compute, histogram_round_digits, top_k_config)
+        self.fasttext = FastTextModel(language)
+        self.cld3 = CLDModel(language)
+        self.language = language
 
-    @property
-    def model(self):
-        if not self._model:
-            from fasttext.FastText import _FastText
-
-            model_file = cached_asset_path_or_download(
-                LANGUAGE_ID_MODEL_URL,
-                namespace="filters",
-                subfolder="language_filter",
-                desc="fast-text language identifier model",
-            )
-            self._model = _FastText(model_file)
-        return self._model
-
+    
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
-        fasttext_en_score = fasttext.predict(doc.text, k=1)
         return {
-            "fasttext_en_score": 
+            f"cld3_{self.language}": self.cld3.predict(doc),
+            f"fasttext_{self.language}": self.fasttext.predict(doc),
         }
