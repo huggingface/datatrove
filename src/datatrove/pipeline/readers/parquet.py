@@ -33,6 +33,7 @@ class ParquetReader(BaseDiskReader):
         self,
         data_folder: DataFolderLike,
         limit: int = -1,
+        skip: int = 0,
         batch_size: int = 1000,
         read_metadata: bool = True,
         progress: bool = False,
@@ -47,6 +48,7 @@ class ParquetReader(BaseDiskReader):
         super().__init__(
             data_folder,
             limit,
+            skip,
             progress,
             adapter,
             text_key,
