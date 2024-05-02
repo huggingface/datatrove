@@ -102,6 +102,7 @@ email@example.name
 email@example.museum
 email@example.co.jp
 firstname-lastname@example.com
+NAME@MYSITE.COM
 
 
 
@@ -154,6 +155,7 @@ EMAIL
 EMAIL
 EMAIL
 "email"@example.com
+EMAIL
 EMAIL
 EMAIL
 EMAIL

@@ -1,5 +1,6 @@
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 class FineWebQualityFilter(BaseFilter):
@@ -8,7 +9,7 @@ class FineWebQualityFilter(BaseFilter):
 
     def __init__(
         self,
-        exclusion_writer,
+        exclusion_writer: DiskWriter = None,
         line_punct_thr: float = 0.12,
         line_punct_exclude_zero: bool = False,
         short_line_thr: float = 0.67,
