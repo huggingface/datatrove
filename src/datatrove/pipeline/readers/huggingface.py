@@ -15,6 +15,7 @@ class HuggingFaceDatasetReader(BaseReader):
         dataset: the name of the dataset to load with datasets.load_dataset
         dataset_options: options to pass to the load_dataset function
         limit: limit the number of rows to read
+        skip: skip the first n rows
         batch_size: the batch size to use
         progress: show progress bar
         adapter: function to adapt the data dict from the source to a Document.
@@ -33,6 +34,7 @@ class HuggingFaceDatasetReader(BaseReader):
         dataset: str,
         dataset_options: dict | None = None,
         limit: int = -1,
+        skip: int = 0,
         batch_size: int = 1000,
         progress: bool = False,
         adapter: Callable = None,
@@ -40,7 +42,7 @@ class HuggingFaceDatasetReader(BaseReader):
         id_key: str = "id",
         default_metadata: dict = None,
     ):
-        super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
+        super().__init__(limit, skip, progress, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
         self.dataset_options = dataset_options
         self.batch_size = batch_size
