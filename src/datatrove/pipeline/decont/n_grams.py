@@ -1,7 +1,7 @@
 """
-    Used for n-gram decontamination.
-    First build an index using the tasks we want to use to decontaminate our training dataset.
-    Then read your training data and apply the filter with the index loaded.
+Used for n-gram decontamination.
+First build an index using the tasks we want to use to decontaminate our training dataset.
+Then read your training data and apply the filter with the index loaded.
 """
 
 import os
