@@ -50,6 +50,19 @@ DEFAULT_NGRAMS_DECONT_CONFIG = NGramsDecontConfig()
 
 
 class NGramsDecontIndexer(PipelineStep):
+    """
+    Creates a decontamination index (basically a list of uint64 hashes from ngrams) for each reference task.
+    Ways to provide task data:
+      - as input documents from the previous pipeline step with "text=label/correct answer"
+        and metadata={"query": query/prompt/input, "task": task name}
+      - as a list of strings in the format "suite|task" from the lighteval metadata table:
+      https://github.com/huggingface/lighteval/blob/main/src/lighteval/tasks/tasks_table.jsonl as `lighteval_tasks`
+      - a path to a text file containing one such list, with one "suite|task" per line as `lighteval_tasks`
+      you can also define your custom tasks with `custom_lighteval_tasks`. See explanation for `custom_tasks` here:
+      https://github.com/huggingface/lighteval/tree/main?tab=readme-ov-file#evaluate-a-model-on-extended-community-or-custom-tasks
+
+    """
+
     type = "🦠 - DECONT"
     name = "💥 N-grams build index"
     _requires_dependencies = ["nltk", "lighteval", "xxhash"]
@@ -148,6 +161,13 @@ class NGramsDecontIndexer(PipelineStep):
 
 
 class NGramsDecontFilter(BaseFilter):
+    """
+    Loads list of hashes created by the Indexer step.
+    For each document in the block's input, we will check if any of its ngrams are part of the reference eval tasks.
+    If so, they will be removed. The contaminated ngram and task where it was found will be saved in the removed
+    document's metadata.
+    """
+
     type = "🦠 - DECONT"
     name = "💥 N-grams decontaminate"
     _requires_dependencies = ["nltk", "xxhash"]
