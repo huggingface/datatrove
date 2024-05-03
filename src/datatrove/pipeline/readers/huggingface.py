@@ -14,6 +14,7 @@ class HuggingFaceDatasetReader(BaseReader):
     Args:
         dataset: the name of the dataset to load with datasets.load_dataset
         dataset_options: options to pass to the load_dataset function
+        streaming: whether to stream the dataset
         limit: limit the number of rows to read
         batch_size: the batch size to use
         progress: show progress bar
@@ -32,6 +33,7 @@ class HuggingFaceDatasetReader(BaseReader):
         self,
         dataset: str,
         dataset_options: dict | None = None,
+        streaming: bool = False,
         limit: int = -1,
         batch_size: int = 1000,
         progress: bool = False,
@@ -42,7 +44,7 @@ class HuggingFaceDatasetReader(BaseReader):
     ):
         super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
-        self.dataset_options = dataset_options
+        self.dataset_options = dataset_options or {}
         self.batch_size = batch_size
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
@@ -53,12 +55,18 @@ class HuggingFaceDatasetReader(BaseReader):
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         from datasets import load_dataset  # type: ignore
+        from datasets.distributed import split_dataset_by_node
 
         if data:
             yield from data
-        # sadly sharding in this way with streaming is not supported by HF datasets yet, so no streaming
-        ds = load_dataset(self.dataset, **self.dataset_options)
-        shard = ds.shard(world_size, rank, contiguous=True)
+        ds = load_dataset(self.dataset, **self.dataset_options, streaming=True)
+
+        # In case the dataset is (Iterable)?DatasetDict, raise informative error
+        if isinstance(ds, dict):
+            raise ValueError(f"You forgot to specify the split of the dataset. Update your dataset_options to include 'split'. Available splits: {list(ds.keys())}")
+            
+
+        shard = split_dataset_by_node(ds, rank, world_size)
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             li = 0
             for batch in shard.iter(self.batch_size):
