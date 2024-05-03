@@ -37,7 +37,7 @@ class TestNGramDecont(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def get_test_results(self, config):
-        indexer = NGramsDecontIndexer(self.tmp_dir, lighteval_tasks="lighteval|hellaswag", config=config)
+        indexer = NGramsDecontIndexer(self.tmp_dir, lighteval_tasks="leaderboard|hellaswag", config=config)
         indexer.run()
         nfilter = NGramsDecontFilter(self.tmp_dir, config=config)
         return tuple([int(doc.id) for doc in nfilter(copy.deepcopy(DOCS))])

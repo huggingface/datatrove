@@ -59,7 +59,7 @@ processing = [
     "xxhash"
 ]
 decont = [
-    "lighteval"
+    "lighteval>=0.3.0"
 ]
 quality = [
   "ruff>=0.1.5"
