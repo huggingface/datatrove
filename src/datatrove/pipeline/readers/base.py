@@ -1,6 +1,7 @@
 import random
 from abc import abstractmethod
 from contextlib import nullcontext
+from types import MethodType
 from typing import Callable
 
 from loguru import logger
@@ -52,7 +53,7 @@ class BaseReader(PipelineStep):
         self.progress = progress
         self.text_key = text_key
         self.id_key = id_key
-        self.adapter = adapter if adapter else self._default_adapter
+        self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
 
