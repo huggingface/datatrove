@@ -65,8 +65,9 @@ class HuggingFaceDatasetReader(BaseReader):
 
         # In case the dataset is (Iterable)?DatasetDict, raise informative error
         if isinstance(ds, dict):
-            raise ValueError(f"You forgot to specify the split of the dataset. Update your dataset_options to include 'split'. Available splits: {list(ds.keys())}")
-            
+            raise ValueError(
+                f"You forgot to specify the split of the dataset. Update your dataset_options to include 'split'. Available splits: {list(ds.keys())}"
+            )
 
         shard = split_dataset_by_node(ds, rank, world_size)
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
