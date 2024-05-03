@@ -1,19 +1,21 @@
 from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
-class FWQualityFilter(BaseFilter):
-    name = "fineweb quality filter"
+class FineWebQualityFilter(BaseFilter):
+    name = "🍷 FineWeb Quality"
     _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
-        exclusion_writer,
+        exclusion_writer: DiskWriter = None,
         line_punct_thr: float = 0.12,
-        line_punct_exclude_zero=False,
+        line_punct_exclude_zero: bool = False,
         short_line_thr: float = 0.67,
         short_line_length: int = 30,
         char_duplicates_ratio: float = 0.01,
-        new_line_ratio: float = 0.1,
+        new_line_ratio: float = 0.3,
     ):
         super().__init__(exclusion_writer)
         self.line_punct_thr = line_punct_thr
@@ -24,12 +26,7 @@ class FWQualityFilter(BaseFilter):
         self.new_line_ratio = new_line_ratio
 
     def filter(self, doc) -> bool | tuple[bool, str]:
-        from nltk.tokenize import word_tokenize
-
-        from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
-
-        def remove_empty_lines(lines: list[str]):
-            return [line for line in lines if line.strip() != ""]
+        from nltk import word_tokenize
 
         stop_chars = (".", "'", '"', "!", "?")
 
@@ -42,15 +39,15 @@ class FWQualityFilter(BaseFilter):
         if ratio >= self.short_line_threshold:
             return False, "short_line_ratio"
 
-        ratio = find_duplicates(remove_empty_lines(lines))[1] / len(doc.text.replace("\n", ""))
+        non_empty_lines = [line for line in lines if line.strip() != ""]
+        ratio = find_duplicates(non_empty_lines)[1] / len(doc.text.replace("\n", ""))
 
         if ratio >= self.char_duplicates_ratio:
             return False, "char_dup_ratio"
 
-        text = doc.text
-        words = word_tokenize(text)  # TODO we should use language id filter
-        new_line = text.count("\n")
+        words = word_tokenize(doc.text)
+        new_line = doc.text.count("\n")
         if new_line / len(words) > self.new_line_ratio:
-            return False, "Suspected list"
+            return False, "list_ratio"
 
         return True
