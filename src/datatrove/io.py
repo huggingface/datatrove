@@ -284,6 +284,11 @@ def open_file(file: IO | str, mode="rt", **kwargs):
     return file
 
 
+def file_exists(path: str):
+    fs, a, fpath = get_fs_token_paths(path)
+    return fs.exists(fpath[0])
+
+
 def download_file(remote_path: str, local_path: str, progress: bool = True):
     fs, _, paths = get_fs_token_paths(remote_path)
     fs.get_file(
