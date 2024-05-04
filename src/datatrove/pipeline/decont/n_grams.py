@@ -147,8 +147,14 @@ class NGramsDecontIndexer(PipelineStep):
 
         for task_name, task in task_dict.items():
             for eval_doc in task.eval_docs():
-                for gold in eval_doc.get_golds():
-                    hashes[task_name].update(self.compute_hashes(gold, eval_doc.query))
+                try:
+                    golds = eval_doc.get_golds()
+                    query = eval_doc.query
+                except Exception as e:
+                    logger.warning(f"Error while fetching doc data: {e}")
+                    continue
+                for gold in golds:
+                    hashes[task_name].update(self.compute_hashes(gold, query))
 
         for task_name, task_hashes in hashes.items():
             hashes_array = np.array(list(task_hashes), dtype="<u8")
@@ -216,5 +222,7 @@ class NGramsDecontFilter(BaseFilter):
                 doc.metadata["contaminated_ngram"] = n_gram
                 doc.metadata["contaminated_task"] = task
                 self.stat_update(f"contaminated_{task}")
+                if ":" in task:
+                    self.stat_update(f"contaminated_tg_{task[:task.index(':')]}")
                 return False, "contaminated"
         return True
