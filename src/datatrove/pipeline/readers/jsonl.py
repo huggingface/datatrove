@@ -29,6 +29,7 @@ class JsonlReader(BaseDiskReader):
     """
 
     name = "🐿 Jsonl"
+    _requires_dependencies = ["orjson"]
 
     def __init__(
         self,
