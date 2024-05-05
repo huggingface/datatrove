@@ -1,8 +1,6 @@
 from typing import Callable, Literal
 
-import orjson
 from loguru import logger
-from orjson import JSONDecodeError
 
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
@@ -63,6 +61,9 @@ class JsonlReader(BaseDiskReader):
         self.compression = compression
 
     def read_file(self, filepath: str):
+        import orjson
+        from orjson import JSONDecodeError
+
         with self.data_folder.open(filepath, "r", compression=self.compression) as f:
             try:
                 for li, line in enumerate(f):
