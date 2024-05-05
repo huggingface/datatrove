@@ -1,5 +1,5 @@
-from contextlib import nullcontext
 import copy
+from contextlib import nullcontext
 from typing import Callable
 
 from tqdm import tqdm
@@ -56,7 +56,7 @@ class HuggingFaceDatasetReader(BaseReader):
         if document:
             document.metadata.setdefault("dataset", source)
         return document
-    
+
     def _get_dataset_shard(self, dst, rank: int, world_size: int):
         from datasets import Dataset, IterableDataset
         from datasets.distributed import split_dataset_by_node
@@ -75,18 +75,13 @@ class HuggingFaceDatasetReader(BaseReader):
                 shuffling=copy.deepcopy(dst._shuffling),
                 distributed=copy.deepcopy(dst._distributed),
                 token_per_repo_id=dst._token_per_repo_id,
-        )
+            )
         else:
             # If we have just a single shard/file, we shard inter-file
             return split_dataset_by_node(dst, rank, world_size)
 
-
-
-
-
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         from datasets import load_dataset  # type: ignore
-        from datasets.distributed import split_dataset_by_node
 
         if data:
             yield from data
@@ -97,7 +92,6 @@ class HuggingFaceDatasetReader(BaseReader):
             raise ValueError(
                 f"You forgot to specify the split of the dataset. Update your dataset_options to include 'split'. Available splits: {list(ds.keys())}"
             )
-
 
         shard = self._get_dataset_shard(ds, rank, world_size)
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
