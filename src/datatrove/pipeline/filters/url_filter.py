@@ -56,8 +56,8 @@ class URLFilter(BaseFilter):
         use_integrated_lists: bool = True,
         exclusion_writer: DiskWriter = None,
     ):
-        from tldextract import TLDExtract
         import ahocorasick
+        from tldextract import TLDExtract
 
         super().__init__(exclusion_writer)
         self.soft_word_threshold = soft_word_threshold
