@@ -25,14 +25,16 @@ class TestHuggingFaceReader(unittest.TestCase):
         self.assertEqual(len(data), 817)
 
     def test_sharding(self):
-        reader = HuggingFaceDatasetReader(
-            "truthful_qa",
-            dataset_options={"name": "generation", "split": "validation"},
-            text_key="question",
-            streaming=True,
-        )
-        data0 = list(reader(rank=0, world_size=2))
-        data1 = list(reader(rank=1, world_size=2))
+        for dst in ["hynky/datatrove-test-1-shard", "hynky/datatrove-test-3-shard"]:
+            for streaming in [True, False]:
+                reader = HuggingFaceDatasetReader(
+                    dst,
+                    dataset_options={"name": "default", "split": "train"},
+                    text_key="text",
+                    streaming=streaming,
+                )
+                data0 = list(reader(rank=0, world_size=2))
+                data1 = list(reader(rank=1, world_size=2))
 
-        self.assertEqual(len(data0), 409)
-        self.assertEqual(len(data1), 408)
+                self.assertEqual(len(data0), 3)
+                self.assertEqual(len(data1), 2)

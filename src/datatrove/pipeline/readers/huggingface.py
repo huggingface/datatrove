@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import copy
 from typing import Callable
 
 from tqdm import tqdm
@@ -48,12 +49,40 @@ class HuggingFaceDatasetReader(BaseReader):
         self.dataset = dataset
         self.dataset_options = dataset_options or {}
         self.batch_size = batch_size
+        self.streaming = streaming
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
         document = super().get_document_from_dict(data, source, id_in_file)
         if document:
             document.metadata.setdefault("dataset", source)
         return document
+    
+    def _get_dataset_shard(self, dst, rank: int, world_size: int):
+        from datasets import Dataset, IterableDataset
+        from datasets.distributed import split_dataset_by_node
+
+        if isinstance(dst, Dataset):
+            return dst.shard(world_size, rank, contiguous=True)
+        elif isinstance(dst, IterableDataset) and dst.n_shards > 1:
+            # In case we have more than 1 shard (file), we shard
+            # on shards/file level.
+            ex_iterable = dst._ex_iterable.shard_data_sources(rank, world_size)
+            return IterableDataset(
+                ex_iterable=ex_iterable,
+                info=dst._info.copy(),
+                split=dst._split,
+                formatting=dst._formatting,
+                shuffling=copy.deepcopy(dst._shuffling),
+                distributed=copy.deepcopy(dst._distributed),
+                token_per_repo_id=dst._token_per_repo_id,
+        )
+        else:
+            # If we have just a single shard/file, we shard inter-file
+            return split_dataset_by_node(dst, rank, world_size)
+
+
+
+
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         from datasets import load_dataset  # type: ignore
@@ -61,7 +90,7 @@ class HuggingFaceDatasetReader(BaseReader):
 
         if data:
             yield from data
-        ds = load_dataset(self.dataset, **self.dataset_options, streaming=True)
+        ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
 
         # In case the dataset is (Iterable)?DatasetDict, raise informative error
         if isinstance(ds, dict):
@@ -69,7 +98,8 @@ class HuggingFaceDatasetReader(BaseReader):
                 f"You forgot to specify the split of the dataset. Update your dataset_options to include 'split'. Available splits: {list(ds.keys())}"
             )
 
-        shard = split_dataset_by_node(ds, rank, world_size)
+
+        shard = self._get_dataset_shard(ds, rank, world_size)
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             li = 0
             for batch in shard.iter(self.batch_size):
