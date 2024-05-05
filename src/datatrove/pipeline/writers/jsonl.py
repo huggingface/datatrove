@@ -25,8 +25,11 @@ class JsonlWriter(DiskWriter):
         compression: str | None = "gzip",
         adapter: Callable = None,
     ):
-        super().__init__(output_folder, output_filename=output_filename, compression=compression, adapter=adapter, mode="wb")
+        super().__init__(
+            output_folder, output_filename=output_filename, compression=compression, adapter=adapter, mode="wb"
+        )
 
     def _write(self, document: dict, file_handler: IO, _filename: str):
         import orjson
+
         file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))

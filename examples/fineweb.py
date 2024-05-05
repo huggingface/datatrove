@@ -1,7 +1,8 @@
 """
-    This file contains the code used to process and create the
-    FineWeb dataset (https://huggingface.co/datasets/HuggingFaceFW/fineweb)
+This file contains the code used to process and create the
+FineWeb dataset (https://huggingface.co/datasets/HuggingFaceFW/fineweb)
 """
+
 from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.pipeline.dedup import MinhashDedupCluster, MinhashDedupFilter, MinhashDedupSignature
 from datatrove.pipeline.dedup.minhash import MinhashConfig, MinhashDedupBuckets

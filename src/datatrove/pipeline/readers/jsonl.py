@@ -1,8 +1,8 @@
-import orjson
-from orjson import JSONDecodeError
 from typing import Callable, Literal
 
+import orjson
 from loguru import logger
+from orjson import JSONDecodeError
 
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
