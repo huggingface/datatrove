@@ -1,5 +1,5 @@
-import json
-from json import JSONDecodeError
+import orjson
+from orjson import JSONDecodeError
 from typing import Callable, Literal
 
 from loguru import logger
@@ -68,7 +68,7 @@ class JsonlReader(BaseDiskReader):
                 for li, line in enumerate(f):
                     with self.track_time():
                         try:
-                            document = self.get_document_from_dict(json.loads(line), filepath, li)
+                            document = self.get_document_from_dict(orjson.loads(line), filepath, li)
                             if not document:
                                 continue
                         except (EOFError, JSONDecodeError) as e:
