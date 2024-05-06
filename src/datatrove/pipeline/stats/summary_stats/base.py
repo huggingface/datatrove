@@ -104,7 +104,7 @@ class BaseStats(PipelineStep):
                     doc_stats = self.extract_stats(doc)
                 except Exception as e:
                     logger.error(f"Error while extracting stats from document {doc.id}", exc_info=e)
-                    continue
+                    raise e
 
                 for group, counters in groups_dicts.items():
                     for stat, value in doc_stats.items():
