@@ -25,7 +25,7 @@ from datatrove.utils.logging import get_random_str, get_timestamp
 def requeue_handler(signum, _frame):
     signame = signal.Signals(signum).name
     logger.warning(f"Received signal {signum} ({signame}). Requeueing and exiting...")
-    subprocess.run(["scontrol", "requeue", "${SLURM_JOB_ID}"])
+    subprocess.run(["scontrol", "requeue", os.environ.get("SLURM_JOB_ID")])
     sys.exit(15)
 
 
