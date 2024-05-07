@@ -194,10 +194,17 @@ class BaseDiskReader(BaseReader):
         """
         li = 0
         skipped = 0
-        with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
-            for filepath in shard:
+        with (
+            tqdm(total=self.limit if self.limit != -1 else None, desc="Document progress", unit="doc")
+            if self.progress
+            else nullcontext() as doc_pbar,
+            tqdm(total=len(shard), desc="File progress", unit="file") if self.progress else nullcontext() as file_pbar,
+        ):
+            for i, filepath in enumerate(shard):
                 self.stat_update("input_files")
-                logger.info(f"Reading input file {filepath}")
+                logger.info(f"Reading input file {filepath}, {i+1}/{len(shard)}")
+                if self.progress:
+                    file_pbar.update()
                 di = 0
                 for di, document in enumerate(self.read_file(filepath)):
                     if skipped < self.skip:
@@ -207,7 +214,7 @@ class BaseDiskReader(BaseReader):
                         break
                     yield document
                     if self.progress:
-                        pbar.update()
+                        doc_pbar.update()
                     li += 1
                 self.stat_update("documents", value=di, unit="input_file")
                 if self.limit != -1 and li >= self.limit:
