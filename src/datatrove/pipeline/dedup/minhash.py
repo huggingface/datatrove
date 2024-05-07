@@ -50,7 +50,7 @@ class MinhashConfig:
     num_buckets: int = 14
     hashes_per_bucket: int = 8
 
-    use_64bit_hashes: bool = False
+    use_64bit_hashes: bool = True
     seed: int = 1
 
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)

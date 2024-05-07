@@ -145,7 +145,9 @@ class SentenceDedup(unittest.TestCase):
     def test_sd(self):
         signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir + "/sigs")
         find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir + "/sigs", output_folder=self.tmp_dir + "/dups")
-        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir + "/dups", config=SentDedupConfig(min_doc_words=0))
+        dedup_filter = SentenceDedupFilter(
+            data_folder=self.tmp_dir + "/dups", config=SentDedupConfig(min_doc_words=0, min_num_sentences=0)
+        )
 
         signature_creation(data=DOCS)
         find_duplicates()
@@ -156,7 +158,9 @@ class SentenceDedup(unittest.TestCase):
         signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir + "/sigs")
 
         find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir + "/sigs", output_folder=self.tmp_dir + "/dups")
-        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir + "/dups", config=SentDedupConfig(min_doc_words=0))
+        dedup_filter = SentenceDedupFilter(
+            data_folder=self.tmp_dir + "/dups", config=SentDedupConfig(min_doc_words=0, min_num_sentences=0)
+        )
 
         signature_creation(data=DOCS, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)
@@ -172,7 +176,9 @@ class SentenceDedup(unittest.TestCase):
         signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir + "/sigs", finder_workers=50)
 
         find_duplicates = SentenceFindDedups(data_folder=self.tmp_dir + "/sigs", output_folder=self.tmp_dir + "/dups")
-        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir + "/dups", config=SentDedupConfig(min_doc_words=0))
+        dedup_filter = SentenceDedupFilter(
+            data_folder=self.tmp_dir + "/dups", config=SentDedupConfig(min_doc_words=0, min_num_sentences=0)
+        )
 
         signature_creation(data=DOCS, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)

@@ -4,8 +4,10 @@ import tarfile
 from typing import Iterable
 
 from huggingface_hub import cached_assets_path
+from loguru import logger
 
 from datatrove.data import Document
+from datatrove.io import safely_create_file
 from datatrove.utils._import_utils import ASSETS_PATH
 
 from ..writers.disk_base import DiskWriter
@@ -41,7 +43,7 @@ class URLFilter(BaseFilter):
     """
 
     name = "😈 Url-filter"
-    _requires_dependencies = ["tldextract"]
+    _requires_dependencies = ["tldextract", "fasteners"]
 
     def __init__(
         self,
@@ -69,11 +71,16 @@ class URLFilter(BaseFilter):
         if self._downloaded:
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
-        if not os.path.isfile(os.path.join(download_dir, "adult", "domains")) or not os.path.isfile(
-            os.path.join(download_dir, "adult", "urls")
-        ):
+        file_to_lock = os.path.join(download_dir, "url_filterblacklists.tar.gz")
+
+        def do_extract():
+            logger.info("💥 Extracting url filter blacklists...")
             with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
                 tar.extractall(download_dir)
+            logger.info("💥 Extracted url filter blacklists.")
+
+        safely_create_file(file_to_lock, do_extract)
+
         self.block_listed_domains = get_list(
             download_dir, "adult/domains", self.block_listed_domains, do_normalize=False
         )
