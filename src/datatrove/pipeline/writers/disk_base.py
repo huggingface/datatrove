@@ -3,6 +3,7 @@ import os.path
 from abc import ABC, abstractmethod
 from collections import Counter
 from string import Template
+from types import MethodType
 from typing import IO, Callable
 
 from datatrove.data import Document, DocumentsPipeline
@@ -47,7 +48,7 @@ class DiskWriter(PipelineStep, ABC):
             raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
         self.output_filename = Template(output_filename)
         self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=compression)
-        self.adapter = adapter if adapter else self._default_adapter
+        self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self.expand_metadata = expand_metadata
 
     def _default_adapter(self, document: Document) -> dict:
