@@ -19,7 +19,8 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_np_from_file
-from datatrove.utils.text import TextNormConfig, simplify_text, xxhash64
+from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.text import TextNormConfig, simplify_text
 
 
 @dataclass
@@ -65,7 +66,7 @@ class NGramsDecontIndexer(PipelineStep):
 
     type = "🦠 - DECONT"
     name = "💥 N-grams build index"
-    _requires_dependencies = ["nltk", "lighteval", "xxhash"]
+    _requires_dependencies = ["nltk", "lighteval"]
 
     def __init__(
         self,
@@ -73,6 +74,7 @@ class NGramsDecontIndexer(PipelineStep):
         lighteval_tasks: str | list[str] | None = None,  # list in the format suite|task or path to one such list
         custom_lighteval_tasks: str | None = None,
         config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
+        hash_config: HashConfig = DEFAULT_HASH_CONFIG,
         language: str = "english",
     ):
         super().__init__()
@@ -89,6 +91,7 @@ class NGramsDecontIndexer(PipelineStep):
         self.custom_lighteval_tasks = custom_lighteval_tasks
         self.config = config
         self.language = language
+        self.hash_func = create_hash_func(hash_config)
 
     def compute_hashes(self, label: str, query: str | None = None) -> list[int]:
         from nltk import ngrams
@@ -117,7 +120,7 @@ class NGramsDecontIndexer(PipelineStep):
                         if len(query_tokens) >= self.config.n_grams - 1 - i and len(label_tokens) >= i + 1
                     ]
                 )
-        return list(map(xxhash64, map(" ".join, ngrams_to_compute)))
+        return list(map(self.hash_func, map(" ".join, ngrams_to_compute)))
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         if world_size != 1:
@@ -176,12 +179,13 @@ class NGramsDecontFilter(BaseFilter):
 
     type = "🦠 - DECONT"
     name = "💥 N-grams decontaminate"
-    _requires_dependencies = ["nltk", "xxhash"]
+    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
         index_folder: DataFolderLike,
         config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
+        hash_config: HashConfig = DEFAULT_HASH_CONFIG,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
     ):
@@ -191,6 +195,7 @@ class NGramsDecontFilter(BaseFilter):
         self.exclusion_writer = exclusion_writer
         self.language = language
         self._index_hashes = None
+        self.hash_func = create_hash_func(hash_config)
 
     def load_index_hashes(self):
         def load_index_from_file(file):
@@ -217,7 +222,7 @@ class NGramsDecontFilter(BaseFilter):
         text_tokens = word_tokenize(simplify_text(doc.text, self.config.norm_config), language=self.language)
         ngrams_to_compute = list(ngrams(text_tokens, self.config.n_grams))
         for n_gram in map(" ".join, ngrams_to_compute):
-            task = self._index_hashes.get(xxhash64(n_gram), None)
+            task = self._index_hashes.get(self.hash_func(n_gram), None)
             if task is not None:
                 doc.metadata["contaminated_ngram"] = n_gram
                 doc.metadata["contaminated_task"] = task

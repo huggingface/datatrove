@@ -1,5 +1,6 @@
 import contextlib
 import math
+from dataclasses import replace
 
 import numpy as np
 from loguru import logger
@@ -8,7 +9,8 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, sha1_hash32, simplify_text
+from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, simplify_text
 from datatrove.utils.typeshelper import StatHints
 
 
@@ -60,6 +62,7 @@ class SingleBloomFilter(PipelineStep):
         n_grams: int = 13,
         seed: int = 0,
         norm_config: TextNormConfig = DEF_TEXT_NORM_CONFIG,
+        hash_config: HashConfig = replace(DEFAULT_HASH_CONFIG, precision=32),
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
@@ -75,6 +78,9 @@ class SingleBloomFilter(PipelineStep):
         self.save_bloom_filter = save_bloom_filter
         self.exclusion_writer = exclusion_writer
         self.norm_config = norm_config
+        # TODO: Add support for 64-bit
+        assert hash_config.precision == 32, "Bloom filter only supports 32-bit hashes"
+        self.hash_fc = create_hash_func(hash_config)
         assert self.m < MAX_HASH
 
         self.seed = seed
@@ -118,7 +124,7 @@ class SingleBloomFilter(PipelineStep):
 
         return np.fromiter(
             [
-                sha1_hash32(" ".join(x).encode("utf-8"))
+                self.hash_fc(" ".join(x))
                 for x in ngrams(word_tokenize(simplify_text(text, self.norm_config)), self.n_grams)
             ],
             dtype=np.uint64,

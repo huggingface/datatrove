@@ -5,6 +5,7 @@ import struct
 import tempfile
 import unittest
 from collections import defaultdict, deque
+from dataclasses import replace
 from math import floor
 
 import numpy as np
@@ -19,8 +20,9 @@ from datatrove.pipeline.dedup.minhash import (
     MinhashDedupSignature,
     read_sigs,
 )
+from datatrove.utils.hashing import DEFAULT_HASH_CONFIG
 
-from ..utils import require_nltk
+from ..utils import require_nltk, require_xxhash
 
 
 lorem_ipsum = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam euismod vel ante vitae rhoncus. Curabitur eu lectus et magna maximus facilisis eu non magna. Maecenas sed velit vitae est ornare placerat. Vestibulum quis consectetur nunc, a feugiat lorem. Cras in ipsum fringilla, vestibulum urna sit amet, viverra tortor. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Morbi euismod vestibulum elit id placerat. Fusce malesuada ultricies condimentum. Cras tincidunt eget lorem nec hendrerit. Aenean mattis arcu dolor, id semper velit ullamcorper malesuada. Aliquam non ipsum et eros venenatis aliquet. Proin eleifend interdum scelerisque. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris nunc sapien, molestie eget convallis at, maximus nec ipsum. Morbi quam diam, blandit ut mollis at, varius eu tellus. Maecenas sem justo, porttitor at odio nec, interdum posuere ex.
@@ -35,6 +37,7 @@ Quisque et aliquet diam. Aenean euismod efficitur enim, non semper eros. Nullam 
 
 
 @require_nltk
+@require_xxhash
 class TestMinhash(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
@@ -42,8 +45,8 @@ class TestMinhash(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_signatures(self):
-        for use_64bit_hashes in (True, False):
-            config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
+        for precision in (32, 64):
+            config = MinhashConfig(hash_config=replace(DEFAULT_HASH_CONFIG, precision=precision))
             minhash = MinhashDedupSignature(output_folder=os.path.join(self.tmp_dir, "signatures1"), config=config)
             shingles = minhash.get_shingles(lorem_ipsum)
             sig = minhash.get_signature(shingles)
@@ -73,10 +76,11 @@ class TestMinhash(unittest.TestCase):
                 with minhash.output_folder.open(f"bucket_{bi:03d}/00000.minhash.sig", "rb") as f:
                     prev = None
                     doc_ids = set()
-                    S = np.dtype(config.hash_dtype).itemsize
+                    S = np.dtype(config.hash_config.np_dtype).itemsize
                     for di in range(100):
                         data = struct.unpack(
-                            f"<%s{config.hash_format}" % config.hashes_per_bucket, f.read(config.hashes_per_bucket * S)
+                            f"<%s{config.hash_config.struct_format}" % config.hashes_per_bucket,
+                            f.read(config.hashes_per_bucket * S),
                         )
                         doc_id = struct.unpack("<I", f.read(struct.calcsize("I")))[0]
                         # ensure sorted order
@@ -87,11 +91,11 @@ class TestMinhash(unittest.TestCase):
                     assert len(doc_ids) == 100
 
     def test_buckets_and_cluster(self):
-        for use_64bit_hashes in (True, False):
+        for precision in (32, 64):
             sigs_folder = os.path.join(self.tmp_dir, "b_signatures")
             buckets_folder = os.path.join(self.tmp_dir, "b_buckets")
             clusters_folder = os.path.join(self.tmp_dir, "b_clusters")
-            config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
+            config = MinhashConfig(hash_config=replace(DEFAULT_HASH_CONFIG, precision=precision))
 
             signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config)
             buckets_block = MinhashDedupBuckets(
@@ -170,11 +174,11 @@ class TestMinhash(unittest.TestCase):
             assert filtered_ids == kept
 
     def test_multiprocess_s2(self):
-        for use_64bit_hashes in (True, False):
+        for precision in (32, 64):
             sigs_folder = os.path.join(self.tmp_dir, "b_signatures")
             buckets_folder1 = os.path.join(self.tmp_dir, "b_buckets")
             buckets_folder2 = os.path.join(self.tmp_dir, "b_buckets2")
-            config = MinhashConfig(use_64bit_hashes=use_64bit_hashes)
+            config = MinhashConfig(hash_config=replace(DEFAULT_HASH_CONFIG, precision=precision))
 
             signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config)
             buckets_block1 = MinhashDedupBuckets(
