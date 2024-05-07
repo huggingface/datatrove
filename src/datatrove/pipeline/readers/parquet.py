@@ -11,6 +11,7 @@ class ParquetReader(BaseDiskReader):
     Args:
         data_folder: the data folder to read from
         limit: limit the number of Parquet rows to read
+        skip: skip the first n rows
         batch_size: the batch size to use (default: 1000)
         read_metadata: if True, will read the metadata (default: True)
         progress: show progress bar
@@ -33,6 +34,7 @@ class ParquetReader(BaseDiskReader):
         self,
         data_folder: DataFolderLike,
         limit: int = -1,
+        skip: int = 0,
         batch_size: int = 1000,
         read_metadata: bool = True,
         progress: bool = False,
@@ -47,6 +49,7 @@ class ParquetReader(BaseDiskReader):
         super().__init__(
             data_folder,
             limit,
+            skip,
             progress,
             adapter,
             text_key,

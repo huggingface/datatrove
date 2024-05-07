@@ -2,6 +2,7 @@ from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
+
 class FineWebQualityFilter(BaseFilter):
     name = "🍷 FineWeb Quality"
     _requires_dependencies = ["nltk"]

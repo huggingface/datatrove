@@ -102,6 +102,7 @@ class GopherRepetitionFilter(BaseFilter):
         self.top_n_grams = top_n_grams
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
+        self._line_splitter = re.compile("\n+")
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         from nltk.tokenize import word_tokenize
@@ -114,6 +115,7 @@ class GopherRepetitionFilter(BaseFilter):
             return False, "dup_para_frac"
         if self.dup_para_char_frac and char_duplicates / len(text) > self.dup_para_char_frac:
             return False, "dup_para_char_frac"
+
 
         lines = re.split('\n+', re.sub(r' *\n+ *', '\n', text))
         line_duplicates, char_duplicates = find_duplicates(lines)

@@ -10,6 +10,7 @@ class IpcReader(BaseDiskReader):
     Args:
         data_folder: the data folder to read from
         limit: limit the number of IPC documents to read
+        skip: skip the first n rows
         stream: if True, will read the file as a stream (default: False)
         progress: show progress bar
         adapter: function to adapt the data dict from the source to a Document.
@@ -31,6 +32,7 @@ class IpcReader(BaseDiskReader):
         self,
         data_folder: DataFolderLike,
         limit: int = -1,
+        skip: int = 0,
         stream: bool = False,
         progress: bool = False,
         adapter: Callable = None,
@@ -44,6 +46,7 @@ class IpcReader(BaseDiskReader):
         super().__init__(
             data_folder,
             limit,
+            skip,
             progress,
             adapter,
             text_key,

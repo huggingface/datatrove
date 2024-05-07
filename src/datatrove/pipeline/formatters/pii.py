@@ -3,7 +3,7 @@ import re
 from functools import partial
 from typing import Callable
 
-from .base import BaseFormatter
+from datatrove.pipeline.formatters.base import BaseFormatter
 
 
 class PIIReplacer:
@@ -74,9 +74,9 @@ class PIIFormatter(BaseFormatter):
         self.remove_ips = remove_ips
 
         self.emails_replacer = PIIReplacer(
-            r"\b[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:(?:[a-z0-9](?:[a-z0-9-]*["
-            r"a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25["
-            r"0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:)])",
+            r"\b[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:(?:[A-Za-z0-9](?:["
+            r"A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|["
+            r"01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[A-Za-z0-9-]*[A-Za-z0-9]:)])",
             email_replacement,
         )
 
