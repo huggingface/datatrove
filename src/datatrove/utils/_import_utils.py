@@ -44,3 +44,7 @@ def is_s3fs_available():
 
 def is_moto_available():
     return _is_package_available("moto")
+
+
+def is_torch_available():
+    return _is_package_available("torch")

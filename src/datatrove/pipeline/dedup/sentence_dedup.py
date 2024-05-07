@@ -23,8 +23,8 @@ from tqdm import tqdm
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.binaryio import read_tuples_from_file
-from datatrove.utils.text import TextNormConfig, sha1_hash64, simplify_text
+from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
+from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, sha1_hash64, simplify_text, split_into_parts
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
 from ..writers.disk_base import DiskWriter
@@ -36,6 +36,7 @@ class SentDedupConfig:
     split_sentences: bool = True  # set to False to split on \n instead
     only_dedup_in_index: bool = True
     min_doc_words: int = 50
+    min_num_sentences: int = 3  # remove docs that end up with fewer than 3 sentences
     min_words_to_remove_span: int = 0
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
 
@@ -303,13 +304,9 @@ class SentenceDedupFilter(PipelineStep):
 
     def read_duplicates(self, file: BinaryIO) -> np.ndarray:
         """Helper function to read duplicates from a binary file storing (doc_id, sent_id) pairs as created by the second stage."""
-        with file as f:
-            if self.data_folder.is_local():
-                return np.fromfile(
-                    f, dtype=[("doc", "<u4"), ("sent", "<u2")]
-                )  # np.fromfile(f, dtype=np.dtype({'names': ['doc', 'sent'], 'formats': ['<u4', '<u2'], 'offsets': [8, 12], 'itemsize': 16}))
-            else:
-                return np.frombuffer(f.read(), dtype=[("doc", "<u4"), ("sent", "<u2")])
+        return read_np_from_file(
+            file, dtype=np.dtype([("doc", "<u4"), ("sent", "<u2")]), is_local_file=self.data_folder.is_local()
+        )
 
     def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray) -> tuple[str, str]:
         from nltk.tokenize import word_tokenize
@@ -412,8 +409,23 @@ class SentenceDedupFilter(PipelineStep):
                         dups_doc_i += 1
 
                 if (
-                    filtered_text == doc.text
-                    or len(word_tokenize(filtered_text, self.language)) > self.config.min_doc_words
+                    (
+                        filtered_text == doc.text  # no change
+                        or (
+                            (
+                                # min doc words
+                                self.config.min_doc_words <= 0
+                                or len(word_tokenize(filtered_text, self.language)) >= self.config.min_doc_words
+                            )
+                            and (
+                                # min num sentences
+                                self.config.min_num_sentences <= 0
+                                or len(split_into_parts(filtered_text, SPLIT_TEXT_SENTENCES, self.language))
+                                >= self.config.min_num_sentences
+                            )
+                        )
+                    )
+                    and filtered_text  # can not be completely empty
                 ):  # document is kept
                     self.update_doc_stats(doc)
                     if not filtered_text == doc.text and writer:
