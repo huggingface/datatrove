@@ -80,7 +80,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_type: see https://slurm.schedmd.com/sbatch.html. Common values are (NONE, BEGIN, END, FAIL, REQUEUE, ALL)
         mail_user: email address to send notifications to
         requeue: requeue the job if it fails
-        tasks_per_job: each slurm job in the job array will run this many datatrove tasks. This reduces the total nb of slurm jobs launched.
+        tasks_per_job: each slurm job in the job array will run these many datatrove tasks. This reduces the total nb of slurm jobs launched.
     """
 
     def __init__(
