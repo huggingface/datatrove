@@ -13,6 +13,7 @@ import heapq
 import struct
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import BinaryIO, Generator
 
 import numpy as np
@@ -54,6 +55,7 @@ class HashSig:
     doc_id: int
     file_id: int = None
     sent_id: int = None
+    file_name: int = None
 
     def is_from_index(self):
         return self.doc_id == self.sent_id == -1
@@ -106,7 +108,7 @@ class SentenceDedupSignature(PipelineStep):
             ) as f:
                 # last bucket needs to have everything
                 right_hash = (
-                    (hash_i + 1) * hashes_per_worker if hash_i != self.finder_workers - 1 else np.iinfo(np.uint64).max
+                    (hash_i + 1) * hashes_per_worker if hash_i != self.finder_workers - 1 else self.hash_config.max
                 )
                 # find last hash that goes in this bucket. This obeys the following rule:
                 # signatures['hash'][right_idx - 1] <= right_hash <= signatures['hash'][right_idx]
@@ -168,6 +170,7 @@ def read_sigs(
     lines_to_buffer: int = 5,
 ) -> Generator[HashSig, None, None]:
     line_format = f"{hash_config.struct_format}IH" if not index_file else hash_config.struct_format
+    file_name = int(Path(file.path).stem)
     last = None
     with file as f:
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
@@ -176,7 +179,7 @@ def read_sigs(
             yield (
                 HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1)
                 if index_file
-                else HashSig(file_id=file_id, hash_value=data[0], doc_id=data[1], sent_id=data[2])
+                else HashSig(file_id=file_id, hash_value=data[0], doc_id=data[1], sent_id=data[2], file_name=file_name)
             )
 
 
@@ -270,7 +273,7 @@ class SentenceFindDedups(PipelineStep):
                 if (
                     last and last.hash_value == v.hash_value and not v.is_from_index()
                 ):  # we never want to match samples from the index itself
-                    out_filename = f"{rank:04d}/{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}"
+                    out_filename = f"{rank:04d}/{v.file_name:05d}{ExtensionHelperSD.stage_2_duplicates}"
                     # the previous one we are matching against is part of the index
                     # OR there are no index files
                     # OR we are also matching within the main dataset
