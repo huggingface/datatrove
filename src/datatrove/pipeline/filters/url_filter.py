@@ -27,7 +27,7 @@ def parse_list(line, do_normalize=True):
 
 def get_list(abs_path: str, file_name: str, extra: set = None, do_normalize: bool = True):
     with open(os.path.join(abs_path, file_name)) as f:
-        return parse_list(f, do_normalize).union(set(parse_list(extra, do_normalize)) if extra else set())
+        return parse_list(f, do_normalize).union(extra)
 
 
 class URLFilter(BaseFilter):
@@ -128,7 +128,7 @@ class URLFilter(BaseFilter):
             return False, "soft_blacklisted"
 
         normalized_space = normalize(url)
-        if next(self.banned_subwords_automaton.iter(normalized_space), False):
+        if self.banned_subwords and next(self.banned_subwords_automaton.iter(normalized_space), False):
             return False, "blacklisted_subword"
 
         return True
