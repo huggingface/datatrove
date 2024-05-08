@@ -162,10 +162,19 @@ class IndicNLPTokenizer(WordTokenizer):
         sents = self.sent_tokenize(text)
         return simple_span_tokenize(text, sents)
 
+class KiwiTokenizer(WordTokenizer):
+    def __init__(self, model_type="sbg"):
+        from kiwipiepy import Kiwi
+        
+        self.kiwi = Kiwi(model_type=model_type)
+
+    def tokenize(self, text) -> list[str]:
+        return [token.form for token in self.kiwi.tokenize(text)]
+
 
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.english: lambda: NLTKTokenizer("english"),
-    Languages.korean: lambda: SpaCyTokenizer("ko", {"nlp": {"tokenizer": {"@tokenizers": "spacy.Tokenizer.v1"}}}),
+    Languages.korean: KiwiTokenizer(),
     Languages.german: lambda: NLTKTokenizer("german"),
     Languages.french: lambda: NLTKTokenizer("french"),
     Languages.czech: lambda: NLTKTokenizer("czech"),
