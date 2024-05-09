@@ -38,7 +38,6 @@ class HashConfig:
 
 
 def create_hash_func(config: HashConfig) -> Callable[[str], int]:
-    # TODO: Check requirements for xxhash
     if config.hash_fc == "sha1":
         return sha1_hash32 if config.precision == 32 else sha1_hash64
     elif config.hash_fc == "xxhash":
