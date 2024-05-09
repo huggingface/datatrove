@@ -7,11 +7,6 @@ from typing import NoReturn
 ASSETS_PATH = os.path.join(importlib.resources.files(__package__.split(".")[0]), "assets")
 
 
-def guarded_import(step_name: str, package_name: str):
-    check_required_dependencies(step_name, [package_name])
-    return importlib.import_module(package_name)
-
-
 def check_required_dependencies(step_name: str, required_dependencies: list[str] | list[tuple[str, str]]):
     missing_dependencies: dict[str, str] = {}
     for dependency in required_dependencies:

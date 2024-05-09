@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from typing import Callable, Literal
 
 import numpy as np
-import xxhash
 
-from datatrove.utils._import_utils import guarded_import
+from datatrove.utils._import_utils import check_required_dependencies
 
 
 def sha1_hash32(data: str):
@@ -32,14 +31,6 @@ def sha1_hash64(data: str):
         int: an integer hash value that can be encoded using 64 bits.
     """
     return struct.unpack("<Q", hashlib.sha1(data.encode("utf-8")).digest()[:8])[0]
-
-
-def xxhash32(data: str):
-    return xxhash.xxh32_intdigest(data)  # type: ignore
-
-
-def xxhash64(data: str):
-    return xxhash.xxh64_intdigest(data)  # type: ignore
 
 
 @dataclass
@@ -68,7 +59,7 @@ class HashConfig:
         return np.iinfo(self.np_dtype).min
 
     def __str__(self):
-        return f"{self.hash_fc}_{self.precision}b"
+        return f"HashConfig(precision={self.precision}, hash_fc={self.hash_fc})"
 
 
 def create_hash_func(config: HashConfig) -> Callable[[str], int]:
@@ -76,7 +67,9 @@ def create_hash_func(config: HashConfig) -> Callable[[str], int]:
     if config.hash_fc == "sha1":
         return sha1_hash32 if config.precision == 32 else sha1_hash64
     elif config.hash_fc == "xxhash":
-        guarded_import("Hash Config", "xxhash")
+        check_required_dependencies("Hashing", ["xxhash"])
+        from datatrove.utils.hashes.xxhash import xxhash32, xxhash64
+
         return xxhash32 if config.precision == 32 else xxhash64
     else:
         raise ValueError(f"Unknown {config.hash_fc=}")
