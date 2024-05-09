@@ -74,7 +74,7 @@ class HashSig:
 
     sig: tuple[int]
     file_id: int
-    file_name: int
+    file_stem: str
     doc_id: int
     reader_id: int
 
@@ -106,7 +106,7 @@ def read_sigs(
             return
         seek_to_start(f, min_hash, line_format, config.hash_config.struct_format)
         last = None
-        file_name = int(Path(file.path).name.replace(".minhash.sig", ""))
+        file_stem = Path(file.path).name.replace(".minhash.sig", "")
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             sigdata = data if index_file else data[:-1]
             assert sigdata[0] >= min_hash and (
@@ -116,9 +116,9 @@ def read_sigs(
                 break
             last = sigdata
             yield (
-                HashSig(sig=sigdata, doc_id=-1, file_id=-1, reader_id=reader_id, file_name=file_name)
+                HashSig(sig=sigdata, doc_id=-1, file_id=-1, reader_id=reader_id, file_stem=file_stem)
                 if index_file
-                else HashSig(sig=sigdata, doc_id=data[-1], file_id=reader_id, reader_id=reader_id, file_name=file_name)
+                else HashSig(sig=sigdata, doc_id=data[-1], file_id=reader_id, reader_id=reader_id, file_stem=file_stem)
             )
 
 
@@ -391,11 +391,11 @@ class MinhashDedupBuckets(PipelineStep):
                             # write (file_id1, doc_id1, file_id2, doc_id2)
                             if last.is_from_index():
                                 # we can't actually write -1, so we use SENTINEL instead
-                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_name, v.doc_id))
+                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_stem, v.doc_id))
                                 self.stat_update("index_match", "total_matches")
                             # if there isn't an index, or we are not only deduping in relation to the index
                             elif not index_files or not self.only_dedup_in_index:
-                                out_f.write(struct.pack("<4I", last.file_name, last.doc_id, v.file_name, v.doc_id))
+                                out_f.write(struct.pack("<4I", last.file_stem, last.doc_id, v.file_stem, v.doc_id))
                                 self.stat_update("total_matches")
                         elif out_index:
                             # new sig that isn't part of any index, save to our new index

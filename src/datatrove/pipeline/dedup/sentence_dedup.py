@@ -56,7 +56,7 @@ class HashSig:
     doc_id: int
     file_id: int = None
     sent_id: int = None
-    file_name: str = None
+    file_stem: str = None
 
     def is_from_index(self):
         return self.doc_id == self.sent_id == -1
@@ -173,16 +173,16 @@ def read_sigs(
     lines_to_buffer: int = 5,
 ) -> Generator[HashSig, None, None]:
     line_format = f"{config.hash_config.struct_format}IH" if not index_file else config.hash_config.struct_format
-    file_name = Path(file.path).stem
+    file_stem = Path(file.path).name.replace(ExtensionHelperSD.stage_1_signature, "")
     last = None
     with file as f:
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
-                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1, file_name=file_name)
+                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1, file_stem=file_stem)
                 if index_file
-                else HashSig(file_id=file_id, hash_value=data[0], doc_id=data[1], sent_id=data[2], file_name=file_name)
+                else HashSig(file_id=file_id, hash_value=data[0], doc_id=data[1], sent_id=data[2], file_stem=file_stem)
             )
 
 
@@ -274,7 +274,7 @@ class SentenceFindDedups(PipelineStep):
                 if (
                     last and last.hash_value == v.hash_value and not v.is_from_index()
                 ):  # we never want to match samples from the index itself
-                    out_filename = f"{rank:04d}/{v.file_name}{ExtensionHelperSD.stage_2_duplicates}"
+                    out_filename = f"{rank:04d}/{v.file_stem}{ExtensionHelperSD.stage_2_duplicates}"
                     # the previous one we are matching against is part of the index
                     # OR there are no index files
                     # OR we are also matching within the main dataset

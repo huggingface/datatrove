@@ -8,6 +8,7 @@ import struct
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import BinaryIO, Callable, Generator
 
 import numpy as np
@@ -49,6 +50,7 @@ class HashSig:
     priority: int
     doc_id: int
     file_id: int
+    file_stem: str
 
     def is_from_index(self):
         return self.doc_id == -1 and self.priority == 1
@@ -163,14 +165,16 @@ def read_sigs(
     last = None
     line_format = f"{hash_config.struct_format}HI" if not index_file else hash_config.struct_format
     with file as f:
+        file_stem = Path(f.path).name.replace(ExtensionHelperSD.stage_1_signature, "")
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
-                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=-1)
+                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=-1, file_stem=file_stem)
                 if index_file
                 else HashSig(
                     file_id=file_id,
+                    file_stem=file_stem,
                     hash_value=data[0],
                     priority=data[1],
                     doc_id=data[2],
@@ -270,7 +274,7 @@ class UrlFindDedups(PipelineStep):
             while pq:
                 v: HashSig = heapq.heappop(pq)
                 if last and last.hash_value == v.hash_value and not v.is_from_index():
-                    out_filename = f"{rank:04d}/{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}"
+                    out_filename = f"{rank:04d}/{v.file_stem}{ExtensionHelperSD.stage_2_duplicates}"
                     doc_id_bytes = packer.pack(v.doc_id)
                     output_mg.write(out_filename, doc_id_bytes)
                 last = v
