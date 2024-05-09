@@ -5,7 +5,7 @@ import unittest
 
 from datatrove.data import Document
 from datatrove.pipeline.decont import NGramsDecontConfig, NGramsDecontFilter, NGramsDecontIndexer
-from tests.utils import require_xxhash
+from tests.utils import require_xxhash, use_hash_configs
 
 
 TEXTS = [
@@ -42,9 +42,12 @@ class TestNGramDecont(unittest.TestCase):
         nfilter = NGramsDecontFilter(self.tmp_dir, config=config)
         return tuple([int(doc.id) for doc in nfilter(copy.deepcopy(DOCS))])
 
-    def test_label_only(self):
+    @use_hash_configs()
+    def test_label_only(self, hash_config):
         self.assertEqual(
-            self.get_test_results(NGramsDecontConfig(find_query_ngrams=False, find_overlap_ngrams=False)),
+            self.get_test_results(
+                NGramsDecontConfig(find_query_ngrams=False, find_overlap_ngrams=False, hash_config=hash_config)
+            ),
             (0, 2, 3, 4, 5, 6),
         )
 

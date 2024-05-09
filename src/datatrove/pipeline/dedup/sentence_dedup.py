@@ -41,6 +41,7 @@ class SentDedupConfig:
     min_num_sentences: int = 3  # remove docs that end up with fewer than 3 sentences
     min_words_to_remove_span: int = 0
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
+    hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
 
 
 DEFAULT_SENT_DEDUP_CONFIG = SentDedupConfig()
@@ -55,7 +56,7 @@ class HashSig:
     doc_id: int
     file_id: int = None
     sent_id: int = None
-    file_name: int = None
+    file_name: str = None
 
     def is_from_index(self):
         return self.doc_id == self.sent_id == -1
@@ -80,7 +81,6 @@ class SentenceDedupSignature(PipelineStep):
         output_folder: DataFolderLike,
         finder_workers: int = 1,
         config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
-        hash_config: HashConfig = DEFAULT_HASH_CONFIG,
         language: str = "english",
     ):
         super().__init__()
@@ -91,16 +91,17 @@ class SentenceDedupSignature(PipelineStep):
             logger.warning(f"Remember to also set the name of tasks of the finder block to {finder_workers=}!")
         self.finder_workers = finder_workers
         self.config = config
-        self.hash_config = hash_config
-        self.hash_fc = create_hash_func(hash_config)
+        self.hash_fc = create_hash_func(config.hash_config)
         self.language = language
 
     def save_hashes(self, rank: int, signatures):
         # explicitly define little endiannes
-        signatures = np.array(signatures, dtype=[("hash", self.hash_config.np_descr), ("doc", "<u4"), ("sent", "<u2")])
+        signatures = np.array(
+            signatures, dtype=[("hash", self.config.hash_config.np_descr), ("doc", "<u4"), ("sent", "<u2")]
+        )
         signatures.sort(axis=0)
 
-        hashes_per_worker = self.hash_config.max // self.finder_workers
+        hashes_per_worker = self.config.hash_config.max // self.finder_workers
         left_idx = 0
         for hash_i in range(self.finder_workers):
             with self.output_folder.open(
@@ -108,7 +109,9 @@ class SentenceDedupSignature(PipelineStep):
             ) as f:
                 # last bucket needs to have everything
                 right_hash = (
-                    (hash_i + 1) * hashes_per_worker if hash_i != self.finder_workers - 1 else self.hash_config.max
+                    (hash_i + 1) * hashes_per_worker
+                    if hash_i != self.finder_workers - 1
+                    else self.config.hash_config.max
                 )
                 # find last hash that goes in this bucket. This obeys the following rule:
                 # signatures['hash'][right_idx - 1] <= right_hash <= signatures['hash'][right_idx]
@@ -165,19 +168,19 @@ class SentenceDedupSignature(PipelineStep):
 def read_sigs(
     file: AbstractBufferedFile,
     file_id: int,
-    hash_config: HashConfig,
+    config: SentDedupConfig,
     index_file: bool = False,
     lines_to_buffer: int = 5,
 ) -> Generator[HashSig, None, None]:
-    line_format = f"{hash_config.struct_format}IH" if not index_file else hash_config.struct_format
-    file_name = int(Path(file.path).stem)
+    line_format = f"{config.hash_config.struct_format}IH" if not index_file else config.hash_config.struct_format
+    file_name = Path(file.path).stem
     last = None
     with file as f:
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
-                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1)
+                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, sent_id=-1, file_name=file_name)
                 if index_file
                 else HashSig(file_id=file_id, hash_value=data[0], doc_id=data[1], sent_id=data[2], file_name=file_name)
             )
@@ -205,7 +208,6 @@ class SentenceFindDedups(PipelineStep):
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
         config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
-        hash_config: HashConfig = DEFAULT_HASH_CONFIG,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -213,7 +215,6 @@ class SentenceFindDedups(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
         self.config = config
-        self.hash_config = hash_config
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
@@ -230,7 +231,7 @@ class SentenceFindDedups(PipelineStep):
                     subdirectory=f"{rank:04d}", glob_pattern=ExtensionHelperSD.stage_1_signature
                 )
             sig_readers = [
-                read_sigs(file, file_i, hash_config=self.hash_config, lines_to_buffer=self.lines_to_buffer)
+                read_sigs(file, file_i, config=self.config, lines_to_buffer=self.lines_to_buffer)
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
             index_files = self.index_folder.list_files() if self.index_folder else None
@@ -241,7 +242,7 @@ class SentenceFindDedups(PipelineStep):
                         read_sigs(
                             file,
                             len(sig_readers) + file_i,
-                            hash_config=self.hash_config,
+                            config=self.config,
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
                         )
@@ -273,7 +274,7 @@ class SentenceFindDedups(PipelineStep):
                 if (
                     last and last.hash_value == v.hash_value and not v.is_from_index()
                 ):  # we never want to match samples from the index itself
-                    out_filename = f"{rank:04d}/{v.file_name:05d}{ExtensionHelperSD.stage_2_duplicates}"
+                    out_filename = f"{rank:04d}/{v.file_name}{ExtensionHelperSD.stage_2_duplicates}"
                     # the previous one we are matching against is part of the index
                     # OR there are no index files
                     # OR we are also matching within the main dataset
@@ -471,7 +472,7 @@ class SentenceDedupBuildIndex(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_name: str,
-        hash_config: HashConfig,
+        config: SentDedupConfig,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -479,14 +480,14 @@ class SentenceDedupBuildIndex(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer
-        self.hash_config = hash_config
+        self.config = config
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
         with self.stats.time_stats:
             sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
             sig_readers = [
-                read_sigs(file, file_i, self.hash_config, lines_to_buffer=self.lines_to_buffer)
+                read_sigs(file, file_i, self.config, lines_to_buffer=self.lines_to_buffer)
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))
             ]
 

@@ -45,6 +45,7 @@ class NGramsDecontConfig:
     find_query_ngrams: bool = False  # enable to also check for matches in n-grams containing only the input/prompt
     find_overlap_ngrams: bool = True  # will also find matches for n-grams containing BOTH input and query
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
+    hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
 
 
 DEFAULT_NGRAMS_DECONT_CONFIG = NGramsDecontConfig()
@@ -74,7 +75,6 @@ class NGramsDecontIndexer(PipelineStep):
         lighteval_tasks: str | list[str] | None = None,  # list in the format suite|task or path to one such list
         custom_lighteval_tasks: str | None = None,
         config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
-        hash_config: HashConfig = DEFAULT_HASH_CONFIG,
         language: str = "english",
     ):
         super().__init__()
@@ -91,7 +91,7 @@ class NGramsDecontIndexer(PipelineStep):
         self.custom_lighteval_tasks = custom_lighteval_tasks
         self.config = config
         self.language = language
-        self.hash_func = create_hash_func(hash_config)
+        self.hash_func = create_hash_func(self.config.hash_config)
 
     def compute_hashes(self, label: str, query: str | None = None) -> list[int]:
         from nltk import ngrams
@@ -185,7 +185,6 @@ class NGramsDecontFilter(BaseFilter):
         self,
         index_folder: DataFolderLike,
         config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
-        hash_config: HashConfig = DEFAULT_HASH_CONFIG,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
     ):
@@ -195,7 +194,7 @@ class NGramsDecontFilter(BaseFilter):
         self.exclusion_writer = exclusion_writer
         self.language = language
         self._index_hashes = None
-        self.hash_func = create_hash_func(hash_config)
+        self.hash_func = create_hash_func(self.config.hash_config)
 
     def load_index_hashes(self):
         def load_index_from_file(file):
