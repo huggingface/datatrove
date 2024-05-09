@@ -43,7 +43,6 @@ class MinhashConfig:
         n_grams: n-grams size to use
         num_buckets: number of buckets to use
         hashes_per_bucket: number of hashes per bucket
-        use_64bit_hashes: use 64bit hashes. Uses 32bit hashes if `False`
         seed: random seed used to generate the hash function parameters. Should be the same on all workers to ensure they all have the same parameters
     """
 
@@ -56,11 +55,7 @@ class MinhashConfig:
     hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
 
     def __str__(self):
-        return (
-            f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_"
-            # TODO: Add repr to hash_config
-            f"{self.hash_config}"
-        )
+        return f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_" f"{self.hash_config}"
 
 
 DEFAULT_MINHASH_CONFIG = MinhashConfig()

@@ -67,6 +67,9 @@ class HashConfig:
     def min(self):
         return np.iinfo(self.np_dtype).min
 
+    def __str__(self):
+        return f"{self.hash_fc}_{self.precision}b"
+
 
 def create_hash_func(config: HashConfig) -> Callable[[str], int]:
     # TODO: Check requirements for xxhash
