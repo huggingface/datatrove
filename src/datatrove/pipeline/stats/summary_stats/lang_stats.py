@@ -1,7 +1,5 @@
 from typing import get_args
 
-from loguru import logger
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.stats.summary_stats.base import BaseStats
