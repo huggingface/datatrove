@@ -25,7 +25,7 @@ def parse_list(line, do_normalize=True):
     return {normalize(x) if do_normalize else x.strip() for x in line if x[0] != "#"}
 
 
-def get_list(abs_path: str, file_name: str, extra: set = None, do_normalize: bool = True):
+def get_list(abs_path: str, file_name: str, extra: set, do_normalize: bool = True):
     with open(os.path.join(abs_path, file_name)) as f:
         return parse_list(f, do_normalize).union(extra)
 
