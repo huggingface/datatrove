@@ -41,10 +41,11 @@ class HuggingFaceDatasetReader(BaseReader):
         id_key: str = "id",
         default_metadata: dict = None,
     ):
-        super().__init__(limit, skip, False, doc_progress, adapter, text_key, id_key, default_metadata)
+        super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
         self.dataset_options = dataset_options
         self.batch_size = batch_size
+        self.doc_progress = doc_progress
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
         document = super().get_document_from_dict(data, source, id_in_file)
