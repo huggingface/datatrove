@@ -2,7 +2,8 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, GROUP, BaseStats, TopKConfig
+from datatrove.pipeline.stats.summary_stats.base import BaseStats
+from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 
 def get_short_word_ratio(words: list[str], threshold: int) -> float:
@@ -14,6 +15,17 @@ def get_long_word_ratio(words: list[str], threshold: int) -> float:
 
 
 class WordStats(BaseStats):
+    """
+    Word level stats of a document.
+
+    Available stats:
+    n_words: Number of words in the document
+    avg_word_length: Average length of words in the document
+    avg_words_per_line: Average number of words per line in the document
+    short_word_ratio_{chars}: Ratio of words shorter than {chars} characters
+    long_word_ratio_{chars}: Ratio of words longer than {chars} characters
+    """
+
     type = "📊 - STATS"
     name = "🈂️ Word stats"
     _requires_dependencies = ["nltk"] + BaseStats._requires_dependencies

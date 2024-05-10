@@ -2,7 +2,8 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, GROUP, BaseStats, TopKConfig
+from datatrove.pipeline.stats.summary_stats.base import BaseStats
+from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 
 class WordsContaminationStats(BaseStats):

@@ -10,7 +10,6 @@ from datatrove.pipeline.stats.summary_stats import (
     DEFAULT_TOP_K_CONFIG,
     GROUP,
     STATS_MERGED_NAME,
-    BaseStats,
     DocStats,
     LineStats,
     StatsMerger,
@@ -19,6 +18,7 @@ from datatrove.pipeline.stats.summary_stats import (
     WordsContaminationStats,
     WordStats,
 )
+from datatrove.pipeline.stats.summary_stats.base import BaseStats
 from datatrove.pipeline.stats.summary_stats.lang_stats import LangStats
 from datatrove.utils.stats import MetricStatsDict
 from tests.utils import require_nltk, require_tldextract, require_tokenizers
