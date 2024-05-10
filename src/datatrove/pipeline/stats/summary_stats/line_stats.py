@@ -63,5 +63,6 @@ class LineStats(BaseStats):
                 f"long_line_ratio_chars_{chars}": get_min_chars_per_line_ratio(lines, chars)
                 for chars in self.long_max_chars
             },
-            "lines_ending_with_terminal_mark_ratio": sum(1 for line in lines if line.endswith(END_PUNCTUATION)),
+            "lines_ending_with_terminal_mark_ratio": sum(1 for line in lines if line.endswith(END_PUNCTUATION))
+            / len(lines),
         }
