@@ -391,11 +391,13 @@ class MinhashDedupBuckets(PipelineStep):
                             # write (file_id1, doc_id1, file_id2, doc_id2)
                             if last.is_from_index():
                                 # we can't actually write -1, so we use SENTINEL instead
-                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_stem, v.doc_id))
+                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, int(v.file_stem), v.doc_id))
                                 self.stat_update("index_match", "total_matches")
                             # if there isn't an index, or we are not only deduping in relation to the index
                             elif not index_files or not self.only_dedup_in_index:
-                                out_f.write(struct.pack("<4I", last.file_stem, last.doc_id, v.file_stem, v.doc_id))
+                                out_f.write(
+                                    struct.pack("<4I", int(last.file_stem), last.doc_id, int(v.file_stem), v.doc_id)
+                                )
                                 self.stat_update("total_matches")
                         elif out_index:
                             # new sig that isn't part of any index, save to our new index

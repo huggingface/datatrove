@@ -8,10 +8,14 @@ from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.hashes.sha1 import sha1_hash32, sha1_hash64
 
 
-@dataclass
+@dataclass(frozen=True)
 class HashConfig:
     precision: Literal[32, 64] = 64
     hash_fc: Literal["sha1", "xxhash"] = "xxhash"
+
+    def __post_init__(self):
+        if self.hash_fc == "xxhash":
+            check_required_dependencies("xxhash Hashing", ["xxhash"])
 
     @property
     def np_dtype(self):
@@ -41,7 +45,6 @@ def create_hash_func(config: HashConfig) -> Callable[[str], int]:
     if config.hash_fc == "sha1":
         return sha1_hash32 if config.precision == 32 else sha1_hash64
     elif config.hash_fc == "xxhash":
-        check_required_dependencies("Hashing", ["xxhash"])
         from datatrove.utils.hashes.xxhash import xxhash32, xxhash64
 
         return xxhash32 if config.precision == 32 else xxhash64
