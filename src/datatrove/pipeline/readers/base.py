@@ -1,6 +1,7 @@
 import random
 from abc import abstractmethod
 from contextlib import nullcontext
+from types import MethodType
 from typing import Callable
 
 from loguru import logger
@@ -19,10 +20,11 @@ class BaseReader(PipelineStep):
         limit: limit the number of documents to read. Useful for debugging
         progress: show tqdm progress bar. Might be spammy in some environments
         adapter: function to adapt the data dict from the source to a Document.
-            Take as input: data: dict, path: str, id_in_file: int | str
-            Return: a dict with at least a "text" key
-        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
-        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
+            Takes as input: (self, data: dict, path: str, id_in_file: int | str)
+                self allows access to self.text_key and self.id_key
+            Returns: a dict with at least a "text" key
+        text_key: key to use for the text in the default adapter (default: "text").
+        id_key: key to use for the id in the default adapter (default: "id").
         default_metadata: default metadata to add to all documents
     """
 
@@ -31,28 +33,20 @@ class BaseReader(PipelineStep):
     def __init__(
         self,
         limit: int = -1,
+        skip: int = 0,
         progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
     ):
-        """
-
-        Args:
-            limit: read at most this number of documents
-            progress: show a tqdm progress bar
-            adapter: custom function that should return a dictionary with the datatrove Document format (see _default_adapter)
-            text_key: the key containing the text data. `text` by default
-            id_key: the key containing the id for each sample. `id` by default
-            default_metadata: a dictionary with any data that should be added to all sample's metadata
-        """
         super().__init__()
         self.limit = limit
+        self.skip = skip
         self.progress = progress
         self.text_key = text_key
         self.id_key = id_key
-        self.adapter = adapter if adapter else self._default_adapter
+        self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
 
@@ -91,7 +85,8 @@ class BaseReader(PipelineStep):
             if not self._empty_warning:
                 self._empty_warning = True
                 logger.warning(
-                    f"Found document without text, skipping. " f'Is your `text_key` ("{self.text_key}") correct?'
+                    f"Found document without text, skipping. "
+                    f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
                 )
             return None
         document = Document(**parsed_data)
@@ -128,6 +123,7 @@ class BaseDiskReader(BaseReader):
         self,
         data_folder: DataFolderLike,
         limit: int = -1,
+        skip: int = 0,
         progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
@@ -142,6 +138,7 @@ class BaseDiskReader(BaseReader):
         Args:
             data_folder: a str, tuple or DataFolder object representing a path/filesystem
             limit: read at most this number of documents
+            skip: skip the first n rows
             progress: show a tqdm progress bar
             adapter: custom function that should return a dictionary with the datatrove Document format (see _default_adapter)
             text_key: the key containing the text data. `text` by default
@@ -152,7 +149,7 @@ class BaseDiskReader(BaseReader):
             shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
             with dedup blocks
         """
-        super().__init__(limit, progress, adapter, text_key, id_key, default_metadata)
+        super().__init__(limit, skip, progress, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
         self.recursive = recursive
         self.glob_pattern = glob_pattern
@@ -187,12 +184,16 @@ class BaseDiskReader(BaseReader):
 
         """
         li = 0
+        skipped = 0
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             for filepath in shard:
                 self.stat_update("input_files")
                 logger.info(f"Reading input file {filepath}")
                 di = 0
                 for di, document in enumerate(self.read_file(filepath)):
+                    if skipped < self.skip:
+                        skipped += 1
+                        continue
                     if self.limit != -1 and li >= self.limit:
                         break
                     yield document

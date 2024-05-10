@@ -1,6 +1,6 @@
 from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.tokenization import PipelineStepWithTokenizer
+from datatrove.utils.tokenization import PipelineStepWithTokenizer, batched
 
 
 class TokensCounter(PipelineStepWithTokenizer):
@@ -10,7 +10,8 @@ class TokensCounter(PipelineStepWithTokenizer):
 
     Args:
         tokenizer_name_or_path (str): the name or path of the tokenizer to use, from the HuggingFace tokenizers library or a local file.
-        count_eos_token (bool): whether to count the EOS token on each document.
+        count_eos_token (bool): whether to count the EOS token on each document. (basically +1 per document)
+        batch_size: batch size for tokenization
     """
 
     name = "📊 Counter"
@@ -20,20 +21,12 @@ class TokensCounter(PipelineStepWithTokenizer):
         self,
         tokenizer_name_or_path: str = "gpt2",  # tokenizer to use, from HF or a local file path
         count_eos_token: bool = False,  # whether to count the EOS token on each document
-        overwrite: bool = True,  # re-tokenize and recompute nb of tokens even if they are already in metadata["tokens_count"]
+        batch_size: int = 10000,  # batch size for tokenization
     ):
-        """
-        Initializes the token counting pipeline step.
-
-        Args:
-            tokenizer_name_or_path: Name or path of tokenizer to use (from HF or local).
-            count_eos_token: Whether to include the EOS token in the token count per document. (basically +1 per document)
-            overwrite: Whether to re-tokenize and recompute the number of tokens even if they are already stored in metadata["tokens_count"]
-        """
         super().__init__()
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.count_eos_token = count_eos_token
-        self.overwrite = overwrite
+        self.batch_size = batch_size
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
@@ -47,17 +40,19 @@ class TokensCounter(PipelineStepWithTokenizer):
           DocumentsPipeline: The pipeline with updated documents, each having a new or updated `token_count` in its metadata.
 
         """
-        for document in data:
-            if "token_count" in document.metadata and not self.overwrite:
-                count = document.metadata["token_count"]
-            else:
-                with self.track_time():
-                    count = len(self.tokenizer.encode(document.text).ids)
-                    if self.count_eos_token:
-                        count += 1
+        from tokenizers import Encoding
+
+        # tokenize document's text in batches to go faster
+        for batch in batched(data, self.batch_size):
+            with self.track_time(unit="batch"):
+                encoded_batch: list[Encoding] = self.tokenizer.encode_batch([document.text for document in batch])
+            for document, encoded in zip(batch, encoded_batch):
+                count = len(encoded.ids)
+                if self.count_eos_token:
+                    count += 1
                 document.metadata["token_count"] = count
-            self.stat_update("tokens", value=count)
-            yield document
+                self.stat_update("tokens", value=count)
+                yield document
 
 
 class LengthCounter(PipelineStep):
