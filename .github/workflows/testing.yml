@@ -24,8 +24,8 @@ jobs:
           pip install .[quality]
       - name: Check quality
         run: |
-          ruff check tests src # linter
-          ruff format --check tests src # formatter
+          ruff check tests src examples # linter
+          ruff format --check tests src examples # formatter
 
   test:
     runs-on: ubuntu-latest
