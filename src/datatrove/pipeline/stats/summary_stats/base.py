@@ -2,39 +2,15 @@ import heapq
 import json
 from abc import abstractmethod
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import List, Literal, get_args
+from typing import get_args
 
 from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, STAT_TYPE, TopKConfig
 from datatrove.utils.stats import MetricStatsDict
-
-
-GROUP = Literal["summary", "histogram", "fqdn", "suffix"]
-
-
-@dataclass
-class TopKConfig:
-    """
-    Configuration for compressing the statistics.
-    Each group in top_k_groups will truncate the statistics to the top k keys.
-    This lowers memory usage and speeds up the merging in second-stage.
-
-    If run in distributed mode, each node will create its own top_k_keys, which
-    leads to inconsistent top_k_keys between nodes. To acount for this, set around
-    0.8*top_k as the number of top_k_keys for merging step.
-    """
-
-    top_k_groups: List[GROUP]
-    top_k: int
-
-
-DEFAULT_TOP_K_CONFIG = TopKConfig(top_k_groups=["fqdn", "suffix"], top_k=100_000)
-
-STAT_TYPE = int | float
 
 
 class BaseStats(PipelineStep):
@@ -97,7 +73,9 @@ class BaseStats(PipelineStep):
             raise ValueError(f"Unknown group name: {group_name}")
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        groups_dicts = {group: defaultdict(MetricStatsDict) for group in self.groups}
+        groups_dicts: dict[GROUP, dict[str, MetricStatsDict]] = {
+            group: defaultdict(MetricStatsDict) for group in self.groups
+        }
         with self.track_time():
             for doc in data:
                 try:
@@ -119,13 +97,13 @@ class BaseStats(PipelineStep):
 
             for stat_name, stat_values in stats_dict.items():
                 if group in self.top_k_cfg.top_k_groups:
-                    # We don't have to compure this for every stat in group, as stat.n will be constant
+                    # We don't have to compute this for every stat in group, as stat.n will be constant
                     if group_top_k_keys is None:
                         group_top_k_keys = heapq.nlargest(
-                            self.top_k_cfg.top_k, stat_values, key=lambda x: stat_values.get(x).n
+                            self.top_k_cfg.top_k, stat_values, key=lambda x: stat_values[x].n
                         )
 
-                    stat_values = MetricStatsDict(init={s: stat_values.get(s) for s in group_top_k_keys})
+                    stat_values = MetricStatsDict(init={s: stat_values[s] for s in group_top_k_keys})
 
                 with self.output_folder.open(f"{group}/{stat_name}/{rank:05d}.json", "wt") as f:
                     json.dump(stat_values.to_dict(), f)

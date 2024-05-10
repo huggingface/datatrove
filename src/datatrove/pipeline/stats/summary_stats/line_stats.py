@@ -2,8 +2,9 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.filters.c4_quality_filter import END_PUNCTUATION
-from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, GROUP, BaseStats, TopKConfig
+from datatrove.pipeline.filters.c4_filters import END_PUNCTUATION
+from datatrove.pipeline.stats.summary_stats.base import BaseStats
+from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 
 def get_max_chars_per_line_ratio(lines, chars: int) -> float:
