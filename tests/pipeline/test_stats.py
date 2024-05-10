@@ -19,6 +19,7 @@ from datatrove.pipeline.stats.summary_stats import (
     WordsContaminationStats,
     WordStats,
 )
+from datatrove.pipeline.stats.summary_stats.lang_stats import LangStats
 from datatrove.utils.stats import MetricStatsDict
 from tests.utils import require_nltk, require_tldextract, require_tokenizers
 
@@ -234,3 +235,19 @@ class TestStatsModules(unittest.TestCase):
 
         computed_stats = self.load_computed_means(list(expected_token_counter.keys()))
         self.assertEqual(computed_stats, expected_token_counter)
+
+    def test_lang_stats(self):
+        docs = [
+            Document("This is pure english text", "1", metadata={"url": "test.cz"}),
+            Document("Toto je český text", "2", metadata={"url": "test.cz"}),
+        ]
+
+        expected_lang_stats = {
+            "fasttext_en": {"0.887": 1, "0.0": 1},
+        }
+
+        lang_stats = LangStats(self.tmp_dir, language="en")
+        list(lang_stats.run(docs))
+
+        computed_stats = self.load_computed_means(list(expected_lang_stats.keys()))
+        self.assertEqual(computed_stats, expected_lang_stats)

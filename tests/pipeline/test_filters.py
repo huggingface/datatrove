@@ -84,10 +84,21 @@ class TestFilters(unittest.TestCase):
     def test_language(self):
         language_filter = LanguageFilter(languages=("en", "it"))
 
-        self.assertTrue(language_filter.filter(Document(text=TEXT_LF_1, id="0")))
-        self.assertFalse(language_filter.filter(Document(text=TEXT_LF_2, id="0")))
-        self.assertFalse(language_filter.filter(Document(text=TEXT_LF_3, id="0")))
-        self.assertTrue(language_filter.filter(Document(text=TEXT_LF_4, id="0")))
+        doc1 = Document(text=TEXT_LF_1, id="0")
+        self.assertTrue(language_filter.filter(doc1))
+        self.assertEqual(doc1.metadata["language"], "en")
+
+        doc2 = Document(text=TEXT_LF_2, id="0")
+        self.assertFalse(language_filter.filter(doc2))
+        self.assertEqual(doc2.metadata["language"], "fr")
+
+        doc3 = Document(text=TEXT_LF_3, id="0")
+        self.assertFalse(language_filter.filter(doc3))
+        self.assertEqual(doc3.metadata["language"], "pt")
+
+        doc4 = Document(text=TEXT_LF_4, id="0")
+        self.assertTrue(language_filter.filter(doc4))
+        self.assertEqual(doc4.metadata["language"], "it")
 
     def test_regex(self):
         regex_filter = RegexFilter(regex_exp=r"(?i)copyright")
