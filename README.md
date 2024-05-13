@@ -223,6 +223,11 @@ For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder stru
 ```
 </details>
 
+### Colors
+
+`datatrove` uses `loguru` for logging, which presumes that you're using a dark mode terminal and therefore if you're using a light mode the colored output is likely to be unreadable. To overcome this turn colorization off by setting
+`export LOGURU_COLORIZE=NO`.
+
 ## DataFolder / paths
 Datatrove supports a wide variety of input/output sources through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).
 
