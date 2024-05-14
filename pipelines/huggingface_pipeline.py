@@ -2,19 +2,16 @@
 
 """
 
-import sys
+import sys, os, re
 
 sys.path.append("../src")
-
-import os, re
 from datatrove.pipeline.readers.huggingface import HuggingFaceDatasetReader
 from datatrove.pipeline.tokens import TokensCounter, LengthCounter
 from swiss_ai.writers.jsonl import SwissAIJsonlWriter
 from datatrove.executor.local import LocalPipelineExecutor
 
-os.environ["HF_BASE"] = "/work_space_data/hf_cache"
-if not os.path.exists("/work_space_data/hf_cache"):
-    os.makedirs("/work_space_data/hf_cache")
+# os.environ["HF_BASE"] = "/work_space_data/hf_cache"
+# Don't forget to set the HF_BASE environment variable to a valid path
 
 
 def find_years(text):
@@ -50,30 +47,33 @@ def _multilegal_adapter(data: dict, path: str, id_in_file: int | str):
 
 
 if __name__ == "__main__":
+    INPUT_READER = HuggingFaceDatasetReader(
+        dataset="joelniklaus/Multi_Legal_Pile",
+        dataset_options={
+            "split": "train",
+            "name": "all_legislation",
+            "cache_dir": os.environ["HF_BASE"],
+            "trust_remote_code": True,
+        },
+        progress=True,
+        adapter=_multilegal_adapter,
+        limit=1000,
+    )
     pipeline = [
-        HuggingFaceDatasetReader(
-            dataset="joelniklaus/Multi_Legal_Pile",
-            dataset_options={
-                "split": "train",
-                "name": "da_caselaw",
-                "cache_dir": "/work_space_data/hf_cache",
-                "trust_remote_code": True,
-            },
-            progress=True,
-            adapter=_multilegal_adapter,
-            limit=1000,
-        ),
+        INPUT_READER,
         TokensCounter(),
         LengthCounter(),
-        SwissAIJsonlWriter(output_folder="/work_space_data/multilegal_pile/jsonl"),
+        SwissAIJsonlWriter(
+            output_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/jsonl'
+        ),
     ]
 
-    exec = LocalPipelineExecutor(
+    main_processing_executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=16,
         workers=1,
         start_method="spawn",
-        logging_dir="/work_space_data/multilegal_pile/logging",
+        logging_dir=f'/{os.environ["HF_BASE"]}/multilegal_pile/logging',
     )
 
-    exec.run()
+    main_processing_executor.run()
