@@ -2,6 +2,10 @@
 
 """
 
+import sys
+
+sys.path.append("../src")
+
 import os, re
 from datatrove.pipeline.readers.huggingface import HuggingFaceDatasetReader
 from datatrove.pipeline.tokens import TokensCounter, LengthCounter
