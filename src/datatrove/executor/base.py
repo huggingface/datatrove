@@ -22,6 +22,8 @@ class PipelineExecutor(ABC):
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
+      colorize_log_files: add colorization to files saved in logs/task_XXXXX.log
+      colorize_log_output: add colorization to terminal output logs. None to autodetect
     """
 
     @abstractmethod
@@ -30,10 +32,14 @@ class PipelineExecutor(ABC):
         pipeline: list[PipelineStep | Callable],
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
+        colorize_log_files: bool = False,
+        colorize_log_output: bool | None = None,
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.logging_dir = get_datafolder(logging_dir if logging_dir else f"logs/{get_timestamp()}_{get_random_str()}")
         self.skip_completed = skip_completed
+        self.colorize_log_files = colorize_log_files
+        self.colorize_log_output = colorize_log_output
 
     @abstractmethod
     def run(self):
@@ -67,7 +73,9 @@ class PipelineExecutor(ABC):
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
-        logfile = add_task_logger(self.logging_dir, rank, local_rank)
+        logfile = add_task_logger(
+            self.logging_dir, rank, local_rank, self.colorize_log_files, self.colorize_log_output
+        )
         log_pipeline(self.pipeline)
         try:
             # pipe data from one step to the next

@@ -81,6 +81,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_user: email address to send notifications to
         requeue: requeue the job if it fails
         tasks_per_job: each slurm job in the job array will run these many datatrove tasks. This reduces the total nb of slurm jobs launched.
+        colorize_log_files: add colorization to files saved in logs/task_XXXXX.log
+        colorize_log_output: add colorization to terminal output logs. None to autodetect
     """
 
     def __init__(
@@ -114,8 +116,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
         requeue: bool = True,
         srun_args: dict = None,
         tasks_per_job: int = 1,
+        colorize_log_files: bool = False,
+        colorize_log_output: bool | None = None,
     ):
-        super().__init__(pipeline, logging_dir, skip_completed)
+        super().__init__(pipeline, logging_dir, skip_completed, colorize_log_files, colorize_log_output)
         self.tasks = tasks
         self.workers = workers
         self.partition = partition

@@ -29,21 +29,29 @@ def get_random_str(length=5):
     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
-def add_task_logger(logging_dir: DataFolder, rank: int, local_rank: int = 0):
+def add_task_logger(
+    logging_dir: DataFolder,
+    rank: int,
+    local_rank: int = 0,
+    colorize_log_files: bool = False,
+    colorize_log_output: bool | None = None,
+):
     """
     Sets up logging for a given task
     Args:
       logging_dir: DataFolder:
       rank: int:
       local_rank: int:  (Default value = 0)
+      colorize_log_files: add colorization to files saved in logs/task_XXXXX.log
+      colorize_log_output: add colorization to terminal output logs. None to autodetect
 
     Returns:
 
     """
     logger.remove()
     logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "w")
-    logger.add(sys.stderr, level="INFO" if local_rank == 0 else "ERROR")
-    logger.add(logfile, colorize=True, level="DEBUG")
+    logger.add(sys.stderr, colorize=colorize_log_output, level="INFO" if local_rank == 0 else "ERROR")
+    logger.add(logfile, colorize=colorize_log_files, level="DEBUG")
     logger.info(f"Launching pipeline for {rank=}")
     return logfile
 
