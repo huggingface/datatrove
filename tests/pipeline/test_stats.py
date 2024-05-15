@@ -98,7 +98,7 @@ class TestSummaryStats(unittest.TestCase):
             self.assertEqual(stats["test1.co.uk"].total, 3.5)
             self.assertEqual(stats["test2.cz"].total, 0)
 
-    def test_meging_stats(self):
+    def test_merging_stats(self):
         summary_stats = DummyStats(output_folder=self.tmp_dir)
         merge_stats = StatsMerger(self.tmp_dir, self.tmp_dir)
 
