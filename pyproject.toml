@@ -56,7 +56,8 @@ processing = [
     "tokenizers",
     "ftfy",
     "fasteners",
-    "xxhash"
+    "xxhash",
+    "pyahocorasick"
 ]
 decont = [
     "lighteval>=0.3.0"
