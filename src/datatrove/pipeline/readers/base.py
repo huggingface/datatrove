@@ -1,6 +1,5 @@
 import random
 from abc import abstractmethod
-from contextlib import nullcontext
 from types import MethodType
 from typing import Callable
 
@@ -18,7 +17,6 @@ class BaseReader(PipelineStep):
 
     Args:
         limit: limit the number of documents to read. Useful for debugging
-        progress: show tqdm progress bar. Might be spammy in some environments
         adapter: function to adapt the data dict from the source to a Document.
             Takes as input: (self, data: dict, path: str, id_in_file: int | str)
                 self allows access to self.text_key and self.id_key
@@ -34,7 +32,6 @@ class BaseReader(PipelineStep):
         self,
         limit: int = -1,
         skip: int = 0,
-        progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
@@ -43,7 +40,6 @@ class BaseReader(PipelineStep):
         super().__init__()
         self.limit = limit
         self.skip = skip
-        self.progress = progress
         self.text_key = text_key
         self.id_key = id_key
         self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
@@ -108,7 +104,8 @@ class BaseDiskReader(BaseReader):
     Args:
         data_folder: the data folder to read from
         limit: limit the number of documents to read. Useful for debugging
-        progress: show progress bar
+        file_progress: show progress bar for files
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data from the source to a Document
         text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
         id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
@@ -124,7 +121,8 @@ class BaseDiskReader(BaseReader):
         data_folder: DataFolderLike,
         limit: int = -1,
         skip: int = 0,
-        progress: bool = False,
+        file_progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
@@ -139,7 +137,8 @@ class BaseDiskReader(BaseReader):
             data_folder: a str, tuple or DataFolder object representing a path/filesystem
             limit: read at most this number of documents
             skip: skip the first n rows
-            progress: show a tqdm progress bar
+            file_progress: show a tqdm progress bar for files
+            doc_progress: show a tqdm progress bar for documents
             adapter: custom function that should return a dictionary with the datatrove Document format (see _default_adapter)
             text_key: the key containing the text data. `text` by default
             id_key: the key containing the id for each sample. `id` by default
@@ -149,11 +148,13 @@ class BaseDiskReader(BaseReader):
             shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
             with dedup blocks
         """
-        super().__init__(limit, skip, progress, adapter, text_key, id_key, default_metadata)
+        super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
         self.recursive = recursive
         self.glob_pattern = glob_pattern
         self.shuffle_files = shuffle_files
+        self.file_progress = file_progress
+        self.doc_progress = doc_progress
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
@@ -185,10 +186,18 @@ class BaseDiskReader(BaseReader):
         """
         li = 0
         skipped = 0
-        with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
-            for filepath in shard:
+        with (
+            tqdm(
+                total=self.limit if self.limit != -1 else None,
+                desc="Document progress",
+                unit="doc",
+                disable=not self.doc_progress,
+            ) as doc_pbar,
+            tqdm(total=len(shard), desc="File progress", unit="file", disable=not self.file_progress) as file_pbar,
+        ):
+            for i, filepath in enumerate(shard):
                 self.stat_update("input_files")
-                logger.info(f"Reading input file {filepath}")
+                logger.info(f"Reading input file {filepath}, {i+1}/{len(shard)}")
                 di = 0
                 for di, document in enumerate(self.read_file(filepath)):
                     if skipped < self.skip:
@@ -197,9 +206,9 @@ class BaseDiskReader(BaseReader):
                     if self.limit != -1 and li >= self.limit:
                         break
                     yield document
-                    if self.progress:
-                        pbar.update()
+                    doc_pbar.update()
                     li += 1
+                file_pbar.update()
                 self.stat_update("documents", value=di, unit="input_file")
                 if self.limit != -1 and li >= self.limit:
                     break

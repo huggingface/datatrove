@@ -1,5 +1,4 @@
 import copy
-from contextlib import nullcontext
 from typing import Callable
 
 from tqdm import tqdm
@@ -19,7 +18,7 @@ class HuggingFaceDatasetReader(BaseReader):
         limit: limit the number of rows to read
         skip: skip the first n rows
         batch_size: the batch size to use
-        progress: show progress bar
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
@@ -39,16 +38,17 @@ class HuggingFaceDatasetReader(BaseReader):
         limit: int = -1,
         skip: int = 0,
         batch_size: int = 1000,
-        progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
     ):
-        super().__init__(limit, skip, progress, adapter, text_key, id_key, default_metadata)
+        super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
         self.dataset_options = dataset_options or {}
         self.batch_size = batch_size
+        self.doc_progress = doc_progress
         self.streaming = streaming
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
@@ -94,7 +94,7 @@ class HuggingFaceDatasetReader(BaseReader):
             )
 
         shard = self._get_dataset_shard(ds, rank, world_size)
-        with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
+        with tqdm(total=self.limit if self.limit != -1 else None, disable=not self.doc_progress) as pbar:
             li = 0
             for batch in shard.iter(self.batch_size):
                 if self.limit != -1 and li >= self.limit:
@@ -111,6 +111,5 @@ class HuggingFaceDatasetReader(BaseReader):
                         self.update_doc_stats(document)
                         self.stat_update("documents")
                         li += 1
-                        if self.progress:
-                            pbar.update()
+                        pbar.update()
                 yield from documents
