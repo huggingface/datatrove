@@ -26,7 +26,6 @@ class WordStats(BaseStats):
     long_word_ratio_{chars}: Ratio of words longer than {chars} characters
     """
 
-    type = "📊 - STATS"
     name = "🈂️ Word stats"
     _requires_dependencies = ["nltk"] + BaseStats._requires_dependencies
 

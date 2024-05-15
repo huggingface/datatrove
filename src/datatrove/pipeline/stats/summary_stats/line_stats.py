@@ -30,7 +30,6 @@ class LineStats(BaseStats):
         min_k_chars_per_line_thresholds: List of min chars per line to compute stats for. If None, default to [2000, 10000]
     """
 
-    type = "📊 - STATS"
     name = "🎼 Line stats"
 
     def __init__(

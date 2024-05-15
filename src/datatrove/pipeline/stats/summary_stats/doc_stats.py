@@ -17,7 +17,6 @@ class DocStats(BaseStats):
     digit_ratio: Ratio of digits
     """
 
-    type = "📊 - STATS"
     name = "📜 Doc stats"
 
     def __init__(

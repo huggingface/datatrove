@@ -15,7 +15,6 @@ class LangStats(BaseStats):
     fasttext_{language}
     """
 
-    type = "📊 - STATS"
     name = "🎤 Language stats"
 
     def __init__(

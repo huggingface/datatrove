@@ -34,7 +34,7 @@ class BaseStats(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
@@ -42,7 +42,7 @@ class BaseStats(PipelineStep):
 
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.groups = groups_to_compute
+        self.groups = groups_to_compute or list(get_args(GROUP))
         self.histogram_round_digits = histogram_round_digits
         self.top_k_cfg = top_k_config
         self.tld_extractor = TLDExtract()

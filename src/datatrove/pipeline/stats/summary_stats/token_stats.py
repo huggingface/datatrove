@@ -14,7 +14,6 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
     unique_token_count: Number of unique tokens in the document
     """
 
-    type = "📊 - STATS"
     name = "🔗 Token counter"
 
     _requires_dependencies = ["tokenizers"] + BaseStats._requires_dependencies
