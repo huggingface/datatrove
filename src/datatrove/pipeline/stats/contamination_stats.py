@@ -2,8 +2,8 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
+from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.text import TextNormConfig, simplify_text
 
 

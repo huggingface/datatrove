@@ -9,7 +9,7 @@ GROUP = Literal["summary", "histogram", "fqdn", "suffix"]
 class TopKConfig:
     """
     Configuration for compressing the statistics.
-    Each group in top_k_groups will truncate the statistics to the top k keys.
+    Each group in top_k_groups will be truncated to the top k keys.
     This lowers memory usage and speeds up the merging in second-stage.
 
     If run in distributed mode, each node will create its own top_k_keys, which

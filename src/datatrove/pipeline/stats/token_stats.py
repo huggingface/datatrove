@@ -1,7 +1,7 @@
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.config import GROUP
+from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.config import GROUP
 from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 

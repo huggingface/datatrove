@@ -8,7 +8,7 @@ from tqdm import tqdm
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, TopKConfig
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, TopKConfig
 from datatrove.utils.stats import MetricStats, MetricStatsDict
 
 

@@ -9,7 +9,7 @@ from loguru import logger
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, STAT_TYPE, TopKConfig
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, STAT_TYPE, TopKConfig
 from datatrove.utils.stats import MetricStatsDict
 
 
