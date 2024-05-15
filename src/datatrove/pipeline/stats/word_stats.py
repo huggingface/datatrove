@@ -34,8 +34,8 @@ class WordStats(BaseStats):
         output_folder: DataFolderLike,
         short_word_max_chars_threshold: list[int] | None = None,
         long_word_max_chars_threshold: list[int] | None = None,
-        histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(

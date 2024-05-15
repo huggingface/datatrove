@@ -37,8 +37,8 @@ class LineStats(BaseStats):
         output_folder: DataFolderLike,
         max_k_chars_per_line_tresholds: list[int] | None = None,
         min_k_chars_per_line_thresholds: list[int] | None = None,
-        histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(output_folder, groups_to_compute, histogram_round_digits, top_k_config)

@@ -1,7 +1,7 @@
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.stats.base import BaseStats
-from datatrove.pipeline.stats.config import GROUP
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 
@@ -24,8 +24,9 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
         tokenizer_name_or_path: str = "gpt2",
         groups_to_compute: list[GROUP] = ["fqdn", "suffix", "summary", "histogram"],
         histogram_rounding: int = 3,
+        top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
-        BaseStats.__init__(self, output_folder, groups_to_compute, histogram_rounding)
+        BaseStats.__init__(self, output_folder, groups_to_compute, histogram_rounding, top_k_config)
         PipelineStepWithTokenizer.__init__(self)
         self.tokenizer_name_or_path = tokenizer_name_or_path
 

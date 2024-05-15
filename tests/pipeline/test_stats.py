@@ -112,7 +112,7 @@ class TestSummaryStats(unittest.TestCase):
     def test_merging_top_k(self):
         top_k_config = TopKConfig(top_k=1, top_k_groups=["fqdn"])
         summary_stats = DummyStats(output_folder=self.tmp_dir)
-        merge_stats = StatsMerger(self.tmp_dir, self.tmp_dir, top_k=top_k_config)
+        merge_stats = StatsMerger(self.tmp_dir, self.tmp_dir, top_k_config=top_k_config)
 
         list(summary_stats.run(DOCS[0:2], 0, 2))
         list(summary_stats.run(DOCS[2:4], 1, 2))

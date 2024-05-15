@@ -63,7 +63,7 @@ if __name__ == "__main__":
                 input_folder=DATA_FOLDER,
                 output_folder=f"{DATA_FOLDER}",
                 remove_input=False,
-                top_k=dataclasses.replace(top_k_config, top_k=8_000),
+                top_k_config=dataclasses.replace(top_k_config, top_k=8_000),
             ),
         ],
         tasks=TOTAL_TASKS,
