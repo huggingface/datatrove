@@ -68,11 +68,11 @@ def close_task_logger(logfile, colorize_log_output: bool | None = None):
     """
     logger.complete()
     logger.remove()
-    logfile.close()
-    logger.add(sys.stderr, colorize=colorize_log_output)  # re-add default logger
+    reset_logging(colorize_log_output)  # re-add default logger
 
 
-def set_colorization(colorize_log_output: bool | None = None):
+def reset_logging(colorize_log_output: bool | None = None):
+    logger.remove()
     logger.add(sys.stderr, colorize=colorize_log_output)
 
 
