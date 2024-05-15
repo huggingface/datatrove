@@ -15,7 +15,7 @@ from datatrove.utils.logging import (
     get_random_str,
     get_timestamp,
     log_pipeline,
-    set_colorization,
+    reset_logging,
 )
 from datatrove.utils.stats import PipelineStats
 
@@ -47,7 +47,7 @@ class PipelineExecutor(ABC):
         self.skip_completed = skip_completed
         self.colorize_log_files = colorize_log_files
         self.colorize_log_output = colorize_log_output
-        set_colorization(colorize_log_output)
+        reset_logging(colorize_log_output)
 
     @abstractmethod
     def run(self):
