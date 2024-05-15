@@ -96,6 +96,8 @@ Some options common to all executors:
 - `pipeline` a list consisting of the pipeline steps that should be run
 - `logging_dir` a datafolder where log files, statistics and more should be saved. Do not reuse folders for different pipelines/jobs as this will overwrite your stats, logs and completions.
 - `skip_completed` (_bool_, `True` by default) datatrove keeps track of completed tasks so that when you relaunch a job they can be skipped. Set this to `False` to disable this behaviour
+- `colorize_log_files` (_bool_, `False` by default) add ANSI colors to log messages saved to logs/task_XXXXX.log.
+- `colorize_log_output` (_bool_ or _`None`_, `None` by default) add ANSI colors to console log messages. Set to `None` to enable if supported terminal is detected.
 
 Call an executor's `run` method to execute its pipeline.
 
