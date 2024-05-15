@@ -9,7 +9,14 @@ from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp, log_pipeline
+from datatrove.utils.logging import (
+    add_task_logger,
+    close_task_logger,
+    get_random_str,
+    get_timestamp,
+    log_pipeline,
+    set_colorization,
+)
 from datatrove.utils.stats import PipelineStats
 
 
@@ -40,6 +47,7 @@ class PipelineExecutor(ABC):
         self.skip_completed = skip_completed
         self.colorize_log_files = colorize_log_files
         self.colorize_log_output = colorize_log_output
+        set_colorization(colorize_log_output)
 
     @abstractmethod
     def run(self):

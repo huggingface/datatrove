@@ -72,6 +72,10 @@ def close_task_logger(logfile, colorize_log_output: bool | None = None):
     logger.add(sys.stderr, colorize=colorize_log_output)  # re-add default logger
 
 
+def set_colorization(colorize_log_output: bool | None = None):
+    logger.add(sys.stderr, colorize=colorize_log_output)
+
+
 def log_pipeline(pipeline):
     """
     Print/log pipeline
