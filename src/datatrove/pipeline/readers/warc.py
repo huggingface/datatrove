@@ -16,7 +16,9 @@ class WarcReader(BaseDiskReader):
         data_folder: the data folder to read from
         compression: the compression to use (default: "infer")
         limit: limit the number of WARC documents to read
-        progress: show progress bar
+        skip: skip the first n rows
+        file_progress: show progress bar for files
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
@@ -37,7 +39,9 @@ class WarcReader(BaseDiskReader):
         data_folder: DataFolderLike,
         compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
-        progress: bool = False,
+        skip: int = 0,
+        file_progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
@@ -50,7 +54,9 @@ class WarcReader(BaseDiskReader):
         super().__init__(
             data_folder,
             limit,
-            progress,
+            skip,
+            file_progress,
+            doc_progress,
             adapter,
             text_key,
             id_key,

@@ -95,3 +95,19 @@ def require_datasets(test_case):
     except ImportError:
         test_case = unittest.skip("test requires datasets")(test_case)
     return test_case
+
+
+def require_xxhash(test_case):
+    try:
+        import xxhash  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires xxhash")(test_case)
+    return test_case
+
+
+def require_lighteval(test_case):
+    try:
+        import lighteval  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires lighteval")(test_case)
+    return test_case

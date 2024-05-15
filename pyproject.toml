@@ -1,6 +1,6 @@
 [project]
 name = "datatrove"
-version = "0.0.1"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+version = "0.2.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
@@ -54,7 +54,13 @@ processing = [
     "tldextract",
     "trafilatura>=1.8.0",
     "tokenizers",
-    "ftfy"
+    "ftfy",
+    "fasteners",
+    "xxhash",
+    "pyahocorasick"
+]
+decont = [
+    "lighteval>=0.3.0"
 ]
 quality = [
   "ruff>=0.1.5"
@@ -64,6 +70,7 @@ testing = [
   "datatrove[io]",
   "datatrove[processing]",
   "datatrove[s3]",
+  "datatrove[decont]",
   "pytest",
   "pytest-timeout",
   "pytest-xdist",
