@@ -30,4 +30,9 @@ class LangStats(BaseStats):
         self.language = language
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
-        return {f"fasttext_{self.language}": self.fasttext.predict(doc)[1][self.language]}
+        language_score = 0
+        if doc.metadata.get("language") == self.language and "language_score" in doc.metadata:
+            language_score = doc.metadata["language_score"]
+        else:
+            language_score = self.fasttext.predict(doc)[1][self.language]
+        return {f"fasttext_{self.language}": language_score}
