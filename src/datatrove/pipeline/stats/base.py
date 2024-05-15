@@ -89,6 +89,7 @@ class BaseStats(PipelineStep):
                         key, value = self.get_kv(doc, value, group)
                         counters[stat][key] += value
 
+                doc.metadata.update(doc_stats)
                 yield doc
 
         # save to disk
