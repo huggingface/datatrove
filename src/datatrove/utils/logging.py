@@ -56,11 +56,12 @@ def add_task_logger(
     return logfile
 
 
-def close_task_logger(logfile):
+def close_task_logger(logfile, colorize_log_output: bool | None = None):
     """
     Close logfile and reset logging setup
     Args:
       logfile:
+      colorize_log_output: add colorization to terminal output logs. None to autodetect
 
     Returns:
 
@@ -68,7 +69,7 @@ def close_task_logger(logfile):
     logger.complete()
     logger.remove()
     logfile.close()
-    logger.add(sys.stderr)  # re-add default logger
+    logger.add(sys.stderr, colorize=colorize_log_output)  # re-add default logger
 
 
 def log_pipeline(pipeline):

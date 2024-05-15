@@ -103,7 +103,7 @@ class PipelineExecutor(ABC):
             logger.exception(e)
             raise e
         finally:
-            close_task_logger(logfile)
+            close_task_logger(logfile, self.colorize_log_output)
         return stats
 
     def is_rank_completed(self, rank: int) -> bool:
