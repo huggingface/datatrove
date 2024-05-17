@@ -1,3 +1,4 @@
+import os
 import random
 import string
 import sys
@@ -6,6 +7,15 @@ from datetime import datetime
 from loguru import logger
 
 from datatrove.io import DataFolder
+
+
+def get_env_bool(name, default=None):
+    env_var = os.environ.get(name, None)
+    return default if env_var is None else (env_var.lower() in ("yes", "true", "t", "1"))
+
+
+DATATROVE_COLORIZE_LOGS = get_env_bool("DATATROVE_COLORIZE_LOGS")
+DATATROVE_COLORIZE_LOG_FILES = get_env_bool("DATATROVE_COLORIZE_LOG_FILES", False)
 
 
 def get_timestamp() -> str:
@@ -33,8 +43,6 @@ def add_task_logger(
     logging_dir: DataFolder,
     rank: int,
     local_rank: int = 0,
-    colorize_log_files: bool = False,
-    colorize_log_output: bool | None = None,
 ):
     """
     Sets up logging for a given task
@@ -42,38 +50,34 @@ def add_task_logger(
       logging_dir: DataFolder:
       rank: int:
       local_rank: int:  (Default value = 0)
-      colorize_log_files: add colorization to files saved in logs/task_XXXXX.log
-      colorize_log_output: add colorization to terminal output logs. None to autodetect
-
     Returns:
 
     """
     logger.remove()
     logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "w")
-    logger.add(sys.stderr, colorize=colorize_log_output, level="INFO" if local_rank == 0 else "ERROR")
-    logger.add(logfile, colorize=colorize_log_files, level="DEBUG")
+    logger.add(sys.stderr, colorize=DATATROVE_COLORIZE_LOGS, level="INFO" if local_rank == 0 else "ERROR")
+    logger.add(logfile, colorize=DATATROVE_COLORIZE_LOG_FILES, level="DEBUG")
     logger.info(f"Launching pipeline for {rank=}")
     return logfile
 
 
-def close_task_logger(logfile, colorize_log_output: bool | None = None):
+def close_task_logger(logfile):
     """
     Close logfile and reset logging setup
     Args:
       logfile:
-      colorize_log_output: add colorization to terminal output logs. None to autodetect
-
     Returns:
 
     """
     logger.complete()
     logger.remove()
-    reset_logging(colorize_log_output)  # re-add default logger
+    logfile.close()
+    setup_default_logger()  # re-add default logger
 
 
-def reset_logging(colorize_log_output: bool | None = None):
+def setup_default_logger():
     logger.remove()
-    logger.add(sys.stderr, colorize=colorize_log_output)
+    logger.add(sys.stderr, colorize=DATATROVE_COLORIZE_LOGS)
 
 
 def log_pipeline(pipeline):
@@ -87,3 +91,7 @@ def log_pipeline(pipeline):
     """
     steps = "\n".join([pipe.__repr__() if callable(pipe) else "Iterable" for pipe in pipeline])
     logger.info(f"\n--- 🛠️ PIPELINE 🛠\n{steps}")
+
+
+# set colorization based on env vars
+setup_default_logger()

@@ -2,12 +2,12 @@ import contextlib
 import math
 
 import numpy as np
-from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.logging import logger
 from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, sha1_hash32, simplify_text
 from datatrove.utils.typeshelper import StatHints
 

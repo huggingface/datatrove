@@ -96,8 +96,6 @@ Some options common to all executors:
 - `pipeline` a list consisting of the pipeline steps that should be run
 - `logging_dir` a datafolder where log files, statistics and more should be saved. Do not reuse folders for different pipelines/jobs as this will overwrite your stats, logs and completions.
 - `skip_completed` (_bool_, `True` by default) datatrove keeps track of completed tasks so that when you relaunch a job they can be skipped. Set this to `False` to disable this behaviour
-- `colorize_log_files` (_bool_, `False` by default) add ANSI colors to log messages saved to logs/task_XXXXX.log.
-- `colorize_log_output` (_bool_ or _`None`_, `None` by default) add ANSI colors to console log messages. Set to `None` to enable if supported terminal is detected.
 
 Call an executor's `run` method to execute its pipeline.
 
@@ -224,6 +222,12 @@ For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder stru
     └── stats.json ⟵ global stats from all tasks
 ```
 </details>
+
+### Colorization
+Log messages support colorization. By default, colorization will be auto detected for console messages and disabled for log files (logs/task_XXXXX.log).
+To explicitly enable or disable colorization, you may set the following environment variables:
+- `DATATROVE_COLORIZE_LOGS` "1" to add ANSI colors to console log messages and "0" to disable colorization.
+- `DATATROVE_COLORIZE_LOG_FILES` set to "1" to add ANSI colors to log messages saved to logs/task_XXXXX.log.
 
 ## DataFolder / paths
 Datatrove supports a wide variety of input/output sources through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).

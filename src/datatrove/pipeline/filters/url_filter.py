@@ -4,11 +4,11 @@ import tarfile
 from typing import Iterable
 
 from huggingface_hub import cached_assets_path
-from loguru import logger
 
 from datatrove.data import Document
 from datatrove.io import safely_create_file
 from datatrove.utils._import_utils import ASSETS_PATH
+from datatrove.utils.logging import logger
 
 from ..writers.disk_base import DiskWriter
 from .base_filter import BaseFilter

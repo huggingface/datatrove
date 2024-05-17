@@ -5,8 +5,6 @@ from collections import deque
 from collections.abc import Sequence
 from typing import Callable
 
-from loguru import logger
-
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import (
@@ -15,7 +13,7 @@ from datatrove.utils.logging import (
     get_random_str,
     get_timestamp,
     log_pipeline,
-    reset_logging,
+    logger,
 )
 from datatrove.utils.stats import PipelineStats
 
@@ -29,8 +27,6 @@ class PipelineExecutor(ABC):
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
-      colorize_log_files: add colorization to files saved in logs/task_XXXXX.log
-      colorize_log_output: add colorization to terminal output logs. None to autodetect
     """
 
     @abstractmethod
@@ -39,15 +35,10 @@ class PipelineExecutor(ABC):
         pipeline: list[PipelineStep | Callable],
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
-        colorize_log_files: bool = False,
-        colorize_log_output: bool | None = None,
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.logging_dir = get_datafolder(logging_dir if logging_dir else f"logs/{get_timestamp()}_{get_random_str()}")
         self.skip_completed = skip_completed
-        self.colorize_log_files = colorize_log_files
-        self.colorize_log_output = colorize_log_output
-        reset_logging(colorize_log_output)
 
     @abstractmethod
     def run(self):
@@ -81,9 +72,7 @@ class PipelineExecutor(ABC):
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
-        logfile = add_task_logger(
-            self.logging_dir, rank, local_rank, self.colorize_log_files, self.colorize_log_output
-        )
+        logfile = add_task_logger(self.logging_dir, rank, local_rank)
         log_pipeline(self.pipeline)
         try:
             # pipe data from one step to the next
@@ -111,7 +100,7 @@ class PipelineExecutor(ABC):
             logger.exception(e)
             raise e
         finally:
-            close_task_logger(logfile, self.colorize_log_output)
+            close_task_logger(logfile)
         return stats
 
     def is_rank_completed(self, rank: int) -> bool:

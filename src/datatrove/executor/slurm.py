@@ -15,12 +15,11 @@ from typing import Callable
 
 import dill
 from dill import CONTENTS_FMODE
-from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import get_random_str, get_timestamp
+from datatrove.utils.logging import get_random_str, get_timestamp, logger
 
 
 def requeue_handler(signum, _frame):
@@ -81,8 +80,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_user: email address to send notifications to
         requeue: requeue the job if it fails
         tasks_per_job: each slurm job in the job array will run these many datatrove tasks. This reduces the total nb of slurm jobs launched.
-        colorize_log_files: add colorization to files saved in logs/task_XXXXX.log
-        colorize_log_output: add colorization to terminal output logs. None to autodetect
     """
 
     def __init__(
@@ -116,10 +113,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         requeue: bool = True,
         srun_args: dict = None,
         tasks_per_job: int = 1,
-        colorize_log_files: bool = False,
-        colorize_log_output: bool | None = None,
     ):
-        super().__init__(pipeline, logging_dir, skip_completed, colorize_log_files, colorize_log_output)
+        super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
         self.workers = workers
         self.partition = partition
