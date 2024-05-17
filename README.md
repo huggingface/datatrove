@@ -223,6 +223,12 @@ For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder stru
 ```
 </details>
 
+### Colorization
+Log messages support colorization. By default, colorization will be auto detected for console messages and disabled for log files (logs/task_XXXXX.log).
+To explicitly enable or disable colorization, you may set the following environment variables:
+- `DATATROVE_COLORIZE_LOGS` "1" to add ANSI colors to console log messages and "0" to disable colorization.
+- `DATATROVE_COLORIZE_LOG_FILES` set to "1" to add ANSI colors to log messages saved to logs/task_XXXXX.log.
+
 ## DataFolder / paths
 Datatrove supports a wide variety of input/output sources through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).
 

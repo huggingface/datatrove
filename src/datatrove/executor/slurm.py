@@ -15,12 +15,11 @@ from typing import Callable
 
 import dill
 from dill import CONTENTS_FMODE
-from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import get_random_str, get_timestamp
+from datatrove.utils.logging import get_random_str, get_timestamp, logger
 
 
 def requeue_handler(signum, _frame):

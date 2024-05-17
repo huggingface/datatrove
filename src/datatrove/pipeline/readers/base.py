@@ -3,12 +3,12 @@ from abc import abstractmethod
 from types import MethodType
 from typing import Callable
 
-from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.logging import logger
 
 
 class BaseReader(PipelineStep):

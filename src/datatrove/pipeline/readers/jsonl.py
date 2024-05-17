@@ -2,10 +2,9 @@ import json
 from json import JSONDecodeError
 from typing import Callable, Literal
 
-from loguru import logger
-
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
+from datatrove.utils.logging import logger
 
 
 class JsonlReader(BaseDiskReader):

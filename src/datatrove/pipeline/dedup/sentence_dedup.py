@@ -17,13 +17,13 @@ from typing import BinaryIO, Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
-from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
+from datatrove.utils.logging import logger
 from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, sha1_hash64, simplify_text, split_into_parts
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 

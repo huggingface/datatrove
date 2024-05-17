@@ -1,13 +1,13 @@
 import mmap
 
 import numpy as np
-from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.merger import load_doc_ends
+from datatrove.utils.logging import logger
 
 
 class DocumentTokenizerContextShuffler(PipelineStep):
