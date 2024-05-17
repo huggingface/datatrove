@@ -9,7 +9,7 @@ from loguru import logger
 
 def get_env_bool(name, default=None):
     env_var = os.environ.get(name, None)
-    return default if env_var is None else (env_var.lower() in ("yes", "true", "t", "1"))
+    return default if env_var is None else (env_var.lower().strip() in ("yes", "true", "t", "1"))
 
 
 DATATROVE_COLORIZE_LOGS = get_env_bool("DATATROVE_COLORIZE_LOGS")
