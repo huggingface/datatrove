@@ -68,9 +68,8 @@ def close_task_logger(logfile):
 
     """
     logger.complete()
-    logger.remove()
-    logfile.close()
     setup_default_logger()  # re-add default logger
+    logfile.close()
 
 
 def setup_default_logger():
