@@ -6,8 +6,6 @@ from datetime import datetime
 
 from loguru import logger
 
-from datatrove.io import DataFolder
-
 
 def get_env_bool(name, default=None):
     env_var = os.environ.get(name, None)
@@ -40,14 +38,14 @@ def get_random_str(length=5):
 
 
 def add_task_logger(
-    logging_dir: DataFolder,
+    logging_dir,
     rank: int,
     local_rank: int = 0,
 ):
     """
     Sets up logging for a given task
     Args:
-      logging_dir: DataFolder:
+      logging_dir: DataFolder
       rank: int:
       local_rank: int:  (Default value = 0)
     Returns:
