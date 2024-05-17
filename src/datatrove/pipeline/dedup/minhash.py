@@ -453,7 +453,9 @@ class MinhashDedupCluster(PipelineStep):
         def parent(x):
             if x not in union_set or union_set[x] == x:
                 return x
-            return parent(union_set[x])
+            # Path Compression
+            union_set[x] = parent(union_set[x])
+            return union_set[x]
 
         with self.track_time():
             for dup_file in dup_files:
