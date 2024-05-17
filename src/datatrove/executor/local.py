@@ -4,11 +4,11 @@ from functools import partial
 from typing import Callable
 
 import multiprocess
-from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.logging import logger
 from datatrove.utils.stats import PipelineStats
 
 

@@ -9,7 +9,6 @@ from typing import Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
-from loguru import logger
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -17,6 +16,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_tuples_from_file, seek_to_start
 from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.logging import logger
 from datatrove.utils.text import TextNormConfig, simplify_text
 from datatrove.utils.typeshelper import StatHints
 

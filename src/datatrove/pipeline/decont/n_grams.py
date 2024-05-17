@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from typing import Tuple
 
 import numpy as np
-from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, file_exists, get_datafolder, open_file
@@ -20,6 +19,7 @@ from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_np_from_file
 from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.logging import logger
 from datatrove.utils.text import TextNormConfig, simplify_text
 
 

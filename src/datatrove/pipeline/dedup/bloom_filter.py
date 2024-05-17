@@ -3,13 +3,13 @@ import math
 from dataclasses import replace
 
 import numpy as np
-from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.logging import logger
 from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, simplify_text
 from datatrove.utils.typeshelper import StatHints
 

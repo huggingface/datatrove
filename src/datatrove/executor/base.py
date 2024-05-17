@@ -5,11 +5,16 @@ from collections import deque
 from collections.abc import Sequence
 from typing import Callable
 
-from loguru import logger
-
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp, log_pipeline
+from datatrove.utils.logging import (
+    add_task_logger,
+    close_task_logger,
+    get_random_str,
+    get_timestamp,
+    log_pipeline,
+    logger,
+)
 from datatrove.utils.stats import PipelineStats
 
 
