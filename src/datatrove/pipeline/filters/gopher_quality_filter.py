@@ -4,6 +4,7 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.text import PUNCTUATION_SET
+from datatrove.utils.word_tokenizers import load_tokenizer
 
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
@@ -15,6 +16,7 @@ class GopherQualityFilter(BaseFilter):
 
     def __init__(
         self,
+        language: str = "en",
         min_doc_words: int | None = 50,
         max_doc_words: int | None = 100000,
         min_avg_word_length: int | None = 3,
@@ -55,6 +57,7 @@ class GopherQualityFilter(BaseFilter):
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
+        self.language = language
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
@@ -66,10 +69,9 @@ class GopherQualityFilter(BaseFilter):
         Returns: False if sample.text does not pass any of the the heuristic tests
 
         """
-        from nltk.tokenize import word_tokenize
-
         text = doc.text
-        words = word_tokenize(text)  # TODO we should use language id filter
+        tokenizer = load_tokenizer(self.language)
+        words = tokenizer.word_tokenize(text)
         n_words = len(words)
 
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]

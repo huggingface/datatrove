@@ -23,6 +23,7 @@ class Languages:
     romanian = "ro"
     german = "de"
     latin = "la"
+    korean = "ko"
 
 
 class StatHints:
