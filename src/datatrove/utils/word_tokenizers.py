@@ -17,10 +17,17 @@ class WordTokenizer(ABC):
     def sent_tokenize(self, text: str) -> list[str]:
         pass
 
+    @abstractmethod
+    def span_tokenize(self, text: str) -> list[tuple[int, int]]:
+        pass
+
 
 class NLTKTokenizer(WordTokenizer):
     def __init__(self, punkt_language: str):
         super().__init__()
+        from nltk import load
+
+        self._tokenizer = load(f"tokenizers/punkt/{punkt_language}.pickle")
         self.punkt_language = punkt_language
 
     def word_tokenize(self, text) -> list[str]:
@@ -34,6 +41,9 @@ class NLTKTokenizer(WordTokenizer):
 
         sents = sent_tokenize(text, language=self.punkt_language)
         return strip_strings(sents)
+
+    def span_tokenize(self, text: str) -> list[tuple[int, int]]:
+        return list(self._tokenizer.span_tokenize(text))
 
 
 class SpaCyTokenizer(WordTokenizer):
@@ -56,6 +66,12 @@ class SpaCyTokenizer(WordTokenizer):
         self.tokenizer.max_length = len(text) + 10
         sents = [sent.text for sent in self.tokenizer(text, disable=["parser", "tagger", "ner"]).sents]
         return strip_strings(sents)
+
+    def span_tokenize(self, text: str) -> list[tuple[int, int]]:
+        return [
+            (sent.start_char, sent.end_char)
+            for sent in self.tokenizer(text, disable=["parser", "tagger", "ner"]).sents
+        ]
 
 
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {

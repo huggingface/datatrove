@@ -29,6 +29,12 @@ class TestWordTokenizers(unittest.TestCase):
             is_stripped = [sent == sent.strip() for sent in sents]
             assert all(is_stripped), f"'{language}' tokenizer sentences contain whitespaces"
 
+    def test_span_tokenizers(self):
+        for language in WORD_TOKENIZER_FACTORY.keys():
+            tokenizer = load_tokenizer(language)
+            spans = tokenizer.span_tokenize(SAMPLE_TEXT)
+            assert len(spans) >= 1, f"'{language}' tokenizer doesn't output spans"
+
     def test_english_tokenizer(self):
         nltk_words = word_tokenize(SAMPLE_TEXT, language="english")
 
