@@ -170,7 +170,7 @@ def read_sigs(
     lines_to_buffer: int = 5,
 ) -> Generator[HashSig, None, None]:
     line_format = f"{config.hash_config.struct_format}IH" if not index_file else config.hash_config.struct_format
-    file_stem = Path(file.path).name.replace(ExtensionHelperSD.stage_1_signature, "")
+    file_stem = Path(file.path).name.removesuffix(ExtensionHelperSD.stage_1_signature)
     last = None
     with file as f:
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
