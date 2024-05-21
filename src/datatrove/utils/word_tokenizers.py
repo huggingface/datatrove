@@ -58,33 +58,18 @@ class SpaCyTokenizer(WordTokenizer):
         return strip_strings(sents)
 
 
-class MultilingualTokenizer:
-    def __init__(self, factory_dict: dict[str, Callable[[], WordTokenizer]]):
-        self._factory_dict = factory_dict
-        self._tokenizers = {}
-
-    def _get_tokenizer(self, language: str) -> WordTokenizer:
-        if language not in self._tokenizers:
-            if language not in self._factory_dict:
-                raise ValueError(f"'{language}' tokenizer is not set.")
-            tokenizer = self._factory_dict[language]()
-            self._tokenizers[language] = tokenizer
-        return self._tokenizers[language]
-
-    @property
-    def languages(self) -> list[str]:
-        return list(self._factory_dict.keys())
-
-    def word_tokenize(self, text: str, language: str) -> list[str]:
-        return self._get_tokenizer(language).word_tokenize(text)
-
-    def sent_tokenize(self, text: str, language: str) -> list[str]:
-        return self._get_tokenizer(language).sent_tokenize(text)
-
-
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.english: lambda: NLTKTokenizer("english"),
     Languages.korean: lambda: SpaCyTokenizer("ko", {"nlp": {"tokenizer": {"@tokenizers": "spacy.Tokenizer.v1"}}}),
 }
 
-default_tokenizer = MultilingualTokenizer(WORD_TOKENIZER_FACTORY)
+WORD_TOKENIZER_CACHE: dict[str, WordTokenizer] = {}
+
+
+def load_tokenizer(language: str) -> WordTokenizer:
+    if language not in WORD_TOKENIZER_CACHE:
+        if language not in WORD_TOKENIZER_FACTORY:
+            raise ValueError(f"Language '{language}' doesn't have a tokenizer.")
+        tokenizer = WORD_TOKENIZER_FACTORY[language]()
+        WORD_TOKENIZER_CACHE[language] = tokenizer
+    return WORD_TOKENIZER_CACHE[language]
