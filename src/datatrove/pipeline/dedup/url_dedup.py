@@ -304,7 +304,7 @@ class UrlDedupFilter(PipelineStep):
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
-        self.config = config or UrlDedupConfig
+        self.config = config or UrlDedupConfig()
         self.exclusion_writer = exclusion_writer
 
     def read_duplicates(self, file: BinaryIO, dup_dtype: np.dtype) -> np.ndarray:
