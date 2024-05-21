@@ -71,7 +71,7 @@ class GopherQualityFilter(BaseFilter):
         """
         text = doc.text
         language = doc.metadata.get("language", "en")
-        words = self.tokenizer.tokenize(text, language)
+        words = self.tokenizer.word_tokenize(text, language)
         n_words = len(words)
 
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]
