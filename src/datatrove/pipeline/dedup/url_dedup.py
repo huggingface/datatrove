@@ -162,7 +162,7 @@ def read_sigs(
     last = None
     line_format = f"{hash_config.struct_format}HI" if not index_file else hash_config.struct_format
     with file as f:
-        file_stem = Path(f.path).name.replace(ExtensionHelperSD.stage_1_signature, "")
+        file_stem = Path(f.path).name.removesuffix(ExtensionHelperSD.stage_1_signature)
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
