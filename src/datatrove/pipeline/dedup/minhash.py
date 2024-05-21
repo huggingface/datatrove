@@ -15,7 +15,7 @@ from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_tuples_from_file, seek_to_start
-from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
 from datatrove.utils.text import TextNormConfig, simplify_text
 from datatrove.utils.typeshelper import StatHints
@@ -23,7 +23,6 @@ from datatrove.utils.typeshelper import StatHints
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
 _mersenne_prime = np.uint64((1 << 61) - 1)
-_max_hash_32b = np.uint64((1 << 32) - 1)
 
 """
 n_grams -> roughly nr of words (this should be small enough to catch fuzzy matches but big enough to not have each shingle be too common)
@@ -52,13 +51,10 @@ class MinhashConfig:
     seed: int = 1
 
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
-    hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
+    hash_config: HashConfig = field(default_factory=HashConfig)
 
     def __str__(self):
-        return f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_" f"{self.hash_config}"
-
-
-DEFAULT_MINHASH_CONFIG = MinhashConfig()
+        return f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_{self.hash_config}"
 
 
 @dataclass(order=True)
@@ -136,12 +132,10 @@ class MinhashDedupSignature(PipelineStep):
     name = "🎯 MinHash stage 1"
     _requires_dependencies = ["nltk"]
 
-    def __init__(
-        self, output_folder: DataFolderLike, config: MinhashConfig = DEFAULT_MINHASH_CONFIG, language: str = "english"
-    ):
+    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = "english"):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.config = config
+        self.config = config or MinhashConfig()
         self.num_hashes = self.config.num_buckets * self.config.hashes_per_bucket
         self._parameters = None
         self._hash_func = create_hash_func(self.config.hash_config)
@@ -177,7 +171,7 @@ class MinhashDedupSignature(PipelineStep):
         a, b = self.parameters
         phv = (shingles * a + b) % _mersenne_prime
         if self.config.hash_config.precision == 32:
-            phv = np.bitwise_and(phv, _max_hash_32b)
+            phv = np.bitwise_and(phv, self.config.hash_config.max)
         return [
             x.tolist()
             for x in np.split(np.min(phv, axis=0).astype(self.config.hash_config.np_dtype), self.config.num_buckets)
@@ -273,7 +267,7 @@ class MinhashDedupBuckets(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        config: MinhashConfig = None,
         only_dedup_in_index: bool = True,
         create_index_name: str = None,
         lines_to_buffer: int = 5,
@@ -282,7 +276,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
-        self.config = config
+        self.config = config or MinhashConfig()
         self.only_dedup_in_index = only_dedup_in_index
         self.create_index_name = create_index_name
         self.lines_to_buffer = lines_to_buffer
@@ -290,7 +284,10 @@ class MinhashDedupBuckets(PipelineStep):
     def get_worker_hash_range(self, sig_files, rank, world_size):
         workers_per_bucket = world_size // self.config.num_buckets
         bucket, bucket_worker = divmod(rank, workers_per_bucket)
-        hash_min, hash_max = 0, _mersenne_prime if self.config.hash_config.precision == 64 else _max_hash_32b
+        hash_min, hash_max = (
+            0,
+            _mersenne_prime if self.config.hash_config.precision == 64 else self.config.hash_config.max,
+        )
         if workers_per_bucket > 1 and len(sig_files):
             # take the first file and find bucket_worker boundaries. all workers in a bucket process the same set of
             # files, so this should be consistent across workers (and span the entire range of hashes)
@@ -429,7 +426,7 @@ class MinhashDedupCluster(PipelineStep):
         self,
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        config: MinhashConfig = None,
         save_cluster_id: bool = False,
         ignore_index_matches: bool = False,
         lines_to_buffer: int = 5,
@@ -437,7 +434,7 @@ class MinhashDedupCluster(PipelineStep):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
-        self.config = config
+        self.config = config or MinhashConfig()
         self.save_cluster_id = save_cluster_id
         self.ignore_index_matches = ignore_index_matches
         self.lines_to_buffer = lines_to_buffer
@@ -571,13 +568,13 @@ class MinhashBuildIndex(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_name: str,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        config: MinhashConfig = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
-        self.config = config
+        self.config = config or MinhashConfig()
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer
 

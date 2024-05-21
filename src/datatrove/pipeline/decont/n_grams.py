@@ -18,7 +18,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_np_from_file
-from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
 from datatrove.utils.text import TextNormConfig, simplify_text
 
@@ -45,10 +45,7 @@ class NGramsDecontConfig:
     find_query_ngrams: bool = False  # enable to also check for matches in n-grams containing only the input/prompt
     find_overlap_ngrams: bool = True  # will also find matches for n-grams containing BOTH input and query
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
-    hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
-
-
-DEFAULT_NGRAMS_DECONT_CONFIG = NGramsDecontConfig()
+    hash_config: HashConfig = field(default_factory=HashConfig)
 
 
 class NGramsDecontIndexer(PipelineStep):
@@ -74,7 +71,7 @@ class NGramsDecontIndexer(PipelineStep):
         output_folder: DataFolderLike,
         lighteval_tasks: str | list[str] | None = None,  # list in the format suite|task or path to one such list
         custom_lighteval_tasks: str | None = None,
-        config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
+        config: NGramsDecontConfig = None,
         language: str = "english",
     ):
         super().__init__()
@@ -89,7 +86,7 @@ class NGramsDecontIndexer(PipelineStep):
         else:
             self.lighteval_tasks = lighteval_tasks
         self.custom_lighteval_tasks = custom_lighteval_tasks
-        self.config = config
+        self.config = config or NGramsDecontConfig()
         self.language = language
         self.hash_func = create_hash_func(self.config.hash_config)
 
@@ -160,7 +157,7 @@ class NGramsDecontIndexer(PipelineStep):
                     hashes[task_name].update(self.compute_hashes(gold, query))
 
         for task_name, task_hashes in hashes.items():
-            hashes_array = np.array(list(task_hashes), dtype="<u8")
+            hashes_array = np.array(list(task_hashes), dtype=self.config.hash_config.np_descr)
             logger.info(f"Saving {len(task_hashes)} hashes for {task_name}")
             with self.output_folder.open(f"{task_name.replace(' ', '_')}.index.hashes", mode="wb") as f:
                 if self.output_folder.is_local():
@@ -184,13 +181,13 @@ class NGramsDecontFilter(BaseFilter):
     def __init__(
         self,
         index_folder: DataFolderLike,
-        config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
+        config: NGramsDecontConfig = None,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
     ):
         super().__init__()
         self.index_folder = get_datafolder(index_folder)
-        self.config = config
+        self.config = config or NGramsDecontConfig()
         self.exclusion_writer = exclusion_writer
         self.language = language
         self._index_hashes = None
@@ -199,7 +196,9 @@ class NGramsDecontFilter(BaseFilter):
     def load_index_hashes(self):
         def load_index_from_file(file):
             with self.index_folder.open(file, mode="rb") as f:
-                return file, read_np_from_file(f, np.dtype("<u8"), self.index_folder.is_local()).tolist()
+                return file, read_np_from_file(
+                    f, np.dtype(self.config.hash_config.np_descr), self.index_folder.is_local()
+                ).tolist()
 
         with ThreadPoolExecutor() as pool:
             hashes = pool.map(load_index_from_file, self.index_folder.list_files())

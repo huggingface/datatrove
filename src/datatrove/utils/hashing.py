@@ -50,6 +50,3 @@ def create_hash_func(config: HashConfig) -> Callable[[str], int]:
         return xxhash32 if config.precision == 32 else xxhash64
     else:
         raise ValueError(f"Unknown {config.hash_fc=}")
-
-
-DEFAULT_HASH_CONFIG = HashConfig()

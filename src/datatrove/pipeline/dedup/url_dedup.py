@@ -19,7 +19,7 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
-from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
@@ -38,10 +38,7 @@ class UrlDedupConfig:
 
     url_normalizer: Callable[[str], str] | None = None
     document_priority: Callable[[Document], int] | None = None
-    hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
-
-
-DEFAULT_URL_DEDUP_CONFIG = UrlDedupConfig()
+    hash_config: HashConfig = field(default_factory=HashConfig)
 
 
 @dataclass(order=False)
@@ -86,7 +83,7 @@ class UrlDedupSignature(PipelineStep):
         self,
         output_folder: DataFolderLike,
         finder_workers: int = 1,
-        config: UrlDedupConfig = DEFAULT_URL_DEDUP_CONFIG,
+        config: UrlDedupConfig = None,
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -95,7 +92,7 @@ class UrlDedupSignature(PipelineStep):
         elif finder_workers > 1:
             logger.warning(f"Remember to also set the number of tasks of the finder block to {finder_workers=}!")
         self.finder_workers = finder_workers
-        self.config = config
+        self.config = config or UrlDedupConfig()
         self.hash_fc = create_hash_func(self.config.hash_config)
 
     def save_hashes(self, rank: int, signatures):
@@ -204,7 +201,7 @@ class UrlFindDedups(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
-        config: UrlDedupConfig = DEFAULT_URL_DEDUP_CONFIG,
+        config: UrlDedupConfig = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -212,7 +209,7 @@ class UrlFindDedups(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
 
-        self.config = config
+        self.config = config or UrlDedupConfig()
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
@@ -302,12 +299,12 @@ class UrlDedupFilter(PipelineStep):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        config: UrlDedupConfig = DEFAULT_URL_DEDUP_CONFIG,
+        config: UrlDedupConfig = None,
         exclusion_writer: DiskWriter = None,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
-        self.config = config
+        self.config = config or UrlDedupConfig
         self.exclusion_writer = exclusion_writer
 
     def read_duplicates(self, file: BinaryIO, dup_dtype: np.dtype) -> np.ndarray:

@@ -24,7 +24,7 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
-from datatrove.utils.hashing import DEFAULT_HASH_CONFIG, HashConfig, create_hash_func
+from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
 from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, simplify_text, split_into_parts
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
@@ -41,10 +41,7 @@ class SentDedupConfig:
     min_num_sentences: int = 3  # remove docs that end up with fewer than 3 sentences
     min_words_to_remove_span: int = 0
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
-    hash_config: HashConfig = field(default_factory=lambda: DEFAULT_HASH_CONFIG)
-
-
-DEFAULT_SENT_DEDUP_CONFIG = SentDedupConfig()
+    hash_config: HashConfig = field(default_factory=HashConfig)
 
 
 @dataclass(order=True)
@@ -80,7 +77,7 @@ class SentenceDedupSignature(PipelineStep):
         self,
         output_folder: DataFolderLike,
         finder_workers: int = 1,
-        config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
+        config: SentDedupConfig = None,
         language: str = "english",
     ):
         super().__init__()
@@ -90,12 +87,12 @@ class SentenceDedupSignature(PipelineStep):
         elif finder_workers > 1:
             logger.warning(f"Remember to also set the name of tasks of the finder block to {finder_workers=}!")
         self.finder_workers = finder_workers
-        self.config = config
+        self.config = config or SentDedupConfig()
         self.hash_fc = create_hash_func(config.hash_config)
         self.language = language
 
     def save_hashes(self, rank: int, signatures):
-        # explicitly define little endiannes
+        # explicitly define little endianness
         signatures = np.array(
             signatures, dtype=[("hash", self.config.hash_config.np_descr), ("doc", "<u4"), ("sent", "<u2")]
         )
@@ -207,14 +204,14 @@ class SentenceFindDedups(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
-        config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
+        config: SentDedupConfig = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
-        self.config = config
+        self.config = config or SentDedupConfig()
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
@@ -307,7 +304,7 @@ class SentenceDedupFilter(PipelineStep):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        config: SentDedupConfig = DEFAULT_SENT_DEDUP_CONFIG,
+        config: SentDedupConfig = None,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
     ):
@@ -315,7 +312,7 @@ class SentenceDedupFilter(PipelineStep):
 
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
-        self.config = config
+        self.config = config or SentDedupConfig()
         self._tokenizer = load(f"tokenizers/punkt/{language}.pickle")
         self.exclusion_writer = exclusion_writer
         self.language = language
@@ -472,7 +469,7 @@ class SentenceDedupBuildIndex(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_name: str,
-        config: SentDedupConfig,
+        config: SentDedupConfig = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -480,7 +477,7 @@ class SentenceDedupBuildIndex(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer
-        self.config = config
+        self.config = config or SentDedupConfig()
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
