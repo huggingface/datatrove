@@ -102,7 +102,7 @@ def read_sigs(
             return
         seek_to_start(f, min_hash, line_format, config.hash_config.struct_format)
         last = None
-        file_stem = Path(file.path).name.replace(".minhash.sig", "")
+        file_stem = Path(file.path).name.removesuffix(".minhash.sig")
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             sigdata = data if index_file else data[:-1]
             assert sigdata[0] >= min_hash and (
