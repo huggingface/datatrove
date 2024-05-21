@@ -1,5 +1,6 @@
 import contextlib
 import math
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -7,14 +8,46 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
-from datatrove.utils.text import DEF_TEXT_NORM_CONFIG, TextNormConfig, sha1_hash32, simplify_text
+from datatrove.utils.text import TextNormConfig, simplify_text
 from datatrove.utils.typeshelper import StatHints
 
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
 _mersenne_prime = np.uint64((1 << 61) - 1)
 MAX_HASH = 1 << 32 - 1
+
+
+@dataclass
+class BloomFilterConfig:
+    """
+    m_bytes: bloom filter size in bytes (actual size x8 bigger)
+    k: number of hashes
+    expected_elements: expected number of elements, aka
+        shingles.
+    duplicate_threshold: above which documents are considered as
+        duplicated
+    n_grams: n_grams to use
+    seed: seed
+    """
+
+    m_bytes: int
+    k: int = None
+    expected_elements: int = None
+    duplicate_threshold: float = 0.8
+    n_grams: int = 13
+    seed: int = 0
+    norm_config: TextNormConfig = field(default_factory=TextNormConfig)
+    hash_config: HashConfig = field(default_factory=lambda: HashConfig(precision=32))
+
+    @property
+    def m(self):  # (self.m + 7) // 8  # size in bytes
+        return self.m_bytes * 8
+
+    def __post_init__(self):
+        if self.k is None:
+            self.k = get_optimal_k(self.m, expected_elements=self.expected_elements)
 
 
 def get_optimal_k(size_in_bytes: int, expected_elements: int) -> int:
@@ -34,14 +67,6 @@ class SingleBloomFilter(PipelineStep):
 
     Args:
         output_folder: output folder: local or on S3
-        m_bytes: bloom filter size in bytes (actual size x8 bigger)
-        k: number of hashes
-        expected_elements: expected number of elements, aka
-            shingles.
-        duplicate_threshold: above which documents are considered as
-            duplicated
-        n_grams: n_grams to use
-        seed: seed
         save_bloom_filter: if true saves bloom filter for later use
         exclusion_writer: saves duplicated data
     """
@@ -53,37 +78,28 @@ class SingleBloomFilter(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        m_bytes: int,
-        k: int = None,
-        expected_elements: int = None,
-        duplicate_threshold: float = 0.8,
-        n_grams: int = 13,
-        seed: int = 0,
-        norm_config: TextNormConfig = DEF_TEXT_NORM_CONFIG,
+        config: BloomFilterConfig,
         save_bloom_filter: bool = False,
         exclusion_writer: DiskWriter = None,
         language: str = "english",
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.m_bytes = m_bytes  # size in bits
-        self.m = m_bytes * 8  # (self.m + 7) // 8  # size in bytes
-        self.k = k if k else get_optimal_k(self.m, expected_elements=expected_elements)
-        self.duplicate_threshold = duplicate_threshold
-        self.n_grams = n_grams
-        self.bit_vector = bytearray(([0] * self.m_bytes))
+        self.config = config
+        self.bit_vector = bytearray(([0] * self.config.m_bytes))
         self.save_bloom_filter = save_bloom_filter
         self.exclusion_writer = exclusion_writer
-        self.norm_config = norm_config
-        assert self.m < MAX_HASH
+        # TODO: Add support for 64-bit
+        assert self.config.hash_config.precision == 32, "Bloom filter only supports 32-bit hashes"
+        self.hash_fc = create_hash_func(self.config.hash_config)
+        assert self.config.m < MAX_HASH
 
-        self.seed = seed
         self.total_shingles = 0
         self._parameters = None
 
-        assert self.m_bytes < MAX_HASH, f"{MAX_HASH=} is smaller than {self.m_bytes=}"
-        if expected_elements:
-            fp = get_false_positive_prob(self.m_bytes, n=expected_elements, k=self.k)
+        assert self.config.m_bytes < MAX_HASH, f"{MAX_HASH=} is smaller than {self.config.m_bytes=}"
+        if self.config.expected_elements:
+            fp = get_false_positive_prob(self.config.m_bytes, n=self.config.expected_elements, k=self.config.k)
             if fp > 0.05:
                 logger.warning(f"False probability = {fp:.3}")
             else:
@@ -103,10 +119,10 @@ class SingleBloomFilter(PipelineStep):
                 random parameters for the hash functions.
         """
         if not self._parameters:
-            gen = np.random.RandomState(self.seed)
+            gen = np.random.RandomState(self.config.seed)
             self._parameters = (
-                gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.k)),
-                gen.randint(0, _mersenne_prime, dtype=np.uint64, size=(1, self.k)),
+                gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.config.k)),
+                gen.randint(0, _mersenne_prime, dtype=np.uint64, size=(1, self.config.k)),
             )
         return self._parameters
 
@@ -118,8 +134,8 @@ class SingleBloomFilter(PipelineStep):
 
         return np.fromiter(
             [
-                sha1_hash32(" ".join(x).encode("utf-8"))
-                for x in ngrams(word_tokenize(simplify_text(text, self.norm_config)), self.n_grams)
+                self.hash_fc(" ".join(x))
+                for x in ngrams(word_tokenize(simplify_text(text, self.config.norm_config)), self.config.n_grams)
             ],
             dtype=np.uint64,
         ).reshape((-1, 1))
@@ -127,7 +143,7 @@ class SingleBloomFilter(PipelineStep):
     def get_indexes(self, shingles: np.ndarray) -> list[list[int]]:
         """Get indexes for the shingles with the k hashing functions"""
         a, b = self.parameters
-        phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, self.m_bytes)
+        phv = np.bitwise_and((shingles * a + b) % _mersenne_prime, self.config.m_bytes)
         return phv.tolist()
 
     def update_bf(self, indexes: list[int]):
@@ -144,7 +160,6 @@ class SingleBloomFilter(PipelineStep):
             mask = 1 << bit_index
             if (self.bit_vector[byte_index] & mask) == 0:
                 return False
-
         return True
 
     def step(self, doc: Document) -> bool:
@@ -166,7 +181,7 @@ class SingleBloomFilter(PipelineStep):
                 indexes_to_update.extend(indexes)
 
         self.update_bf(indexes_to_update)
-        if duplicate_shingles / len(shingles) > self.duplicate_threshold:
+        if duplicate_shingles / len(shingles) > self.config.duplicate_threshold:
             self.stat_update(StatHints.dropped)
             return False
         return True
@@ -188,5 +203,7 @@ class SingleBloomFilter(PipelineStep):
                     f.write(self.bit_vector)
 
         logger.info(f"{self.total_shingles=}")
-        logger.info(f"False probability = {get_false_positive_prob(self.m_bytes, n=self.total_shingles, k=self.k):.3}")
-        logger.info(f"Optimal K given total shingles = {get_optimal_k(self.m_bytes, self.total_shingles)}")
+        logger.info(
+            f"False probability = {get_false_positive_prob(self.config.m_bytes, n=self.total_shingles, k=self.config.k):.3}"
+        )
+        logger.info(f"Optimal K given total shingles = {get_optimal_k(self.config.m_bytes, self.total_shingles)}")
