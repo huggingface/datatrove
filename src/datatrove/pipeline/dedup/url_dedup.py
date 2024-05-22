@@ -39,6 +39,7 @@ class UrlDedupConfig:
     url_normalizer: Callable[[str], str] | None = None
     document_priority: Callable[[Document], int] | None = None
     hash_config: HashConfig = field(default_factory=HashConfig)
+    only_dedup_in_index: bool = True
 
 
 @dataclass(order=False)
@@ -83,7 +84,7 @@ class UrlDedupSignature(PipelineStep):
         self,
         output_folder: DataFolderLike,
         finder_workers: int = 1,
-        config: UrlDedupConfig = None,
+        config: UrlDedupConfig | None = None,
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -200,8 +201,8 @@ class UrlFindDedups(PipelineStep):
         self,
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
-        index_folder: DataFolderLike = None,
-        config: UrlDedupConfig = None,
+        index_folder: DataFolderLike | None = None,
+        config: UrlDedupConfig | None = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -272,8 +273,9 @@ class UrlFindDedups(PipelineStep):
                 v: HashSig = heapq.heappop(pq)
                 if last and last.hash_value == v.hash_value and not v.is_from_index():
                     out_filename = f"{rank:04d}/{v.file_stem}{ExtensionHelperSD.stage_2_duplicates}"
-                    doc_id_bytes = packer.pack(v.doc_id)
-                    output_mg.write(out_filename, doc_id_bytes)
+                    if not index_files or last.is_from_index() or not self.config.only_dedup_in_index:
+                        doc_id_bytes = packer.pack(v.doc_id)
+                        output_mg.write(out_filename, doc_id_bytes)
                 last = v
                 new_v = next(sig_readers[v.file_id], None)
 
@@ -299,8 +301,8 @@ class UrlDedupFilter(PipelineStep):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        config: UrlDedupConfig = None,
-        exclusion_writer: DiskWriter = None,
+        config: UrlDedupConfig | None = None,
+        exclusion_writer: DiskWriter | None = None,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
@@ -355,3 +357,56 @@ class UrlDedupFilter(PipelineStep):
                             self.stat_update(StatHints.forwarded)
                             self.update_doc_stats(doc)
                             yield doc
+
+
+class UrlDedupBuildIndex(PipelineStep):
+    """UrlDedup: Only build an index
+    Works exactly the same as SentenceDedupBuildIndex
+
+    Args:
+        data_folder: data folder to get signature files.
+        output_folder: folder where index is saved
+        index_name: name of the index
+    """
+
+    type = "🫂 - DEDUP"
+    name = "💥 url-deduplication build index"
+
+    def __init__(
+        self,
+        data_folder: DataFolderLike,
+        output_folder: DataFolderLike,
+        index_name: str,
+        config: UrlDedupConfig | None = None,
+        lines_to_buffer: int = 5,
+    ):
+        super().__init__()
+        self.data_folder = get_datafolder(data_folder)
+        self.output_folder = get_datafolder(output_folder)
+        self.index_name = index_name
+        self.lines_to_buffer = lines_to_buffer
+        self.config = config or UrlDedupConfig()
+
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
+        assert world_size == 1, "UrlDedupBuildIndex can only run on a single worker."
+        with self.stats.time_stats:
+            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
+            sig_readers = [
+                read_sigs(file, file_i, self.config.hash_config, lines_to_buffer=self.lines_to_buffer)
+                for file_i, file in enumerate(self.data_folder.open_files(sig_files))
+            ]
+
+            pq = [next(sig_reader) for sig_reader in sig_readers]
+            heapq.heapify(pq)
+
+            with self.output_folder.open(f"{self.index_name}.{ExtensionHelperSD.index}", mode="wb") as out_f:
+                last = None
+                while pq:
+                    v: HashSig = heapq.heappop(pq)
+                    if last != v.hash_value:
+                        out_f.write(struct.pack(f"<{self.config.hash_config.struct_format}", v.hash_value))
+                    last = v.hash_value
+                    new_v = next(sig_readers[v.file_id], None)
+
+                    if new_v:
+                        heapq.heappush(pq, new_v)
