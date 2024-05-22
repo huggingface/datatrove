@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Iterator
 
+from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.typeshelper import Languages
 
 
@@ -34,10 +35,17 @@ class WordTokenizer(ABC):
 class NLTKTokenizer(WordTokenizer):
     def __init__(self, punkt_language: str):
         super().__init__()
-        from nltk import load
-
-        self._tokenizer = load(f"tokenizers/punkt/{punkt_language}.pickle")
+        check_required_dependencies(f"{punkt_language} word tokenizer", ["nltk"])
         self.punkt_language = punkt_language
+        self._tokenizer = None
+
+    @property
+    def tokenizer(self):
+        if not self._tokenizer:
+            from nltk import load
+
+            self._tokenizer = load(f"tokenizers/punkt/{self.punkt_language}.pickle")
+        return self._tokenizer
 
     def word_tokenize(self, text) -> list[str]:
         from nltk.tokenize import word_tokenize
@@ -52,19 +60,28 @@ class NLTKTokenizer(WordTokenizer):
         return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
-        return list(self._tokenizer.span_tokenize(text))
+        return list(self.tokenizer.span_tokenize(text))
 
 
 class SpaCyTokenizer(WordTokenizer):
     def __init__(self, spacy_language: str, config=None):
         super().__init__()
-        import spacy
+        check_required_dependencies(f"{spacy_language} word tokenizer", ["spacy"])
+        self.spacy_language = spacy_language
+        self.config = config
+        self._tokenizer = None
 
-        if config is None:
-            self.tokenizer = spacy.blank(spacy_language)
-        else:
-            self.tokenizer = spacy.blank(spacy_language, config=config)
-        self.tokenizer.add_pipe("sentencizer")
+    @property
+    def tokenizer(self):
+        if not self._tokenizer:
+            import spacy
+
+            if self.config is None:
+                self._tokenizer = spacy.blank(self.spacy_language)
+            else:
+                self._tokenizer = spacy.blank(self.spacy_language, config=self.config)
+            self.tokenizer.add_pipe("sentencizer")
+        return self._tokenizer
 
     def word_tokenize(self, text: str) -> list[str]:
         self.tokenizer.max_length = len(text) + 10
