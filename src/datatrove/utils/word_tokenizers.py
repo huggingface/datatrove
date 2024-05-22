@@ -84,10 +84,13 @@ class SpaCyTokenizer(WordTokenizer):
 
 
 class StanzaTokenizer(WordTokenizer):
-    def __init__(self, stanza_language: str):
+    def __init__(self, stanza_language: str, **stanza_kwargs):
         import stanza
+        from stanza.pipeline.core import DownloadMethod
 
-        self._tokenizer = stanza.Pipeline(stanza_language, processors="tokenize")
+        self._tokenizer = stanza.Pipeline(
+            stanza_language, processors="tokenize", download_method=DownloadMethod.REUSE_RESOURCES, **stanza_kwargs
+        )
 
     def word_tokenize(self, text: str) -> list[str]:
         doc = self._tokenizer(text)
