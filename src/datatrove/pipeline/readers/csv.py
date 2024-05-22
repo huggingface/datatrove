@@ -14,7 +14,8 @@ class CsvReader(BaseDiskReader):
         compression: the compression to use (default: "infer")
         limit: limit the number of CSV lines to read in each rank. Useful for debugging
         skip: skip the first n rows
-        progress: show progress bar
+        file_progress: show progress bar for files
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
@@ -35,7 +36,8 @@ class CsvReader(BaseDiskReader):
         compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         skip: int = 0,
-        progress: bool = False,
+        file_progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
@@ -48,7 +50,8 @@ class CsvReader(BaseDiskReader):
             data_folder,
             limit,
             skip,
-            progress,
+            file_progress,
+            doc_progress,
             adapter,
             text_key,
             id_key,

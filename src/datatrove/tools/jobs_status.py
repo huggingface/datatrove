@@ -2,11 +2,11 @@ import argparse
 import json
 import os.path
 
-from loguru import logger
 from rich.console import Console
 
 from datatrove.io import get_datafolder
 from datatrove.utils._import_utils import is_rich_available
+from datatrove.utils.logging import logger
 
 
 if not is_rich_available():

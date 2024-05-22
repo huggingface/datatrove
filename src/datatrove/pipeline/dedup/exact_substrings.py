@@ -18,10 +18,10 @@ import struct
 from typing import BinaryIO, Generator
 
 import numpy as np
-from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
+from datatrove.utils.logging import logger
 
 from ...utils.tokenization import PipelineStepWithTokenizer
 from ...utils.typeshelper import ExtensionHelperES as EH

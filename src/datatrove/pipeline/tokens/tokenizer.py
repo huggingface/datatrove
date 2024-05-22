@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING
 
 import humanize
 import numpy as np
-from loguru import logger
 from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolder, DataFolderLike, get_datafolder
+from datatrove.utils.logging import logger
 from datatrove.utils.tokenization import PipelineStepWithTokenizer, batched
 
 

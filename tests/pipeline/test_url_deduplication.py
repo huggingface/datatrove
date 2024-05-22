@@ -10,7 +10,7 @@ from datatrove.pipeline.dedup.url_dedup import (
     UrlDedupSignature,
     UrlFindDedups,
 )
-from tests.utils import require_xxhash
+from tests.utils import require_xxhash, use_hash_configs
 
 
 DOCS = [
@@ -134,8 +134,9 @@ class UrlDedup(unittest.TestCase):
             {doc.metadata["url"] for doc in DOCS},
         )
 
-    def test_distributed_find_dups(self):
-        config = UrlDedupConfig(document_priority=lambda x: int(x.id))
+    @use_hash_configs()
+    def test_distributed_find_dups(self, hash_config):
+        config = UrlDedupConfig(document_priority=lambda x: int(x.id), hash_config=hash_config)
 
         signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config)
 
