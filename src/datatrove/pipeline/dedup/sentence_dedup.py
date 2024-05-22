@@ -348,7 +348,7 @@ class SentenceDedupFilter(PipelineStep):
             # if outside the range, we keep this line/sent
             if idx >= drop_until:
                 if removed_span:
-                    original_formatted.append("<<<\u001b[0m")
+                    original_formatted.append("<<<")
                     if (
                         self.config.min_words_to_remove_span > 0
                         and len(word_tokenize("\n".join(removed_span), self.language))
@@ -359,12 +359,12 @@ class SentenceDedupFilter(PipelineStep):
                 kept_sentences.append(line_text)
             elif not removed_span:
                 removed_span.append(line_text)
-                original_formatted.append("\033[91m>>>")
+                original_formatted.append(">>>")
             original_formatted.append(line_text)
             if self.config.split_sentences:
                 last_s = s[1]  # use this to include whitespace that is not included in the sentence spans
         if removed_span:
-            original_formatted.append("<<<\u001b[0m")
+            original_formatted.append("<<<")
             if (
                 self.config.min_words_to_remove_span > 0
                 and len(word_tokenize("\n".join(removed_span), self.language)) < self.config.min_words_to_remove_span
