@@ -32,8 +32,11 @@ class TestWordTokenizers(unittest.TestCase):
     def test_span_tokenizers(self):
         for language in WORD_TOKENIZER_FACTORY.keys():
             tokenizer = load_tokenizer(language)
+            sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
             spans = tokenizer.span_tokenize(SAMPLE_TEXT)
             assert len(spans) >= 1, f"'{language}' tokenizer doesn't output spans"
+            spans_match_sents = [sent in SAMPLE_TEXT[span[0] : span[1]] for sent, span in zip(sents, spans)]
+            assert all(spans_match_sents), f"'{language}' tokenizer spans don't match with sentences"
 
     def test_english_tokenizer(self):
         nltk_words = word_tokenize(SAMPLE_TEXT, language="english")

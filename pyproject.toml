@@ -64,6 +64,12 @@ decont = [
 ]
 multilingual = [
     "spacy",
+    "stanza",
+    "pyvi",
+    "pythainlp",
+    "jieba",
+    "anbani",
+    "indic-nlp-library",
 ]
 quality = [
   "ruff>=0.1.5"
