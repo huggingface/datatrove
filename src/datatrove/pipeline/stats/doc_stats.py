@@ -2,7 +2,6 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.filters.gopher_quality_filter import STOP_WORDS
 from datatrove.pipeline.stats.base import BaseStats
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.text import PUNCTUATION
@@ -20,7 +19,6 @@ class DocStats(BaseStats):
     white_space_ratio: Ratio of whitespace characters
     non_alpha_digit_ratio: Ratio of non-alphabetic and non-digit characters
     digit_ratio: Ratio of digits
-    stop_word_ratio: Ratio of stop words
     uppercase_ratio: Ratio of uppercase letters
     elipsis_ratio: Ratio of elipsis characters
     punctuation_ratio: Punctuation ratio
@@ -31,24 +29,18 @@ class DocStats(BaseStats):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        stop_words: list[str] = STOP_WORDS,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(output_folder, groups_to_compute, histogram_round_digits, top_k_config)
-        self.stop_words = stop_words
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
-        from nltk.tokenize import word_tokenize
-
-        words = word_tokenize(doc.text)
         return {
             "length": len(doc.text),
             "white_space_ratio": sum([1 for c in doc.text if c.isspace()]) / len(doc.text),
             "non_alpha_digit_ratio": sum([1 for c in doc.text if not c.isalpha() and not c.isdigit()]) / len(doc.text),
             "digit_ratio": sum([1 for c in doc.text if c.isdigit()]) / len(doc.text),
-            "stop_word_ratio": sum([1 for word in words if word in self.stop_words]) / len(words),
             "uppercase_ratio": sum([1 for c in doc.text if c.isupper()]) / len(doc.text),
             "elipsis_ratio": sum([1 for c in doc.text if c in ELIPSIS]) / len(doc.text),
             "punctuation_ratio": sum([1 for c in doc.text if c in PUNCTUATION]) / len(doc.text),

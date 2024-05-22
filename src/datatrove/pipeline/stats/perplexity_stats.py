@@ -5,6 +5,7 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.stats.base import BaseStats
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.perplexity import KenlmModel
+from datatrove.utils.typeshelper import Languages
 
 
 class CCNetPerplexityStats(BaseStats):
@@ -22,7 +23,7 @@ class CCNetPerplexityStats(BaseStats):
         self,
         output_folder: DataFolderLike,
         model_dataset: str,
-        language: str = "en",
+        language: str = Languages.english,
         histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
