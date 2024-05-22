@@ -4,11 +4,11 @@ import urllib.request
 
 import numpy as np
 from huggingface_hub import cached_assets_path
-from loguru import logger
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.logging import logger
 
 
 UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lucas/google-1T-unigram/unigram_freq.csv"

@@ -1,4 +1,4 @@
-name: CI
+name: Test & Check Code Quality
 
 on:
   pull_request:
@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+  workflow_call:
 
 jobs:
   check_code_quality:
@@ -23,8 +24,8 @@ jobs:
           pip install .[quality]
       - name: Check quality
         run: |
-          ruff check tests src # linter
-          ruff format --check tests src # formatter
+          ruff check tests src examples # linter
+          ruff format --check tests src examples # formatter
 
   test:
     runs-on: ubuntu-latest

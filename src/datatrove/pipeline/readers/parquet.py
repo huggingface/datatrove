@@ -11,9 +11,11 @@ class ParquetReader(BaseDiskReader):
     Args:
         data_folder: the data folder to read from
         limit: limit the number of Parquet rows to read
+        skip: skip the first n rows
         batch_size: the batch size to use (default: 1000)
         read_metadata: if True, will read the metadata (default: True)
-        progress: show progress bar
+        file_progress: show progress bar for files
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
@@ -22,6 +24,8 @@ class ParquetReader(BaseDiskReader):
         default_metadata: default metadata to add to all documents
         recursive: if True, will read files recursively in subfolders (default: True)
         glob_pattern: a glob pattern to filter files to read (default: None)
+        shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
+            with dedup blocks
     """
 
     name = "📒 Parquet"
@@ -31,18 +35,32 @@ class ParquetReader(BaseDiskReader):
         self,
         data_folder: DataFolderLike,
         limit: int = -1,
+        skip: int = 0,
         batch_size: int = 1000,
         read_metadata: bool = True,
-        progress: bool = False,
+        file_progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
         recursive: bool = True,
         glob_pattern: str | None = None,
+        shuffle_files: bool = False,
     ):
         super().__init__(
-            data_folder, limit, progress, adapter, text_key, id_key, default_metadata, recursive, glob_pattern
+            data_folder,
+            limit,
+            skip,
+            file_progress,
+            doc_progress,
+            adapter,
+            text_key,
+            id_key,
+            default_metadata,
+            recursive,
+            glob_pattern,
+            shuffle_files,
         )
         self.batch_size = batch_size
         self.read_metadata = read_metadata

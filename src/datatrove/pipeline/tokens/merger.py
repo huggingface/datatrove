@@ -105,21 +105,24 @@ class DocumentTokenizerMerger(PipelineStep):
             f"({len(datafiles)} vs {len(datafiles_index)} vs {len(datafiles_loss)})"
         )
 
+        tokenizer_name_or_path, token_size = None, 2
+        if self.save_final_metadata:
+            if self.input_folder.isfile(f"{datafiles[0]}.metadata"):
+                with self.input_folder.open(f"{datafiles[0]}.metadata", "rt") as f:
+                    tokenizer_name_or_path = f.read().splitlines()[0]
+                    if "|" in tokenizer_name_or_path:
+                        tokenizer_name_or_path, token_size = tokenizer_name_or_path.split("|")
+                        token_size = int(token_size)
+
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
         token_inputs = list(
-            map(partial(get_data_reader, nb_bytes=2), self.input_folder.open_files(datafiles), doc_ends)
+            map(partial(get_data_reader, nb_bytes=token_size), self.input_folder.open_files(datafiles), doc_ends)
         )
         loss_inputs = (
             list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
             if self.save_loss_metadata
             else None
         )
-
-        tokenizer_name = None
-        if self.save_final_metadata:
-            if self.input_folder.isfile(f"{datafiles[0]}.metadata"):
-                with self.input_folder.open(f"{datafiles[0]}.metadata", "rt") as f:
-                    tokenizer_name = f.read().splitlines()[0]
 
         ordering = self.get_ordering(doc_ends)
 
@@ -129,8 +132,9 @@ class DocumentTokenizerMerger(PipelineStep):
             filename=f"{file_ct:03d}_{self.save_filename}.ds",
             save_loss_metadata=self.save_loss_metadata,
             upload_block_size=self.upload_block_size,
-            tokenizer_name=tokenizer_name,
+            tokenizer_name_or_path=tokenizer_name_or_path,
             save_final_metadata=self.save_final_metadata,
+            token_size=token_size,
         )
         for input_file_id in tqdm(
             ordering, desc="Merging documents", unit="documents", total=len(ordering), disable=not self.progress
@@ -145,15 +149,16 @@ class DocumentTokenizerMerger(PipelineStep):
                     filename=f"{file_ct:03d}_{self.save_filename}.ds",
                     save_loss_metadata=self.save_loss_metadata,
                     upload_block_size=self.upload_block_size,
-                    tokenizer_name=tokenizer_name,
+                    tokenizer_name_or_path=tokenizer_name_or_path,
                     save_final_metadata=self.save_final_metadata,
+                    token_size=token_size,
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
             output_file.write_bytes(tokens)
             if loss_inputs:
                 output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
-            self.stat_update("tokens", value=len(tokens) // 2)
+            self.stat_update("tokens", value=len(tokens) // token_size)
         # cleanup
         output_file.close()
         if self.save_final_metadata:
