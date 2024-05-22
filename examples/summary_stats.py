@@ -4,7 +4,7 @@ import dataclasses
 from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 from datatrove.pipeline.readers.jsonl import JsonlReader
-from datatrove.pipeline.stats.summary_stats import DocStats, LineStats, StatsMerger, TopKConfig, WordStats
+from datatrove.pipeline.stats import DocStats, LineStats, StatsMerger, TopKConfig, WordStats
 
 
 TOTAL_TASKS = 500
@@ -63,7 +63,7 @@ if __name__ == "__main__":
                 input_folder=DATA_FOLDER,
                 output_folder=f"{DATA_FOLDER}",
                 remove_input=False,
-                top_k=dataclasses.replace(top_k_config, top_k=8_000),
+                top_k_config=dataclasses.replace(top_k_config, top_k=8_000),
             ),
         ],
         tasks=TOTAL_TASKS,

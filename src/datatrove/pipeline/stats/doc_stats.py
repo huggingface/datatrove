@@ -24,7 +24,6 @@ class DocStats(BaseStats):
     punctuation_ratio: Punctuation ratio
     """
 
-    type = "📊 - STATS"
     name = "📜 Doc stats"
 
     def __init__(
@@ -33,6 +32,7 @@ class DocStats(BaseStats):
         stop_words: list[str] = STOP_WORDS,
         histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(output_folder, groups_to_compute, histogram_round_digits, top_k_config)

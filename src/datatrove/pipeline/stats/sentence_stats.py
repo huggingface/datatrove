@@ -2,8 +2,8 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
+from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 def get_short_sentence_ratio(sentences: list[str], threshold: int) -> float:
     return sum([1 for sentence in sentences if len(sentence) <= threshold]) / len(sentences)

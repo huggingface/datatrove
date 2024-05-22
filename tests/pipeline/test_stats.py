@@ -6,11 +6,12 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import get_datafolder
-from datatrove.pipeline.stats.summary_stats import (
+from datatrove.pipeline.stats import (
     DEFAULT_TOP_K_CONFIG,
     GROUP,
     STATS_MERGED_NAME,
     DocStats,
+    LangStats,
     LineStats,
     StatsMerger,
     TokenStats,
@@ -18,8 +19,7 @@ from datatrove.pipeline.stats.summary_stats import (
     WordsContaminationStats,
     WordStats,
 )
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.lang_stats import LangStats
+from datatrove.pipeline.stats.base import BaseStats
 from datatrove.utils.stats import MetricStatsDict
 from tests.utils import require_nltk, require_tldextract, require_tokenizers
 
@@ -112,7 +112,7 @@ class TestSummaryStats(unittest.TestCase):
     def test_merging_top_k(self):
         top_k_config = TopKConfig(top_k=1, top_k_groups=["fqdn"])
         summary_stats = DummyStats(output_folder=self.tmp_dir)
-        merge_stats = StatsMerger(self.tmp_dir, self.tmp_dir, top_k=top_k_config)
+        merge_stats = StatsMerger(self.tmp_dir, self.tmp_dir, top_k_config=top_k_config)
 
         list(summary_stats.run(DOCS[0:2], 0, 2))
         list(summary_stats.run(DOCS[2:4], 1, 2))

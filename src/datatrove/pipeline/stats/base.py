@@ -9,7 +9,7 @@ from loguru import logger
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, STAT_TYPE, TopKConfig
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, STAT_TYPE, TopKConfig
 from datatrove.utils.stats import MetricStatsDict
 
 
@@ -34,7 +34,7 @@ class BaseStats(PipelineStep):
     def __init__(
         self,
         output_folder: DataFolderLike,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
@@ -42,7 +42,7 @@ class BaseStats(PipelineStep):
 
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.groups = groups_to_compute
+        self.groups = groups_to_compute or list(get_args(GROUP))
         self.histogram_round_digits = histogram_round_digits
         self.top_k_cfg = top_k_config
         self.tld_extractor = TLDExtract()
@@ -89,6 +89,7 @@ class BaseStats(PipelineStep):
                         key, value = self.get_kv(doc, value, group)
                         counters[stat][key] += value
 
+                doc.metadata.update(doc_stats)
                 yield doc
 
         # save to disk

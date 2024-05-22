@@ -8,7 +8,7 @@ from tqdm import tqdm
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, TopKConfig
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, TopKConfig
 from datatrove.utils.stats import MetricStats, MetricStatsDict
 
 
@@ -35,13 +35,13 @@ class StatsMerger(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         remove_input: bool = False,
-        top_k: TopKConfig = DEFAULT_TOP_K_CONFIG,
+        top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.remove_input = remove_input
-        self.top_k_config = top_k
+        self.top_k_config = top_k_config
 
     def get_leaf_non_empty_folders(self):
         return sorted([path for path, folders, files in self.input_folder.walk("") if not folders and files])

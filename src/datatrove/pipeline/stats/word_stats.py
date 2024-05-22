@@ -2,8 +2,8 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
+from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 
 def get_short_word_ratio(words: list[str], threshold: int) -> float:
@@ -27,7 +27,6 @@ class WordStats(BaseStats):
     type_token_ratio: Type-Token Ratio (TTR)
     """
 
-    type = "📊 - STATS"
     name = "🈂️ Word stats"
     _requires_dependencies = ["nltk"] + BaseStats._requires_dependencies
 
@@ -36,8 +35,8 @@ class WordStats(BaseStats):
         output_folder: DataFolderLike,
         short_word_max_chars_threshold: list[int] | None = None,
         long_word_max_chars_threshold: list[int] | None = None,
-        histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(
