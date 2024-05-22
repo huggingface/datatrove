@@ -2,7 +2,7 @@ import unittest
 
 from nltk.tokenize import word_tokenize
 
-from datatrove.utils.word_tokenizers import WORD_TOKENIZER_FACTORY, load_tokenizer
+from datatrove.utils.word_tokenizers import WORD_TOKENIZER_FACTORY, load_word_tokenizer
 
 
 SAMPLE_TEXT = (
@@ -15,7 +15,7 @@ SAMPLE_TEXT = (
 class TestWordTokenizers(unittest.TestCase):
     def test_word_tokenizers(self):
         for language in WORD_TOKENIZER_FACTORY.keys():
-            tokenizer = load_tokenizer(language)
+            tokenizer = load_word_tokenizer(language)
             tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
             assert len(tokens) >= 1, f"'{language}' tokenizer doesn't output tokens"
             is_stripped = [token == token.strip() for token in tokens]
@@ -23,7 +23,7 @@ class TestWordTokenizers(unittest.TestCase):
 
     def test_sent_tokenizers(self):
         for language in WORD_TOKENIZER_FACTORY.keys():
-            tokenizer = load_tokenizer(language)
+            tokenizer = load_word_tokenizer(language)
             sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
             assert len(sents) >= 1, f"'{language}' tokenizer doesn't output sentences"
             is_stripped = [sent == sent.strip() for sent in sents]
@@ -31,7 +31,7 @@ class TestWordTokenizers(unittest.TestCase):
 
     def test_span_tokenizers(self):
         for language in WORD_TOKENIZER_FACTORY.keys():
-            tokenizer = load_tokenizer(language)
+            tokenizer = load_word_tokenizer(language)
             sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
             spans = tokenizer.span_tokenize(SAMPLE_TEXT)
             assert len(spans) >= 1, f"'{language}' tokenizer doesn't output spans"
@@ -41,7 +41,7 @@ class TestWordTokenizers(unittest.TestCase):
     def test_english_tokenizer(self):
         nltk_words = word_tokenize(SAMPLE_TEXT, language="english")
 
-        en_tokenizer = load_tokenizer("en")
+        en_tokenizer = load_word_tokenizer("en")
         tokenizer_words = en_tokenizer.word_tokenize(SAMPLE_TEXT)
 
         self.assertEqual(nltk_words, tokenizer_words, "NLTK tokenizer and multilingual tokenizer differ")
