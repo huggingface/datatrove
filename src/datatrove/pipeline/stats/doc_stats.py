@@ -7,7 +7,9 @@ from datatrove.pipeline.stats.base import BaseStats
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.text import PUNCTUATION
 
+
 ELIPSIS = ["...", "…"]
+
 
 class DocStats(BaseStats):
     """
@@ -39,6 +41,7 @@ class DocStats(BaseStats):
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
         from nltk.tokenize import word_tokenize
+
         words = word_tokenize(doc.text)
         return {
             "length": len(doc.text),

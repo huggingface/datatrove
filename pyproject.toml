@@ -57,7 +57,7 @@ processing = [
     "ftfy",
     "fasteners",
     "xxhash",
-    "https://github.com/kpu/kenlm/archive/master.zip
+    "https://github.com/kpu/kenlm/archive/master.zip"
 ]
 decont = [
     "lighteval>=0.3.0"

@@ -1,16 +1,19 @@
 # This file includes code from edugp/kenlm by Eduardo Gonzalez Ponferrada,
 # licensed under the MIT License. The original code can be found at https://huggingface.co/edugp/kenlm.
 
-from pathlib import Path
 import re
 import unicodedata
+from pathlib import Path
 from typing import Dict
 
-from datatrove.io import cached_asset_path_or_download
 from huggingface_hub import hf_hub_url
+
+from datatrove.io import cached_asset_path_or_download
 
 
 MODEL_REPO = "edugp/kenlm"
+
+
 class SentencePiece:
     def __init__(
         self,
@@ -21,12 +24,15 @@ class SentencePiece:
         self.model_name = model_name
         self.model_dataset = model_dataset
         self._model = None
-    
+
     @property
     def model(self):
         import sentencepiece
+
         if self._model is None:
-            path = cached_asset_path_or_download(hf_hub_url(MODEL_REPO, str(Path(self.model_dataset, f"{self.model_name}.sp.model"))))
+            path = cached_asset_path_or_download(
+                hf_hub_url(MODEL_REPO, str(Path(self.model_dataset, f"{self.model_name}.sp.model")))
+            )
             self._model = sentencepiece.SentencePieceProcessor()
             self._model.load(path)
         return self._model
@@ -34,6 +40,7 @@ class SentencePiece:
     def tokenize(self, text: dict) -> dict:
         tokenized = self.model.encode_as_pieces(text)
         return " ".join(tokenized)
+
 
 class KenlmModel:
     digit_re: re.Pattern = re.compile(r"\d")
@@ -74,9 +81,7 @@ class KenlmModel:
         "►": "-",
     }
     unicode_punct_re = re.compile(f"[{''.join(unicode_punct.keys())}]")
-    non_printing_chars_re = re.compile(
-        f"[{''.join(map(chr, list(range(0,32)) + list(range(127,160))))}]"
-    )
+    non_printing_chars_re = re.compile(f"[{''.join(map(chr, list(range(0,32)) + list(range(127,160))))}]")
 
     def __init__(
         self,
@@ -95,22 +100,22 @@ class KenlmModel:
         self.punct = punctuation
         self._tokenizer = None
         self._model = None
-    
+
     @property
     def model(self):
         import kenlm
+
         if self._model is None:
             model_path = Path(self.model_dataset, f"{self.language}.arpa.bin")
             path = cached_asset_path_or_download(hf_hub_url(MODEL_REPO, str(model_path)))
             self._model = kenlm.Model(path)
         return self._model
-    
+
     @property
     def tokenizer(self):
         if self._tokenizer is None:
             self._tokenizer = SentencePiece(self.model_dataset, self.language)
         return self._tokenizer
-
 
     @classmethod
     def from_pretrained(

@@ -6,8 +6,10 @@ from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 from datatrove.pipeline.stats.base import BaseStats
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
+
 def get_short_paragraph_ratio(paragraphs: list[str], threshold: int) -> float:
     return sum([1 for paragraph in paragraphs if len(paragraph) <= threshold]) / len(paragraphs)
+
 
 def get_long_paragraph_ratio(paragraphs: list[str], threshold: int) -> float:
     return sum([1 for paragraph in paragraphs if len(paragraph) >= threshold]) / len(paragraphs)
@@ -47,8 +49,6 @@ class ParagraphStats(BaseStats):
         self.long_paragraph_max_chars_threshold = long_paragraph_max_chars_threshold or [1000]
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
-        from nltk.tokenize import word_tokenize
-
         paragraphs = [p for p in doc.text.split("\n\n") if p.strip()]
         non_empty_paragraphs = [p for p in paragraphs if p.strip()]
         paragraph_dups, paragraph_char_dups = find_duplicates(non_empty_paragraphs)
@@ -67,4 +67,3 @@ class ParagraphStats(BaseStats):
             "paragraph_duplicates": paragraph_dups / len(non_empty_paragraphs),
             "paragraph_char_duplicates": paragraph_char_dups / sum(len(p) for p in non_empty_paragraphs),
         }
-

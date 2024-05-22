@@ -74,9 +74,12 @@ class LineStats(BaseStats):
                 f"long_line_ratio_chars_{chars}": get_min_chars_per_line_ratio(lines, chars)
                 for chars in self.long_max_chars
             },
-            "lines_ending_with_terminal_mark_ratio": sum(1 for line in non_empty_lines if line.endswith(END_PUNCTUATION))
+            "lines_ending_with_terminal_mark_ratio": sum(
+                1 for line in non_empty_lines if line.endswith(END_PUNCTUATION)
+            )
             / len(non_empty_lines),
-            "bullet_point_lines_ratio": sum(1 for line in non_empty_lines if is_bullet_line(line)) / len(non_empty_lines),
+            "bullet_point_lines_ratio": sum(1 for line in non_empty_lines if is_bullet_line(line))
+            / len(non_empty_lines),
             "line_duplicates": line_dups / len(non_empty_lines),
             "line_char_duplicates": char_dups / sum(len(line) for line in non_empty_lines),
         }
