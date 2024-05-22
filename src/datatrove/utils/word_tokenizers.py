@@ -15,7 +15,7 @@ def simple_span_tokenize(text: str, sents: list[str]) -> Iterator[tuple[int, int
         start_char = text.index(sent, start_index)
         end_char = start_char + len(sent)
         start_index = end_char
-        yield (start_char, end_char)
+        yield start_char, end_char
 
 
 class WordTokenizer(ABC):
@@ -67,6 +67,10 @@ class SpaCyTokenizer(WordTokenizer):
     def __init__(self, spacy_language: str, config=None):
         super().__init__()
         check_required_dependencies(f"{spacy_language} word tokenizer", ["spacy"])
+        if spacy_language == "vi":
+            check_required_dependencies(f"{spacy_language} word tokenizer", ["pyvi"])
+        elif spacy_language == "zh":
+            check_required_dependencies(f"{spacy_language} word tokenizer", ["jieba"])
         self.spacy_language = spacy_language
         self.config = config
         self._tokenizer = None
@@ -80,7 +84,7 @@ class SpaCyTokenizer(WordTokenizer):
                 self._tokenizer = spacy.blank(self.spacy_language)
             else:
                 self._tokenizer = spacy.blank(self.spacy_language, config=self.config)
-            self.tokenizer.add_pipe("sentencizer")
+            self._tokenizer.add_pipe("sentencizer")
         return self._tokenizer
 
     def word_tokenize(self, text: str) -> list[str]:
@@ -102,29 +106,47 @@ class SpaCyTokenizer(WordTokenizer):
 
 class StanzaTokenizer(WordTokenizer):
     def __init__(self, stanza_language: str, **stanza_kwargs):
-        import stanza
-        from stanza.pipeline.core import DownloadMethod
+        super().__init__()
+        check_required_dependencies(f"{stanza_language} word tokenizer", ["stanza"])
+        self.stanza_language = stanza_language
+        self.stanza_kwargs = stanza_kwargs
+        self._tokenizer = None
 
-        self._tokenizer = stanza.Pipeline(
-            stanza_language, processors="tokenize", download_method=DownloadMethod.REUSE_RESOURCES, **stanza_kwargs
-        )
+    @property
+    def tokenizer(self):
+        if not self._tokenizer:
+            import stanza
+            from stanza.pipeline.core import DownloadMethod
+
+            self._tokenizer = stanza.Pipeline(
+                self.stanza_language,
+                processors="tokenize",
+                download_method=DownloadMethod.REUSE_RESOURCES,
+                **self.stanza_kwargs,
+            )
+
+        return self._tokenizer
 
     def word_tokenize(self, text: str) -> list[str]:
-        doc = self._tokenizer(text)
+        doc = self.tokenizer(text)
         tokens = [token.text for sentence in doc.sentences for token in sentence.tokens]
         return strip_strings(tokens)
 
     def sent_tokenize(self, text: str) -> list[str]:
-        doc = self._tokenizer(text)
+        doc = self.tokenizer(text)
         sents = [sentence.text for sentence in doc.sentences]
         return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
-        doc = self._tokenizer(text)
+        doc = self.tokenizer(text)
         return [(sent.tokens[0].start_char, sent.tokens[-1].end_char) for sent in doc.sentences]
 
 
 class ThaiTokenizer(WordTokenizer):
+    def __init__(self):
+        super().__init__()
+        check_required_dependencies("th word tokenizer", ["pythainlp"])
+
     def word_tokenize(self, text: str) -> list[str]:
         from pythainlp.tokenize import word_tokenize as th_word_tokenize
 
@@ -144,7 +166,9 @@ class ThaiTokenizer(WordTokenizer):
 
 class IndicNLPTokenizer(WordTokenizer):
     def __init__(self, language: str):
+        super().__init__()
         self.language = language
+        check_required_dependencies(f"{language} word tokenizer", [("indicnlp", "indic-nlp-library")])
 
     def word_tokenize(self, text) -> list[str]:
         from indicnlp.tokenize.indic_tokenize import trivial_tokenize as indicnlp_trivial_tokenize
@@ -165,23 +189,32 @@ class IndicNLPTokenizer(WordTokenizer):
 
 class KiwiTokenizer(WordTokenizer):
     def __init__(self, model_type="sbg"):
-        from kiwipiepy import Kiwi
+        super().__init__()
+        check_required_dependencies("ko word tokenizer", ["kiwipiepy"])
+        self.model_type = model_type
+        self._tokenizer = None
 
-        self.kiwi = Kiwi(model_type=model_type)
+    @property
+    def tokenizer(self):
+        if not self._tokenizer:
+            from kiwipiepy import Kiwi
+
+            self._tokenizer = Kiwi(model_type=self.model_type)
+        return self._tokenizer
 
     def word_tokenize(self, text: str) -> list[str]:
-        tokens = [token.form for token in self.kiwi.tokenize(text)]
+        tokens = [token.form for token in self.tokenizer.tokenize(text)]
         return strip_strings(tokens)
 
     def sent_tokenize(self, text: str) -> list[str]:
-        sents = [sent.text for sent in self.kiwi.split_into_sents(text)]
+        sents = [sent.text for sent in self.tokenizer.split_into_sents(text)]
         return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
-        return [(sent.start, sent.end) for sent in self.kiwi.split_into_sents(text)]
+        return [(sent.start, sent.end) for sent in self.tokenizer.split_into_sents(text)]
 
 
-# If you know a better tokenizer or better proxy language, please submit a change
+# If you know a better tokenizer or better proxy language, please submit a PR
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.english: lambda: NLTKTokenizer("english"),
     Languages.korean: lambda: KiwiTokenizer(),
@@ -287,7 +320,7 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
 WORD_TOKENIZER_CACHE: dict[str, WordTokenizer] = {}
 
 
-def load_tokenizer(language: str) -> WordTokenizer:
+def load_word_tokenizer(language: str) -> WordTokenizer:
     if language not in WORD_TOKENIZER_CACHE:
         if language not in WORD_TOKENIZER_FACTORY:
             raise ValueError(f"Language '{language}' doesn't have a tokenizer.")

@@ -4,7 +4,7 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.text import PUNCTUATION_SET
-from datatrove.utils.word_tokenizers import load_tokenizer
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
@@ -70,7 +70,7 @@ class GopherQualityFilter(BaseFilter):
 
         """
         text = doc.text
-        tokenizer = load_tokenizer(self.language)
+        tokenizer = load_word_tokenizer(self.language)
         words = tokenizer.word_tokenize(text)
         n_words = len(words)
 
