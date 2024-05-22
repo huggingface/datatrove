@@ -15,6 +15,12 @@ def get_min_chars_per_line_ratio(lines, chars: int) -> float:
     return sum([1 for line in lines if len(line) >= chars]) / len(lines)
 
 
+def is_bullet_line(line: str):
+    if len(line.strip()) == 0:
+        return False
+    return line.strip()[0] in "-*•"
+
+
 class LineStats(BaseStats):
     """
     Summary stats of line level metrics.
@@ -24,6 +30,7 @@ class LineStats(BaseStats):
     avg_line_length: Average length of line per doc
     long_line_ratio_words: Ratio of lines with more than k chars
     short_line_ratio_chars: Ratio of lines with more than k chars
+    bullet_point_lines_ratio: Ratio of bullet points
 
     Args:
         max_k_chars_per_line_tresholds: List of max chars per line to compute stats for. If None, default to [10, 30]
@@ -52,6 +59,7 @@ class LineStats(BaseStats):
 
     def extract_stats(self, doc: Document):
         lines: list[str] = doc.metadata.get("lines") or doc.text.split("\n")
+        non_empty_lines = [line for line in lines if len(line.strip()) > 0]
         return {
             "n_lines": len(lines),
             "avg_line_length": (sum([len(line) for line in lines]) / len(lines)),
@@ -63,6 +71,7 @@ class LineStats(BaseStats):
                 f"long_line_ratio_chars_{chars}": get_min_chars_per_line_ratio(lines, chars)
                 for chars in self.long_max_chars
             },
-            "lines_ending_with_terminal_mark_ratio": sum(1 for line in lines if line.endswith(END_PUNCTUATION))
-            / len(lines),
+            "lines_ending_with_terminal_mark_ratio": sum(1 for line in non_empty_lines if line.endswith(END_PUNCTUATION))
+            / len(non_empty_lines),
+            "bullet_point_lines_ratio": sum(1 for line in non_empty_lines if is_bullet_line(line)) / len(non_empty_lines),
         }
