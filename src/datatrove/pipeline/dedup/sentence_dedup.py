@@ -496,7 +496,7 @@ class SentenceDedupBuildIndex(PipelineStep):
                 while pq:
                     v: HashSig = heapq.heappop(pq)
                     if last != v.hash_value:
-                        out_f.write(struct.pack("<Q", v.hash_value))
+                        out_f.write(struct.pack(f"<{self.config.hash_config.struct_format}", v.hash_value))
                     last = v.hash_value
                     new_v = next(sig_readers[v.file_id], None)
 
