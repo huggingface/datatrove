@@ -263,7 +263,7 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.belarusian: lambda: SpaCyTokenizer("uk"),  # Proxy
     Languages.galician: lambda: NLTKTokenizer("portuguese"),  # Proxy
     Languages.esperanto: lambda: NLTKTokenizer("english"),  # Proxy
-    Languages.occitan: lambda: NLTKTokenizer("italian"),  # Proxy
+    Languages.occitan: lambda: SpaCyTokenizer("ca"),  # Proxy
     Languages.cebuano: lambda: NLTKTokenizer("english"),  # Proxy
     Languages.swahili: lambda: NLTKTokenizer("english"),  # Proxy
     Languages.javanese: lambda: NLTKTokenizer("english"),  # Proxy
