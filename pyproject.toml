@@ -68,7 +68,6 @@ multilingual = [
     "pyvi",
     "pythainlp",
     "jieba",
-    "anbani",
     "indic-nlp-library",
     "kiwipiepy",
 ]

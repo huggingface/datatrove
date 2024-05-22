@@ -125,24 +125,6 @@ class ThaiTokenizer(WordTokenizer):
         return list(simple_span_tokenize(text, sents))
 
 
-class GeorgianTokenizer(WordTokenizer):
-    def word_tokenize(self, text) -> list[str]:
-        from anbani.nlp.preprocessing import word_tokenize as ka_word_tokenize
-
-        tokens = ka_word_tokenize(text)
-        return strip_strings(tokens)
-
-    def sent_tokenize(self, text: str) -> list[str]:
-        from anbani.nlp.preprocessing import sentence_tokenize as ka_sent_tokenize
-
-        sents = [" ".join(sentence) for sentence in ka_sent_tokenize(text)]
-        return strip_strings(sents)
-
-    def span_tokenize(self, text: str) -> list[tuple[int, int]]:
-        sents = self.sent_tokenize(text)
-        return list(simple_span_tokenize(text, sents))
-
-
 class IndicNLPTokenizer(WordTokenizer):
     def __init__(self, language: str):
         self.language = language
@@ -231,7 +213,6 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.armenian: lambda: SpaCyTokenizer("hy"),
     Languages.basque: lambda: SpaCyTokenizer("eu"),
     Languages.thai: lambda: ThaiTokenizer(),
-    Languages.georgian: lambda: GeorgianTokenizer(),
     Languages.tagalog: lambda: SpaCyTokenizer("tl"),
     Languages.albanian: lambda: SpaCyTokenizer("sq"),
     Languages.macedonian: lambda: SpaCyTokenizer("mk"),
@@ -245,7 +226,9 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.gujarati: lambda: SpaCyTokenizer("gu"),
     Languages.kannada: lambda: SpaCyTokenizer("kn"),
     Languages.welsh: lambda: StanzaTokenizer("cy"),
-    Languages.norwegian_nynorsk: lambda: NLTKTokenizer("norwegian"),
+    Languages.norwegian_nynorsk: lambda: NLTKTokenizer(
+        "norwegian"
+    ),  # TODO: change to SpaCyTokenizer("nn") when spacy version>=3.7.4
     Languages.sinhala: lambda: SpaCyTokenizer("si"),
     Languages.tatar: lambda: SpaCyTokenizer("tt"),
     Languages.afrikaans: lambda: SpaCyTokenizer("af"),
