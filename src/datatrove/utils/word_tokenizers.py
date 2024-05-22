@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Iterator
 
 from datatrove.utils.typeshelper import Languages
 
@@ -8,15 +8,13 @@ def strip_strings(els: list[str]) -> list[str]:
     return [el.strip() for el in els if len(el.strip()) > 0]
 
 
-def simple_span_tokenize(text: str, sents: list[str]) -> list[tuple[int, int]]:
+def simple_span_tokenize(text: str, sents: list[str]) -> Iterator[tuple[int, int]]:
     start_index = 0
-    res = []
     for sent in sents:
         start_char = text.index(sent, start_index)
         end_char = start_char + len(sent)
-        res.append((start_char, end_char))
         start_index = end_char
-    return res
+        yield (start_char, end_char)
 
 
 class WordTokenizer(ABC):
@@ -121,7 +119,7 @@ class ThaiTokenizer(WordTokenizer):
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         sents = self.sent_tokenize(text)
-        return simple_span_tokenize(text, sents)
+        return list(simple_span_tokenize(text, sents))
 
 
 class GeorgianTokenizer(WordTokenizer):
@@ -139,7 +137,7 @@ class GeorgianTokenizer(WordTokenizer):
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         sents = self.sent_tokenize(text)
-        return simple_span_tokenize(text, sents)
+        return list(simple_span_tokenize(text, sents))
 
 
 class IndicNLPTokenizer(WordTokenizer):
@@ -160,7 +158,7 @@ class IndicNLPTokenizer(WordTokenizer):
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         sents = self.sent_tokenize(text)
-        return simple_span_tokenize(text, sents)
+        return list(simple_span_tokenize(text, sents))
 
 
 class KiwiTokenizer(WordTokenizer):
