@@ -179,6 +179,7 @@ class KiwiTokenizer(WordTokenizer):
         return [(sent.start, sent.end) for sent in self.kiwi.split_into_sents(text)]
 
 
+# If you know a better tokenizer or better proxy language, please submit a change
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.english: lambda: NLTKTokenizer("english"),
     Languages.korean: lambda: KiwiTokenizer(),
