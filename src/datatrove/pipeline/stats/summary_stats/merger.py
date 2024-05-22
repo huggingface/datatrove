@@ -12,13 +12,13 @@ from datatrove.pipeline.stats.summary_stats import DEFAULT_TOP_K_CONFIG, TopKCon
 from datatrove.utils.stats import MetricStats, MetricStatsDict
 
 
-STATS_MERGED_NAME = "stats-merged.json"
+STATS_MERGED_NAME = "metric.json"
 
 
 class StatsMerger(PipelineStep):
     """
     Datatrove block for merging partial stats files into a single file.
-    Each stat is of type MetricStatsDict saved in output_folder/{group}/{stat_name}/stats-merged.json
+    Each stat is of type MetricStatsDict saved in output_folder/{group}/{stat_name}/metric.json
     Args:
         input_folder: The folder used for saving stats files of SummaryStats block.
         output_folder: The folder where the merged stats will be saved.

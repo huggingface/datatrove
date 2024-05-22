@@ -14,17 +14,17 @@ def get_long_paragraph_ratio(paragraphs: list[str], threshold: int) -> float:
 
 class ParagraphStats(BaseStats):
     """
-    Word level stats of a document.
+    Summary stats of paragraphs in a document.
 
     Available stats:
-    * n_paragraphs
-    * avg_paragraph_length:
-    * short_paragraph_ratio_{chars}:
-    * long_paragraph_ratio_{chars}:
+    n_paragraphs
+    avg_paragraph_length
+    short_paragraph_ratio_{chars}
+    long_paragraph_ratio_{chars}
     """
 
     type = "📊 - STATS"
-    name = "🈂️ Word stats"
+    name = "📄 Paragraph stats"
 
     def __init__(
         self,
