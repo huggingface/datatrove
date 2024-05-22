@@ -3,8 +3,8 @@ from typing import get_args
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.gopher_quality_filter import STOP_WORDS
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
+from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.text import PUNCTUATION
 
 ELIPSIS = ["...", "…"]
@@ -30,7 +30,6 @@ class DocStats(BaseStats):
         self,
         output_folder: DataFolderLike,
         stop_words: list[str] = STOP_WORDS,
-        histogram_round_digits: int = 3,
         groups_to_compute: list[GROUP] = list(get_args(GROUP)),
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,

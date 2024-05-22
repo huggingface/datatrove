@@ -25,6 +25,7 @@ class SentenceStats(BaseStats):
 
     type = "📊 - STATS"
     name = "🈂️ Sentence stats"
+    _requires_dependencies = BaseStats._requires_dependencies + ["nltk"]
 
     def __init__(
         self,

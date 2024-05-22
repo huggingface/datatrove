@@ -3,6 +3,7 @@ from typing import get_args
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.c4_filters import END_PUNCTUATION
+from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 from datatrove.pipeline.stats.base import BaseStats
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
@@ -31,6 +32,8 @@ class LineStats(BaseStats):
     long_line_ratio_words: Ratio of lines with more than k chars
     short_line_ratio_chars: Ratio of lines with more than k chars
     bullet_point_lines_ratio: Ratio of bullet points
+    line_duplicates: Ratio of lines that are duplicates
+    line_char_duplicates: Ratio of chars in duplicated lines
 
     Args:
         max_k_chars_per_line_tresholds: List of max chars per line to compute stats for. If None, default to [10, 30]
@@ -59,6 +62,7 @@ class LineStats(BaseStats):
     def extract_stats(self, doc: Document):
         lines: list[str] = doc.metadata.get("lines") or doc.text.split("\n")
         non_empty_lines = [line for line in lines if len(line.strip()) > 0]
+        line_dups, char_dups = find_duplicates(non_empty_lines)
         return {
             "n_lines": len(lines),
             "avg_line_length": (sum([len(line) for line in lines]) / len(lines)),
@@ -73,4 +77,6 @@ class LineStats(BaseStats):
             "lines_ending_with_terminal_mark_ratio": sum(1 for line in non_empty_lines if line.endswith(END_PUNCTUATION))
             / len(non_empty_lines),
             "bullet_point_lines_ratio": sum(1 for line in non_empty_lines if is_bullet_line(line)) / len(non_empty_lines),
+            "line_duplicates": line_dups / len(non_empty_lines),
+            "line_char_duplicates": char_dups / sum(len(line) for line in non_empty_lines),
         }

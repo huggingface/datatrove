@@ -2,8 +2,9 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.summary_stats.base import BaseStats
-from datatrove.pipeline.stats.summary_stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
+from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
+from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 def get_short_paragraph_ratio(paragraphs: list[str], threshold: int) -> float:
     return sum([1 for paragraph in paragraphs if len(paragraph) <= threshold]) / len(paragraphs)
@@ -49,6 +50,8 @@ class ParagraphStats(BaseStats):
         from nltk.tokenize import word_tokenize
 
         paragraphs = [p for p in doc.text.split("\n\n") if p.strip()]
+        non_empty_paragraphs = [p for p in paragraphs if p.strip()]
+        paragraph_dups, paragraph_char_dups = find_duplicates(non_empty_paragraphs)
 
         return {
             "n_paragraphs": len(paragraphs),
@@ -61,4 +64,7 @@ class ParagraphStats(BaseStats):
                 f"long_paragraph_ratio_{chars}": get_long_paragraph_ratio(paragraphs, chars)
                 for chars in self.long_paragraph_max_chars_threshold
             },
+            "paragraph_duplicates": paragraph_dups / len(non_empty_paragraphs),
+            "paragraph_char_duplicates": paragraph_char_dups / sum(len(p) for p in non_empty_paragraphs),
         }
+
