@@ -17,8 +17,9 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_tuples_from_file, seek_to_start
 from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
-from datatrove.utils.text import TextNormConfig, simplify_text
-from datatrove.utils.typeshelper import StatHints
+from datatrove.utils.text import TextNormConfig, ngrams, simplify_text
+from datatrove.utils.typeshelper import Languages, StatHints
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
@@ -130,9 +131,8 @@ class MinhashDedupSignature(PipelineStep):
 
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
-    _requires_dependencies = ["nltk"]
 
-    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = "english"):
+    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = Languages.english):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
@@ -140,6 +140,7 @@ class MinhashDedupSignature(PipelineStep):
         self._parameters = None
         self._hash_func = create_hash_func(self.config.hash_config)
         self.language = language
+        self.word_tokenizer = load_word_tokenizer(language)
 
     @property
     def parameters(self):
@@ -188,12 +189,13 @@ class MinhashDedupSignature(PipelineStep):
         Returns:
             numpy array of shingles: dtype = uint64, shape = (number of n_grams in string, 1)
         """
-        from nltk import ngrams, word_tokenize
-
         return np.fromiter(
             [
                 self._hash_func(" ".join(x))
-                for x in ngrams(word_tokenize(simplify_text(text, self.config.norm_config)), self.config.n_grams)
+                for x in ngrams(
+                    self.word_tokenizer.word_tokenize(simplify_text(text, self.config.norm_config)),
+                    self.config.n_grams,
+                )
             ],
             dtype=np.uint64,
         ).reshape((-1, 1))

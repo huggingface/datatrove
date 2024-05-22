@@ -26,9 +26,10 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
 from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
-from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, simplify_text, split_into_parts
-from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
+from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, ngrams, simplify_text, split_into_parts
+from datatrove.utils.typeshelper import ExtensionHelperSD, Languages, StatHints
 
+from ...utils.word_tokenizers import load_word_tokenizer
 from ..writers.disk_base import DiskWriter
 
 
@@ -71,14 +72,13 @@ class SentenceDedupSignature(PipelineStep):
 
     type = "🫂 - DEDUPS"
     name = "💥 sentence-deduplication stage 1"
-    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
         output_folder: DataFolderLike,
         finder_workers: int = 1,
         config: SentDedupConfig = None,
-        language: str = "english",
+        language: str = Languages.english,
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -90,6 +90,7 @@ class SentenceDedupSignature(PipelineStep):
         self.config = config or SentDedupConfig()
         self.hash_fc = create_hash_func(config.hash_config)
         self.language = language
+        self.tokenizer = load_word_tokenizer(language)
 
     def save_hashes(self, rank: int, signatures):
         # explicitly define little endianness
@@ -125,10 +126,7 @@ class SentenceDedupSignature(PipelineStep):
                     break
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[tuple[int, int, int]]:
-        from nltk import ngrams
-        from nltk.tokenize import sent_tokenize
-
-        sentences = sent_tokenize(doc.text, self.language) if self.config.split_sentences else doc.text.splitlines()
+        sentences = self.tokenizer.sent_tokenize(doc.text) if self.config.split_sentences else doc.text.splitlines()
         if len(sentences) < self.config.n_sentences:
             return []
 
@@ -306,14 +304,12 @@ class SentenceDedupFilter(PipelineStep):
         data_folder: DataFolderLike,
         config: SentDedupConfig = None,
         exclusion_writer: DiskWriter = None,
-        language: str = "english",
+        language: str = Languages.english,
     ):
-        from nltk import load
-
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
         self.config = config or SentDedupConfig()
-        self._tokenizer = load(f"tokenizers/punkt/{language}.pickle")
+        self.tokenizer = load_word_tokenizer(language)
         self.exclusion_writer = exclusion_writer
         self.language = language
 
@@ -324,10 +320,8 @@ class SentenceDedupFilter(PipelineStep):
         )
 
     def remove_dup_sentences(self, doc: Document, du_lines: np.ndarray) -> tuple[str, str]:
-        from nltk.tokenize import word_tokenize
-
         sentence_spans = (
-            list(self._tokenizer.span_tokenize(doc.text)) if self.config.split_sentences else doc.text.splitlines()
+            list(self.tokenizer.span_tokenize(doc.text)) if self.config.split_sentences else doc.text.splitlines()
         )
         kept_sentences = []
         original_formatted = []
@@ -351,7 +345,7 @@ class SentenceDedupFilter(PipelineStep):
                     original_formatted.append("<<<")
                     if (
                         self.config.min_words_to_remove_span > 0
-                        and len(word_tokenize("\n".join(removed_span), self.language))
+                        and len(self.tokenizer.word_tokenize("\n".join(removed_span)))
                         < self.config.min_words_to_remove_span
                     ):
                         kept_sentences.extend(removed_span)
@@ -367,7 +361,7 @@ class SentenceDedupFilter(PipelineStep):
             original_formatted.append("<<<")
             if (
                 self.config.min_words_to_remove_span > 0
-                and len(word_tokenize("\n".join(removed_span), self.language)) < self.config.min_words_to_remove_span
+                and len(self.tokenizer.word_tokenize("\n".join(removed_span))) < self.config.min_words_to_remove_span
             ):
                 kept_sentences.extend(removed_span)
         if len(kept_sentences) < len(sentence_spans):
@@ -382,8 +376,6 @@ class SentenceDedupFilter(PipelineStep):
 
         SentenceDedupFilter reads a DocumentPipeline and removes duplicated sentences found at stage 2
         """
-        from nltk.tokenize import word_tokenize
-
         folders = self.data_folder.list_files(include_directories=True, recursive=False)
         # for performance reasons when having for instance 12k*10k files
         files = [
@@ -430,7 +422,7 @@ class SentenceDedupFilter(PipelineStep):
                             (
                                 # min doc words
                                 self.config.min_doc_words <= 0
-                                or len(word_tokenize(filtered_text, self.language)) >= self.config.min_doc_words
+                                or len(self.tokenizer.word_tokenize(filtered_text)) >= self.config.min_doc_words
                             )
                             and (
                                 # min num sentences

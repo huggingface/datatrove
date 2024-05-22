@@ -1,6 +1,11 @@
 import re
 import unicodedata
 from dataclasses import dataclass
+from itertools import tee
+from typing import Iterable
+
+from datatrove.utils.typeshelper import Languages
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
@@ -66,18 +71,27 @@ def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
     return text.strip()
 
 
+# from https://tedboy.github.io/nlps/_modules/nltk/util.html#ngrams
+def ngrams(sequence: Iterable, n: int):
+    iterables = tee(sequence, n)
+
+    for i, sub_iterable in enumerate(iterables):  # For each window,
+        for _ in range(i):  # iterate through every order of ngrams
+            next(sub_iterable, None)  # generate the ngrams within the window.
+    return zip(*iterables)  # Unpack and flattens the iterables.
+
+
 SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
 SPLIT_TEXT_SENTENCES = "SENTENCE"
 SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
 
 
-def split_into_parts(text, mode="DOCUMENT", language="english"):
+def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
     if mode == SPLIT_TEXT_DOCUMENTS:
         return [text]
     elif mode == SPLIT_TEXT_SENTENCES:
-        from nltk import load
-
-        spans = [b for _, b in load(f"tokenizers/punkt/{language}.pickle").span_tokenize(text)]
+        tokenizer = load_word_tokenizer(language)
+        spans = [b for _, b in tokenizer.span_tokenize(text)]
         return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
     elif mode == SPLIT_TEXT_PARAGRAPHS:
         # merge whitespace with prev line
