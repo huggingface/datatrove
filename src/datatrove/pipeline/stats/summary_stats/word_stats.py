@@ -24,6 +24,7 @@ class WordStats(BaseStats):
     avg_words_per_line: Average number of words per line in the document
     short_word_ratio_{chars}: Ratio of words shorter than {chars} characters
     long_word_ratio_{chars}: Ratio of words longer than {chars} characters
+    type_token_ratio: Type-Token Ratio (TTR)
     """
 
     type = "📊 - STATS"
@@ -67,4 +68,5 @@ class WordStats(BaseStats):
                 f"long_word_ratio_{chars}": get_long_word_ratio(words, chars)
                 for chars in self.long_word_max_chars_threshold
             },
+            "type_token_ratio": len(set(words)) / len(words),
         }

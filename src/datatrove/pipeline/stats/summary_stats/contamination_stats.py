@@ -11,7 +11,7 @@ class WordsContaminationStats(BaseStats):
     Words contamination stats of a document.
 
     Available stats:
-    {words[0]}: Frequency of words contamination in the document.
+    word_contamination_{words[0]}: Frequency of words contamination in the document.
 
     Args:
         words: The words to check for contamination.

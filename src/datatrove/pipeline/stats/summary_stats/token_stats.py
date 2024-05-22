@@ -9,9 +9,8 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
     """
     Token stats of a document.
 
-    Available stats:
+    Available metrics:
     token_count: Number of tokens in the document
-    unique_token_count: Number of unique tokens in the document
     """
 
     type = "📊 - STATS"
@@ -31,11 +30,10 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
         self.tokenizer_name_or_path = tokenizer_name_or_path
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
-        tokens = doc.metadata.get("token_count", None)
-        if tokens is None:
-            tokens = self.tokenizer.encode(doc.text).tokens
+        tokens_count = doc.metadata.get("token_count", None)
+        if tokens_count is None:
+            tokens_count = len(self.tokenizer.encode(doc.text).tokens)
 
         return {
-            "token_count": len(tokens),
-            "unique_token_count": len(set(tokens)),
+            "token_count": tokens_count,
         }
