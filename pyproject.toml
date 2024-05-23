@@ -57,7 +57,7 @@ processing = [
     "ftfy",
     "fasteners",
     "xxhash",
-    "kenlm @ https://github.com/kpu/kenlm/archive/master.zip",
+    "kenlm",
     "pyahocorasick"
 ]
 decont = [
