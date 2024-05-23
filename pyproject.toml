@@ -50,14 +50,14 @@ processing = [
     "fasttext-wheel",
     "nltk",
     "inscriptis",
-#    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+#   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
     "trafilatura>=1.8.0",
     "tokenizers",
     "ftfy",
     "fasteners",
     "xxhash",
-    "https://github.com/kpu/kenlm/archive/master.zip",
+    "kenlm @ https://github.com/kpu/kenlm/archive/master.zip",
     "pyahocorasick"
 ]
 decont = [
