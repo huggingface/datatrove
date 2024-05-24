@@ -1,4 +1,3 @@
-import random
 import time
 from copy import deepcopy
 from functools import partial
@@ -47,14 +46,13 @@ class LocalPipelineExecutor(PipelineExecutor):
         local_rank_offset: int = 0,
         randomize_start: bool = False,
     ):
-        super().__init__(pipeline, logging_dir, skip_completed)
+        super().__init__(pipeline, logging_dir, skip_completed, randomize_start)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.start_method = start_method
         self.local_tasks = local_tasks if local_tasks != -1 else tasks
         self.local_rank_offset = local_rank_offset
         self.depends = depends
-        self.randomize_start = randomize_start
         if self.local_rank_offset + self.local_tasks > self.tasks:
             raise ValueError(
                 f"Local tasks go beyond the total tasks (local_rank_offset + local_tasks = {self.local_rank_offset + self.local_tasks} > {self.tasks} = tasks)"
@@ -75,8 +73,6 @@ class LocalPipelineExecutor(PipelineExecutor):
         """
         local_rank = ranks_q.get()
         try:
-            if self.randomize_start:
-                time.sleep(random.randint(0, 60 * 3))
             return self._run_for_rank(rank, local_rank)
         finally:
             if completed and completed_lock:

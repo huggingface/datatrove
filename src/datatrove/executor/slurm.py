@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import os
-import random
 import signal
 import subprocess
 import sys
@@ -114,7 +113,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         srun_args: dict = None,
         tasks_per_job: int = 1,
     ):
-        super().__init__(pipeline, logging_dir, skip_completed)
+        super().__init__(pipeline, logging_dir, skip_completed, randomize_start)
         self.tasks = tasks
         self.workers = workers
         self.partition = partition
@@ -178,8 +177,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     break
                 rank = all_ranks[rank_to_run]
 
-                if self.randomize_start:
-                    time.sleep(random.randint(0, 60 * 3))
                 self._run_for_rank(rank)
         else:
             # we still have to launch the job

@@ -1,5 +1,7 @@
 import dataclasses
 import json
+import random
+import time
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Sequence
@@ -35,10 +37,12 @@ class PipelineExecutor(ABC):
         pipeline: list[PipelineStep | Callable],
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
+        randomize_start: bool = False,
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.logging_dir = get_datafolder(logging_dir if logging_dir else f"logs/{get_timestamp()}_{get_random_str()}")
         self.skip_completed = skip_completed
+        self.randomize_start = randomize_start
 
     @abstractmethod
     def run(self):
@@ -74,6 +78,9 @@ class PipelineExecutor(ABC):
             return PipelineStats()
         logfile = add_task_logger(self.logging_dir, rank, local_rank)
         log_pipeline(self.pipeline)
+
+        if self.randomize_start:
+            time.sleep(random.randint(0, 60 * 3))
         try:
             # pipe data from one step to the next
             pipelined_data = None
