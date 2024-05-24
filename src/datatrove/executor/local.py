@@ -1,3 +1,4 @@
+import random
 import time
 from copy import deepcopy
 from functools import partial
@@ -30,6 +31,7 @@ class LocalPipelineExecutor(PipelineExecutor):
             Tasks [local_rank_offset, local_rank_offset + local_tasks] will be run.
         depends: another LocalPipelineExecutor that should run
             before this one
+        randomize_start: randomize the start of each task in a job in a ~3 min window
     """
 
     def __init__(
@@ -43,6 +45,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         start_method: str = "forkserver",
         local_tasks: int = -1,
         local_rank_offset: int = 0,
+        randomize_start: bool = False,
     ):
         super().__init__(pipeline, logging_dir, skip_completed)
         self.tasks = tasks
@@ -51,6 +54,7 @@ class LocalPipelineExecutor(PipelineExecutor):
         self.local_tasks = local_tasks if local_tasks != -1 else tasks
         self.local_rank_offset = local_rank_offset
         self.depends = depends
+        self.randomize_start = randomize_start
         if self.local_rank_offset + self.local_tasks > self.tasks:
             raise ValueError(
                 f"Local tasks go beyond the total tasks (local_rank_offset + local_tasks = {self.local_rank_offset + self.local_tasks} > {self.tasks} = tasks)"
@@ -71,6 +75,8 @@ class LocalPipelineExecutor(PipelineExecutor):
         """
         local_rank = ranks_q.get()
         try:
+            if self.randomize_start:
+                time.sleep(random.randint(0, 60 * 3))
             return self._run_for_rank(rank, local_rank)
         finally:
             if completed and completed_lock:
