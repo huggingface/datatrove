@@ -6,6 +6,8 @@ type: software
 authors:
   - given-names: Guilherme
     family-names: Penedo
+  - given-names: Hynek
+    family-names: Kydlíček
   - given-names: Alessandro
     family-names: Cappelli
   - given-names: Thomas
