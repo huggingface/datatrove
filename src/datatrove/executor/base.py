@@ -29,6 +29,7 @@ class PipelineExecutor(ABC):
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
+        randomize_start: randomize the start of each task in a job in a ~3 min window
     """
 
     @abstractmethod

@@ -96,6 +96,7 @@ Some options common to all executors:
 - `pipeline` a list consisting of the pipeline steps that should be run
 - `logging_dir` a datafolder where log files, statistics and more should be saved. Do not reuse folders for different pipelines/jobs as this will overwrite your stats, logs and completions.
 - `skip_completed` (_bool_, `True` by default) datatrove keeps track of completed tasks so that when you relaunch a job they can be skipped. Set this to `False` to disable this behaviour
+- `randomize_start` (_bool_, `False` by default) randomizes the start time of each task within a job by approximately 3 minutes to prevent all tasks from starting simultaneously and potentially overloading the system. 
 
 Call an executor's `run` method to execute its pipeline.
 
