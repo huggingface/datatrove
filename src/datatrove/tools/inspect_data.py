@@ -14,7 +14,7 @@ from datatrove.utils._import_utils import is_rich_available
 
 
 """
-    Simple utility to visualize some tokenized text data directly using an appropriate reader.
+    Simple utility to visualize some tokenized text data directly using an appropriate readers.
 """
 
 if not is_rich_available():
@@ -23,7 +23,7 @@ if not is_rich_available():
 
 parser = argparse.ArgumentParser(
     "Manually inspect some RefinedWeb samples. "
-    "Any unknown parameters will be passed to the reader (example: 'text_key=text')."
+    "Any unknown parameters will be passed to the readers (example: 'text_key=text')."
 )
 
 parser.add_argument(
@@ -32,7 +32,7 @@ parser.add_argument(
 
 parser.add_argument(
     "-r",
-    "--reader",
+    "--readers",
     type=str,
     help="The type of Reader to use to read the data. "
     "By default it will be guessed from the file extension. "
@@ -61,7 +61,7 @@ def reader_class_from_name(reader_type):
         case "warc":
             return WarcReader
         case other:
-            console.log(f"[red]Unknwon reader type {other}")
+            console.log(f"[red]Unknwon readers type {other}")
             sys.exit(-1)
 
 
@@ -92,7 +92,7 @@ def reader_factory(data_folder: DataFolder, reader_type: str = None, **kwargs):
             case ".warc.gz" | "arc.gz" | ".warc":
                 reader_type = "warc"
             case other:
-                console.log(f'[red]Could not find a matching reader for file extension "{other}"')
+                console.log(f'[red]Could not find a matching readers for file extension "{other}"')
                 sys.exit(-1)
     return reader_class_from_name(reader_type)(data_folder, **kwargs)
 

@@ -38,7 +38,9 @@ class OutputFileManager:
 
         """
         if filename not in self._output_files:
-            self._output_files[filename] = self.fs.open(filename, mode=self.mode, compression=self.compression)
+            self._output_files[filename] = self.fs.open(
+                filename, encoding="utf-8", mode=self.mode, compression=self.compression
+            )
         return self._output_files[filename]
 
     def get_open_files(self):
@@ -111,7 +113,9 @@ class DataFolder(DirFileSystem):
             auto_mkdir: if True, when opening a file in write mode its parent directories will be automatically created
             **storage_options: will be passed to a new fsspec filesystem object, when it is created. Ignored if fs is given
         """
-        super().__init__(path=path, fs=fs if fs else url_to_fs(path, **storage_options)[0])
+        super().__init__(
+            path=path, fs=fs if fs else url_to_fs(path, **storage_options)[0]
+        )
         self.auto_mkdir = auto_mkdir
 
     def list_files(
@@ -139,14 +143,26 @@ class DataFolder(DirFileSystem):
             extra_options["expand_info"] = False  # speed up
         if include_directories:
             extra_options["withdirs"] = True
+
+        if "maxdepth" in extra_options:
+            extra_options.pop("maxdepth")
         return sorted(
             [
                 f
                 for f, info in (
-                    self.find(subdirectory, maxdepth=1 if not recursive else None, detail=True, **extra_options)
+                    self.find(
+                        subdirectory,
+                        maxdepth=1 if not recursive else None,
+                        detail=True,
+                        **extra_options,
+                    )
                     if not glob_pattern
                     else self.glob(
-                        self.fs.sep.join([subdirectory, glob_pattern]) if subdirectory else glob_pattern,
+                        (
+                            self.fs.sep.join([subdirectory, glob_pattern])
+                            if subdirectory
+                            else glob_pattern
+                        ),
                         maxdepth=1 if not recursive else None,
                         detail=True,
                         **extra_options,
@@ -234,7 +250,9 @@ class DataFolder(DirFileSystem):
         return isinstance(self.fs, LocalFileSystem)
 
 
-def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]) -> DataFolder:
+def get_datafolder(
+    data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]
+) -> DataFolder:
     """
     `DataFolder` factory.
     Possible input combinations:
@@ -259,10 +277,18 @@ def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, Abstra
     if isinstance(data, str):
         return DataFolder(data)
     # (str path, fs init options dict)
-    if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], dict):
+    if (
+        isinstance(data, tuple)
+        and isinstance(data[0], str)
+        and isinstance(data[1], dict)
+    ):
         return DataFolder(data[0], **data[1])
     # (str path, initialized fs object)
-    if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], AbstractFileSystem):
+    if (
+        isinstance(data, tuple)
+        and isinstance(data[0], str)
+        and isinstance(data[1], AbstractFileSystem)
+    ):
         return DataFolder(data[0], fs=data[1])
     raise ValueError(
         "You must pass a DataFolder instance, a str path, a (str path, fs_init_kwargs) or (str path, fs object)"
@@ -294,17 +320,19 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
     fs.get_file(
         paths[0],
         local_path,
-        callback=TqdmCallback(
-            tqdm_kwargs={
-                "desc": f"↓ Downloading {os.path.basename(remote_path)}",
-                "unit": "B",
-                "unit_scale": True,
-                "unit_divisor": 1024,  # make use of standard units e.g. KB, MB, etc.
-                "miniters": 1,  # recommended for network progress that might vary strongly
-            }
-        )
-        if progress
-        else NoOpCallback(),
+        callback=(
+            TqdmCallback(
+                tqdm_kwargs={
+                    "desc": f"↓ Downloading {os.path.basename(remote_path)}",
+                    "unit": "B",
+                    "unit_scale": True,
+                    "unit_divisor": 1024,  # make use of standard units e.g. KB, MB, etc.
+                    "miniters": 1,  # recommended for network progress that might vary strongly
+                }
+            )
+            if progress
+            else NoOpCallback()
+        ),
     )
 
 
@@ -334,7 +362,11 @@ def safely_create_file(file_to_lock: str, do_processing: Callable):
 
 
 def cached_asset_path_or_download(
-    remote_path: str, progress: bool = True, namespace: str = "default", subfolder: str = "default", desc: str = "file"
+    remote_path: str,
+    progress: bool = True,
+    namespace: str = "default",
+    subfolder: str = "default",
+    desc: str = "file",
 ):
     """
     Download a file from a remote path to a local path.
@@ -347,8 +379,12 @@ def cached_asset_path_or_download(
         desc: description of the file being downloaded
     """
 
-    download_dir = cached_assets_path(library_name="datatrove", namespace=namespace, subfolder=subfolder)
-    local_path = os.path.join(download_dir, strip_protocol(remote_path).replace("/", "_"))
+    download_dir = cached_assets_path(
+        library_name="datatrove", namespace=namespace, subfolder=subfolder
+    )
+    local_path = os.path.join(
+        download_dir, strip_protocol(remote_path).replace("/", "_")
+    )
 
     def do_download_file():
         logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')

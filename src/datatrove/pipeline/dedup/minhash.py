@@ -81,7 +81,7 @@ class HashSig:
         sig: tuple of hashes
         file_id: file id
         doc_id: document id
-        reader_id: reader id. Used to know from where the next signature should be requested
+        reader_id: readers id. Used to know from where the next signature should be requested
     """
 
     sig: tuple[int]
@@ -107,7 +107,7 @@ def read_sigs(
 
     Args:
         file: file to read from
-        reader_id: reader id
+        reader_id: readers id
         config: minhash configuration (a MinhashConfig object)
         index_file: is index file
     """

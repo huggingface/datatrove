@@ -60,6 +60,7 @@ class HuggingFaceDatasetReader(BaseReader):
             yield from data
         # sadly sharding in this way with streaming is not supported by HF datasets yet, so no streaming
         ds = load_dataset(self.dataset, **self.dataset_options)
+
         shard = ds.shard(world_size, rank, contiguous=True)
         with tqdm(total=self.limit if self.limit != -1 else None) if self.progress else nullcontext() as pbar:
             li = 0

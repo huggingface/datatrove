@@ -63,7 +63,7 @@ class JsonlReader(BaseDiskReader):
         self.compression = compression
 
     def read_file(self, filepath: str):
-        with self.data_folder.open(filepath, "r", compression=self.compression) as f:
+        with self.data_folder.open(filepath, "rt", encoding='utf-8', compression=self.compression) as f:
             try:
                 for li, line in enumerate(f):
                     with self.track_time():
