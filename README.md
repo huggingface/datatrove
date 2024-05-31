@@ -96,6 +96,7 @@ Some options common to all executors:
 - `pipeline` a list consisting of the pipeline steps that should be run
 - `logging_dir` a datafolder where log files, statistics and more should be saved. Do not reuse folders for different pipelines/jobs as this will overwrite your stats, logs and completions.
 - `skip_completed` (_bool_, `True` by default) datatrove keeps track of completed tasks so that when you relaunch a job they can be skipped. Set this to `False` to disable this behaviour
+- `randomize_start_duration` (_int_, `0` by default) the maximum number of seconds to delay the start of each task to prevent all tasks from starting simultaneously and potentially overloading the system. 
 
 Call an executor's `run` method to execute its pipeline.
 
@@ -222,6 +223,12 @@ For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder stru
     └── stats.json ⟵ global stats from all tasks
 ```
 </details>
+
+### Colorization
+Log messages support colorization. By default, colorization will be auto detected for console messages and disabled for log files (logs/task_XXXXX.log).
+To explicitly enable or disable colorization, you may set the following environment variables:
+- `DATATROVE_COLORIZE_LOGS` "1" to add ANSI colors to console log messages and "0" to disable colorization.
+- `DATATROVE_COLORIZE_LOG_FILES` set to "1" to add ANSI colors to log messages saved to logs/task_XXXXX.log.
 
 ## DataFolder / paths
 Datatrove supports a wide variety of input/output sources through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).
@@ -405,7 +412,7 @@ pytest -sv ./tests/
 
 ```bibtex
 @misc{penedo2024datatrove,
-  author = {Penedo, Guilherme and Cappelli, Alessandro and Wolf, Thomas and Sasko, Mario},
+  author = {Penedo, Guilherme and Kydlíček, Hynek and Cappelli, Alessandro and Wolf, Thomas and Sasko, Mario},
   title = {DataTrove: large scale data processing},
   year = {2024},
   publisher = {GitHub},

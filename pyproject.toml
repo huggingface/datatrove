@@ -56,10 +56,20 @@ processing = [
     "tokenizers",
     "ftfy",
     "fasteners",
-    "xxhash"
+    "xxhash",
+    "pyahocorasick"
 ]
 decont = [
     "lighteval>=0.3.0"
+]
+multilingual = [
+    "spacy",
+    "stanza",
+    "pyvi",
+    "pythainlp",
+    "jieba",
+    "indic-nlp-library",
+    "kiwipiepy",
 ]
 quality = [
   "ruff>=0.1.5"
@@ -68,6 +78,7 @@ testing = [
   "datatrove[cli]",
   "datatrove[io]",
   "datatrove[processing]",
+  "datatrove[multilingual]",
   "datatrove[s3]",
   "datatrove[decont]",
   "pytest",

@@ -9,7 +9,8 @@ from fsspec.core import get_fs_token_paths, strip_protocol, url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from huggingface_hub import HfFileSystem, cached_assets_path
-from loguru import logger
+
+from datatrove.utils.logging import logger
 
 
 class OutputFileManager:

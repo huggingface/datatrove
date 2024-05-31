@@ -3,7 +3,8 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.pipeline.dedup.bloom_filter import SingleBloomFilter
+from datatrove.pipeline.dedup.bloom_filter import BloomFilterConfig, SingleBloomFilter
+from tests.utils import use_hash_configs
 
 
 TEXT_0 = (
@@ -84,14 +85,18 @@ DOCS = [
 TARGETS = [True] * 8 + [False] * 3
 
 
-class SentenceDedup(unittest.TestCase):
+class BloomFilter(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory
         self.tmp_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
-    def test_sd(self):
-        bloom_filter = SingleBloomFilter(output_folder=self.tmp_dir, m_bytes=2**10 - 1, k=7, expected_elements=866)
+    @use_hash_configs(precision=[32])
+    def test_sd(self, hash_config):
+        bloom_filter = SingleBloomFilter(
+            output_folder=self.tmp_dir,
+            config=BloomFilterConfig(m_bytes=2**10 - 1, k=7, expected_elements=866, hash_config=hash_config),
+        )
 
         for doc_idx, doc in enumerate(DOCS):
             is_unique = bloom_filter.step(doc)

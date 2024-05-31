@@ -24,7 +24,7 @@ from datatrove.pipeline.writers.jsonl import JsonlWriter
 """
     we first ran the following pipeline for each dump
 """
-DUMP_TO_PROCESS = "CC-MAIN-2O23-5O"  # example
+DUMP_TO_PROCESS = "CC-MAIN-2023-50"  # example
 
 MAIN_OUTPUT_PATH = "s3://some_s3_bucket"
 FILTERING_OUTPUT_PATH = f"{MAIN_OUTPUT_PATH}/base_processing"

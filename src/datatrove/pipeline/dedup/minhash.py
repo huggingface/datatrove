@@ -4,24 +4,26 @@ import os
 import re
 import struct
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
-from loguru import logger
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_tuples_from_file, seek_to_start
-from datatrove.utils.text import TextNormConfig, sha1_hash32, sha1_hash64, simplify_text
-from datatrove.utils.typeshelper import StatHints
+from datatrove.utils.hashing import HashConfig, create_hash_func
+from datatrove.utils.logging import logger
+from datatrove.utils.text import TextNormConfig, ngrams, simplify_text
+from datatrove.utils.typeshelper import Languages, StatHints
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 # http://en.wikipedia.org/wiki/Mersenne_prime
 _mersenne_prime = np.uint64((1 << 61) - 1)
-_max_hash_32b = np.uint64((1 << 32) - 1)
 
 """
 n_grams -> roughly nr of words (this should be small enough to catch fuzzy matches but big enough to not have each shingle be too common)
@@ -41,36 +43,19 @@ class MinhashConfig:
         n_grams: n-grams size to use
         num_buckets: number of buckets to use
         hashes_per_bucket: number of hashes per bucket
-        use_64bit_hashes: use 64bit hashes. Uses 32bit hashes if `False`
         seed: random seed used to generate the hash function parameters. Should be the same on all workers to ensure they all have the same parameters
     """
 
     n_grams: int = 5
-
     num_buckets: int = 14
     hashes_per_bucket: int = 8
-
-    use_64bit_hashes: bool = True
     seed: int = 1
 
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
-
-    @property
-    def hash_dtype(self):
-        return np.uint64 if self.use_64bit_hashes else np.uint32
-
-    @property
-    def hash_format(self):
-        return "Q" if self.use_64bit_hashes else "I"
+    hash_config: HashConfig = field(default_factory=HashConfig)
 
     def __str__(self):
-        return (
-            f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_"
-            f"{'64' if self.use_64bit_hashes else '32'}b"
-        )
-
-
-DEFAULT_MINHASH_CONFIG = MinhashConfig()
+        return f"{self.n_grams}ng_{self.num_buckets}bs_{self.hashes_per_bucket}hs_{self.hash_config}"
 
 
 @dataclass(order=True)
@@ -86,6 +71,7 @@ class HashSig:
 
     sig: tuple[int]
     file_id: int
+    file_stem: str
     doc_id: int
     reader_id: int
 
@@ -111,12 +97,13 @@ def read_sigs(
         config: minhash configuration (a MinhashConfig object)
         index_file: is index file
     """
-    line_format = f"{config.hashes_per_bucket}{config.hash_format}{'I' if not index_file else ''}"
+    line_format = f"{config.hashes_per_bucket}{config.hash_config.struct_format}{'I' if not index_file else ''}"
     with file as f:
         if f.size == 0:
             return
-        seek_to_start(f, min_hash, line_format, config.hash_format)
+        seek_to_start(f, min_hash, line_format, config.hash_config.struct_format)
         last = None
+        file_stem = Path(file.path).name.removesuffix(".minhash.sig")
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             sigdata = data if index_file else data[:-1]
             assert sigdata[0] >= min_hash and (
@@ -126,9 +113,9 @@ def read_sigs(
                 break
             last = sigdata
             yield (
-                HashSig(sig=sigdata, doc_id=-1, file_id=-1, reader_id=reader_id)
+                HashSig(sig=sigdata, doc_id=-1, file_id=-1, reader_id=reader_id, file_stem=file_stem)
                 if index_file
-                else HashSig(sig=sigdata, doc_id=data[-1], file_id=reader_id, reader_id=reader_id)
+                else HashSig(sig=sigdata, doc_id=data[-1], file_id=reader_id, reader_id=reader_id, file_stem=file_stem)
             )
 
 
@@ -144,26 +131,26 @@ class MinhashDedupSignature(PipelineStep):
 
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
-    _requires_dependencies = ["nltk"]
 
-    def __init__(
-        self, output_folder: DataFolderLike, config: MinhashConfig = DEFAULT_MINHASH_CONFIG, language: str = "english"
-    ):
+    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = Languages.english):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
-        self.config = config
+        self.config = config or MinhashConfig()
         self.num_hashes = self.config.num_buckets * self.config.hashes_per_bucket
         self._parameters = None
-        self._hash_func = sha1_hash32 if not self.config.use_64bit_hashes else sha1_hash64
+        self._hash_func = create_hash_func(self.config.hash_config)
         self.language = language
+        self.word_tokenizer = load_word_tokenizer(language)
 
     @property
     def parameters(self):
         """Minhash parameters
 
         Create parameters for a random bijective permutation function
-        that maps a 32-bit hash value to another 32-bit hash value.
+        that maps a 32/64-bit hash value to another 32/64-bit hash value.
         http://en.wikipedia.org/wiki/Universal_hashing
+
+        Note: For 64-bit hashes the upper-bound for codomain is not [0,2**64) but [0,2**61 - 1)
         """
         if not self._parameters:
             gen = np.random.RandomState(self.config.seed)
@@ -184,10 +171,11 @@ class MinhashDedupSignature(PipelineStep):
         """
         a, b = self.parameters
         phv = (shingles * a + b) % _mersenne_prime
-        if not self.config.use_64bit_hashes:
-            phv = np.bitwise_and(phv, _max_hash_32b)
+        if self.config.hash_config.precision == 32:
+            phv = np.bitwise_and(phv, self.config.hash_config.max)
         return [
-            x.tolist() for x in np.split(np.min(phv, axis=0).astype(self.config.hash_dtype), self.config.num_buckets)
+            x.tolist()
+            for x in np.split(np.min(phv, axis=0).astype(self.config.hash_config.np_dtype), self.config.num_buckets)
         ]
 
     def get_shingles(self, text: str) -> np.ndarray:
@@ -201,12 +189,13 @@ class MinhashDedupSignature(PipelineStep):
         Returns:
             numpy array of shingles: dtype = uint64, shape = (number of n_grams in string, 1)
         """
-        from nltk import ngrams, word_tokenize
-
         return np.fromiter(
             [
-                self._hash_func(" ".join(x).encode("utf-8"))
-                for x in ngrams(word_tokenize(simplify_text(text, self.config.norm_config)), self.config.n_grams)
+                self._hash_func(" ".join(x))
+                for x in ngrams(
+                    self.word_tokenizer.word_tokenize(simplify_text(text, self.config.norm_config)),
+                    self.config.n_grams,
+                )
             ],
             dtype=np.uint64,
         ).reshape((-1, 1))
@@ -226,7 +215,9 @@ class MinhashDedupSignature(PipelineStep):
                         # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
                         bucket.write(
                             struct.pack(
-                                f"<{self.config.hashes_per_bucket}{self.config.hash_format}I", *bucket_sig, doc_idx
+                                f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
+                                *bucket_sig,
+                                doc_idx,
                             )
                         )
             # TODO: prevent these files from being uploaded/redownloaded in the first place
@@ -249,7 +240,9 @@ class MinhashDedupSignature(PipelineStep):
                     for sig in sigs:
                         fo.write(
                             struct.pack(
-                                f"<{self.config.hashes_per_bucket}{self.config.hash_format}I", *sig.sig, sig.doc_id
+                                f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
+                                *sig.sig,
+                                sig.doc_id,
                             )
                         )
 
@@ -276,7 +269,7 @@ class MinhashDedupBuckets(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_folder: DataFolderLike = None,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        config: MinhashConfig = None,
         only_dedup_in_index: bool = True,
         create_index_name: str = None,
         lines_to_buffer: int = 5,
@@ -285,7 +278,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
-        self.config = config
+        self.config = config or MinhashConfig()
         self.only_dedup_in_index = only_dedup_in_index
         self.create_index_name = create_index_name
         self.lines_to_buffer = lines_to_buffer
@@ -293,12 +286,15 @@ class MinhashDedupBuckets(PipelineStep):
     def get_worker_hash_range(self, sig_files, rank, world_size):
         workers_per_bucket = world_size // self.config.num_buckets
         bucket, bucket_worker = divmod(rank, workers_per_bucket)
-        hash_min, hash_max = 0, _mersenne_prime if self.config.use_64bit_hashes else _max_hash_32b
+        hash_min, hash_max = (
+            0,
+            _mersenne_prime if self.config.hash_config.precision == 64 else self.config.hash_config.max,
+        )
         if workers_per_bucket > 1 and len(sig_files):
             # take the first file and find bucket_worker boundaries. all workers in a bucket process the same set of
             # files, so this should be consistent across workers (and span the entire range of hashes)
             with self.input_folder.open(sig_files[0], mode="rb") as f:
-                line_size = struct.calcsize(f"{self.config.hashes_per_bucket}{self.config.hash_format}I")
+                line_size = struct.calcsize(f"{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I")
                 L, rem = divmod(f.size, line_size)
                 assert rem == 0, "file size not divisible by line size"
                 assert L >= workers_per_bucket, f"tried to use {workers_per_bucket=} but there are only {L} lines"
@@ -306,13 +302,15 @@ class MinhashDedupBuckets(PipelineStep):
                     # not first
                     f.seek(line_size * (L // workers_per_bucket) * bucket_worker, os.SEEK_SET)
                     hash_min = struct.unpack(
-                        self.config.hash_format, f.read(struct.calcsize(self.config.hash_format))
+                        self.config.hash_config.struct_format,
+                        f.read(struct.calcsize(self.config.hash_config.struct_format)),
                     )[0]
                 if bucket_worker + 1 < workers_per_bucket:
                     # not last
                     f.seek(line_size * (L // workers_per_bucket) * (bucket_worker + 1), os.SEEK_SET)
                     hash_max = struct.unpack(
-                        self.config.hash_format, f.read(struct.calcsize(self.config.hash_format))
+                        self.config.hash_config.struct_format,
+                        f.read(struct.calcsize(self.config.hash_config.struct_format)),
                     )[0]
         return hash_min, hash_max
 
@@ -392,16 +390,21 @@ class MinhashDedupBuckets(PipelineStep):
                             # write (file_id1, doc_id1, file_id2, doc_id2)
                             if last.is_from_index():
                                 # we can't actually write -1, so we use SENTINEL instead
-                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, v.file_id, v.doc_id))
+                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, int(v.file_stem), v.doc_id))
                                 self.stat_update("index_match", "total_matches")
                             # if there isn't an index, or we are not only deduping in relation to the index
                             elif not index_files or not self.only_dedup_in_index:
-                                out_f.write(struct.pack("<4I", last.file_id, last.doc_id, v.file_id, v.doc_id))
+                                out_f.write(
+                                    struct.pack("<4I", int(last.file_stem), last.doc_id, int(v.file_stem), v.doc_id)
+                                )
                                 self.stat_update("total_matches")
                         elif out_index:
                             # new sig that isn't part of any index, save to our new index
                             out_index.write(
-                                struct.pack(f"<%d{self.config.hash_format}" % self.config.hashes_per_bucket, *v.sig)
+                                struct.pack(
+                                    f"<%d{self.config.hash_config.struct_format}" % self.config.hashes_per_bucket,
+                                    *v.sig,
+                                )
                             )
                     last = v
                     next_sig = next(sig_readers[v.reader_id], None)
@@ -425,7 +428,7 @@ class MinhashDedupCluster(PipelineStep):
         self,
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        config: MinhashConfig = None,
         save_cluster_id: bool = False,
         ignore_index_matches: bool = False,
         lines_to_buffer: int = 5,
@@ -433,7 +436,7 @@ class MinhashDedupCluster(PipelineStep):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
         self.output_folder = get_datafolder(output_folder)
-        self.config = config
+        self.config = config or MinhashConfig()
         self.save_cluster_id = save_cluster_id
         self.ignore_index_matches = ignore_index_matches
         self.lines_to_buffer = lines_to_buffer
@@ -449,6 +452,7 @@ class MinhashDedupCluster(PipelineStep):
         def parent(x):
             if x not in union_set or union_set[x] == x:
                 return x
+            # Path Compression
             union_set[x] = parent(union_set[x])
             return union_set[x]
 
@@ -566,13 +570,13 @@ class MinhashBuildIndex(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_name: str,
-        config: MinhashConfig = DEFAULT_MINHASH_CONFIG,
+        config: MinhashConfig = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
-        self.config = config
+        self.config = config or MinhashConfig()
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer
 
@@ -596,7 +600,11 @@ class MinhashBuildIndex(PipelineStep):
             while pq:
                 v: HashSig = heapq.heappop(pq)
                 if not last or last.sig != v.sig:
-                    out_f.write(struct.pack(f"<%d{self.config.hash_format}" % self.config.hashes_per_bucket, *v.sig))
+                    out_f.write(
+                        struct.pack(
+                            f"<%d{self.config.hash_config.struct_format}" % self.config.hashes_per_bucket, *v.sig
+                        )
+                    )
                 last = v
                 next_sig = next(sig_readers[v.file_id], None)
                 if next_sig:

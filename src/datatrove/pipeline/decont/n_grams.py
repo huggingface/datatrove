@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from typing import Tuple
 
 import numpy as np
-from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, file_exists, get_datafolder, open_file
@@ -19,7 +18,11 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_np_from_file
-from datatrove.utils.text import TextNormConfig, simplify_text, xxhash64
+from datatrove.utils.hashing import HashConfig, create_hash_func
+from datatrove.utils.logging import logger
+from datatrove.utils.text import TextNormConfig, ngrams, simplify_text
+from datatrove.utils.typeshelper import Languages
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 @dataclass
@@ -44,9 +47,7 @@ class NGramsDecontConfig:
     find_query_ngrams: bool = False  # enable to also check for matches in n-grams containing only the input/prompt
     find_overlap_ngrams: bool = True  # will also find matches for n-grams containing BOTH input and query
     norm_config: TextNormConfig = field(default_factory=TextNormConfig)
-
-
-DEFAULT_NGRAMS_DECONT_CONFIG = NGramsDecontConfig()
+    hash_config: HashConfig = field(default_factory=HashConfig)
 
 
 class NGramsDecontIndexer(PipelineStep):
@@ -65,15 +66,15 @@ class NGramsDecontIndexer(PipelineStep):
 
     type = "🦠 - DECONT"
     name = "💥 N-grams build index"
-    _requires_dependencies = ["nltk", "lighteval", "xxhash"]
+    _requires_dependencies = ["lighteval"]
 
     def __init__(
         self,
         output_folder: DataFolderLike,
         lighteval_tasks: str | list[str] | None = None,  # list in the format suite|task or path to one such list
         custom_lighteval_tasks: str | None = None,
-        config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
-        language: str = "english",
+        config: NGramsDecontConfig = None,
+        language: str = Languages.english,
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -87,17 +88,15 @@ class NGramsDecontIndexer(PipelineStep):
         else:
             self.lighteval_tasks = lighteval_tasks
         self.custom_lighteval_tasks = custom_lighteval_tasks
-        self.config = config
-        self.language = language
+        self.config = config or NGramsDecontConfig()
+        self.tokenizer = load_word_tokenizer(language)
+        self.hash_func = create_hash_func(self.config.hash_config)
 
     def compute_hashes(self, label: str, query: str | None = None) -> list[int]:
-        from nltk import ngrams
-        from nltk.tokenize import word_tokenize
-
-        label_tokens = word_tokenize(simplify_text(label, self.config.norm_config), language=self.language)
+        label_tokens = self.tokenizer.word_tokenize(simplify_text(label, self.config.norm_config))
         ngrams_to_compute = list(ngrams(label_tokens, self.config.n_grams))
         if query is not None:
-            query_tokens = word_tokenize(simplify_text(query, self.config.norm_config), language=self.language)
+            query_tokens = self.tokenizer.word_tokenize(simplify_text(query, self.config.norm_config))
             if self.config.find_query_ngrams:
                 ngrams_to_compute.extend(ngrams(query_tokens, self.config.n_grams))
             if self.config.find_overlap_ngrams:
@@ -117,7 +116,7 @@ class NGramsDecontIndexer(PipelineStep):
                         if len(query_tokens) >= self.config.n_grams - 1 - i and len(label_tokens) >= i + 1
                     ]
                 )
-        return list(map(xxhash64, map(" ".join, ngrams_to_compute)))
+        return list(map(self.hash_func, map(" ".join, ngrams_to_compute)))
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         if world_size != 1:
@@ -157,7 +156,7 @@ class NGramsDecontIndexer(PipelineStep):
                     hashes[task_name].update(self.compute_hashes(gold, query))
 
         for task_name, task_hashes in hashes.items():
-            hashes_array = np.array(list(task_hashes), dtype="<u8")
+            hashes_array = np.array(list(task_hashes), dtype=self.config.hash_config.np_descr)
             logger.info(f"Saving {len(task_hashes)} hashes for {task_name}")
             with self.output_folder.open(f"{task_name.replace(' ', '_')}.index.hashes", mode="wb") as f:
                 if self.output_folder.is_local():
@@ -176,26 +175,29 @@ class NGramsDecontFilter(BaseFilter):
 
     type = "🦠 - DECONT"
     name = "💥 N-grams decontaminate"
-    _requires_dependencies = ["nltk", "xxhash"]
 
     def __init__(
         self,
         index_folder: DataFolderLike,
-        config: NGramsDecontConfig = DEFAULT_NGRAMS_DECONT_CONFIG,
+        config: NGramsDecontConfig = None,
         exclusion_writer: DiskWriter = None,
-        language: str = "english",
+        language: str = Languages.english,
     ):
         super().__init__()
         self.index_folder = get_datafolder(index_folder)
-        self.config = config
+        self.config = config or NGramsDecontConfig()
         self.exclusion_writer = exclusion_writer
         self.language = language
         self._index_hashes = None
+        self.hash_func = create_hash_func(self.config.hash_config)
+        self.tokenizer = load_word_tokenizer(language)
 
     def load_index_hashes(self):
         def load_index_from_file(file):
             with self.index_folder.open(file, mode="rb") as f:
-                return file, read_np_from_file(f, np.dtype("<u8"), self.index_folder.is_local()).tolist()
+                return file, read_np_from_file(
+                    f, np.dtype(self.config.hash_config.np_descr), self.index_folder.is_local()
+                ).tolist()
 
         with ThreadPoolExecutor() as pool:
             hashes = pool.map(load_index_from_file, self.index_folder.list_files())
@@ -211,13 +213,10 @@ class NGramsDecontFilter(BaseFilter):
         if self._index_hashes is None:
             self.load_index_hashes()
 
-        from nltk import ngrams
-        from nltk.tokenize import word_tokenize
-
-        text_tokens = word_tokenize(simplify_text(doc.text, self.config.norm_config), language=self.language)
+        text_tokens = self.tokenizer.word_tokenize(simplify_text(doc.text, self.config.norm_config))
         ngrams_to_compute = list(ngrams(text_tokens, self.config.n_grams))
         for n_gram in map(" ".join, ngrams_to_compute):
-            task = self._index_hashes.get(xxhash64(n_gram), None)
+            task = self._index_hashes.get(self.hash_func(n_gram), None)
             if task is not None:
                 doc.metadata["contaminated_ngram"] = n_gram
                 doc.metadata["contaminated_task"] = task

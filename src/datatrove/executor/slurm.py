@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import os
-import random
 import signal
 import subprocess
 import sys
@@ -15,12 +14,11 @@ from typing import Callable
 
 import dill
 from dill import CONTENTS_FMODE
-from loguru import logger
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import get_random_str, get_timestamp
+from datatrove.utils.logging import get_random_str, get_timestamp, logger
 
 
 def requeue_handler(signum, _frame):
@@ -74,7 +72,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         stagger_max_array_jobs: when max_array_launch_parallel is True, this determines how many seconds to wait
             between launching each of the parallel jobs
         run_on_dependency_fail: start executing when a job we depend on finishes even if it has failed
-        randomize_start: randomize the start of each task in a job in a ~3 min window
+        randomize_start_duration: the maximum number of seconds to delay the start of each task.
         requeue_signals: requeue the job and exit when one of these signals is received. Useful for when an instance
         is being reclaimed and jobs must be stopped for example. Set to None to disable
         mail_type: see https://slurm.schedmd.com/sbatch.html. Common values are (NONE, BEGIN, END, FAIL, REQUEUE, ALL)
@@ -107,7 +105,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         max_array_launch_parallel: bool = False,
         stagger_max_array_jobs: int = 0,
         run_on_dependency_fail: bool = False,
-        randomize_start: bool = False,
+        randomize_start_duration: int = 0,
         requeue_signals: tuple[str] | None = ("SIGUSR1",),
         mail_type: str = "ALL",
         mail_user: str = None,
@@ -115,7 +113,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         srun_args: dict = None,
         tasks_per_job: int = 1,
     ):
-        super().__init__(pipeline, logging_dir, skip_completed)
+        super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
         self.workers = workers
         self.partition = partition
@@ -135,7 +133,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.max_array_launch_parallel = max_array_launch_parallel
         self.stagger_max_array_jobs = stagger_max_array_jobs
         self.run_on_dependency_fail = run_on_dependency_fail
-        self.randomize_start = randomize_start
+        self.randomize_start_duration = randomize_start_duration
         self.job_id = None
         self.requeue_signals = requeue_signals
         self.mail_type = mail_type
@@ -179,8 +177,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     break
                 rank = all_ranks[rank_to_run]
 
-                if self.randomize_start:
-                    time.sleep(random.randint(0, 60 * 3))
                 self._run_for_rank(rank)
         else:
             # we still have to launch the job

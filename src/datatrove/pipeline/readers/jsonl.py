@@ -2,10 +2,9 @@ import json
 from json import JSONDecodeError
 from typing import Callable, Literal
 
-from loguru import logger
-
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
+from datatrove.utils.logging import logger
 
 
 class JsonlReader(BaseDiskReader):
@@ -17,7 +16,8 @@ class JsonlReader(BaseDiskReader):
         compression: the compression to use (default: "infer")
         limit: limit the number of JSON lines to read
         skip: skip the first n rows
-        progress: show progress bar
+        file_progress: show progress bar for files
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
@@ -38,7 +38,8 @@ class JsonlReader(BaseDiskReader):
         compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         skip: int = 0,
-        progress: bool = False,
+        file_progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
@@ -51,7 +52,8 @@ class JsonlReader(BaseDiskReader):
             data_folder,
             limit,
             skip,
-            progress,
+            file_progress,
+            doc_progress,
             adapter,
             text_key,
             id_key,
