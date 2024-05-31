@@ -1,7 +1,4 @@
-import re
 from bisect import bisect
-from re import Pattern
-from typing import Union
 
 import numpy as np
 import torch
@@ -83,7 +80,7 @@ if is_torch_available():
             self,
             folder_path: str,
             seq_len: int,
-            filename_pattern: Union[Pattern, str] = None,
+            filename_pattern: str = None,
             recursive: bool = True,
             token_size: int = 2,
             max_tokens: int | None = None,
@@ -91,14 +88,12 @@ if is_torch_available():
             seed: int = 42,
         ):
             self.folder_path = folder_path
-            if isinstance(filename_pattern, str):
-                filename_pattern = re.compile(filename_pattern)
             self.filename_pattern = filename_pattern
             fs, folder_path = url_to_fs(folder_path)
             matched_files = (
                 fs.find(folder_path, detail=False, maxdepth=1 if not recursive else None)
                 if not filename_pattern
-                else fs.glob(filename_pattern.pattern, maxdepth=1 if not recursive else None)
+                else fs.glob(filename_pattern, maxdepth=1 if not recursive else None)
             )
             if not matched_files:
                 raise FileNotFoundError(f'No files matching "{filename_pattern}" found in {folder_path}')
