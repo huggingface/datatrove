@@ -42,12 +42,10 @@ if is_torch_available():
             self._f = None
 
         def __getitem__(self, item):
-            # We loop on the dataset if asking for an index larger than the dataset size
-            epoch_item = item % len(self)
             if not self._f:
                 self._f = self.fs.open(self.file_path, "rb")
             chunk_size = self.token_size * (self.seq_len + 1)
-            self._f.seek(epoch_item * chunk_size)
+            self._f.seek(item * chunk_size)
             return {
                 "input_ids": torch.as_tensor(
                     np.frombuffer(self._f.read(chunk_size), np.uint16 if self.token_size == 2 else np.uint32).astype(
@@ -123,13 +121,12 @@ if is_torch_available():
             self.current_file = 0
 
         def __getitem__(self, item):
-            epoch_item = item % len(self)
             # check if we are in the same file as before
-            if not (self.lens[self.current_file] <= epoch_item < self.lens[self.current_file + 1]):
+            if not (self.lens[self.current_file] <= item < self.lens[self.current_file + 1]):
                 # figure out current file
-                self.current_file = bisect(self.lens, epoch_item) - 1
+                self.current_file = bisect(self.lens, item) - 1
             # subtract file starting offset
-            return self.files[self.current_file][epoch_item - self.lens[self.current_file]]
+            return self.files[self.current_file][item - self.lens[self.current_file]]
 
         def __len__(self):
             return self.lens[-1] if self.lens else 0
