@@ -1,8 +1,10 @@
-"""
-
-"""
-
-import sys, os, re
+import sys
+import os
+import re
+import psutil
+import time
+import threading
+from datetime import datetime
 
 sys.path.append("../src")
 from datatrove.pipeline.readers.huggingface import HuggingFaceDatasetReader
@@ -16,27 +18,25 @@ from datatrove.pipeline.dedup.minhash import (
     MinhashDedupCluster,
     MinhashDedupFilter,
 )
+from datatrove.pipeline.readers import JsonlReader
 
 # os.environ["HF_BASE"] = "/work_space_data/hf_cache"
 # Don't forget to set the HF_BASE environment variable to a valid path
 
 
 def find_years(text):
-    # Regex pattern to match four-digit numbers that are likely to be years
-    # This pattern matches any number from 1900 to 2099
     pattern = r"\b(19[0-9]{2}|20[0-9]{2})\b"
-
-    # Find all matches in the text
     years = re.findall(pattern, text)
-
     return years
 
 
 def _multilegal_adapter(data: dict, path: str, id_in_file: int | str):
     years = find_years(data["text"])
     if len(years) > 0:
-        # very crude estimation of the year..
-        year = max(int(year) for year in years if int(year) <= 2024)
+        try:
+            year = max(int(year) for year in years if int(year) <= 2024)
+        except:
+            year = 2024
     else:
         year = 2024
     metadata = {
@@ -53,114 +53,128 @@ def _multilegal_adapter(data: dict, path: str, id_in_file: int | str):
     }
 
 
+def log_resource_usage(log_file, stop_event):
+    process = psutil.Process(os.getpid())
+    with open(log_file, "a") as f:
+        f.write(f"Resource usage log started at {datetime.now()}\n")
+        while not stop_event.is_set():
+            try:
+                cpu_usage = process.cpu_percent(interval=1)
+                memory_info = process.memory_info()
+                memory_usage = memory_info.rss / (1024 * 1024)  # Convert bytes to MB
+                f.write(
+                    f"{datetime.now()}: CPU Usage: {cpu_usage}%, Memory Usage: {memory_usage} MB\n"
+                )
+                time.sleep(1)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                break
+        f.write(f"Resource usage log ended at {datetime.now()}\n")
+
+
 if __name__ == "__main__":
-    INPUT_READER = HuggingFaceDatasetReader(
-        dataset="joelniklaus/Multi_Legal_Pile",
-        dataset_options={
-            "split": "train",
-            "name": "all_legislation",
-            "cache_dir": os.environ["HF_BASE"],
-            "trust_remote_code": True,
-        },
-        progress=True,
-        adapter=_multilegal_adapter,
-        limit=1000,
+    log_file = "resource_usage_log.txt"
+    stop_event = threading.Event()
+    resource_log_thread = threading.Thread(
+        target=log_resource_usage, args=(log_file, stop_event)
     )
+    resource_log_thread.start()
 
-    main_processing_executor = LocalPipelineExecutor(
-        pipeline=[
-            INPUT_READER,
-            TokensCounter(),
-            LengthCounter(),
-            SwissAIJsonlWriter(
-                output_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/jsonl'
-            ),
-        ],
-        tasks=16,
-        workers=1,
-        start_method="spawn",
-        logging_dir=f'/{os.environ["HF_BASE"]}/multilegal_pile/logging',
-    )
+    try:
+        INPUT_READER = HuggingFaceDatasetReader(
+            dataset="joelniklaus/Multi_Legal_Pile",
+            dataset_options={
+                "split": "train",
+                "name": "all_legislation",
+                "cache_dir": os.environ["HF_BASE"],
+                "trust_remote_code": True,
+            },
+            progress=True,
+            adapter=_multilegal_adapter,
+            limit=1000,
+        )
 
-    main_processing_executor.run()
+        # main_processing_executor = LocalPipelineExecutor(
+        #     pipeline=[
+        #         INPUT_READER,
+        #         TokensCounter(),
+        #         LengthCounter(),
+        #         SwissAIJsonlWriter(
+        #             output_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/jsonl'
+        #         ),
+        #     ],
+        #     tasks=16,
+        #     workers=1,
+        #     start_method="spawn",
+        #     logging_dir=f'/{os.environ["HF_BASE"]}/multilegal_pile/logging',
+        # )
+        #
+        # main_processing_executor.run()
 
-    minhash_config = MinhashConfig(
-        use_64bit_hashes=True
-    )  # better precision -> fewer false positives (collisions)
-    TOTAL_TASKS = 1000
-    stage1 = LocalPipelineExecutor(
-        pipeline=[
-            INPUT_READER,
-            MinhashDedupSignature(
-                output_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/signatures',
-                config=minhash_config,
-            ),
-        ],
-        tasks=TOTAL_TASKS,
-        time="5:00:00",
-        partition="hopper-cpu",
-        logging_dir=f'/{os.environ["HF_BASE"]}/multilegal_pile/logging/signatures',
-        slurm_logs_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/logging/signatures/slurm_logs',
-        randomize_start=True,
-        depends=main_processing_executor,  # only start after the first one completes
-    )
-    stage2 = LocalPipelineExecutor(
-        pipeline=[
-            MinhashDedupBuckets(
-                input_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/signatures',
-                output_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/buckets',
-                config=MinhashConfig(use_64bit_hashes=True),
-            ),
-        ],
-        tasks=minhash_config.num_buckets
-        * 50,  # the code supports parallelizing each bucket. here we run 50
-        # workers per bucket
-        randomize_start=True,
-        logging_dir=f'{os.environ["HF_BASE"]}/multilegal_pile/logging/buckets',
-        partition="hopper-cpu",
-        time="02:00:00",
-        mem_per_cpu_gb=4,
-        cpus_per_task=3,  # you can add run more (smaller) tasks if you do not have a lot of memory
-        depends=stage1,
-    )
-    stage3 = LocalPipelineExecutor(
-        pipeline=[
-            MinhashDedupCluster(
-                input_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/buckets',
-                output_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/remove_ids',
-                config=minhash_config,
-            ),
-        ],
-        tasks=1,  # this step runs on a single task
-        logging_dir=f'{os.environ["HF_BASE"]}/multilegal_pile/clustering',
-        partition="hopper-cpu",
-        time="30:00:00",  # and can also be quite slow. Usually not this slow though
-        mem_per_cpu_gb=25,
-        cpus_per_task=8,  # if you dedup a full dump, you do need a lot of memory for this one
-        depends=stage2,
-    )
+        minhash_config = MinhashConfig(use_64bit_hashes=True)
+        # TOTAL_TASKS = 16
+        # stage1 = LocalPipelineExecutor(
+        #     pipeline=[
+        #         JsonlReader(
+        #             data_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/jsonl'
+        #         ),
+        #         MinhashDedupSignature(
+        #             output_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/signatures',
+        #             config=minhash_config,
+        #         ),
+        #     ],
+        #     tasks=TOTAL_TASKS,
+        #     logging_dir=f'/{os.environ["HF_BASE"]}/multilegal_pile/logging/signatures',
+        #     # depends=main_processing_executor,
+        # )
+        # stage1.run()
+        # stage2 = LocalPipelineExecutor(
+        #     pipeline=[
+        #         MinhashDedupBuckets(
+        #             input_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/signatures',
+        #             output_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/buckets',
+        #             config=MinhashConfig(use_64bit_hashes=True),
+        #         ),
+        #     ],
+        #     tasks=minhash_config.num_buckets * 50,
+        #     logging_dir=f'{os.environ["HF_BASE"]}/multilegal_pile/logging/buckets',
+        #     depends=stage1,
+        # )
+        # stage2.run()
+        stage3 = LocalPipelineExecutor(
+            pipeline=[
+                MinhashDedupCluster(
+                    input_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/buckets',
+                    output_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/remove_ids',
+                    config=minhash_config,
+                ),
+            ],
+            tasks=1,
+            logging_dir=f'{os.environ["HF_BASE"]}/multilegal_pile/clustering',
+            # depends=stage2,
+        )
+        stage3.run()
+        # stage4 = LocalPipelineExecutor(
+        #     pipeline=[
+        #         INPUT_READER,
+        #         TokensCounter(),
+        #         MinhashDedupFilter(
+        #             input_folder=f'{os.environ["HF_BASE"]}/multilegal_pile/remove_ids'
+        #         ),
+        #         SwissAIJsonlWriter(
+        #             output_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/jsonl'
+        #         ),
+        #     ],
+        #     tasks=TOTAL_TASKS,
+        #     logging_dir=f'{os.environ["HF_BASE"]}/multilegal_pile/filtering',
+        #     # depends=stage3,
+        # )
+        #
+        # stage4.run()
 
-    stage4 = LocalPipelineExecutor(
-        pipeline=[
-            INPUT_READER,
-            TokensCounter(),  # you can remove this one, it's just a nice way to know how many tokens we have
-            # before and after dedup
-            MinhashDedupFilter(
-                input_folder=f'{os.environ["HF_BASE"]}/multilegal_pile//remove_ids'
-            ),
-            # run the PII removal
-            # PIIFormatter(),
-            SwissAIJsonlWriter(
-                output_folder=f'/{os.environ["HF_BASE"]}/multilegal_pile/jsonl'
-            ),
-        ],
-        tasks=TOTAL_TASKS,
-        logging_dir=f'{os.environ["HF_BASE"]}/multilegal_pile/filtering',
-        partition="hopper-cpu",
-        time="5:00:00",
-        mem_per_cpu_gb=4,
-        depends=stage3,
-    )
+    finally:
+        stop_event.set()
+        resource_log_thread.join()
 
-    # launch dedup pipelines
-    stage4.run()
+        # Log completion
+        with open(log_file, "a") as f:
+            f.write("All stages completed.\n")
