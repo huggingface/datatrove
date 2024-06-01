@@ -58,6 +58,10 @@ if is_torch_available():
         def __len__(self):
             return self._len
 
+        def __del__(self):
+            if self._f:
+                self._f.close()
+
     class DatatroveFolderDataset(Dataset):
         """
         Dataset for a folder of .ds files
