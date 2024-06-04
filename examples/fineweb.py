@@ -65,7 +65,7 @@ main_processing_executor = SlurmPipelineExecutor(
     time="10:00:00",
     logging_dir=f"{MAIN_OUTPUT_PATH}/logs/base_processing/{DUMP_TO_PROCESS}",
     slurm_logs_folder=f"logs/base_processing/{DUMP_TO_PROCESS}/slurm_logs",  # must be local
-    randomize_start=True,  # don't hit the bucket all at once with the list requests
+    randomize_start_duration=180,  # don't hit the bucket all at once with the list requests
     mem_per_cpu_gb=2,
     partition="hopper-cpu",
 )
@@ -109,7 +109,7 @@ stage1 = SlurmPipelineExecutor(
     partition="hopper-cpu",
     logging_dir=f"{S3_LOGS_FOLDER}/signatures",
     slurm_logs_folder=f"{LOCAL_LOGS_FOLDER}/signatures/slurm_logs",
-    randomize_start=True,
+    randomize_start_duration=180,
     depends=main_processing_executor,  # only start after the first one completes
 )
 
@@ -124,7 +124,7 @@ stage2 = SlurmPipelineExecutor(
     ],
     tasks=minhash_config.num_buckets * 50,  # the code supports parallelizing each bucket. here we run 50
     # workers per bucket
-    randomize_start=True,
+    randomize_start_duration=180,
     logging_dir=f"{S3_LOGS_FOLDER}/buckets",
     partition="hopper-cpu",
     time="02:00:00",
