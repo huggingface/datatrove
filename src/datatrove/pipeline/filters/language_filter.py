@@ -17,6 +17,7 @@ class LanguageFilter(BaseFilter):
         languages: tuple = (Languages.english,),
         language_threshold: float = 0.65,
         exclusion_writer: DiskWriter = None,
+        label_only: bool = False,
     ):
         """
         filters if the predicted language is not among given language or if the language score is below language
@@ -26,10 +27,12 @@ class LanguageFilter(BaseFilter):
             languages: list of languages to keep
             language_threshold: language_threshold minimum score to accept a document
             exclusion_writer:
+            label_only: if True, only the language label is added to the metadata
         """
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
         self.languages = languages
+        self.label_only = label_only
         self._model = None
 
     @property
@@ -59,4 +62,4 @@ class LanguageFilter(BaseFilter):
         language = language[0].split("__")[2]
         doc.metadata["language"] = language
         doc.metadata["language_score"] = score[0]
-        return score > self.language_threshold and language in self.languages
+        return self.label_only or (score > self.language_threshold and language in self.languages)
