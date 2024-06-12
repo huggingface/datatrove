@@ -27,7 +27,7 @@ class LanguageFilter(BaseFilter):
             languages: list of languages to keep
             language_threshold: language_threshold minimum score to accept a document
             exclusion_writer:
-            label_only: if True, only the language label is added to the metadata
+            label_only: if True, only the language label is added to the metadata and no documents are removed
         """
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
