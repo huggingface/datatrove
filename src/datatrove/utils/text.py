@@ -57,21 +57,23 @@ def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
     # We should apply the transformation in such order so that, we do same transformations
     # incrementaly as we would do if we applied each from scratch.
     # Eg.
-    # 1|2|3 -> 000 in 1-char-transform first
-    # 1|2|3 -> 0 in 1-char-transform last
+    # 1|2|3 -> 000
+    # vs
+    # 1|2|3 -> 0
 
     # lower case
     if config.lowercase:
         text = text.lower()
-    # convert punctuation to spaces
-    if config.remove_punctuation:
-        text = text.translate(PUNCTUATION_TRANS)
     if config.norm_numbers:
         text = NUMBERS_PATTERN.sub("0", text)
     if config.norm_weekdays:
         text = WEEKDAYS_PATTERN.sub("WEEKDAY", text)
     if config.norm_monthnames:
         text = MONTHS_PATTERN.sub("MONTH", text)
+
+    # convert punctuation to spaces
+    if config.remove_punctuation:
+        text = text.translate(PUNCTUATION_TRANS)
 
     # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end
     if config.norm_whitespace:
