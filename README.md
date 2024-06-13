@@ -308,6 +308,24 @@ stats["nytimes.com"].total
 stats["cnn.com"].mean
 ```
 
+Following stats are available:
+- `contamination_stats.py`: `word_contamination_{words[0]}: Frequency of words contamination in the document.
+- `doc_stats.py`: `length`: Length of the document, `white_space_ratio`: Ratio of whitespace characters, `non_alpha_digit_ratio`: Ratio of non-alphabetic and non-digit characters, `digit_ratio`: Ratio of digits, `uppercase_ratio`: Ratio of uppercase letters, `elipsis_ratio`: Ratio of elipsis characters, `punctuation_ratio`: Punctuation ratio
+- `lang_stats.py`: `fasttext_{language}`: Language of the document using fastText
+- `line_stats.py`: `n_lines`: Number of lines per doc, `avg_line_length`: Average length of line per doc, `long_line_ratio_words`: Ratio of lines with more than k chars, `short_line_ratio_chars`: Ratio of lines with more than k chars, `bullet_point_lines_ratio`: Ratio of bullet points, `line_duplicates`: Ratio of lines that are duplicates, `line_char_duplicates`: Ratio of chars in duplicated lines
+- `paragraph_stats.py`: `n_paragraphs`: Number of paragraphs, `avg_paragraph_length`: Average paragraph length, `short_paragraph_ratio_{chars}`: Ratio of short paragraphs (<{chars} chars), `long_paragraph_ratio_{chars}`: Ratio of long paragraphs (>{chars} chars)
+- `perplexity_stats.py`: `ccnet_perplexity_{model_dataset}_{language}`: Perplexity of the document using the CCNet model for {model} on {dataset} in {language}
+- `sentence_stats.py`: `n_sentences`: Number of sentences, `avg_sentence_length`: Average sentence length, `short_sentence_ratio_{chars}`: Ratio of short sentences (<{chars} chars), `long_sentence_ratio_{chars}`: Ratio of long sentences (>{chars} chars)
+- `token_stats.py`:`token_count`: Number of tokens in the document
+- `word_stats.py`: `n_words`: Number of words in the document, `avg_word_length`: Average length of words in the document, `avg_words_per_line`: Average number of words per line in the document, `short_word_ratio_{chars}`: Ratio of words shorter than {chars} characters, `stop_word_ratio`: Ratio of stop words, `long_word_ratio_{chars}`: Ratio of words longer than {chars} characters, `type_token_ratio`: Number of unique words / Number of tokens, `capitalized_word_ratio`: Ratio of capitalized words, `uppercase_word_ratio`: Ratio of uppercase words
+
+
+
+
+
+
+
+
 ### Custom blocks
 
 #### Simple data
