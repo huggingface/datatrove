@@ -6,19 +6,21 @@ import contextlib
 import heapq
 import struct
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import partial
+from pathlib import Path
 from typing import BinaryIO, Callable, Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
-from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
-from datatrove.utils.text import xxhash64
+from datatrove.utils.hashing import HashConfig, create_hash_func
+from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
 
 from ..writers.disk_base import DiskWriter
@@ -36,9 +38,8 @@ class UrlDedupConfig:
 
     url_normalizer: Callable[[str], str] | None = None
     document_priority: Callable[[Document], int] | None = None
-
-
-DEFAULT_URL_DEDUP_CONFIG = UrlDedupConfig()
+    hash_config: HashConfig = field(default_factory=HashConfig)
+    only_dedup_in_index: bool = True
 
 
 @dataclass(order=False)
@@ -47,6 +48,7 @@ class HashSig:
     priority: int
     doc_id: int
     file_id: int
+    file_stem: str
 
     def is_from_index(self):
         return self.doc_id == -1 and self.priority == 1
@@ -60,8 +62,8 @@ class HashSig:
         )
 
 
-SIG_DTYPE = np.dtype([("hash", "<u8"), ("priority", "<u2"), ("doc", "<u4")])
-DUP_DTYPE = SIG_DTYPE[2]
+def get_sig_dtype(config: HashConfig) -> np.dtype:
+    return np.dtype([("hash", config.np_dtype), ("priority", "<u2"), ("doc", "<u4")])
 
 
 class UrlDedupSignature(PipelineStep):
@@ -77,13 +79,12 @@ class UrlDedupSignature(PipelineStep):
 
     type = "🫂 - DEDUPS"
     name = "💥 url-deduplication stage 1"
-    _requires_dependencies = ["xxhash"]
 
     def __init__(
         self,
         output_folder: DataFolderLike,
         finder_workers: int = 1,
-        config: UrlDedupConfig = DEFAULT_URL_DEDUP_CONFIG,
+        config: UrlDedupConfig | None = None,
     ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
@@ -92,16 +93,18 @@ class UrlDedupSignature(PipelineStep):
         elif finder_workers > 1:
             logger.warning(f"Remember to also set the number of tasks of the finder block to {finder_workers=}!")
         self.finder_workers = finder_workers
-        self.config = config
+        self.config = config or UrlDedupConfig()
+        self.hash_fc = create_hash_func(self.config.hash_config)
 
     def save_hashes(self, rank: int, signatures):
-        priority_max = np.iinfo(SIG_DTYPE["priority"]).max
+        sig_dtype = get_sig_dtype(self.config.hash_config)
+        priority_max = np.iinfo(sig_dtype["priority"]).max
 
         # 0 will stay as is, so we can't use 0 as a priority
         assert all(
             sig[1] >= 1 and sig[1] <= priority_max for sig in signatures
         ), f"priority must be between 1 and {priority_max}"
-        signatures = np.array(signatures, dtype=SIG_DTYPE)
+        signatures = np.array(signatures, dtype=sig_dtype)
 
         # Ensure that the highest priority is always first
         signatures["priority"] = -signatures["priority"]
@@ -109,7 +112,7 @@ class UrlDedupSignature(PipelineStep):
         signatures["priority"] = -signatures["priority"]
 
         # Same code as in sentence_dedup
-        hashes_per_worker = np.iinfo(np.uint64).max // self.finder_workers
+        hashes_per_worker = self.config.hash_config.max // self.finder_workers
         left_idx = 0
         for hash_i in range(self.finder_workers):
             with self.output_folder.open(
@@ -137,8 +140,7 @@ class UrlDedupSignature(PipelineStep):
             self.config.url_normalizer(doc.metadata["url"]) if self.config.url_normalizer else doc.metadata["url"]
         )
         priority = self.config.document_priority(doc) if self.config.document_priority else 1
-        # We use xxhash as it's the fastest and we don't need cryptographic security
-        hashes = [(xxhash64(normalized_url), priority, doc_idx)]
+        hashes = [(self.hash_fc(normalized_url), priority, doc_idx)]
 
         return hashes
 
@@ -154,20 +156,23 @@ class UrlDedupSignature(PipelineStep):
 def read_sigs(
     file: AbstractBufferedFile,
     file_id: int,
+    hash_config: HashConfig,
     index_file: bool = False,
     lines_to_buffer: int = 5,
 ) -> Generator[HashSig, None, None]:
     last = None
-    line_format = "QHI" if not index_file else "Q"
+    line_format = f"{hash_config.struct_format}HI" if not index_file else hash_config.struct_format
     with file as f:
+        file_stem = Path(f.path).name.removesuffix(ExtensionHelperSD.stage_1_signature)
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
-                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=-1)
+                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=-1, file_stem=file_stem)
                 if index_file
                 else HashSig(
                     file_id=file_id,
+                    file_stem=file_stem,
                     hash_value=data[0],
                     priority=data[1],
                     doc_id=data[2],
@@ -196,8 +201,8 @@ class UrlFindDedups(PipelineStep):
         self,
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
-        index_folder: DataFolderLike = None,
-        config: UrlDedupConfig = DEFAULT_URL_DEDUP_CONFIG,
+        index_folder: DataFolderLike | None = None,
+        config: UrlDedupConfig | None = None,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -205,7 +210,7 @@ class UrlFindDedups(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.index_folder = get_datafolder(index_folder) if index_folder else None
 
-        self.config = config
+        self.config = config or UrlDedupConfig()
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
@@ -226,6 +231,7 @@ class UrlFindDedups(PipelineStep):
                 read_sigs(
                     file,
                     file_i,
+                    self.config.hash_config,
                     lines_to_buffer=self.lines_to_buffer,
                 )
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))
@@ -238,6 +244,7 @@ class UrlFindDedups(PipelineStep):
                         read_sigs(
                             file,
                             len(sig_readers) + file_i,
+                            self.config.hash_config,
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
                         )
@@ -265,9 +272,10 @@ class UrlFindDedups(PipelineStep):
             while pq:
                 v: HashSig = heapq.heappop(pq)
                 if last and last.hash_value == v.hash_value and not v.is_from_index():
-                    out_filename = f"{rank:04d}/{v.file_id:05d}{ExtensionHelperSD.stage_2_duplicates}"
-                    doc_id_bytes = packer.pack(v.doc_id)
-                    output_mg.write(out_filename, doc_id_bytes)
+                    out_filename = f"{rank:04d}/{v.file_stem}{ExtensionHelperSD.stage_2_duplicates}"
+                    if not index_files or last.is_from_index() or not self.config.only_dedup_in_index:
+                        doc_id_bytes = packer.pack(v.doc_id)
+                        output_mg.write(out_filename, doc_id_bytes)
                 last = v
                 new_v = next(sig_readers[v.file_id], None)
 
@@ -293,18 +301,18 @@ class UrlDedupFilter(PipelineStep):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        config: UrlDedupConfig = DEFAULT_URL_DEDUP_CONFIG,
-        exclusion_writer: DiskWriter = None,
+        config: UrlDedupConfig | None = None,
+        exclusion_writer: DiskWriter | None = None,
     ):
         super().__init__()
         self.data_folder = get_datafolder(data_folder)
-        self.config = config
+        self.config = config or UrlDedupConfig()
         self.exclusion_writer = exclusion_writer
 
-    def read_duplicates(self, file: BinaryIO) -> np.ndarray:
+    def read_duplicates(self, file: BinaryIO, dup_dtype: np.dtype) -> np.ndarray:
         """Helper function to read duplicates from a binary file storing (doc_id) as created by the second stage."""
         with file as f:
-            return read_np_from_file(f, dtype=DUP_DTYPE, is_local_file=self.data_folder.is_local())
+            return read_np_from_file(f, dtype=dup_dtype, is_local_file=self.data_folder.is_local())
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         folders = self.data_folder.list_files(include_directories=True, recursive=False)
@@ -317,13 +325,15 @@ class UrlDedupFilter(PipelineStep):
 
         logger.info(f"Loading duplicate indexes from {len(files)} results files.")
 
-        all_dups = np.array([], dtype=DUP_DTYPE)
+        dup_dtype = get_sig_dtype(self.config.hash_config)[2]
+        all_dups = np.array([], dtype=dup_dtype)
         if files:
             with ThreadPoolExecutor() as pool:
+                read_partial = partial(self.read_duplicates, dup_dtype=dup_dtype)
                 all_dups = np.concatenate(
                     list(
                         tqdm(
-                            pool.map(self.read_duplicates, self.data_folder.open_files(files)),
+                            pool.map(read_partial, self.data_folder.open_files(files)),
                             total=len(files),
                         )
                     ),
@@ -332,7 +342,6 @@ class UrlDedupFilter(PipelineStep):
             all_dups.sort()
 
         logger.info("Loaded duplicate indexes.")
-
         dups_doc_i = 0
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
             with self.stats.time_stats:
@@ -348,3 +357,56 @@ class UrlDedupFilter(PipelineStep):
                             self.stat_update(StatHints.forwarded)
                             self.update_doc_stats(doc)
                             yield doc
+
+
+class UrlDedupBuildIndex(PipelineStep):
+    """UrlDedup: Only build an index
+    Works exactly the same as SentenceDedupBuildIndex
+
+    Args:
+        data_folder: data folder to get signature files.
+        output_folder: folder where index is saved
+        index_name: name of the index
+    """
+
+    type = "🫂 - DEDUP"
+    name = "💥 url-deduplication build index"
+
+    def __init__(
+        self,
+        data_folder: DataFolderLike,
+        output_folder: DataFolderLike,
+        index_name: str,
+        config: UrlDedupConfig | None = None,
+        lines_to_buffer: int = 5,
+    ):
+        super().__init__()
+        self.data_folder = get_datafolder(data_folder)
+        self.output_folder = get_datafolder(output_folder)
+        self.index_name = index_name
+        self.lines_to_buffer = lines_to_buffer
+        self.config = config or UrlDedupConfig()
+
+    def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
+        assert world_size == 1, "UrlDedupBuildIndex can only run on a single worker."
+        with self.stats.time_stats:
+            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
+            sig_readers = [
+                read_sigs(file, file_i, self.config.hash_config, lines_to_buffer=self.lines_to_buffer)
+                for file_i, file in enumerate(self.data_folder.open_files(sig_files))
+            ]
+
+            pq = [next(sig_reader) for sig_reader in sig_readers]
+            heapq.heapify(pq)
+
+            with self.output_folder.open(f"{self.index_name}.{ExtensionHelperSD.index}", mode="wb") as out_f:
+                last = None
+                while pq:
+                    v: HashSig = heapq.heappop(pq)
+                    if last != v.hash_value:
+                        out_f.write(struct.pack(f"<{self.config.hash_config.struct_format}", v.hash_value))
+                    last = v.hash_value
+                    new_v = next(sig_readers[v.file_id], None)
+
+                    if new_v:
+                        heapq.heappush(pq, new_v)

@@ -18,13 +18,15 @@ import struct
 from typing import BinaryIO, Generator
 
 import numpy as np
-from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
+from datatrove.utils.logging import logger
 
 from ...utils.tokenization import PipelineStepWithTokenizer
 from ...utils.typeshelper import ExtensionHelperES as EH
+from ...utils.typeshelper import Languages
+from ...utils.word_tokenizers import load_word_tokenizer
 
 
 SEPARATOR_BYTES = 12
@@ -148,14 +150,13 @@ def sequence_reader(file: BinaryIO, size_file: BinaryIO) -> Generator[list, None
 class ESRangeRemover(PipelineStepWithTokenizer):
     type = "🫂 - DEDUP"
     name = "🪞 - exact-substrings stage 3"
-    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
         sequence_folder: DataFolderLike,
         tokenizer_name_or_path: str = "gpt2",
         min_doc_words: int = 50,
-        language: str = "english",
+        language: str = Languages.english,
     ):
         super().__init__()
         self.sequence_folder = get_datafolder(sequence_folder)
@@ -168,6 +169,7 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         self.bytes_counter = 0
         self.range_idx = 0
         self.language = language
+        self.word_tokenizer = load_word_tokenizer(language)
 
     def reset(self):
         self.bytes_counter = 0
@@ -290,8 +292,6 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         return ranges
 
     def remove_duplicate(self, doc, bytes_content):
-        from nltk import word_tokenize
-
         n_bytes = len(bytes_content)
         duplicates_ranges = self.get_duplicate_range(n_bytes)
         duplicates = []
@@ -308,7 +308,7 @@ class ESRangeRemover(PipelineStepWithTokenizer):
 
         self.bytes_counter += len(bytes_content)
 
-        if len(word_tokenize(doc.text, self.language)) < self.min_doc_words:
+        if len(self.word_tokenizer.word_tokenize(doc.text)) < self.min_doc_words:
             return False
 
         return True

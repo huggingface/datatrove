@@ -1,10 +1,11 @@
-import hashlib
 import re
-import struct
 import unicodedata
 from dataclasses import dataclass
+from itertools import tee
+from typing import Iterable
 
-import xxhash
+from datatrove.utils.typeshelper import Languages
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
@@ -70,37 +71,14 @@ def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
     return text.strip()
 
 
-# https://github.com/ekzhu/datasketch/blob/master/datasketch/hashfunc.py
-def sha1_hash32(data):
-    """A 32-bit hash function based on SHA1.
+# from https://tedboy.github.io/nlps/_modules/nltk/util.html#ngrams
+def ngrams(sequence: Iterable, n: int):
+    iterables = tee(sequence, n)
 
-    Args:
-        data (bytes): the data to generate 32-bit integer hash from.
-
-    Returns:
-        int: an integer hash value that can be encoded using 32 bits.
-    """
-    return struct.unpack("<I", hashlib.sha1(data).digest()[:4])[0]
-
-
-def sha1_hash64(data):
-    """A 64-bit hash function based on SHA1.
-
-    Args:
-        data (bytes): the data to generate 64-bit integer hash from.
-
-    Returns:
-        int: an integer hash value that can be encoded using 64 bits.
-    """
-    return struct.unpack("<Q", hashlib.sha1(data).digest()[:8])[0]
-
-
-def xxhash32(data):
-    return xxhash.xxh32_intdigest(data)
-
-
-def xxhash64(data: str):
-    return xxhash.xxh64_intdigest(data)
+    for i, sub_iterable in enumerate(iterables):  # For each window,
+        for _ in range(i):  # iterate through every order of ngrams
+            next(sub_iterable, None)  # generate the ngrams within the window.
+    return zip(*iterables)  # Unpack and flattens the iterables.
 
 
 SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
@@ -108,13 +86,12 @@ SPLIT_TEXT_SENTENCES = "SENTENCE"
 SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
 
 
-def split_into_parts(text, mode="DOCUMENT", language="english"):
+def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
     if mode == SPLIT_TEXT_DOCUMENTS:
         return [text]
     elif mode == SPLIT_TEXT_SENTENCES:
-        from nltk import load
-
-        spans = [b for _, b in load(f"tokenizers/punkt/{language}.pickle").span_tokenize(text)]
+        tokenizer = load_word_tokenizer(language)
+        spans = [b for _, b in tokenizer.span_tokenize(text)]
         return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
     elif mode == SPLIT_TEXT_PARAGRAPHS:
         # merge whitespace with prev line

@@ -11,10 +11,10 @@ from huggingface_hub import (
     preupload_lfs_files,
 )
 from huggingface_hub.utils import HfHubHTTPError
-from loguru import logger
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.writers import ParquetWriter
+from datatrove.utils.logging import logger
 
 
 MAX_RETRIES = 12

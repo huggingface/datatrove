@@ -7,6 +7,8 @@ from datatrove.data import Document
 from datatrove.io import cached_asset_path_or_download
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.typeshelper import Languages
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 CITATION_REGEX = re.compile(r"\[\d*]|\[edit]|\[citation needed]")
@@ -54,12 +56,10 @@ class C4QualityFilter(BaseFilter):
     """
 
     name = "⛰ C4 Quality"
-    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
         exclusion_writer: DiskWriter = None,
-        tokenizer_language: str = "english",
         split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
         remove_citations: bool = True,
         filter_no_terminal_punct: bool = True,
@@ -70,9 +70,9 @@ class C4QualityFilter(BaseFilter):
         filter_javascript: bool = True,
         filter_curly_bracket: bool = True,
         filter_policy: bool = True,
+        language: str = Languages.english,
     ):
         super().__init__(exclusion_writer)
-        self.tokenizer_language = tokenizer_language
         self.split_paragraph = split_paragraph
         self.remove_citations = remove_citations
         self.filter_no_terminal_punct = filter_no_terminal_punct
@@ -83,15 +83,10 @@ class C4QualityFilter(BaseFilter):
         self.filter_javascript = filter_javascript
         self.filter_curly_bracket = filter_curly_bracket
         self.filter_policy = filter_policy
+        self.tokenizer = load_word_tokenizer(language)
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        from nltk.tokenize import sent_tokenize
-
-        lines = (
-            doc.text.splitlines()
-            if self.split_paragraph
-            else sent_tokenize(doc.text, language=self.tokenizer_language)
-        )
+        lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
 
         num_sentences = 0
         kept_lines = []
@@ -130,7 +125,7 @@ class C4QualityFilter(BaseFilter):
             if self.filter_policy and any(p in line_l for p in POLICY_SUBSTRINGS):
                 self.stat_update("line-filter-policy")
                 continue
-            num_sentences += len(sent_tokenize(line, language=self.tokenizer_language)) if self.split_paragraph else 1
+            num_sentences += len(self.tokenizer.sent_tokenize(line)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
         if num_sentences < self.min_num_sentences:
