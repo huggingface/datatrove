@@ -66,9 +66,17 @@ class BaseStats(PipelineStep):
         elif group_name == "summary":
             return "summary", value
         elif group_name == "fqdn":
-            return doc.metadata.setdefault("fqdn", self.tld_extractor.extract_str(doc.metadata["url"]).fqdn), value
+            fqdn = doc.metadata.get("fqdn")
+            if fqdn is None:
+                fqdn = self.tld_extractor.extract_str(doc.metadata["url"]).fqdn
+                doc.metadata["fqdn"] = fqdn
+            return fqdn, value
         elif group_name == "suffix":
-            return doc.metadata.setdefault("suffix", self.tld_extractor.extract_str(doc.metadata["url"]).suffix), value
+            suffix = doc.metadata.get("suffix")
+            if suffix is None:
+                suffix = self.tld_extractor.extract_str(doc.metadata["url"]).suffix
+                doc.metadata["suffix"] = suffix
+            return suffix, value
         else:
             raise ValueError(f"Unknown group name: {group_name}")
 
@@ -76,8 +84,9 @@ class BaseStats(PipelineStep):
         groups_dicts: dict[GROUP, dict[str, MetricStatsDict]] = {
             group: defaultdict(MetricStatsDict) for group in self.groups
         }
-        with self.track_time():
-            for doc in data:
+
+        for doc in data:
+            with self.track_time():
                 try:
                     doc_stats = self.extract_stats(doc)
                 except Exception as e:

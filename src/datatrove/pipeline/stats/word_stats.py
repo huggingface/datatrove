@@ -29,6 +29,8 @@ class WordStats(BaseStats):
     stop_word_ratio: Ratio of stop words
     long_word_ratio_{chars}: Ratio of words longer than {chars} characters
     type_token_ratio: Type-Token Ratio (TTR)
+    capitalized_word_ratio: Ratio of capitalized words
+    uppercase_word_ratio: Ratio of uppercase words
     """
 
     name = "🈂️ Word stats"

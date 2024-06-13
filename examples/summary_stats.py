@@ -12,7 +12,7 @@ TOTAL_TASKS = 500
 parser = argparse.ArgumentParser(description="Summary Stats")
 parser.add_argument("dump_path", help="Dump name sampler")
 parser.add_argument("sample_rate", type=float, help="Sample rate")
-parser.add_argument("--prefix", default="s3://prefix", help="Prefix")
+parser.add_argument("--prefix", default="", help="Prefix")
 parser.add_argument("--glob", help="Glob pattern")
 parser.add_argument("--text_key", default="text", help="Text key")
 parser.add_argument("--reader", default="jsonl", help="Reader type")
