@@ -201,8 +201,8 @@ class TestStatsModules(unittest.TestCase):
             "short_word_ratio_3": {"0.333": 1, "0.0": 2},
             "long_word_ratio_7": {"0.0": 2, "1.0": 1},
             "type_token_ratio": {"0.5": 1, "0.667": 1, "1.0": 1},
-            "uppercase_ratio": {"0.0": 3},
-            "capitalized_ratio": {"0.0": 2, "1.0": 1},
+            "uppercase_word_ratio": {"0.0": 3},
+            "capitalized_word_ratio": {"0.0": 2, "1.0": 1},
             "stop_word_ratio": {"0.0": 2, "0.333": 1},
         }
         word_stats = WordStats(
