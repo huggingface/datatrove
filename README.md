@@ -27,6 +27,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
   * [Filtering data](#filtering-data)
   * [Saving data](#saving-data)
   * [Deduplicating data](#deduplicating-data)
+  * [Summary Statistics](#summary-statistics)
   * [Custom blocks](#custom-blocks)
     + [Simple data](#simple-data)
     + [Custom function](#custom-function)
@@ -285,6 +286,18 @@ JsonlWriter(
 
 ### Deduplicating data
 For deduplication check the examples [minhash_deduplication.py](examples/minhash_deduplication.py), [sentence_deduplication.py](examples/sentence_deduplication.py) and [exact_substrings.py](examples/exact_substrings.py).
+
+### Summary Statistics
+For summary statistics on your data you can use the [Stats](src/datatrove/pipeline/stats/summary_stats/) blocks. These blocks provide an easy way to collect data-profiles on your dataset in a distributed manner. It's a two step process in which you first collect stats per document and then merge them into a single file. See the [summary_stats.py](examples/summarty_stats.py) for more details.
+
+The resulting stats file are saved in following structure: `output_folder/{fqdn,suffix,summary,histogram}/stat_name/stats-merged.json`
+
+Each such file is a `MetricStatsDict` object, which you can easily load using:
+```python
+from datatrove.pipeline.stats.summary_stats import MetricStatsDict
+import json
+stats = MetricStatsDict.from_dict(json.load(open("stats-merged.json")))
+```
 
 ### Custom blocks
 
