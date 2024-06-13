@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     compute = SlurmPipelineExecutor(
         pipeline=[
-            JsonlReader(SOURCE, progress=True, limit=-1, glob_pattern=args.glob, text_key=args.text_key),
+            JsonlReader(SOURCE, doc_progress=True, limit=-1, glob_pattern=args.glob, text_key=args.text_key),
             # Sampling is fine for summary stats
             SamplerFilter(
                 rate=args.sample_rate,
