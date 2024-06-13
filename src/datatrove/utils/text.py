@@ -30,7 +30,7 @@ class TextNormConfig:
 
 
 DEF_TEXT_NORM_CONFIG = TextNormConfig()
-NUMBERS_PATTERN = re.compile(r"\d+")
+NUMBERS_PATTERN = re.compile(r"\d+(\.\d+)?")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 # WARNING: english specific
 WEEKDAYS_PATTERN = re.compile(r"monday|tuesday|wednesday|thursday|friday|saturday|sunday")
