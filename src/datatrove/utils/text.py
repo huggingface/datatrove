@@ -15,6 +15,7 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
     )
 )
 PUNCTUATION_SET = set(PUNCTUATION)
+PUNCTUATION_TRANS = str.maketrans(PUNCTUATION, " " * len(PUNCTUATION))
 
 
 @dataclass
@@ -29,7 +30,7 @@ class TextNormConfig:
 
 
 DEF_TEXT_NORM_CONFIG = TextNormConfig()
-NUMBERS_PATTERN = re.compile(r"\d+")
+NUMBERS_PATTERN = re.compile(r"\d+(\.\d+)?")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 # WARNING: english specific
 WEEKDAYS_PATTERN = re.compile(r"monday|tuesday|wednesday|thursday|friday|saturday|sunday")
@@ -38,6 +39,9 @@ MONTHS_PATTERN = re.compile(r"january|february|march|april|may|june|july|august|
 
 def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
     """Performs the following operations to increase recall when looking for matches between documents:
+    - number normalization
+    - weekday normalization
+    - month normalization
     - lowercase text
     - replace all whitespace with a single " "
     - remove all punctuation
@@ -50,24 +54,34 @@ def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
     Returns:
         modified text
     """
+    # We should apply the transformation in such order so that, we do same transformations
+    # incrementaly as we would do if we applied each from scratch.
+    # Eg.
+    # 1|2|3 -> 000
+    # vs
+    # 1|2|3 -> 0
+
     # lower case
     if config.lowercase:
         text = text.lower()
-    # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end
-    if config.norm_whitespace:
-        text = WHITESPACE_PATTERN.sub(" ", text.strip())
-    # remove punctuation
-    if config.remove_punctuation:
-        text = text.translate(str.maketrans("", "", PUNCTUATION))
-    # diacritics/unicode normalization
-    if config.norm_unicode_diacritics:
-        text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
     if config.norm_numbers:
         text = NUMBERS_PATTERN.sub("0", text)
     if config.norm_weekdays:
         text = WEEKDAYS_PATTERN.sub("WEEKDAY", text)
     if config.norm_monthnames:
         text = MONTHS_PATTERN.sub("MONTH", text)
+
+    # convert punctuation to spaces
+    if config.remove_punctuation:
+        text = text.translate(PUNCTUATION_TRANS)
+
+    # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end
+    if config.norm_whitespace:
+        text = WHITESPACE_PATTERN.sub(" ", text.strip())
+    # diacritics/unicode normalization
+    if config.norm_unicode_diacritics:
+        text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
+
     return text.strip()
 
 
