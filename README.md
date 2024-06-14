@@ -27,6 +27,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
   * [Filtering data](#filtering-data)
   * [Saving data](#saving-data)
   * [Deduplicating data](#deduplicating-data)
+  * [Summary Statistics](#summary-statistics)
   * [Custom blocks](#custom-blocks)
     + [Simple data](#simple-data)
     + [Custom function](#custom-function)
@@ -285,6 +286,45 @@ JsonlWriter(
 
 ### Deduplicating data
 For deduplication check the examples [minhash_deduplication.py](examples/minhash_deduplication.py), [sentence_deduplication.py](examples/sentence_deduplication.py) and [exact_substrings.py](examples/exact_substrings.py).
+
+### Summary Statistics
+For summary statistics on your data you can use the [Stats](src/datatrove/pipeline/stats/summary_stats/) blocks. These blocks provide an easy way to collect data-profiles on your dataset in a distributed manner. It's a two step process in which you first:
+1) For each shard iterate over documents and collect stats into of the following groupings `summary` (all docs counted to "summary" key), `fqdn` (fully qualified domain name grouping), `suffix` (the last part of the url path grouping) or `histogram` (value based grouping).
+2) Merge the stats from different shards into a single file.
+See the [summary_stats.py](examples/summarty_stats.py) for more details.
+
+Each resulting stat is saved in a separate file with following structure: `output_folder/{fqdn,suffix,summary,histogram}/{stat_name}/metric.json`
+
+Each such file is a `MetricStatsDict` object, which you can easily load using:
+```python
+from datatrove.pipeline.stats.summary_stats import MetricStatsDict
+import json
+stats = MetricStatsDict.from_dict(json.load(open("fqdn/length/metric.json")))
+
+# E.g for total length of nytimes.com docs
+stats["nytimes.com"].total
+
+# Or for mean of cnn.com docs
+stats["cnn.com"].mean
+```
+
+Following stats are available:
+- `contamination_stats.py`: `word_contamination_{words[0]}: Frequency of words contamination in the document.
+- `doc_stats.py`: `length`: Length of the document, `white_space_ratio`: Ratio of whitespace characters, `non_alpha_digit_ratio`: Ratio of non-alphabetic and non-digit characters, `digit_ratio`: Ratio of digits, `uppercase_ratio`: Ratio of uppercase letters, `elipsis_ratio`: Ratio of elipsis characters, `punctuation_ratio`: Punctuation ratio
+- `lang_stats.py`: `fasttext_{language}`: Language of the document using fastText
+- `line_stats.py`: `n_lines`: Number of lines per doc, `avg_line_length`: Average length of line per doc, `long_line_ratio_words`: Ratio of lines with more than k chars, `short_line_ratio_chars`: Ratio of lines with more than k chars, `bullet_point_lines_ratio`: Ratio of bullet points, `line_duplicates`: Ratio of lines that are duplicates, `line_char_duplicates`: Ratio of chars in duplicated lines
+- `paragraph_stats.py`: `n_paragraphs`: Number of paragraphs, `avg_paragraph_length`: Average paragraph length, `short_paragraph_ratio_{chars}`: Ratio of short paragraphs (<{chars} chars), `long_paragraph_ratio_{chars}`: Ratio of long paragraphs (>{chars} chars)
+- `perplexity_stats.py`: `ccnet_perplexity_{model_dataset}_{language}`: Perplexity of the document using the CCNet model for {model} on {dataset} in {language}
+- `sentence_stats.py`: `n_sentences`: Number of sentences, `avg_sentence_length`: Average sentence length, `short_sentence_ratio_{chars}`: Ratio of short sentences (<{chars} chars), `long_sentence_ratio_{chars}`: Ratio of long sentences (>{chars} chars)
+- `token_stats.py`:`token_count`: Number of tokens in the document
+- `word_stats.py`: `n_words`: Number of words in the document, `avg_word_length`: Average length of words in the document, `avg_words_per_line`: Average number of words per line in the document, `short_word_ratio_{chars}`: Ratio of words shorter than {chars} characters, `stop_word_ratio`: Ratio of stop words, `long_word_ratio_{chars}`: Ratio of words longer than {chars} characters, `type_token_ratio`: Number of unique words / Number of tokens, `capitalized_word_ratio`: Ratio of capitalized words, `uppercase_word_ratio`: Ratio of uppercase words
+
+
+
+
+
+
+
 
 ### Custom blocks
 
