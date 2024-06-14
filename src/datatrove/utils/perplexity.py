@@ -142,13 +142,16 @@ class KenlmModel:
         self,
         text: str,
     ) -> str:
-        text = simplify_text(text, config=TextNormConfig(
-            lowercase=True,
-            norm_numbers=True,
-            norm_whitespace=False,
-            remove_punctuation=False,
-            norm_unicode_diacritics=True
-        ))
+        text = simplify_text(
+            text,
+            config=TextNormConfig(
+                lowercase=True,
+                norm_numbers=True,
+                norm_whitespace=False,
+                remove_punctuation=False,
+                norm_unicode_diacritics=True,
+            ),
+        )
         # TODO: integrate these options to simplify_text
         text = self.replace_unicode_punct(text)
         text = self.remove_non_printing_char(text)
