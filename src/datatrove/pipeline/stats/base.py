@@ -99,7 +99,7 @@ class BaseStats(PipelineStep):
                         counters[stat][key] += value
 
                 doc.metadata.update(doc_stats)
-                yield doc
+            yield doc
 
         # save to disk
         for group, stats_dict in groups_dicts.items():
