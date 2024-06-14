@@ -2,7 +2,6 @@
 # licensed under the MIT License. The original code can be found at https://huggingface.co/edugp/kenlm.
 
 import re
-import unicodedata
 from pathlib import Path
 from typing import Dict
 
