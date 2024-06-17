@@ -1,5 +1,3 @@
-import json
-from json import JSONDecodeError
 from typing import Callable, Literal
 
 from datatrove.io import DataFolderLike
@@ -31,6 +29,7 @@ class JsonlReader(BaseDiskReader):
     """
 
     name = "🐿 Jsonl"
+    _requires_dependencies = ["orjson"]
 
     def __init__(
         self,
@@ -65,12 +64,15 @@ class JsonlReader(BaseDiskReader):
         self.compression = compression
 
     def read_file(self, filepath: str):
+        import orjson
+        from orjson import JSONDecodeError
+
         with self.data_folder.open(filepath, "r", compression=self.compression) as f:
             try:
                 for li, line in enumerate(f):
                     with self.track_time():
                         try:
-                            document = self.get_document_from_dict(json.loads(line), filepath, li)
+                            document = self.get_document_from_dict(orjson.loads(line), filepath, li)
                             if not document:
                                 continue
                         except (EOFError, JSONDecodeError) as e:
