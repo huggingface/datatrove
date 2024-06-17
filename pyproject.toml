@@ -28,7 +28,7 @@ dependencies = [
     "humanize",
     "loguru>=0.7.0",
     "multiprocess",
-    "numpy>=1.25.0",
+    "numpy>=1.25.0,<2.0.0",
     "tqdm",
 ]
 
