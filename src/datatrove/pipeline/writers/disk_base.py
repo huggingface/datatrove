@@ -129,7 +129,9 @@ class DiskWriter(PipelineStep, ABC):
         Returns: formatted filename
 
         """
-        return f"{os.path.dirname(filename)}/{self.file_id_counter[filename]:03d}_{os.path.basename(filename)}"
+        if os.path.dirname(filename):
+            return f"{os.path.dirname(filename)}/{self.file_id_counter[filename]:03d}_{os.path.basename(filename)}"
+        return f"{self.file_id_counter[filename]:03d}_{os.path.basename(filename)}"
 
     def write(self, document: Document, rank: int = 0, **kwargs):
         """
