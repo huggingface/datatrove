@@ -47,7 +47,7 @@ class LanguageFilter(BaseFilter):
         best_lang_pair, lang_pairs = self.model.predict(doc)
         lang, lang_score = best_lang_pair
         if self.backend == "glotlid":
-            lang, script = lang.lower().split("_")
+            lang, script = lang.split("_")
             doc.metadata["language_script"] = script
         doc.metadata["language"] = lang
         doc.metadata["language_score"] = lang_score
