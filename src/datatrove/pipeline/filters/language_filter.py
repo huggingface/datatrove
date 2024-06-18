@@ -4,7 +4,6 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.lid import FT176LID, GlotLID
-from datatrove.utils.typeshelper import Languages
 
 
 class LanguageFilter(BaseFilter):
@@ -13,7 +12,7 @@ class LanguageFilter(BaseFilter):
 
     def __init__(
         self,
-        languages: tuple = (Languages.english,),
+        languages: list[str] | str = None,
         language_threshold: float = 0.65,
         exclusion_writer: DiskWriter = None,
         backend: Literal["ft176", "glotlid"] = "ft176",
@@ -31,9 +30,11 @@ class LanguageFilter(BaseFilter):
         """
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
+        if isinstance(languages, str):
+            languages = list(languages)
         self.languages = languages
         self.backend = backend
-        self.model = FT176LID(list(languages)) if backend == "ft176" else GlotLID()
+        self.model = FT176LID(languages) if backend == "ft176" else GlotLID(languages)
         self.label_only = label_only
 
     def filter(self, doc: Document) -> bool:
@@ -48,6 +49,6 @@ class LanguageFilter(BaseFilter):
         if self.backend == "glotlid":
             lang, script = lang.lower().split("_")
             doc.metadata["language_script"] = script
-        doc.metadata["language"] = best_lang_pair[0]
-        doc.metadata["language_score"] = best_lang_pair[1]
+        doc.metadata["language"] = lang
+        doc.metadata["language_score"] = lang_score
         return self.label_only or any(score > self.language_threshold for score in lang_pairs.values())
