@@ -14,6 +14,17 @@ class TestHuggingFaceReader(unittest.TestCase):
         data = list(reader())
         self.assertEqual(len(data), 817)
 
+    def test_read_dataset_shuffle(self):
+        reader = HuggingFaceDatasetReader(
+            "truthful_qa",
+            dataset_options={"name": "generation", "split": "validation"},
+            text_key="question",
+            shuffle_files=True,
+        )
+        data = list(reader())
+        self.assertEqual(len(data[0].text), 69)
+        self.assertEqual(len(data[1].text), 46)
+
     def test_read_streaming_dataset(self):
         reader = HuggingFaceDatasetReader(
             "truthful_qa",
@@ -23,6 +34,18 @@ class TestHuggingFaceReader(unittest.TestCase):
         )
         data = list(reader())
         self.assertEqual(len(data), 817)
+
+    def test_read_streaming_dataset_shuffle(self):
+        reader = HuggingFaceDatasetReader(
+            "truthful_qa",
+            dataset_options={"name": "generation", "split": "validation"},
+            text_key="question",
+            streaming=True,
+            shuffle_files=True,
+        )
+        data = list(reader())
+        self.assertEqual(len(data[0].text), 69)
+        self.assertEqual(len(data[1].text), 46)
 
     def test_sharding(self):
         for shards in [1, 3]:
