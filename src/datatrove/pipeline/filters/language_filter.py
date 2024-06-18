@@ -1,11 +1,10 @@
+from typing import Literal
+
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.lid import FastTextModel
+from datatrove.utils.lid import FT176LID, GlotLID
 from datatrove.utils.typeshelper import Languages
-
-
-LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
 
 
 class LanguageFilter(BaseFilter):
@@ -17,6 +16,7 @@ class LanguageFilter(BaseFilter):
         languages: tuple = (Languages.english,),
         language_threshold: float = 0.65,
         exclusion_writer: DiskWriter = None,
+        backend: Literal["ft176", "glotlid"] = "ft176",
         label_only: bool = False,
     ):
         """
@@ -32,7 +32,8 @@ class LanguageFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
         self.languages = languages
-        self.model = FastTextModel(list(languages))
+        self.backend = backend
+        self.model = FT176LID(list(languages)) if backend == "ft176" else GlotLID()
         self.label_only = label_only
 
     def filter(self, doc: Document) -> bool:
@@ -43,6 +44,10 @@ class LanguageFilter(BaseFilter):
             is_filter
         """
         best_lang_pair, lang_pairs = self.model.predict(doc)
+        lang, lang_score = best_lang_pair
+        if self.backend == "glotlid":
+            lang, script = lang.lower().split("_")
+            doc.metadata["language_script"] = script
         doc.metadata["language"] = best_lang_pair[0]
         doc.metadata["language_score"] = best_lang_pair[1]
         return self.label_only or any(score > self.language_threshold for score in lang_pairs.values())
