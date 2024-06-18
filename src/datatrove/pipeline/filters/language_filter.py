@@ -23,7 +23,7 @@ class LanguageFilter(BaseFilter):
         language_threshold
 
         Args:
-            languages: list of languages to keep
+            languages: list of languages to keep. None for all
             language_threshold: language_threshold minimum score to accept a document
             exclusion_writer:
             label_only: if True, only the language label is added to the metadata and no documents are removed
@@ -51,4 +51,8 @@ class LanguageFilter(BaseFilter):
             doc.metadata["language_script"] = script
         doc.metadata["language"] = lang
         doc.metadata["language_score"] = lang_score
-        return self.label_only or any(score > self.language_threshold for score in lang_pairs.values())
+        return (
+            self.label_only
+            or (self.languages and any(score > self.language_threshold for score in lang_pairs.values()))
+            or (self.languages is None and lang_score > self.language_threshold)
+        )

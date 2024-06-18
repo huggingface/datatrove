@@ -24,7 +24,7 @@ class FastTextLID(LID):
     MODEL_URL = None
     MODEL_SUBFOLDER = None
 
-    def __init__(self, languages: list[str], k: int = 1) -> None:
+    def __init__(self, languages: list[str], k: int = -1) -> None:
         """
         Args:
             languages (list[str]): Languages to predict
@@ -65,7 +65,7 @@ class FT176LID(FastTextLID):
 class GlotLID(FastTextLID):
     MODEL_SUBFOLDER = "glotlid"
 
-    def __init__(self, languages: list[str], k: int = 1, version: str = "v3") -> None:
+    def __init__(self, languages: list[str], k: int = -1, version: str = "v3") -> None:
         """
         Args:
             languages (list[str]): Languages to predict
