@@ -125,7 +125,7 @@ class BaseDiskReader(BaseReader):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        paths_file: DataFileLike = None,
+        paths_file: DataFileLike | None = None,
         limit: int = -1,
         skip: int = 0,
         file_progress: bool = False,
