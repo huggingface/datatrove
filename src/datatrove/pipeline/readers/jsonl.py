@@ -35,7 +35,7 @@ class JsonlReader(BaseDiskReader):
     def __init__(
         self,
         data_folder: DataFolderLike,
-        paths_file: DataFileLike = None,
+        paths_file: DataFileLike | None = None,
         compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
         skip: int = 0,
