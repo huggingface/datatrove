@@ -12,7 +12,7 @@ class LanguageFilter(BaseFilter):
 
     def __init__(
         self,
-        languages: list[str] | str = None,
+        languages: list[str] | str | None = None,
         language_threshold: float = 0.65,
         exclusion_writer: DiskWriter = None,
         backend: Literal["ft176", "glotlid"] = "ft176",

@@ -5,7 +5,7 @@ from datatrove.io import cached_asset_path_or_download
 
 
 class LID:
-    def __init__(self, languages: list[str]) -> None:
+    def __init__(self, languages: list[str] | None = None) -> None:
         self.languages = languages
 
     @abstractmethod
@@ -24,7 +24,7 @@ class FastTextLID(LID):
     MODEL_URL = None
     MODEL_SUBFOLDER = None
 
-    def __init__(self, languages: list[str], k: int = -1) -> None:
+    def __init__(self, languages: list[str] | None = None, k: int = -1) -> None:
         """
         Args:
             languages (list[str]): Languages to predict
@@ -65,11 +65,11 @@ class FT176LID(FastTextLID):
 class GlotLID(FastTextLID):
     MODEL_SUBFOLDER = "glotlid"
 
-    def __init__(self, languages: list[str], k: int = -1, version: str = "v3") -> None:
+    def __init__(self, languages: list[str] | None = None, k: int = -1, version: str = "v3") -> None:
         """
         Args:
             languages (list[str]): Languages to predict
-            k (int, optional): Number of top-k languages to consider, all languages outside of k will be considered as being predicted with 0.0
+            k (int, optional): Number of top-k languages to consider, all languages outside k will be considered as being predicted with 0.0
             version (str, optional): GlotLID version to use
         """
         super().__init__(languages, k)
