@@ -6,7 +6,7 @@ from typing import Callable
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import DataFolderLike, get_datafolder
+from datatrove.io import DataFileLike, DataFolderLike, get_datafolder, get_shard_from_paths_file
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
 
@@ -20,10 +20,10 @@ class BaseReader(PipelineStep):
         adapter: function to adapt the data dict from the source to a Document.
             Takes as input: (self, data: dict, path: str, id_in_file: int | str)
                 self allows access to self.text_key and self.id_key
-            Returns: a dict with at least a "text" key
+            Returns: a dict with at least a "text" and "id" keys
         text_key: key to use for the text in the default adapter (default: "text").
         id_key: key to use for the id in the default adapter (default: "id").
-        default_metadata: default metadata to add to all documents
+        default_metadata: a dictionary with any data that should be added to all samples' metadata
     """
 
     type = "📖 - READER"
@@ -102,16 +102,22 @@ class BaseDiskReader(BaseReader):
     """Base module for fsspec based Readers. Readers read data from a source (local or remote) and create documents.
 
     Args:
-        data_folder: the data folder to read from
+        data_folder: a str, tuple or DataFolder object representing a path/filesystem
+        paths_file: optionally provide a file with one path per line (without the `data_folder` prefix) to read.
         limit: limit the number of documents to read. Useful for debugging
+        skip: skip the first n rows
         file_progress: show progress bar for files
         doc_progress: show progress bar for documents
-        adapter: function to adapt the data from the source to a Document
-        text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
-        id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
-        default_metadata: default metadata to add to all documents
-        recursive: whether to read files recursively
-        glob_pattern: glob pattern to filter files
+        adapter: function to adapt the data dict from the source to a Document.
+            Takes as input: (self, data: dict, path: str, id_in_file: int | str)
+                self allows access to self.text_key and self.id_key
+            Returns: a dict with at least a "text" and "id" keys
+        text_key: the key containing the text data (default: "text").
+        id_key: the key containing the id for each sample (default: "id").
+        default_metadata: a dictionary with any data that should be added to all samples' metadata
+        recursive: whether to search files recursively. Ignored if paths_file is provided
+        glob_pattern: pattern that all files must match exactly to be included (relative to data_folder). Ignored if paths_file is provided
+        shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use with dedup blocks
     """
 
     type = "📖 - READER"
@@ -119,6 +125,7 @@ class BaseDiskReader(BaseReader):
     def __init__(
         self,
         data_folder: DataFolderLike,
+        paths_file: DataFileLike | None = None,
         limit: int = -1,
         skip: int = 0,
         file_progress: bool = False,
@@ -131,25 +138,9 @@ class BaseDiskReader(BaseReader):
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
     ):
-        """
-
-        Args:
-            data_folder: a str, tuple or DataFolder object representing a path/filesystem
-            limit: read at most this number of documents
-            skip: skip the first n rows
-            file_progress: show a tqdm progress bar for files
-            doc_progress: show a tqdm progress bar for documents
-            adapter: custom function that should return a dictionary with the datatrove Document format (see _default_adapter)
-            text_key: the key containing the text data. `text` by default
-            id_key: the key containing the id for each sample. `id` by default
-            default_metadata: a dictionary with any data that should be added to all sample's metadata
-            recursive: whether to search recursively for files
-            glob_pattern: pattern that all files must match exactly to be included (relative to data_folder)
-            shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
-            with dedup blocks
-        """
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
+        self.paths_file = paths_file
         self.recursive = recursive
         self.glob_pattern = glob_pattern
         self.shuffle_files = shuffle_files
@@ -226,8 +217,10 @@ class BaseDiskReader(BaseReader):
         """
         if data:
             yield from data
-        files_shard = self.data_folder.get_shard(
-            rank, world_size, recursive=self.recursive, glob_pattern=self.glob_pattern
+        files_shard = (
+            self.data_folder.get_shard(rank, world_size, recursive=self.recursive, glob_pattern=self.glob_pattern)
+            if not self.paths_file
+            else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
         )
         if len(files_shard) == 0:
             if rank == 0:
