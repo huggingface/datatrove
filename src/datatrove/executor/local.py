@@ -141,7 +141,7 @@ class LocalPipelineExecutor(PipelineExecutor):
                 )
         # merged stats
         stats = sum(stats, start=PipelineStats())
-        with self.logging_dir.open("stats.json", "wt") as statsfile:
+        with self.logging_dir.open("stats.json", "wt", encoding='utf-8') as statsfile:
             stats.save_to_disk(statsfile)
         logger.success(stats.get_repr(f"All {self.local_tasks} tasks"))
         return stats

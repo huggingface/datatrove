@@ -6,7 +6,7 @@ from typing import Callable, List
 
 import xml.etree.ElementTree as ET
 from tqdm import tqdm
-
+from langdetect import detect
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.readers.base import BaseReader, DocumentsPipeline
 
@@ -68,7 +68,7 @@ class RawCuriaVistaReader(BaseReader):
             if not child.tag.endswith('entry'):
                 continue
             idx = child[-1][0][-1].text
-            indices.add(idx)
+            indices.add(int(idx))
         return indices
 
     def retrieve_single_record_for_id(self, in_id):
@@ -91,13 +91,18 @@ class RawCuriaVistaReader(BaseReader):
         return all_data
 
     def _curia_vista_adapter(self, data: dict, path: str, id_in_file: int | str):
-
         text = ''.join([f'<h2>{col}<h2>{data[col]}' for col in self.columns if data[col] is not None])
-        meta_data = {k: v for k, v in data.items() if k not in self.columns}
-        if not text:
-            text = 'DUMMY_TEXT'
-            meta_data['delete'] = True
+        opt_meta_data = {k: v for k, v in data.items() if k not in self.columns}
 
+        lang = opt_meta_data['LanguageOfText'].lower() if opt_meta_data['LanguageOfText'] is not None else None
+        if lang is None:
+            lang = detect(text)
+
+        meta_data = {
+            'optional': opt_meta_data,
+            'language': lang,
+            'year': int(opt_meta_data['MeetingDate'][:4])
+        }
 
         return {
             "text": text,
@@ -107,25 +112,53 @@ class RawCuriaVistaReader(BaseReader):
         }
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        processed_ids = set([doc.id for doc in data])
+        processed_ids = set()
+        processed_dp = set()
+        try:
+            for document in data:
+                processed_ids.add(document.id)
+                dp = f'{document.id}_{document.metadata["language"]}'
+                if dp in processed_dp:
+                    continue
+                processed_dp.add(dp)
+                if document.metadata["language"] is None:
+                    document.metadata["language"] = detect(document.text)
 
-        limit = self.limit
-        if not limit == -1:
-            id_url = f"{self.base_url}?$top={limit}&$filter=Language eq 'DE'&$select=ID"
+                yield document
+        except:
+            print('Noooo')
+
+        print(f'Already processed {len(processed_ids)} Documents')
+        if len(processed_ids) > 0:
+            last_id = max(processed_ids)
         else:
-            id_url = f"{self.base_url}?$filter=Language eq 'DE'&$select=ID"
-        ids = self.parse_ids(id_url)
-        ids = ids.difference(processed_ids)
+            last_id = 0
 
-        for nr, entry_id in tqdm(enumerate(ids, start=1)):
-            with self.track_time():
-                entries = self.retrieve_single_record_for_id(entry_id)
+        ids = ['dummy']
+        limit = self.limit
 
-                if nr % 10 == 0:
-                    time.sleep(self.timeout)
+        global_count = 0
+        while len(ids) > 0 and global_count < limit:
+            id_url = f"{self.base_url}?$filter=Language eq 'DE' and ID gt {last_id} &$orderby=ID&$select=ID&$top=100"
+            ids = self.parse_ids(id_url)
+            ids = ids.difference(processed_ids)
+            ids = sorted(ids)
 
-                for data_dict in entries:
-                    document = self.get_document_from_dict(data_dict, self.table, entry_id)
-                    if not document:
-                        continue
-                    yield document
+            for nr, entry_id in tqdm(enumerate(ids, start=1)):
+                with self.track_time():
+                    entries = self.retrieve_single_record_for_id(entry_id)
+                    global_count += len(entries)
+
+                    last_id = entry_id
+                    if nr % 10 == 0:
+                        time.sleep(self.timeout)
+
+                    for data_dict in entries:
+                        document = self.get_document_from_dict(data_dict, self.table, entry_id)
+                        if not document:
+                            continue
+                        yield document
+                    if global_count >= limit:
+                        break
+                    processed_ids.add(entry_id)
+            time.sleep(60)

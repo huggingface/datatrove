@@ -60,7 +60,6 @@ if __name__ == '__main__':
             limit=1000
         ),
         TokensCounter(tokenizer_name_or_path='t5-small'),
-        LengthCounter(),
         SwissAIJsonlWriter(
             output_folder="/work_space_data/multilegal_pile/jsonl"
         )
@@ -69,7 +68,7 @@ if __name__ == '__main__':
     exec = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=16,
-        workers=1,
+        workers=16,
         start_method="spawn",
         logging_dir="/work_space_data/multilegal_pile/logging"
     )
