@@ -2,10 +2,10 @@ import argparse
 import json
 import os.path
 
-from loguru import logger
 from tqdm import tqdm
 
 from datatrove.io import get_datafolder, open_file
+from datatrove.utils.logging import logger
 from datatrove.utils.stats import PipelineStats
 
 

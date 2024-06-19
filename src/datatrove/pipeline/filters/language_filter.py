@@ -1,12 +1,7 @@
-import os
-
-from huggingface_hub import cached_assets_path
-from loguru import logger
-
 from datatrove.data import Document
-from datatrove.io import download_file
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.lid import FastTextModel
 from datatrove.utils.typeshelper import Languages
 
 
@@ -15,13 +10,14 @@ LANGUAGE_ID_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-mode
 
 class LanguageFilter(BaseFilter):
     name = "🌍 Language ID"
-    _requires_dependencies = [("fasttext", "fasttext-wheel")]
+    _requires_dependencies = [("fasttext", "fasttext-wheel"), "fasteners"]
 
     def __init__(
         self,
         languages: tuple = (Languages.english,),
         language_threshold: float = 0.65,
         exclusion_writer: DiskWriter = None,
+        label_only: bool = False,
     ):
         """
         filters if the predicted language is not among given language or if the language score is below language
@@ -31,27 +27,13 @@ class LanguageFilter(BaseFilter):
             languages: list of languages to keep
             language_threshold: language_threshold minimum score to accept a document
             exclusion_writer:
+            label_only: if True, only the language label is added to the metadata and no documents are removed
         """
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
         self.languages = languages
-        self._model = None
-
-    @property
-    def model(self):
-        if not self._model:
-            from fasttext.FastText import _FastText
-
-            download_dir = cached_assets_path(
-                library_name="datatrove", namespace="filters", subfolder="language_filter"
-            )
-            model_file = os.path.join(download_dir, "lid.176.bin")
-            if not os.path.isfile(model_file):
-                logger.info("⬇️ Downloading fast-text language identifier model...")
-                download_file(LANGUAGE_ID_MODEL_URL, model_file)
-                logger.info("⬇️ Downloaded fast-text language identifier model.")
-            self._model = _FastText(model_file)
-        return self._model
+        self.model = FastTextModel(list(languages))
+        self.label_only = label_only
 
     def filter(self, doc: Document) -> bool:
         """Args:
@@ -60,10 +42,7 @@ class LanguageFilter(BaseFilter):
         Returns:
             is_filter
         """
-
-        language, score = self.model.predict(doc.text.replace("\n", ""))
-        # language label is given in the form __label__<language_id>
-        language = language[0].split("__")[2]
-        doc.metadata["language"] = language
-        doc.metadata["language_score"] = score[0]
-        return score > self.language_threshold and language in self.languages
+        best_lang_pair, lang_pairs = self.model.predict(doc)
+        doc.metadata["language"] = best_lang_pair[0]
+        doc.metadata["language_score"] = best_lang_pair[1]
+        return self.label_only or any(score > self.language_threshold for score in lang_pairs.values())

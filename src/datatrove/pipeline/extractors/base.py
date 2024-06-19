@@ -1,10 +1,9 @@
-import signal
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 
-from loguru import logger
-
-from datatrove.data import Document, DocumentsPipeline
+from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import StatHints
 
 
@@ -35,34 +34,6 @@ class BaseExtractor(PipelineStep):
         """
         pass
 
-    def timeout_extract(self, doc: Document):
-        """Stops the extraction if it takes longer than timeout.
-        This is the main entrypoint for this class.
-
-        Args:
-          doc: Document:
-
-        Returns:
-
-        """
-
-        def signal_handler(_signum, _frame):
-            raise TimeoutError
-
-        signal.signal(signal.SIGALRM, signal_handler)
-        signal.setitimer(signal.ITIMER_REAL, self.timeout)
-        try:
-            return self.extract(doc.text)
-
-        except TimeoutError:
-            logger.warning("⏰ Timeout while cleaning record text. Skipping record.")
-
-        except Exception as e:
-            logger.warning(f'❌ Error "{e}" while cleaning record text. Skipping record.')
-
-        finally:
-            signal.setitimer(signal.ITIMER_REAL, 0)
-
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """Iterates through each document in data and calls `timeout_extract` on it.
 
@@ -74,13 +45,22 @@ class BaseExtractor(PipelineStep):
         Returns:
 
         """
-        for doc in data:
-            self.stat_update(StatHints.total)
-            with self.track_time():
-                doc.text = self.timeout_extract(doc)
-            if doc.text:
-                self.stat_update(StatHints.forwarded)
-                self.update_doc_stats(doc)
-                yield doc
-            else:
-                self.stat_update(StatHints.dropped)
+        with ThreadPoolExecutor() as executor:  # more reliable than using signal for timeouts
+            for doc in data:
+                self.stat_update(StatHints.total)
+                with self.track_time():
+                    future = executor.submit(self.extract, doc.text)
+                    try:
+                        doc.text = future.result(timeout=self.timeout)
+                    except TimeoutError:
+                        logger.warning("⏰ Timeout while cleaning record text. Skipping record.")
+                        continue
+                    except Exception as e:
+                        logger.warning(f'❌ Error "{e}" while cleaning record text. Skipping record.')
+                        continue
+                if doc.text:
+                    self.stat_update(StatHints.forwarded)
+                    self.update_doc_stats(doc)
+                    yield doc
+                else:
+                    self.stat_update(StatHints.dropped)

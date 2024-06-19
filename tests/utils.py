@@ -1,4 +1,34 @@
+import itertools
 import unittest
+from functools import wraps
+from typing import get_args, get_type_hints
+
+from datatrove.utils.hashing import HashConfig
+
+
+def use_hash_configs(
+    precision: list[int] = list(get_args(get_type_hints(HashConfig)["precision"])), hash_fc: list[str] = ["xxhash"]
+):
+    """
+    Decorator which runs the wrapped test function, with hash config of all combinations of given precision and hash_fc
+    Args:
+        precision (list[int]): List of precision values to use. Defaults to all possible values.
+        hash_fc (list[str]): List of hash functions to use. Defaults to ["xxhash"].
+    """
+
+    def wrapper(f):
+        @wraps(f)
+        def inner_wraper(self: unittest.TestCase, *args, **kwargs):
+            for p, h in itertools.product(precision, hash_fc):
+                config = HashConfig(precision=p, hash_fc=h)
+                self.setUp()
+                f(self, *args, config, **kwargs)
+                self.tearDown()
+                self.doCleanups()
+
+        return inner_wraper
+
+    return wrapper
 
 
 def require_nltk(test_case):
@@ -94,4 +124,20 @@ def require_datasets(test_case):
         import datasets  # noqa: F401
     except ImportError:
         test_case = unittest.skip("test requires datasets")(test_case)
+    return test_case
+
+
+def require_xxhash(test_case):
+    try:
+        import xxhash  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires xxhash")(test_case)
+    return test_case
+
+
+def require_lighteval(test_case):
+    try:
+        import lighteval  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires lighteval")(test_case)
     return test_case

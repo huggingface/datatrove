@@ -1,6 +1,6 @@
 [project]
 name = "datatrove"
-version = "0.0.1"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+version = "0.2.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
@@ -28,7 +28,7 @@ dependencies = [
     "humanize",
     "loguru>=0.7.0",
     "multiprocess",
-    "numpy>=1.25.0",
+    "numpy>=1.25.0,<2.0.0",
     "tqdm",
 ]
 
@@ -41,7 +41,8 @@ io = [
   "pyarrow",
   "python-magic",
   "warcio",
-  "datasets>=2.18.0"
+  "datasets>=2.18.0",
+  "orjson"
 ]
 s3 = [
   "s3fs>=2023.12.2",
@@ -50,11 +51,27 @@ processing = [
     "fasttext-wheel",
     "nltk",
     "inscriptis",
-#    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+#   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
     "trafilatura>=1.8.0",
     "tokenizers",
-    "ftfy"
+    "ftfy",
+    "fasteners",
+    "xxhash",
+    "kenlm",
+    "pyahocorasick"
+]
+decont = [
+    "lighteval>=0.3.0"
+]
+multilingual = [
+    "spacy",
+    "stanza",
+    "pyvi",
+    "pythainlp",
+    "jieba",
+    "indic-nlp-library",
+    "kiwipiepy",
 ]
 quality = [
   "ruff>=0.1.5"
@@ -63,7 +80,9 @@ testing = [
   "datatrove[cli]",
   "datatrove[io]",
   "datatrove[processing]",
+  "datatrove[multilingual]",
   "datatrove[s3]",
+  "datatrove[decont]",
   "pytest",
   "pytest-timeout",
   "pytest-xdist",

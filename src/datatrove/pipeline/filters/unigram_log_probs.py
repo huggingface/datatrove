@@ -4,11 +4,13 @@ import urllib.request
 
 import numpy as np
 from huggingface_hub import cached_assets_path
-from loguru import logger
 
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.logging import logger
+from datatrove.utils.typeshelper import Languages
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lucas/google-1T-unigram/unigram_freq.csv"
@@ -23,12 +25,9 @@ class UnigramLogProbFilter(BaseFilter):
     """
 
     name = "🧑‍🍳 Unigram log-prob filter"
-    _requires_dependencies = ["nltk"]
 
     def __init__(
-        self,
-        logprobs_threshold: float = -10,
-        exclusion_writer: DiskWriter = None,
+        self, logprobs_threshold: float = -10, exclusion_writer: DiskWriter = None, language: str = Languages.english
     ):
         """
 
@@ -39,6 +38,7 @@ class UnigramLogProbFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.logprobs_threshold = logprobs_threshold
         self.unigram_frequencies = self.get_frequencies()
+        self.tokenizer = load_word_tokenizer(language)
 
     def get_frequencies(self):
         download_dir = cached_assets_path(
@@ -60,9 +60,7 @@ class UnigramLogProbFilter(BaseFilter):
         return {word: count / total_count for word, count in zip(words, counts)}
 
     def get_logprob(self, doc):
-        from nltk.tokenize import word_tokenize
-
-        words = word_tokenize(doc.text)
+        words = self.tokenizer.word_tokenize(doc.text)
         freqs = [self.unigram_frequencies.get(word.lower(), 1e-9) for word in words]
 
         if len(freqs) == 0:

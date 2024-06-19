@@ -45,7 +45,11 @@ class MetricStatsDict(defaultdict):
         return ", ".join(f"{key}: {stats}" for key, stats in self.items())
 
     def to_dict(self):
-        return {a: b.to_dict() for a, b in self.items()}
+        return {a: (b.to_dict() if hasattr(b, "to_dict") else b) for a, b in self.items()}
+
+    @classmethod
+    def from_dict(cls, data):
+        return MetricStatsDict(init={a: MetricStats.from_dict(b) for a, b in data.items()})
 
 
 class Stats:
@@ -304,7 +308,9 @@ class MetricStats:
         if isinstance(data, dict):
             total = data.get("total")
             mean = data.get("mean", 1)
-            n = data.get("n", total if mean != 1 else 1)
+            # We save n if we it has been added 1+ times and we didn't add just 1 -> mean == 1
+            # This means that if mean == 1 and we don't have n, the n must be total, otherwise 1
+            n = data.get("n", total if mean == 1 else 1)
             return cls(
                 total=total,
                 n=n,

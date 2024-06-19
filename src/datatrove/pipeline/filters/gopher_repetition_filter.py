@@ -4,6 +4,8 @@ from collections import Counter
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.typeshelper import Languages
+from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 """
@@ -70,7 +72,6 @@ def find_all_duplicate(words: list[str], n: int) -> int:
 
 class GopherRepetitionFilter(BaseFilter):
     name = "👯 Gopher Repetition"
-    _requires_dependencies = ["nltk"]
 
     def __init__(
         self,
@@ -81,6 +82,7 @@ class GopherRepetitionFilter(BaseFilter):
         top_n_grams: tuple[tuple[int, float]] = ((2, 0.2), (3, 0.18), (4, 0.16)),
         dup_n_grams: tuple[tuple[int, float]] = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10)),
         exclusion_writer: DiskWriter = None,
+        language: str = Languages.english,
     ):
         """
 
@@ -102,10 +104,10 @@ class GopherRepetitionFilter(BaseFilter):
         self.top_n_grams = top_n_grams
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
+        self._line_splitter = re.compile("\n+")
+        self.tokenizer = load_word_tokenizer(language)
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        from nltk.tokenize import word_tokenize
-
         text = doc.text
 
         paragraphs = self.paragraph_exp.split(text.strip())
@@ -115,14 +117,14 @@ class GopherRepetitionFilter(BaseFilter):
         if self.dup_para_char_frac and char_duplicates / len(text) > self.dup_para_char_frac:
             return False, "dup_para_char_frac"
 
-        lines = text.splitlines()
+        lines = self._line_splitter.split(text)
         line_duplicates, char_duplicates = find_duplicates(lines)
         if self.dup_line_frac and line_duplicates / len(lines) > self.dup_line_frac:
             return False, "dup_line_frac"
         if self.dup_line_char_frac and char_duplicates / len(text) > self.dup_line_char_frac:
             return False, "dup_line_char_frac"
 
-        words = word_tokenize(text, language="english")  # TODO we should use language id filter
+        words = self.tokenizer.word_tokenize(text)
 
         for n, n_frac in self.top_n_grams:
             n_grams = get_n_grams(words, n)

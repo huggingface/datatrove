@@ -6,7 +6,6 @@ from datatrove.pipeline.filters import (
     GopherQualityFilter,
     GopherRepetitionFilter,
     LanguageFilter,
-    ListFilter,
     URLFilter,
 )
 from datatrove.pipeline.readers import WarcReader
@@ -39,14 +38,13 @@ executor = SlurmPipelineExecutor(
         ),
         GopherRepetitionFilter(exclusion_writer=JsonlWriter(f"{MAIN_OUTPUT_PATH}/removed/repetitive/{DUMP}")),
         GopherQualityFilter(exclusion_writer=JsonlWriter(f"{MAIN_OUTPUT_PATH}/removed/quality/{DUMP}")),
-        ListFilter(exclusion_writer=JsonlWriter(f"{MAIN_OUTPUT_PATH}/removed/list/{DUMP}")),
         JsonlWriter(f"{MAIN_OUTPUT_PATH}/output/{DUMP}"),
     ],
     tasks=8000,
     time="10:00:00",
     logging_dir=f"{MAIN_OUTPUT_PATH}/logs/base_processing/{DUMP}",
     slurm_logs_folder=f"logs/process_dump/processing/base_processing/{DUMP}/slurm_logs",
-    randomize_start=True,
+    randomize_start_duration=180,
     mem_per_cpu_gb=2,
     partition="hopper-cpu",
 )

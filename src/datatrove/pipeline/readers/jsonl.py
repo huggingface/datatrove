@@ -1,11 +1,8 @@
-import json
-from json import JSONDecodeError
 from typing import Callable, Literal
-
-from loguru import logger
 
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
+from datatrove.utils.logging import logger
 
 
 class JsonlReader(BaseDiskReader):
@@ -16,7 +13,9 @@ class JsonlReader(BaseDiskReader):
         data_folder: the data folder to read from
         compression: the compression to use (default: "infer")
         limit: limit the number of JSON lines to read
-        progress: show progress bar
+        skip: skip the first n rows
+        file_progress: show progress bar for files
+        doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
             Take as input: data: dict, path: str, id_in_file: int | str
             Return: a dict with at least a "text" key
@@ -30,13 +29,16 @@ class JsonlReader(BaseDiskReader):
     """
 
     name = "🐿 Jsonl"
+    _requires_dependencies = ["orjson"]
 
     def __init__(
         self,
         data_folder: DataFolderLike,
         compression: Literal["infer", "gzip", "zstd"] | None = "infer",
         limit: int = -1,
-        progress: bool = False,
+        skip: int = 0,
+        file_progress: bool = False,
+        doc_progress: bool = False,
         adapter: Callable = None,
         text_key: str = "text",
         id_key: str = "id",
@@ -48,7 +50,9 @@ class JsonlReader(BaseDiskReader):
         super().__init__(
             data_folder,
             limit,
-            progress,
+            skip,
+            file_progress,
+            doc_progress,
             adapter,
             text_key,
             id_key,
@@ -60,12 +64,15 @@ class JsonlReader(BaseDiskReader):
         self.compression = compression
 
     def read_file(self, filepath: str):
+        import orjson
+        from orjson import JSONDecodeError
+
         with self.data_folder.open(filepath, "rt", encoding='utf-8', compression=self.compression) as f:
             try:
                 for li, line in enumerate(f):
                     with self.track_time():
                         try:
-                            document = self.get_document_from_dict(json.loads(line), filepath, li)
+                            document = self.get_document_from_dict(orjson.loads(line), filepath, li)
                             if not document:
                                 continue
                         except (EOFError, JSONDecodeError) as e:

@@ -1,15 +1,22 @@
 import dataclasses
 import json
+import random
+import time
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Sequence
 from typing import Callable
 
-from loguru import logger
-
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import add_task_logger, close_task_logger, get_random_str, get_timestamp, log_pipeline
+from datatrove.utils.logging import (
+    add_task_logger,
+    close_task_logger,
+    get_random_str,
+    get_timestamp,
+    log_pipeline,
+    logger,
+)
 from datatrove.utils.stats import PipelineStats
 
 
@@ -22,6 +29,7 @@ class PipelineExecutor(ABC):
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
                 previous runs. default: True
+        randomize_start_duration: the maximum number of seconds to delay the start of each task.
     """
 
     @abstractmethod
@@ -30,10 +38,12 @@ class PipelineExecutor(ABC):
         pipeline: list[PipelineStep | Callable],
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
+        randomize_start_duration: int = 0,
     ):
         self.pipeline: list[PipelineStep | Callable] = pipeline
         self.logging_dir = get_datafolder(logging_dir if logging_dir else f"logs/{get_timestamp()}_{get_random_str()}")
         self.skip_completed = skip_completed
+        self.randomize_start_duration = randomize_start_duration
 
     @abstractmethod
     def run(self):
@@ -69,6 +79,9 @@ class PipelineExecutor(ABC):
             return PipelineStats()
         logfile = add_task_logger(self.logging_dir, rank, local_rank)
         log_pipeline(self.pipeline)
+
+        if self.randomize_start_duration > 0:
+            time.sleep(random.randint(0, self.randomize_start_duration))
         try:
             # pipe data from one step to the next
             pipelined_data = None
