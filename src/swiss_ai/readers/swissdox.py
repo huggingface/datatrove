@@ -95,6 +95,7 @@ class RawSwissDoxReader(BaseDiskReader):
                 if ignroe_article:
                     continue
                 tmp_text = f"{tmp_text}\n{content}"
+
     def load_meta_data(self, filepath):
         meta_data_full = {}
         with self.meta_data_folder.open(filepath, "r", encoding='utf-8', compression=self.compression) as mf:
@@ -108,11 +109,16 @@ class RawSwissDoxReader(BaseDiskReader):
                 news_paper_short = sline[-3]
                 date = sline[-4]
 
-                meta_dict = json.loads(sdict)
-                meta_dict['news_paper_short'] = news_paper_short.strip()
-                meta_dict['news_paper'] = news_paper.strip()
-                meta_dict['pub_date'] = date.strip()
-                meta_dict['lang'] = lang
+                opt_meta_dict = json.loads(sdict)
+                opt_meta_dict['news_paper_short'] = news_paper_short.strip()
+                opt_meta_dict['news_paper'] = news_paper.strip()
+                opt_meta_dict['pub_date'] = date.strip()
+                meta_dict = {
+                    'language': lang,
+                    'year': int(date.strip().split('-')[0]),
+                    'optional': opt_meta_dict
+                }
+
                 meta_data_full[lid] = meta_dict
         return meta_data_full
 

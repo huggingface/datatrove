@@ -1,10 +1,9 @@
 """
 
 """
-
 from swiss_ai.readers.swissdox import RawSwissDoxReader
 from datatrove.pipeline.tokens import TokensCounter, LengthCounter
-from datatrove.pipeline.writers import JsonlWriter
+from swiss_ai.writers.jsonl import SwissAIJsonlWriter
 from datatrove.executor.local import LocalPipelineExecutor
 import os
 
@@ -14,15 +13,20 @@ if not os.path.exists("/work_space_data/swissdox"):
 
 if __name__ == "__main__":
     pipeline = [
-        RawSwissDoxReader(data_folder="/work_space_data/swissdox", limit=-1),
-        TokensCounter(tokenizer_name_or_path="t5-small"),
+        RawSwissDoxReader(
+            data_folder="/work_space_data/swissdox",
+            limit=-1
+        ),
         LengthCounter(),
-        JsonlWriter(output_folder="/work_space_data/swissdox/jsonl"),
+        TokensCounter(tokenizer_name_or_path='t5-small'),
+        SwissAIJsonlWriter(
+            output_folder="/work_space_data/swissdox/jsonl"
+        )
     ]
 
     exec = LocalPipelineExecutor(
         pipeline=pipeline,
-        tasks=16,
+        tasks=64,
         workers=16,
         start_method="spawn",
         logging_dir="/work_space_data/swissdox/logging",

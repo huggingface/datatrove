@@ -2,6 +2,7 @@ import json
 from typing import IO, Callable
 
 from datatrove.io import DataFolderLike
+from loguru import logger
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from swiss_ai.utils.language_list import LANGUAGE_CODES
 from datetime import datetime
@@ -85,7 +86,6 @@ class SwissAIJsonlWriter(DiskWriter):
     def _write(self, document: dict, file_handler: IO, _filename: str):
         passed_check = SwissAIJsonlWriter.check_document(document)
         if not passed_check:
-            #TODO handle this better and give more descriptive feedback
-            raise ValueError('Document is not valid')
+            logger.warning(f'Document not valid: {str(document)}')
 
         file_handler.write(json.dumps(document, ensure_ascii=False) + "\n")

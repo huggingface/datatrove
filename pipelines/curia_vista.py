@@ -1,6 +1,6 @@
 from swiss_ai.readers.curia_vista import RawCuriaVistaReader
 from datatrove.pipeline.tokens import TokensCounter, LengthCounter
-from datatrove.pipeline.writers import JsonlWriter
+from swiss_ai.writers.jsonl import SwissAIJsonlWriter
 from datatrove.pipeline.readers import JsonlReader
 from datatrove.executor.local import LocalPipelineExecutor
 from datetime import datetime
@@ -8,7 +8,10 @@ from datetime import datetime
 now = datetime.now()
 
 if __name__ == '__main__':
-    table = 'Business'
+    table = 'Transcript'
+    trascr_cols = [
+        'Text'
+    ]
 
     now = datetime.now()
     batch = now.strftime("%Y_%m_%d_%H_%M_%S")
@@ -20,17 +23,12 @@ if __name__ == '__main__':
         RawCuriaVistaReader(
             table=table,
             progress=True,
-            columns=[
-                'SubmittedText',
-                'FederalCouncilResponseText',
-                'InitialSituation',
-                'Proceedings'
-            ],
-            limit=100
+            columns=trascr_cols,
+            limit=1500000
         ),
         TokensCounter(tokenizer_name_or_path='t5-small'),
         LengthCounter(),
-        JsonlWriter(
+        SwissAIJsonlWriter(
             output_folder=f"/work_space_data/curiavista/{table}/jsonl_{batch}"
         )
     ]
