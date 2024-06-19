@@ -4,7 +4,7 @@ from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.stats.base import BaseStats
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
-from datatrove.utils.lid import FastTextModel
+from datatrove.utils.lid import FT176LID
 
 
 class LangStats(BaseStats):
@@ -26,7 +26,7 @@ class LangStats(BaseStats):
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(output_folder, groups_to_compute, histogram_round_digits, top_k_config)
-        self.fasttext = FastTextModel([language])
+        self.fasttext = FT176LID([language])
         self.language = language
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
