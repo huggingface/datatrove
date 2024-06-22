@@ -66,8 +66,8 @@ class DocumentTokenizerContextShuffler(PipelineStep):
         datafiles = self.input_folder.get_shard(rank, world_size, glob_pattern="*.ds")
         datafiles_index = self.input_folder.get_shard(rank, world_size, glob_pattern="*.ds.index")
         for datafile, index in zip(datafiles, datafiles_index):
-            logger.info(f"Context shuffling {datafile.path} with a {self.window_size} token window")
-            total_len = load_doc_ends(index)[-1]
+            logger.info(f"Context shuffling {datafile} with a {self.window_size} token window")
+            total_len = load_doc_ends(self.input_folder.open(index, "rb"))[-1]
             nr_windows = total_len // self.window_size
             ordering = self.rand.permutation(np.arange(0, nr_windows, dtype=int))
             with self.output_folder.open(datafile, "wb") as fout:
