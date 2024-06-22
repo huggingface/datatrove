@@ -14,7 +14,7 @@ class ParquetWriter(DiskWriter):
         self,
         output_folder: DataFolderLike,
         output_filename: str = None,
-        compression: Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"] | None = "none",
+        compression: Literal[None, "snappy", "gzip", "brotli", "lz4", "zstd"] | None = None,
         adapter: Callable = None,
         batch_size: int = 1000,
         expand_metadata: bool = False,
