@@ -42,6 +42,8 @@ class DiskWriter(PipelineStep, ABC):
         output_filename = output_filename or self.default_output_filename
         if self.compression == "gzip" and not output_filename.endswith(".gz"):
             output_filename += ".gz"
+        elif self.compression == "zstd" and not output_filename.endswith(".zstd"):
+            output_filename += ".zstd"
         self.max_file_size = max_file_size
         self.file_id_counter = Counter()
         if self.max_file_size > 0 and mode != "wb":

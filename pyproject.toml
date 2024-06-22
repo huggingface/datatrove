@@ -42,7 +42,8 @@ io = [
   "python-magic",
   "warcio",
   "datasets>=2.18.0",
-  "orjson"
+  "orjson",
+  "zstandard"
 ]
 s3 = [
   "s3fs>=2023.12.2",
