@@ -43,7 +43,11 @@ class DiskWriter(PipelineStep, ABC):
         if self.compression == "gzip" and not output_filename.endswith(".gz"):
             output_filename += ".gz"
         elif self.compression == "zstd" and not output_filename.endswith(".zstd"):
-            output_filename += ".zstd"
+            if output_filename.endswith(".parquet"):
+                output_filename = output_filename.replace(".parquet", ".zstd.parquet")
+                compression = None  # compression is already handled by ParquetWriter
+            else:
+                output_filename += ".zstd"
         self.max_file_size = max_file_size
         self.file_id_counter = Counter()
         if self.max_file_size > 0 and mode != "wb":
