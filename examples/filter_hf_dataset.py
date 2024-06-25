@@ -29,10 +29,8 @@ if __name__ == "__main__":
     dist_executor = SlurmPipelineExecutor(
         job_name=f"filter-{args.output_name}",
         pipeline=[
-            ParquetReader(
-                args.input_dataset, glob_pattern="**/*.parquet", text_key=args.text_key
-            ),
-            LambdaFilter(lambda doc: "hugging" in doc.text), # add your custom filter here
+            ParquetReader(args.input_dataset, glob_pattern="**/*.parquet", text_key=args.text_key),
+            LambdaFilter(lambda doc: "hugging" in doc.text),  # add your custom filter here
             HuggingFaceDatasetWriter(
                 dataset=f"{ORG_NAME}/{args.output_name}",
                 private=True,
