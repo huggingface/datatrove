@@ -125,7 +125,8 @@ class C4QualityFilter(BaseFilter):
             if self.filter_policy and any(p in line_l for p in POLICY_SUBSTRINGS):
                 self.stat_update("line-filter-policy")
                 continue
-            num_sentences += len(self.tokenizer.sent_tokenize(line)) if self.split_paragraph else 1
+            if self.min_num_sentences != -1:
+                num_sentences += len(self.tokenizer.sent_tokenize(line)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
         if num_sentences < self.min_num_sentences:
