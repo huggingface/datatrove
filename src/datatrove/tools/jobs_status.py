@@ -87,7 +87,7 @@ def main():
 
     if complete_jobs + incomplete_jobs > 0:
         console.log(
-            f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed,  {complete_tasks}/{complete_tasks+incomplete_tasks} ({complete_tasks/(complete_tasks+incomplete_tasks):.0%}) tasks completed."
+            f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed, {complete_tasks}/{complete_tasks+incomplete_tasks} ({complete_tasks/(complete_tasks+incomplete_tasks):.0%}) tasks completed."
         )
     else:
         console.log("No jobs found.")
