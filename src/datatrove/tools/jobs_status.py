@@ -45,6 +45,9 @@ def main():
     complete_jobs = 0
     incomplete_jobs = 0
 
+    complete_tasks = 0
+    incomplete_tasks = 0
+
     for path in logging_dirs:
         logging_dir = get_datafolder(main_folder.resolve_paths(path))
         if not logging_dir.isfile("executor.json"):
@@ -67,6 +70,9 @@ def main():
             completed = set(logging_dir.list_files("completions"))
             incomplete = set(filter(lambda rank: f"completions/{rank:05d}" not in completed, range(world_size)))
 
+        complete_tasks += len(completed)
+        incomplete_tasks += len(incomplete)
+
         if len(incomplete) == 0:
             emoji = "✅"
             complete_jobs += 1
@@ -81,7 +87,7 @@ def main():
 
     if complete_jobs + incomplete_jobs > 0:
         console.log(
-            f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed."
+            f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed,  {complete_tasks}/{complete_tasks+incomplete_tasks} ({complete_tasks/(complete_tasks+incomplete_tasks):.0%}) tasks completed."
         )
     else:
         console.log("No jobs found.")
