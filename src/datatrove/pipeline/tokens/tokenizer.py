@@ -7,8 +7,9 @@ from numpy.random import default_rng
 
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolder, DataFolderLike, get_datafolder
+from datatrove.utils.batching import batched
 from datatrove.utils.logging import logger
-from datatrove.utils.tokenization import PipelineStepWithTokenizer, batched
+from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 
 SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas for final filtered common crawl docs)

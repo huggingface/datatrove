@@ -1,6 +1,7 @@
 from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.tokenization import PipelineStepWithTokenizer, batched
+from datatrove.utils.batching import batched
+from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 
 class TokensCounter(PipelineStepWithTokenizer):
