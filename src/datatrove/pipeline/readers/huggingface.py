@@ -67,7 +67,7 @@ class HuggingFaceDatasetReader(BaseReader):
         elif isinstance(dst, IterableDataset) and dst.n_shards > 1:
             # In case we have more than 1 shard (file), we shard
             # on shards/file level.
-            if world_size > dst.n_shards:
+            if rank >= dst.n_shards:
                 logger.warning(
                     f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
                 )
