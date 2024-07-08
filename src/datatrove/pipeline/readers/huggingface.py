@@ -1,6 +1,7 @@
 import copy
 from typing import Callable
 
+from loguru import logger
 from tqdm import tqdm
 
 from datatrove.data import DocumentsPipeline
@@ -66,6 +67,11 @@ class HuggingFaceDatasetReader(BaseReader):
         elif isinstance(dst, IterableDataset) and dst.n_shards > 1:
             # In case we have more than 1 shard (file), we shard
             # on shards/file level.
+            if world_size > dst.n_shards:
+                logger.warning(
+                    f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
+                )
+                return None
             ex_iterable = dst._ex_iterable.shard_data_sources(rank, world_size)
             return IterableDataset(
                 ex_iterable=ex_iterable,
@@ -94,6 +100,8 @@ class HuggingFaceDatasetReader(BaseReader):
             )
 
         shard = self._get_dataset_shard(ds, rank, world_size)
+        if not shard:
+            return
         with tqdm(total=self.limit if self.limit != -1 else None, disable=not self.doc_progress) as pbar:
             li = 0
             for batch in shard.iter(self.batch_size):
