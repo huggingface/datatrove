@@ -11,6 +11,7 @@ from fsspec.implementations.local import LocalFileSystem
 from huggingface_hub import HfFileSystem, cached_assets_path
 
 from datatrove.utils.logging import logger
+from datatrove.utils._import_utils import check_required_dependencies
 
 
 class OutputFileManager:
@@ -319,6 +320,7 @@ def safely_create_file(file_to_lock: str, do_processing: Callable):
         file_to_lock: str: lock will be "lock_path.lock" and completed file "lock_path.completed"
         do_processing: callback with the code to run to process/create the files
     """
+    check_required_dependencies("io", ["fasteners"])
     from fasteners import InterProcessLock
 
     completed_file = f"{file_to_lock}.completed"
