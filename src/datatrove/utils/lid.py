@@ -2,6 +2,7 @@ from abc import abstractmethod
 
 from datatrove.data import Document
 from datatrove.io import cached_asset_path_or_download
+from datatrove.utils._import_utils import check_required_dependencies
 
 
 class LID:
@@ -37,6 +38,7 @@ class FastTextLID(LID):
     @property
     def model(self):
         if not self._model:
+            check_required_dependencies("lid", [("fasttext", "fasttext-wheel")])
             from fasttext.FastText import _FastText
 
             model_file = cached_asset_path_or_download(
