@@ -10,8 +10,8 @@ from fsspec.implementations.dirfs import DirFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from huggingface_hub import HfFileSystem, cached_assets_path
 
-from datatrove.utils.logging import logger
 from datatrove.utils._import_utils import check_required_dependencies
+from datatrove.utils.logging import logger
 
 
 class OutputFileManager:
