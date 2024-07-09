@@ -139,7 +139,7 @@ class DataFolder(DirFileSystem):
         extra_options = {}
         if isinstance(self.fs, HfFileSystem):
             extra_options["expand_info"] = False  # speed up
-        if include_directories:
+        if include_directories and not glob_pattern:
             extra_options["withdirs"] = True
         return sorted(
             [
