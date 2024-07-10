@@ -161,11 +161,11 @@ class SlurmPipelineNodeExecutor(PipelineExecutor):
         """
         if "SLURM_ARRAY_TASK_ID" in os.environ:
             # we are already "inside" the slurm task, get our rank from env vars and run pipeline
+            # logger.warning(f'{os.environ["SLURM_ARRAY_TASK_ID"]=}, {self.max_array_size=}, {os.environ.get("RUN_OFFSET", 0)=}, ')
+
             slurm_rank = (
-                int(os.environ["SLURM_ARRAY_TASK_ID"])
-                + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0)) * self.tasks_per_node
-                + int(os.environ.get("SLURM_PROCID"))
-            )
+                int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(os.environ.get("RUN_OFFSET", 0))
+            ) * self.tasks_per_node + int(os.environ.get("SLURM_PROCID"))
 
             ranks_to_run_range = (slurm_rank * self.tasks_per_job, (slurm_rank + 1) * self.tasks_per_job)
             with self.logging_dir.open("ranks_to_run.json", "r") as ranks_to_run_file:
@@ -262,7 +262,7 @@ class SlurmPipelineNodeExecutor(PipelineExecutor):
         srun_args_str = " ".join([f"--{k}={v}" for k, v in self.srun_args.items()]) if self.srun_args else ""
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
-            f"srun {srun_args_str} --environment=datatrove --ntasks={self.tasks_per_node} --cpus-per-task={self.cpus_per_task} -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
+            f"srun {srun_args_str} --environment=datatrove -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         # save it
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
@@ -298,8 +298,8 @@ class SlurmPipelineNodeExecutor(PipelineExecutor):
         os.makedirs(self.slurm_logs_folder, exist_ok=True)
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
         sbatch_args = {
-            # "cpus-per-task": self.cpus_per_node,
-            "ntasks-per-node": 1,
+            "cpus-per-task": self.cpus_per_task,
+            "ntasks-per-node": self.tasks_per_node,
             "nodes": 1,
             # "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
             "partition": self.partition,
