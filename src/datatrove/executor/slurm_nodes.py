@@ -199,7 +199,7 @@ class SlurmPipelineNodeExecutor(PipelineExecutor):
                     "cpus-per-task": 1,
                     "dependency": f"afterok:{self.job_id}",
                 },
-                f'merge_stats {self.logging_dir.resolve_paths("stats")} '
+                f'srun --environment=datatrove merge_stats {self.logging_dir.resolve_paths("stats")} '
                 f'-o {self.logging_dir.resolve_paths("stats.json")}',
             )
         )
