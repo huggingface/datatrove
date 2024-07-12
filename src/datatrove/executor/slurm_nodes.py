@@ -262,7 +262,7 @@ class SlurmPipelineNodeExecutor(PipelineExecutor):
         srun_args_str = " ".join([f"--{k}={v}" for k, v in self.srun_args.items()]) if self.srun_args else ""
         launch_file_contents = self.get_launch_file_contents(
             self.get_sbatch_args(max_array),
-            f"srun {srun_args_str} --environment=datatrove -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
+            f"srun {srun_args_str} --kill-on-bad-exit=0 --environment=datatrove -l launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         # save it
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
