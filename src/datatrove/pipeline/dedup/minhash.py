@@ -474,8 +474,9 @@ class MinhashDedupCluster(PipelineStep):
                     file, doc = node
                     p = parent(node)
                     if node != p:
-                        output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
-                        self.stat_update("to_remove")
+                        if file != SENTINEL:
+                            output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
+                            self.stat_update("to_remove")
                     if self.save_cluster_id:
                         if p not in cluster_ids:
                             cluster_ids[p] = ci
