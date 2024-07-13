@@ -481,8 +481,9 @@ class MinhashDedupCluster(PipelineStep):
                             cluster_ids[p] = ci
                             ci += 1
                             self.stat_update("clusters")
-                        output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
-                        output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
+                        if file != SENTINEL:
+                            output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
+                            output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
 
 
 class MinhashDedupFilter(PipelineStep):
