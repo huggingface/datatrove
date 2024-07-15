@@ -40,10 +40,7 @@ class DiskWriter(PipelineStep, ABC):
         self.compression = compression
         self.output_folder = get_datafolder(output_folder)
         output_filename = output_filename or self.default_output_filename
-        if output_filename.endswith(".parquet") and compression in ["snappy", "gzip", "brotli", "lz4", "zstd"]:
-            output_filename = output_filename.replace(".parquet", f".{compression}.parquet")
-            compression = None  # compression is already handled by ParquetWriter
-        elif self.compression == "gzip" and not output_filename.endswith(".gz"):
+        if self.compression == "gzip" and not output_filename.endswith(".gz"):
             output_filename += ".gz"
         elif self.compression == "zstd" and not output_filename.endswith(".zstd"):
             output_filename += ".zstd"
