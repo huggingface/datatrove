@@ -107,7 +107,7 @@ class BaseStats(PipelineStep):
                         else:
                             # each key in this dictionary is a suffix for the main stat
                             for suffix, val in value.items():
-                                stat_name = stat if not suffix else f"{stat}_{suffix}"
+                                stat_name = stat if not suffix else f"{stat}__{suffix}"
                                 counters[stat_name][key] += val
 
                 doc.metadata.update(doc_stats)
