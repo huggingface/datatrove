@@ -23,8 +23,8 @@ class ParquetWriter(DiskWriter):
         super().__init__(
             output_folder,
             output_filename,
-            compression,
-            adapter,
+            compression=None,
+            adapter=adapter,
             mode="wb",
             expand_metadata=expand_metadata,
             max_file_size=max_file_size,
