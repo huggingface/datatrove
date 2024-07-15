@@ -59,10 +59,16 @@ class BaseStats(PipelineStep):
         """
         raise NotImplementedError()
 
-    def get_kv(self, doc: Document, value: STAT_TYPE, group_name: GROUP) -> tuple[str, STAT_TYPE]:
+    def get_kv(
+        self, doc: Document, value: STAT_TYPE, group_name: GROUP
+    ) -> tuple[str, STAT_TYPE | dict[str, STAT_TYPE]]:
         if group_name == "histogram":
             # Use rounding to reduce then number of values for histogram
-            return str(round(value, self.histogram_round_digits)), 1
+            return str(round(value, self.histogram_round_digits)), {
+                "": 1,
+                "chars": len(doc.text),
+                **({"tokens": doc.metadata["token_count"]} if "token_count" in doc.metadata else {}),
+            }
         elif group_name == "summary":
             return "summary", value
         elif group_name == "fqdn":
@@ -96,7 +102,13 @@ class BaseStats(PipelineStep):
                 for group, counters in groups_dicts.items():
                     for stat, value in doc_stats.items():
                         key, value = self.get_kv(doc, value, group)
-                        counters[stat][key] += value
+                        if not isinstance(value, dict):
+                            counters[stat][key] += value
+                        else:
+                            # each key in this dictionary is a suffix for the main stat
+                            for suffix, val in value.items():
+                                stat_name = stat if not suffix else f"{stat}__{suffix}"
+                                counters[stat_name][key] += val
 
                 doc.metadata.update(doc_stats)
             yield doc
