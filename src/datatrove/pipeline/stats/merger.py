@@ -71,8 +71,6 @@ class StatsMerger(PipelineStep):
 
                 with self.output_folder.open(f"{folder}/{STATS_MERGED_NAME}", "wt") as f:
                     group_name = Path(folder).parent.name
-                    if "__" in group_name:
-                        group_name = group_name.split("__")[0]
                     if group_name in self.top_k_config.top_k_groups:
                         top_k_keys = heapq.nlargest(self.top_k_config.top_k, stat, key=lambda x: stat.get(x).n)
                         stat = MetricStatsDict(init={s: stat.get(s) for s in top_k_keys})
