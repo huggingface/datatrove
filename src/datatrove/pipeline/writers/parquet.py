@@ -20,10 +20,16 @@ class ParquetWriter(DiskWriter):
         expand_metadata: bool = False,
         max_file_size: int = 5 * 2**30,  # 5GB
     ):
+        # Validate the compression setting
+        if compression not in {"snappy", "gzip", "brotli", "lz4", "zstd", None}:
+            raise ValueError(
+                "Invalid compression type. Allowed types are 'snappy', 'gzip', 'brotli', 'lz4', 'zstd', or None."
+            )
+
         super().__init__(
             output_folder,
             output_filename,
-            compression=None,
+            compression=None,  # Ensure superclass initializes without compression
             adapter=adapter,
             mode="wb",
             expand_metadata=expand_metadata,
