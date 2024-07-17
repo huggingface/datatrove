@@ -65,7 +65,7 @@ class FastTextClassifierFilter(BaseFilter):
 
     @property
     def model(self):
-        if not self._model:
+        if self._model is None:
             from fasttext.FastText import _FastText
 
             model_file = cached_asset_path_or_download(

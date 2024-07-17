@@ -42,7 +42,7 @@ if is_torch_available():
             self._f = None
 
         def __getitem__(self, item):
-            if not self._f:
+            if self._f is None:
                 self._f = self.fs.open(self.file_path, "rb")
             chunk_size = self.token_size * (self.seq_len + 1)
             self._f.seek(item * chunk_size)

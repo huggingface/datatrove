@@ -119,7 +119,7 @@ class SingleBloomFilter(PipelineStep):
                 where a and b are numpy uint64 arrays of shape (1, k) containing the
                 random parameters for the hash functions.
         """
-        if not self._parameters:
+        if self._parameters is None:
             gen = np.random.RandomState(self.config.seed)
             self._parameters = (
                 gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.config.k)),

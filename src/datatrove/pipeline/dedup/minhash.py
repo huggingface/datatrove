@@ -152,7 +152,7 @@ class MinhashDedupSignature(PipelineStep):
 
         Note: For 64-bit hashes the upper-bound for codomain is not [0,2**64) but [0,2**61 - 1)
         """
-        if not self._parameters:
+        if self._parameters is None:
             gen = np.random.RandomState(self.config.seed)
             self._parameters = (
                 gen.randint(1, _mersenne_prime, dtype=np.uint64, size=(1, self.num_hashes)),

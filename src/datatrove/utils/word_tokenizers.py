@@ -41,7 +41,7 @@ class NLTKTokenizer(WordTokenizer):
 
     @property
     def tokenizer(self):
-        if not self._tokenizer:
+        if self._tokenizer is None:
             from nltk import load
 
             self._tokenizer = load(f"tokenizers/punkt/{self.punkt_language}.pickle")
@@ -77,7 +77,7 @@ class SpaCyTokenizer(WordTokenizer):
 
     @property
     def tokenizer(self):
-        if not self._tokenizer:
+        if self._tokenizer is None:
             import spacy
 
             if self.config is None:
@@ -114,7 +114,7 @@ class StanzaTokenizer(WordTokenizer):
 
     @property
     def tokenizer(self):
-        if not self._tokenizer:
+        if self._tokenizer is None:
             import stanza
             from stanza.pipeline.core import DownloadMethod
 
@@ -196,7 +196,7 @@ class KiwiTokenizer(WordTokenizer):
 
     @property
     def tokenizer(self):
-        if not self._tokenizer:
+        if self._tokenizer is None:
             from kiwipiepy import Kiwi
 
             self._tokenizer = Kiwi(model_type=self.model_type)

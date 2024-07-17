@@ -34,7 +34,7 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
 
     @property
     def token_size(self) -> int:
-        if not self._token_size:
+        if self._token_size is None:
             self._token_size = 4 if self.tokenizer.get_vocab_size() > np.iinfo(np.uint16).max + 1 else 2
         return self._token_size
 
@@ -44,7 +44,7 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
 
     @property
     def tokenizer(self) -> "Tokenizer":
-        if not self._tokenizer:
+        if self._tokenizer is None:
             if not self.tokenizer_name_or_path:
                 raise ValueError("self.tokenizer_name_or_path needs to be set!")
             self._tokenizer = load_tokenizer(self.tokenizer_name_or_path)

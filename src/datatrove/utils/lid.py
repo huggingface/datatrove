@@ -37,7 +37,7 @@ class FastTextLID(LID):
 
     @property
     def model(self):
-        if not self._model:
+        if self._model is None:
             check_required_dependencies("lid", [("fasttext", "fasttext-wheel")])
             from fasttext.FastText import _FastText
 
