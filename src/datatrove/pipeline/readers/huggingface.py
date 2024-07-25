@@ -26,6 +26,8 @@ class HuggingFaceDatasetReader(BaseReader):
         text_key: key to use for the text in the default adapter (default: "text"). Ignored if you provide your own `adapter`
         id_key: key to use for the id in the default adapter (default: "id"). Ignored if you provide your own `adapter`
         default_metadata: default metadata to add to all documents
+        shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
+            with dedup blocks
     """
 
     name = "🤗 HuggingFace"
@@ -44,6 +46,7 @@ class HuggingFaceDatasetReader(BaseReader):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
+        shuffle_files: bool = False,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
@@ -51,6 +54,7 @@ class HuggingFaceDatasetReader(BaseReader):
         self.batch_size = batch_size
         self.doc_progress = doc_progress
         self.streaming = streaming
+        self.shuffle_files = shuffle_files
 
     def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
         document = super().get_document_from_dict(data, source, id_in_file)
@@ -92,6 +96,12 @@ class HuggingFaceDatasetReader(BaseReader):
         if data:
             yield from data
         ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
+
+        if self.shuffle_files:
+            if not self.streaming:
+                ds = ds.shuffle(seed=42)
+            else:
+                ds = ds.shuffle(seed=42, buffer_size=1000)
 
         # In case the dataset is (Iterable)?DatasetDict, raise informative error
         if isinstance(ds, dict):
