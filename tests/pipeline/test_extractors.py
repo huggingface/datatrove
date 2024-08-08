@@ -14,7 +14,7 @@ class TestExtractors(unittest.TestCase):
     @require_trafilatura
     def test_basic_article_trafilatura(self):
         ZERO_CONFIG = trafilatura.settings.DEFAULT_CONFIG
-        ZERO_CONFIG['DEFAULT']['MIN_EXTRACTED_SIZE'] = '0'
+        ZERO_CONFIG["DEFAULT"]["MIN_EXTRACTED_SIZE"] = "0"
         extractor = Trafilatura(config=ZERO_CONFIG)
         self.assertEqual(extractor.extract(ARTICLE_HTML), "Hello World!")
 
