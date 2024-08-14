@@ -128,7 +128,10 @@ class DataFolder(DirFileSystem):
         Get a list of files on this directory. If `subdirectory` is given will search in `path/subdirectory`. If
         glob_pattern is given, it will only return files that match the pattern, which can be used to match a given
         extension, for example `*.myext`. Be careful with subdirectories when using glob (use ** if you want to match
-        any subpath). Args: subdirectory: str:  (Default value = "") recursive: bool:  (Default value = True)
+        any subpath).
+
+        Args: subdirectory: str:  (Default value = "")
+        recursive: bool:  (Default value = True)
         glob_pattern: str | None:  (Default value = None)
 
         Returns: a list of file paths, relative to `self.path`
