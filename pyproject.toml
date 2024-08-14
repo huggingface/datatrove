@@ -53,7 +53,7 @@ processing = [
     "inscriptis",
 #   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
-    "trafilatura>=1.8.0",
+    "trafilatura>=1.8.0,<1.12.0",
     "tokenizers",
     "ftfy",
     "fasteners",
