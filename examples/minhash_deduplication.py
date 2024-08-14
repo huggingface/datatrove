@@ -9,10 +9,16 @@ from datatrove.pipeline.dedup.minhash import (
 from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.tokens import TokensCounter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
+from datatrove.utils.hashing import HashConfig
+from datatrove.utils.typeshelper import Languages
 
 
 # you can also change ngrams or the number of buckets and their size here
-minhash_config = MinhashConfig(use_64bit_hashes=True)  # better precision -> fewer false positives (collisions)
+minhash_config = MinhashConfig(
+    hash_config=HashConfig(precision=64),
+    num_buckets=14,
+    hashes_per_bucket=8,
+)  # better precision -> fewer false positives (collisions)
 
 S3_MINHASH_BASE_PATH = "s3://mybucket/minhash/"
 
@@ -29,7 +35,9 @@ stage1 = SlurmPipelineExecutor(
     job_name="mh1",
     pipeline=[
         INPUT_READER,
-        MinhashDedupSignature(output_folder=f"{S3_MINHASH_BASE_PATH}/signatures", config=minhash_config),
+        MinhashDedupSignature(
+            output_folder=f"{S3_MINHASH_BASE_PATH}/signatures", config=minhash_config, language=Languages.english
+        ),
     ],
     tasks=TOTAL_TASKS,
     time="5:00:00",

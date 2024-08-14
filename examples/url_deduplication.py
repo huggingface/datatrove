@@ -34,7 +34,7 @@ LIMIT = -1  # for testing
 
 def run_example(args):
     pipeline_1 = [
-        JsonlReader(args.input_folder, limit=LIMIT, progress=True),
+        JsonlReader(args.input_folder, limit=LIMIT, doc_progress=True),
         UrlDedupSignature(
             output_folder=f"{args.sigs_dup_folder}/sigs",
             config=url_dedup_config,
@@ -51,7 +51,7 @@ def run_example(args):
     ]
 
     pipeline_3 = [
-        JsonlReader(data_folder=args.input_folder, limit=LIMIT, progress=True),
+        JsonlReader(data_folder=args.input_folder, limit=LIMIT, doc_progress=True),
         UrlDedupFilter(
             data_folder=f"{args.sigs_dup_folder}/dups",
             config=url_dedup_config,
