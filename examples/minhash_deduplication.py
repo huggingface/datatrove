@@ -9,12 +9,13 @@ from datatrove.pipeline.dedup.minhash import (
 from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.tokens import TokensCounter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
+from datatrove.utils.hashing import HashConfig
 from datatrove.utils.typeshelper import Languages
 
 
 # you can also change ngrams or the number of buckets and their size here
 minhash_config = MinhashConfig(
-    use_64bit_hashes=True,
+    hash_config=HashConfig(precision=64),
     num_buckets=14,
     hashes_per_bucket=8,
 )  # better precision -> fewer false positives (collisions)

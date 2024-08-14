@@ -19,6 +19,7 @@ from datatrove.pipeline.formatters import PIIFormatter
 from datatrove.pipeline.readers import JsonlReader, WarcReader
 from datatrove.pipeline.tokens import TokensCounter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
+from datatrove.utils.hashing import HashConfig
 
 
 """
@@ -77,7 +78,10 @@ main_processing_executor.run()
 
 # you can also change ngrams or the number of buckets and their size here
 minhash_config = MinhashConfig(
-    use_64bit_hashes=True,  # better precision -> fewer false positives (collisions)
+    hash_config=HashConfig(
+        hash_fc="sha1",  # better precision -> fewer false positives (collisions)
+        precision=64,
+    ),
     num_buckets=14,
     hashes_per_bucket=8,
     n_grams=5,
@@ -119,7 +123,7 @@ stage2 = SlurmPipelineExecutor(
         MinhashDedupBuckets(
             input_folder=f"{S3_MINHASH_BASE_PATH}/{DUMP_TO_PROCESS}/signatures",
             output_folder=f"{S3_MINHASH_BASE_PATH}/{DUMP_TO_PROCESS}/buckets",
-            config=MinhashConfig(use_64bit_hashes=True),
+            config=MinhashConfig(hash_config=minhash_config.hash_config),
         ),
     ],
     tasks=minhash_config.num_buckets * 50,  # the code supports parallelizing each bucket. here we run 50
