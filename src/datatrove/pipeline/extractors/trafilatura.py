@@ -1,6 +1,3 @@
-from functools import cached_property
-from typing import Any
-
 from .base import BaseExtractor
 
 
@@ -28,7 +25,6 @@ class Trafilatura(BaseExtractor):
         include_images: bool = False,
         timeout: float = 0.1,
         deduplicate: bool = True,
-        trafilatura_config: Any | None = None,
         **kwargs,
     ):
         super().__init__(timeout)
@@ -36,21 +32,8 @@ class Trafilatura(BaseExtractor):
         self.include_images = include_images
         self.deduplicate = deduplicate
         self.kwargs = kwargs
-        self._trafilatura_config = trafilatura_config
         if self.include_images:
             raise NotImplementedError
-
-    @cached_property
-    def trafilatura_config(self) -> Any:
-        from trafilatura.settings import use_config
-
-        # We want to ensure we are backward compatible with fineweb processing setting for all trafilatura versions
-        # For more info see https://github.com/huggingface/datatrove/pull/264
-        if self._trafilatura_config is None:
-            config = use_config()
-            config["DEFAULT"]["MIN_EXTRACTED_SIZE"] = "0"
-            return config
-        return self._trafilatura_config
 
     def extract(self, text: str) -> str:
         """
@@ -63,12 +46,10 @@ class Trafilatura(BaseExtractor):
         """
         from trafilatura import extract
 
-        extracted_text = extract(
+        return extract(
             text,
             favor_precision=self.favour_precision,
             include_comments=False,
             deduplicate=self.deduplicate,
-            config=self.trafilatura_config,
             **self.kwargs,
         )
-        return extracted_text if extracted_text is not None else ""
