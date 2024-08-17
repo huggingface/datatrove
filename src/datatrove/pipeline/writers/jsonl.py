@@ -12,6 +12,7 @@ class JsonlWriter(DiskWriter):
         output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
         compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
         adapter: a custom function to "adapt" the Document format to the desired output format
+        expand_metadata: save each metadata entry in a different column instead of as a dictionary
     """
 
     default_output_filename: str = "${rank}.jsonl"
@@ -24,6 +25,7 @@ class JsonlWriter(DiskWriter):
         output_filename: str = None,
         compression: str | None = "gzip",
         adapter: Callable = None,
+        expand_metadata: bool = False,
         max_file_size: int = -1,  # in bytes. -1 for unlimited
     ):
         super().__init__(
@@ -31,6 +33,7 @@ class JsonlWriter(DiskWriter):
             output_filename=output_filename,
             compression=compression,
             adapter=adapter,
+            expand_metadata=expand_metadata,
             mode="wb",
             max_file_size=max_file_size,
         )
