@@ -48,6 +48,7 @@ Available flavours (combine them with `,` i.e. `[processing,s3]`):
 - `processing` dependencies for text extraction, filtering and tokenization: `pip install datatrove[processing]`
 - `s3` s3 support: `pip install datatrove[s3]`
 - `cli` for command line tools: `pip install datatrove[cli]`
+- `video` dependencies to opperate with video `pip install datatrove[video]`. Additionally install ffmpeg in your system through (pip, conda, brew...)
 
 ## Quickstart examples
 You can check the following [examples](examples):

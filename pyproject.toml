@@ -92,9 +92,16 @@ all = [
   "datatrove[quality]",
   "datatrove[testing]",
 ]
-dev = [
-  "datatrove[all]"
+
+video = [
+  "ffmpeg-python"
 ]
+
+dev = [
+  "datatrove[all]",
+  "datatrove[video]"
+]
+
 
 [project.urls]
 Repository = "https://github.com/huggingface/datatrove"
