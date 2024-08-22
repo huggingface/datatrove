@@ -13,7 +13,9 @@ class VideoFrozenFilter(BaseFilter):
     name = "🧊 Video-Frozen-filter"
     _requires_dependencies = ["ffmpeg"]
 
-    def __init__(self, exclusion_writer=None, batch_size: int = 1, freeze_threshold: float = 0.005, freeze_duration: int = 60):
+    def __init__(
+        self, exclusion_writer=None, batch_size: int = 1, freeze_threshold: float = 0.005, freeze_duration: int = 60
+    ):
         """
         Args:
             exclusion_writer: optionally pass in a writer that will save the dropped documents.
@@ -28,11 +30,14 @@ class VideoFrozenFilter(BaseFilter):
 
         # Check if ffmpeg is installed
         if shutil.which("ffmpeg") is None:
-            raise EnvironmentError("ffmpeg is not installed. Please install it to use the VideoFrozenFilter. More details: https://www.ffmpeg.org/download.html")
+            raise EnvironmentError(
+                "ffmpeg is not installed. Please install it to use the VideoFrozenFilter. More details: https://www.ffmpeg.org/download.html"
+            )
 
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
         video_path = doc.media[0].local_path if doc.media else None
         import os
+
         if not os.path.exists(video_path):
             logger.warning(f"Video path does not exist: {video_path}")
         if video_path and self.is_video_frozen(video_path):
@@ -44,6 +49,7 @@ class VideoFrozenFilter(BaseFilter):
 
         if self.ffmpeg is None:
             import ffmpeg
+
             self.ffmpeg = ffmpeg
 
         video_duration = self.get_video_duration(video_path)
@@ -75,29 +81,27 @@ class VideoFrozenFilter(BaseFilter):
                 return True
         return False
 
-
     def get_video_duration(self, video_path: str) -> float:
         """Get the duration of the video in seconds using ffmpeg."""
         try:
             probe = self.ffmpeg.probe(video_path)
-            return float(probe['format']['duration'])
+            return float(probe["format"]["duration"])
         except self.ffmpeg.Error as e:
             logger.info(f"ffprobe {video_path}:")
-            logger.error(e.stderr.decode('utf-8'))
+            logger.error(e.stderr.decode("utf-8"))
             raise e
 
     def check_freeze(self, video_path: str, start_time: str, duration: str) -> bool:
         """Check for frozen frames in a specific interval using ffmpeg's freezedetect filter."""
         try:
             out, err = (
-                self.ffmpeg
-                .input(video_path, ss=start_time, t=duration)
-                .filter('freezedetect', n=self.freeze_threshold, d=self.freeze_duration)
-                .output('null', f='null')
+                self.ffmpeg.input(video_path, ss=start_time, t=duration)
+                .filter("freezedetect", n=self.freeze_threshold, d=self.freeze_duration)
+                .output("null", f="null")
                 .run(capture_stdout=True, capture_stderr=True)
             )
-            err = err.decode('utf-8')
-            return 'freeze_start' in err and 'freeze_end' not in err
+            err = err.decode("utf-8")
+            return "freeze_start" in err and "freeze_end" not in err
         except self.ffmpeg.Error as e:
             print(f"Error processing video {video_path}: {e}")
             return False

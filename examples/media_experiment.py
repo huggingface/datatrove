@@ -6,27 +6,20 @@ from datatrove.pipeline.readers import VideoTripletReader
 
 def run_step_1():
     video_triplet_reader = VideoTripletReader(
-        data_folder="s3://amotoratolins/datatrovetest/",
-        metadata_origin="youtube"
+        data_folder="s3://amotoratolins/datatrovetest/", metadata_origin="youtube"
     )
 
-    video_frozen_filter = VideoFrozenFilter(
-    )
+    video_frozen_filter = VideoFrozenFilter()
 
-    pipeline_1 = [
-        video_triplet_reader,
-        video_frozen_filter
-    ]
+    pipeline_1 = [video_triplet_reader, video_frozen_filter]
 
     # Create the executor with the pipeline
-    executor_1: PipelineExecutor = LocalPipelineExecutor(
-        pipeline=pipeline_1,
-        workers=1,
-        tasks=1
-    )
+    executor_1: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_1, workers=1, tasks=1)
 
     # Execute the pipeline
-    result = executor_1.run()
+    # result = executor_1.run()
+    executor_1.run()
+
 
 #    # Additional debugging
 #    for document in video_triplet_reader.read_file(None):
@@ -35,7 +28,6 @@ def run_step_1():
 #        print(f"Media: {document.media}")
 #        print(f"Metadata: {document.metadata}")
 #        print("-" * 80)
-
 
 
 # Run the testing pipeline

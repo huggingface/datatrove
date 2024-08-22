@@ -27,7 +27,7 @@ class VideoTripletReader(BaseDiskReader):
         id_key: str = "id",
         default_metadata: dict = None,
         recursive: bool = True,
-        local_cache_dir = "/tmp/local_video_cache"
+        local_cache_dir="/tmp/local_video_cache",
     ):
         self.metadata_origin = metadata_origin
         self.local_cache_dir = local_cache_dir
@@ -45,7 +45,6 @@ class VideoTripletReader(BaseDiskReader):
             default_metadata,
             recursive,
         )
-
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """Overrides the base run method to handle triplet statistics correctly."""
