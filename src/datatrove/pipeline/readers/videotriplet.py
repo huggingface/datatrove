@@ -26,11 +26,8 @@ class VideoTripletReader(BaseDiskReader):
         id_key: str = "id",
         default_metadata: dict = None,
         recursive: bool = True,
-        glob_pattern: str | None = None,
         local_cache_dir = "/tmp/local_video_cache"
     ):
-        self.data_folder = get_datafolder(data_folder)
-        self.paths_file = paths_file
         self.metadata_origin = metadata_origin
         self.local_cache_dir = local_cache_dir  
         os.makedirs(self.local_cache_dir, exist_ok=True)
@@ -46,15 +43,15 @@ class VideoTripletReader(BaseDiskReader):
             id_key,
             default_metadata,
             recursive,
-            glob_pattern,
         )
 
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """Overrides the base run method to handle triplet statistics correctly."""
         triplet_count = 0
-
-        for triplet in self.find_triplets():
+        if data:
+            yield from data
+        for triplet in self.find_triplets(rank, world_size):
             document = self.process_triplet(triplet)
             if document:
                 self.stat_update("documents")  # Track the number of triplets processed
@@ -62,7 +59,7 @@ class VideoTripletReader(BaseDiskReader):
                 triplet_count += 1
                 yield document
 
-    def find_triplets(self) -> List[Dict[str, str]]:
+    def find_triplets(self, rank: int = 0, world_size: int = 1) -> List[Dict[str, str]]:
         """Find triplets of video, metadata, and caption files in the data folder."""
         triplets = []
         video_extensions = (".mp4", ".avi", ".mkv", ".mov")
@@ -73,7 +70,7 @@ class VideoTripletReader(BaseDiskReader):
             with self.data_folder.open(self.paths_file, "r") as f:
                 paths = [line.strip() for line in f]
         else:
-            paths = self.data_folder.list_files(recursive=self.recursive, glob_pattern="*")
+            paths = self.data_folder.list_files(recursive=self.recursive)
 
         for path in paths:
             base_name, ext = os.path.splitext(path)
@@ -89,7 +86,7 @@ class VideoTripletReader(BaseDiskReader):
                         "caption": caption_file if self.data_folder.exists(caption_file) else None,
                     }
                     triplets.append(triplet)        
-        return triplets
+        return triplets[rank::world_size]
 
     def read_file(self, filepath: str):
         for triplet in self.find_triplets():

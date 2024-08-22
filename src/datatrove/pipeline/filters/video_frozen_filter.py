@@ -1,7 +1,8 @@
 from typing import Tuple, List
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-
+from loguru import logger
+import shutil
 
 class VideoFrozenFilter(BaseFilter):
     """Filter that uses ffmpeg to detect if a video is static (frozen)."""
@@ -14,19 +15,23 @@ class VideoFrozenFilter(BaseFilter):
         Args:
             exclusion_writer: optionally pass in a writer that will save the dropped documents.
             batch_size: the number of documents to process in a batch.
-            freeze_threshold: the noise threshold for detecting a frozen frame (default is 0.001).
-            freeze_duration: the minimum duration (in seconds) that frames must be frozen to trigger detection (default is 2 seconds).
+            freeze_threshold: the noise threshold for detecting a frozen frame (default is 0.005).
+            freeze_duration: the minimum duration (in seconds) that frames must be frozen to trigger detection (default is 60 seconds).
         """
         super().__init__(exclusion_writer, batch_size)
         self.ffmpeg = None
         self.freeze_threshold = freeze_threshold
         self.freeze_duration = freeze_duration
 
+        # Check if ffmpeg is installed
+        if shutil.which("ffmpeg") is None:
+            raise EnvironmentError("ffmpeg is not installed. Please install it to use the VideoFrozenFilter. More details: https://www.ffmpeg.org/download.html")
+
     def filter(self, doc: Document) -> bool | Tuple[bool, str]:
         video_path = doc.media[0].local_path if doc.media else None
         import os
         if not os.path.exists(video_path):
-            print(f"Video path does not exist: {video_path}")
+            logger.warning(f"Video path does not exist: {video_path}")
         if video_path and self.is_video_frozen(video_path):
             return False, "frozen_video"
         return True
@@ -74,8 +79,8 @@ class VideoFrozenFilter(BaseFilter):
             probe = self.ffmpeg.probe(video_path)
             return float(probe['format']['duration'])
         except self.ffmpeg.Error as e:
-            print(f"ffprobe {video_path}:")
-            print(e.stderr.decode('utf-8'))
+            logger.info(f"ffprobe {video_path}:")
+            logger.error(e.stderr.decode('utf-8'))
             raise e
 
     def check_freeze(self, video_path: str, start_time: str, duration: str) -> bool:
