@@ -1,11 +1,12 @@
 import json
-import warnings
 import os
-from typing import Callable, List, Dict
-from datatrove.io import DataFileLike, DataFolderLike, get_datafolder, download_file
+import warnings
+from typing import Callable, Dict, List
+
+from datatrove.data import Document, DocumentsPipeline, Media, MediaType
+from datatrove.io import DataFileLike, DataFolderLike, download_file
 from datatrove.pipeline.readers.base import BaseDiskReader
-from datatrove.data import Document, Media, MediaType
-from datatrove.data import Document, DocumentsPipeline
+
 
 class VideoTripletReader(BaseDiskReader):
     """Read triplets of video, metadata, and optional caption files."""
@@ -29,7 +30,7 @@ class VideoTripletReader(BaseDiskReader):
         local_cache_dir = "/tmp/local_video_cache"
     ):
         self.metadata_origin = metadata_origin
-        self.local_cache_dir = local_cache_dir  
+        self.local_cache_dir = local_cache_dir
         os.makedirs(self.local_cache_dir, exist_ok=True)
         super().__init__(
             data_folder,
@@ -85,7 +86,7 @@ class VideoTripletReader(BaseDiskReader):
                         "metadata": metadata_file,
                         "caption": caption_file if self.data_folder.exists(caption_file) else None,
                     }
-                    triplets.append(triplet)        
+                    triplets.append(triplet)
         return triplets[rank::world_size]
 
     def read_file(self, filepath: str):

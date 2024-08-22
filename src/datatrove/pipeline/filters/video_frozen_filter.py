@@ -1,8 +1,11 @@
-from typing import Tuple, List
+import shutil
+from typing import Tuple
+
+from loguru import logger
+
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from loguru import logger
-import shutil
+
 
 class VideoFrozenFilter(BaseFilter):
     """Filter that uses ffmpeg to detect if a video is static (frozen)."""
@@ -44,14 +47,14 @@ class VideoFrozenFilter(BaseFilter):
             self.ffmpeg = ffmpeg
 
         video_duration = self.get_video_duration(video_path)
-        
+
         # Adjusted video duration to account for 10-second padding
         effective_duration = video_duration - 20  # Remove 10 seconds from start and end
 
         if effective_duration <= 0:
             # If the effective duration is less than or equal to 0, return False as we can't analyze anything
             return False
-        
+
         intervals = []
 
         # If the effective duration is very short, analyze the whole effective video
@@ -68,7 +71,7 @@ class VideoFrozenFilter(BaseFilter):
 
         for start_time, duration in intervals:
             if self.check_freeze(video_path, start_time, duration):
-                print(f"{video_path} at {start_time} seen as frozen") 
+                print(f"{video_path} at {start_time} seen as frozen")
                 return True
         return False
 
