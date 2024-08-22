@@ -1,10 +1,7 @@
-import os
 from datatrove.executor.base import PipelineExecutor
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.readers import VideoTripletReader
 from datatrove.pipeline.filters import VideoFrozenFilter
-
-from typing import Callable
+from datatrove.pipeline.readers import VideoTripletReader
 
 
 def run_step_1():
@@ -25,7 +22,7 @@ def run_step_1():
     executor_1: PipelineExecutor = LocalPipelineExecutor(
         pipeline=pipeline_1,
         workers=1,
-        tasks=1  
+        tasks=1
     )
 
     # Execute the pipeline
