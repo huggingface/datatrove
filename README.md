@@ -266,7 +266,7 @@ Some options common to most readers:
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.
 
 ### Filtering data
-[Filters](src/datatrove/pipeline/filters) are some of the most important blocks of any data processing pipeline. Datatrove's filter blocks take a `Document` and return a boolean (`True` to keep a document, `False` to remove it). Removed samples do not continue to the next pipeline stage. You can also save the removed samples to disk by passing a [Writer](src/datatrove/pipeline/writers) to the `excluded_writer` parameter.
+[Filters](src/datatrove/pipeline/filters) are some of the most important blocks of any data processing pipeline. Datatrove's filter blocks take a `Document` and return a boolean (`True` to keep a document, `False` to remove it). Removed samples do not continue to the next pipeline stage. You can also save the removed samples to disk by passing a [Writer](src/datatrove/pipeline/writers) to the `exclusion_writer` parameter.
 
 ### Saving data
 Once you are done processing your data you will probably want to save it somewhere. For this you can use a [writer](src/datatrove/pipeline/writers/jsonl.py).
