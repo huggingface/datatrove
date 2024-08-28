@@ -40,7 +40,7 @@ jobs:
       - name: Test installing from test PyPI and running tests
         run: |
           python -m pip install uv
-          uv pip install -i https://testpypi.python.org/pypi --extra-index-url https://pypi.org/simple datatrove[testing]
+          uv pip install --system -i https://testpypi.python.org/pypi --extra-index-url https://pypi.org/simple datatrove[testing]
           python -m nltk.downloader punkt
           make test
 
