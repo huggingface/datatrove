@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser("Filter an HF dataset and push the result to th
 parser.add_argument("input_dataset", type=str, help="HF dataset to filter")
 parser.add_argument("output_name", type=str, help="Name of the output dataset")
 parser.add_argument("--n_tasks", type=int, help="number of tasks", default=100)
-parser.add_argument("--text_key", type=int, help="text column", default="text")
+parser.add_argument("--text_key", type=str, help="text column", default="text")
 
 ORG_NAME = "my_org"
 LOCAL_PATH = "my_local_path"
