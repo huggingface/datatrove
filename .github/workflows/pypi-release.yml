@@ -35,7 +35,7 @@ jobs:
       - name: Publish to the test PyPI
         env:
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
-        run: twine upload dist/* --repository=testpypi
+        run: twine upload dist/* --skip-existing --repository=testpypi
 
       - name: Test installing from test PyPI and running tests
         run: |
