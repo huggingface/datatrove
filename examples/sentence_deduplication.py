@@ -51,7 +51,7 @@ def run_example():
     pipeline_3 = [
         JsonlReader(data_folder="intermediate/"),
         SentenceDedupFilter(data_folder="c4/dups", config=sent_dedup_config),
-        JsonlWriter(data_folder="c4/final_output")  # save the final filtered output to disk
+        JsonlWriter("c4/final_output"),  # save the final filtered output to disk
     ]
 
     executor_1: PipelineExecutor = LocalPipelineExecutor(pipeline=pipeline_1, workers=4, tasks=4)
