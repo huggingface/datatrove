@@ -13,6 +13,7 @@ class FineWebQualityFilter(BaseFilter):
         exclusion_writer: DiskWriter = None,
         line_punct_thr: float = 0.12,
         line_punct_exclude_zero: bool = False,
+        stop_chars: tuple[str] = (".", "'", '"', "!", "?"),
         short_line_thr: float = 0.67,
         short_line_length: int = 30,
         char_duplicates_ratio: float = 0.01,
@@ -22,6 +23,7 @@ class FineWebQualityFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.line_punct_thr = line_punct_thr
         self.line_punct_exclude_zero = line_punct_exclude_zero
+        self.stop_chars = stop_chars
         self.short_line_threshold = short_line_thr
         self.short_line_length = short_line_length
         self.char_duplicates_ratio = char_duplicates_ratio
@@ -29,21 +31,19 @@ class FineWebQualityFilter(BaseFilter):
         self.tokenizer = load_word_tokenizer(language)
 
     def filter(self, doc) -> bool | tuple[bool, str]:
-        stop_chars = (".", "'", '"', "!", "?")
-
         lines = doc.text.split("\n")
-        ratio = sum(1 for line in lines if line.endswith(stop_chars)) / len(lines)
-        if ratio <= self.line_punct_thr and not (ratio == 0 and self.line_punct_exclude_zero):
+        lines = [line for line in lines if line.strip() != ""]
+        ratio = sum(1 for line in lines if line.endswith(self.stop_chars)) / len(lines)
+        if ratio < self.line_punct_thr and not (ratio == 0 and self.line_punct_exclude_zero):
             return False, "line_punct_ratio"
 
         ratio = sum(1 for line in lines if len(line) <= self.short_line_length) / len(lines)
-        if ratio >= self.short_line_threshold:
+        if ratio > self.short_line_threshold:
             return False, "short_line_ratio"
 
-        non_empty_lines = [line for line in lines if line.strip() != ""]
-        ratio = find_duplicates(non_empty_lines)[1] / len(doc.text.replace("\n", ""))
+        ratio = find_duplicates(lines)[1] / len(doc.text.replace("\n", ""))
 
-        if ratio >= self.char_duplicates_ratio:
+        if ratio > self.char_duplicates_ratio:
             return False, "char_dup_ratio"
 
         words = self.tokenizer.word_tokenize(doc.text)
