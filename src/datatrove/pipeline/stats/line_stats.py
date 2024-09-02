@@ -29,8 +29,8 @@ class LineStats(BaseStats):
     Available stats:
     n_lines: Number of lines per doc
     avg_line_length: Average length of line per doc
-    long_line_ratio_words: Ratio of lines with more than k chars
-    short_line_ratio_chars: Ratio of lines with more than k chars
+    long_line_ratio_chars_{chars}: Ratio of lines with more than k chars
+    short_line_ratio_chars_{chars}: Ratio of lines with more than k chars
     bullet_point_lines_ratio: Ratio of bullet points
     line_duplicates: Ratio of lines that are duplicates
     line_char_duplicates: Ratio of chars in duplicated lines
