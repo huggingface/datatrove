@@ -88,6 +88,7 @@ class Languages:
     tajik = "tg"
     welsh = "cy"
     norwegian_nynorsk = "nn"
+    norwegian_bokmal = "nb"
     bosnian = "bs"
     sinhala = "si"
     tatar = "tt"
@@ -116,6 +117,16 @@ class Languages:
     sorani = "ckb"
     cebuano = "ceb"
     war = "war"
+    faroese = "fo"
+    tigrinya = "ti"
+    tswana = "tn"
+    ganda = "lg"
+    gaelic = "gd"
+    manx = "gv"
+    northern_sami = "se"
+    old_bulgarian = "cu"
+    wolof = "wo"
+    uyghur = "ug"
 
 
 class StatHints:

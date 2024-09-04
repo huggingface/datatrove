@@ -214,30 +214,37 @@ class KiwiTokenizer(WordTokenizer):
         return [(sent.start, sent.end) for sent in self.tokenizer.split_into_sents(text)]
 
 
-# If you know a better tokenizer or better proxy language, please submit a PR
+"""
+    If you know a better tokenizer or better proxy language, please submit a PR
+
+    Notes:
+        - SpaCy is generally preferred over NLTK as it is faster
+        - Stanza is at least one order of magnitude slower than NLTK/SpaCy
+"""
+
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.english: lambda: NLTKTokenizer("english"),
     Languages.korean: lambda: KiwiTokenizer(),
-    Languages.german: lambda: NLTKTokenizer("german"),
-    Languages.french: lambda: NLTKTokenizer("french"),
-    Languages.czech: lambda: NLTKTokenizer("czech"),
-    Languages.danish: lambda: NLTKTokenizer("danish"),
-    Languages.dutch: lambda: NLTKTokenizer("dutch"),
-    Languages.estonian: lambda: NLTKTokenizer("estonian"),
-    Languages.finnish: lambda: NLTKTokenizer("finnish"),
-    Languages.greek: lambda: NLTKTokenizer("greek"),
-    Languages.italian: lambda: NLTKTokenizer("italian"),
-    Languages.malayalam: lambda: NLTKTokenizer("malayalam"),
-    Languages.norwegian: lambda: NLTKTokenizer("norwegian"),
-    Languages.polish: lambda: NLTKTokenizer("polish"),
-    Languages.portuguese: lambda: NLTKTokenizer("portuguese"),
-    Languages.russian: lambda: NLTKTokenizer("russian"),
-    Languages.slovenian: lambda: NLTKTokenizer("slovene"),
-    Languages.spanish: lambda: NLTKTokenizer("spanish"),
-    Languages.swedish: lambda: NLTKTokenizer("swedish"),
-    Languages.turkish: lambda: NLTKTokenizer("turkish"),
+    Languages.german: lambda: SpaCyTokenizer("de"),
+    Languages.french: lambda: SpaCyTokenizer("fr"),
+    Languages.czech: lambda: SpaCyTokenizer("cz"),
+    Languages.danish: lambda: SpaCyTokenizer("da"),
+    Languages.dutch: lambda: SpaCyTokenizer("nl"),
+    Languages.estonian: lambda: SpaCyTokenizer("et"),
+    Languages.finnish: lambda: SpaCyTokenizer("fi"),
+    Languages.greek: lambda: SpaCyTokenizer("el"),
+    Languages.italian: lambda: SpaCyTokenizer("it"),
+    Languages.malayalam: lambda: SpaCyTokenizer("ml"),
+    Languages.norwegian: lambda: SpaCyTokenizer("nb"),
+    Languages.polish: lambda: SpaCyTokenizer("pl"),
+    Languages.portuguese: lambda: SpaCyTokenizer("pt"),
+    Languages.russian: lambda: SpaCyTokenizer("ru"),
+    Languages.slovenian: lambda: SpaCyTokenizer("sl"),
+    Languages.spanish: lambda: SpaCyTokenizer("es"),
+    Languages.swedish: lambda: SpaCyTokenizer("sv"),
+    Languages.turkish: lambda: SpaCyTokenizer("tr"),
     Languages.chinese: lambda: SpaCyTokenizer("zh", {"nlp": {"tokenizer": {"segmenter": "jieba"}}}),
-    Languages.japanese: lambda: StanzaTokenizer("ja"),
+    Languages.japanese: lambda: SpaCyTokenizer("ja"),  # note that there are some issues for >50k chars text
     Languages.vietnamese: lambda: SpaCyTokenizer("vi"),
     Languages.indonesian: lambda: SpaCyTokenizer("id"),
     Languages.persian: lambda: SpaCyTokenizer("fa"),
@@ -270,15 +277,12 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.amharic: lambda: SpaCyTokenizer("am"),
     Languages.bengali: lambda: SpaCyTokenizer("bn"),
     Languages.malay: lambda: SpaCyTokenizer("ms"),
-    Languages.urdu: lambda: SpaCyTokenizer("ur"),
     Languages.nepali: lambda: SpaCyTokenizer("ne"),
     Languages.kazakh: lambda: StanzaTokenizer("kk"),
     Languages.gujarati: lambda: SpaCyTokenizer("gu"),
     Languages.kannada: lambda: SpaCyTokenizer("kn"),
     Languages.welsh: lambda: StanzaTokenizer("cy"),
-    Languages.norwegian_nynorsk: lambda: NLTKTokenizer(
-        "norwegian"
-    ),  # TODO: change to SpaCyTokenizer("nn") when spacy version>=3.7.4
+    Languages.norwegian_nynorsk: lambda: SpaCyTokenizer("nn"),
     Languages.sinhala: lambda: SpaCyTokenizer("si"),
     Languages.tatar: lambda: SpaCyTokenizer("tt"),
     Languages.afrikaans: lambda: SpaCyTokenizer("af"),
@@ -294,9 +298,20 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.assamese: lambda: IndicNLPTokenizer("as"),
     Languages.war: lambda: IndicNLPTokenizer("war"),
     Languages.sindhi: lambda: IndicNLPTokenizer("sd"),
+    Languages.belarusian: lambda: StanzaTokenizer("be"),
+    Languages.tigrinya: lambda: SpaCyTokenizer("ti"),
+    Languages.uyghur: lambda: StanzaTokenizer("ug"),
+    Languages.tswana: lambda: SpaCyTokenizer("tn"),
+    Languages.wolof: lambda: StanzaTokenizer("wo"),
+    Languages.ganda: lambda: SpaCyTokenizer("lg"),
+    Languages.gaelic: lambda: StanzaTokenizer("gd"),
+    Languages.manx: lambda: StanzaTokenizer("gv"),
+    Languages.galician: lambda: StanzaTokenizer("gl"),
+    Languages.northern_sami: lambda: StanzaTokenizer("se"),
+    Languages.old_bulgarian: lambda: StanzaTokenizer("cu"),
+    Languages.faroese: lambda: SpaCyTokenizer("fo"),
+    Languages.norwegian_bokmal: lambda: SpaCyTokenizer("nb"),
     Languages.bosnian: lambda: SpaCyTokenizer("hr"),  # Proxy
-    Languages.belarusian: lambda: SpaCyTokenizer("uk"),  # Proxy
-    Languages.galician: lambda: NLTKTokenizer("portuguese"),  # Proxy
     Languages.esperanto: lambda: NLTKTokenizer("english"),  # Proxy
     Languages.occitan: lambda: SpaCyTokenizer("ca"),  # Proxy
     Languages.cebuano: lambda: NLTKTokenizer("english"),  # Proxy
