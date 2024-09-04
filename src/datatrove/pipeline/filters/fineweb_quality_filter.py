@@ -33,6 +33,8 @@ class FineWebQualityFilter(BaseFilter):
     def filter(self, doc) -> bool | tuple[bool, str]:
         lines = doc.text.split("\n")
         lines = [line for line in lines if line.strip() != ""]
+        if len(lines) == 0:
+            return False, "empty"
         ratio = sum(1 for line in lines if line.endswith(self.stop_chars)) / len(lines)
         if ratio < self.line_punct_thr and not (ratio == 0 and self.line_punct_exclude_zero):
             return False, "line_punct_ratio"
