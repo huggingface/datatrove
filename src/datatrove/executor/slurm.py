@@ -203,7 +203,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 f'merge_stats {self.logging_dir.resolve_paths("stats")} '
                 f'-o {self.logging_dir.resolve_paths("stats.json")}',
             ),
-            self.job_id_position
+            self.job_id_position,
         )
 
     @property
