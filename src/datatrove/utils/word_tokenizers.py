@@ -223,7 +223,7 @@ class KiwiTokenizer(WordTokenizer):
 """
 
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
-    Languages.english: lambda: NLTKTokenizer("english"),
+    Languages.english: lambda: SpaCyTokenizer("en"),
     Languages.korean: lambda: KiwiTokenizer(),
     Languages.german: lambda: SpaCyTokenizer("de"),
     Languages.french: lambda: SpaCyTokenizer("fr"),
@@ -294,9 +294,8 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.yoruba: lambda: SpaCyTokenizer("yo"),
     Languages.serbocroatian: lambda: SpaCyTokenizer("sr"),
     Languages.oriya: lambda: IndicNLPTokenizer("or"),
-    Languages.punjabi: lambda: IndicNLPTokenizer("sa"),
+    Languages.punjabi: lambda: IndicNLPTokenizer("pa"),
     Languages.assamese: lambda: IndicNLPTokenizer("as"),
-    Languages.war: lambda: IndicNLPTokenizer("war"),
     Languages.sindhi: lambda: IndicNLPTokenizer("sd"),
     Languages.belarusian: lambda: StanzaTokenizer("be"),
     Languages.tigrinya: lambda: SpaCyTokenizer("ti"),
@@ -311,25 +310,45 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.old_bulgarian: lambda: StanzaTokenizer("cu"),
     Languages.faroese: lambda: SpaCyTokenizer("fo"),
     Languages.norwegian_bokmal: lambda: SpaCyTokenizer("nb"),
+    # proxies
     Languages.bosnian: lambda: SpaCyTokenizer("hr"),  # Proxy
-    Languages.esperanto: lambda: NLTKTokenizer("english"),  # Proxy
+    Languages.esperanto: lambda: SpaCyTokenizer("en"),  # Proxy
     Languages.occitan: lambda: SpaCyTokenizer("ca"),  # Proxy
-    Languages.cebuano: lambda: NLTKTokenizer("english"),  # Proxy
-    Languages.swahili: lambda: NLTKTokenizer("english"),  # Proxy
-    Languages.javanese: lambda: NLTKTokenizer("english"),  # Proxy
-    Languages.uzbek: lambda: NLTKTokenizer("turkish"),  # Proxy, alternative ru
+    Languages.swahili: lambda: SpaCyTokenizer("en"),  # Proxy
+    Languages.javanese: lambda: SpaCyTokenizer("en"),  # Proxy
+    Languages.uzbek: lambda: SpaCyTokenizer("tr"),  # Proxy, alternative ru
     Languages.tajik: lambda: SpaCyTokenizer("ru"),  # Proxy
-    Languages.kurdish: lambda: NLTKTokenizer("english"),  # Proxy, multiple scripts!
-    Languages.sorani: lambda: SpaCyTokenizer("fa"),  # Proxy
-    Languages.south_azerbaijani: lambda: SpaCyTokenizer("fa"),  # Proxy
+    Languages.kurdish: lambda: SpaCyTokenizer("en"),  # Proxy, multiple scripts!
     Languages.bashkir: lambda: SpaCyTokenizer("tt"),  # Proxy
-    Languages.western_frisian: lambda: NLTKTokenizer("dutch"),  # Proxy
+    Languages.western_frisian: lambda: SpaCyTokenizer("nl"),  # Proxy
     Languages.breton: lambda: StanzaTokenizer("cy"),  # Proxy
-    Languages.malagasy: lambda: NLTKTokenizer("english"),  # Proxy
+    Languages.malagasy: lambda: SpaCyTokenizer("en"),  # Proxy
     Languages.yiddish: lambda: SpaCyTokenizer("he"),  # Proxy
-    Languages.somali: lambda: NLTKTokenizer("english"),  # Proxy
-    Languages.turkmen: lambda: NLTKTokenizer("turkish"),  # Proxy
-    Languages.pashto: lambda: SpaCyTokenizer("xx"),  # Proxy
+    Languages.somali: lambda: SpaCyTokenizer("en"),  # Proxy
+    Languages.turkmen: lambda: SpaCyTokenizer("tr"),  # Proxy
+    Languages.pashto: lambda: SpaCyTokenizer("xx"),  # Proxy. xx is "multi-language"
+    # iso 639-3
+    Languages.war: lambda: IndicNLPTokenizer("war"),
+    Languages.northern_kurdish: lambda: StanzaTokenizer("kmr"),
+    Languages.nigerian_pidgin: lambda: StanzaTokenizer("pcm"),
+    Languages.gothic: lambda: StanzaTokenizer("got"),
+    Languages.western_armenian: lambda: StanzaTokenizer("hyw"),
+    Languages.coptic: lambda: StanzaTokenizer("cop"),
+    Languages.ancient_hebrew: lambda: StanzaTokenizer("hbo"),
+    Languages.old_russian: lambda: StanzaTokenizer("orv"),
+    Languages.russia_buriat: lambda: StanzaTokenizer("bxr"),
+    Languages.old_french: lambda: StanzaTokenizer("fro"),
+    Languages.lower_sorbian: lambda: SpaCyTokenizer("dsb"),
+    Languages.ancient_greek: lambda: SpaCyTokenizer("grc"),
+    Languages.literary_chinese: lambda: StanzaTokenizer("lzh"),
+    Languages.upper_sorbian: lambda: SpaCyTokenizer("hsb"),
+    Languages.erzya: lambda: StanzaTokenizer("myv"),
+    Languages.ligurian: lambda: SpaCyTokenizer("lij"),
+    Languages.konkani: lambda: IndicNLPTokenizer("kok"),
+    # proxies
+    Languages.cebuano: lambda: SpaCyTokenizer("en"),  # Proxy
+    Languages.south_azerbaijani: lambda: SpaCyTokenizer("fa"),  # Proxy
+    Languages.sorani: lambda: SpaCyTokenizer("fa"),  # Proxy
 }
 
 WORD_TOKENIZER_CACHE: dict[str, WordTokenizer] = {}
