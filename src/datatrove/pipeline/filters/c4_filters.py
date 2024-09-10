@@ -5,8 +5,9 @@ from numpy.random import default_rng
 
 from datatrove.data import Document
 from datatrove.io import cached_asset_path_or_download
-from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.filters.base_filter import PRECALCULATED_STATS, BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
 
@@ -59,6 +60,7 @@ class C4QualityFilter(BaseFilter):
 
     def __init__(
         self,
+        precalculated_stats: PRECALCULATED_STATS = PRECALCULATED_STATS.re_calculate_if_missing,
         exclusion_writer: DiskWriter = None,
         split_paragraph: bool = True,  # default as used on c4. Set to "False" to split with sent_tokenize
         remove_citations: bool = True,
@@ -73,6 +75,7 @@ class C4QualityFilter(BaseFilter):
         language: str = Languages.english,
     ):
         super().__init__(exclusion_writer)
+        self.precalculated_stats = precalculated_stats
         self.split_paragraph = split_paragraph
         self.remove_citations = remove_citations
         self.filter_no_terminal_punct = filter_no_terminal_punct
@@ -85,55 +88,271 @@ class C4QualityFilter(BaseFilter):
         self.filter_policy = filter_policy
         self.tokenizer = load_word_tokenizer(language)
 
-    def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
+    def _filter_from_existing_stats(self, doc: Document) -> bool | tuple[bool, str]:
+        lines = [line.get("line", "") for line in doc.metadata["c4_quality"]["lines"]]
+
+        # we only recomputed lines instead of storing them
+        # ensure that the split_paragraph is the same as the one used in the previous enrisher run
+        if not lines:
+            lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
+
+        if len(lines) != len(doc.metadata["c4_quality"]["lines"]):
+            logger.warning(
+                "Line count mismatch. Check that the split_paragraph is the same as the one used in the previous enrisher run."
+            )
+            return False, "line_count_mismatch"
+
+        kept_lines = []
+        for line, doc_metadata in zip(lines, doc.metadata["c4_quality"]["lines"]):
+            line = line.strip()
+
+            self.stat_update("line-total")
+            # check line has too long word
+
+            if self.max_word_length != -1:
+                if "max_word_length" not in doc_metadata:
+                    logger.warning(
+                        f"max_word_length not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with max_word_length enabled."
+                    )
+                    continue
+                if (
+                    doc_metadata["max_word_length"] is not None
+                    and doc_metadata["max_word_length"] > self.max_word_length
+                ):
+                    self.stat_update("line-filter-too_long_word")
+                    continue
+
+            # remove citation
+            if self.remove_citations:
+                line = CITATION_REGEX.sub("", line)
+
+            # end punctuation
+            if self.filter_no_terminal_punct:
+                if "no_terminal_punct" not in doc_metadata:
+                    logger.warning(
+                        f"no_terminal_punct not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with no_terminal_punct enabled."
+                    )
+                    continue
+                if doc_metadata["no_terminal_punct"]:
+                    self.stat_update("line-filter-no_terminal_punc")
+                    continue
+
+            # min words per line
+            if self.min_words_per_line != -1:
+                if "words_per_line" not in doc_metadata:
+                    logger.warning(
+                        f"words_per_line not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with words_per_line enabled."
+                    )
+                    continue
+                if (
+                    doc_metadata["words_per_line"] is not None
+                    and doc_metadata["words_per_line"] < self.min_words_per_line
+                ):
+                    self.stat_update("line-filter-too_few_words")
+                    continue
+
+            # lorem ipsum
+            if self.filter_lorem_ipsum:
+                if "has_lorem_ipsum" not in doc_metadata:
+                    logger.warning(
+                        f"has_lorem_ipsum not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with has_lorem_ipsum enabled."
+                    )
+                    return False, "missing_has_lorem_ipsum"
+                if doc_metadata["has_lorem_ipsum"]:
+                    return False, "lorem_ipsum"
+
+            # javascript
+            if self.filter_javascript:
+                if "has_javascript" not in doc_metadata:
+                    logger.warning(
+                        f"has_javascript not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with has_javascript enabled."
+                    )
+                    continue
+                if doc_metadata["has_javascript"]:
+                    self.stat_update("line-filter-javascript")
+                    continue
+
+            # bracket
+            if self.filter_curly_bracket:
+                if "has_curly_bracket" not in doc_metadata:
+                    logger.warning(
+                        f"has_curly_bracket not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with has_curly_bracket enabled."
+                    )
+                    return False, "missing_has_curly_bracket"
+                if doc_metadata["has_curly_bracket"]:
+                    return False, "curly_bracket"
+
+            # policy
+            if self.filter_policy:
+                if "has_policy" not in doc_metadata:
+                    logger.warning(
+                        f"has_policy not found in metadata for {doc.id}."
+                        "Ensure that the previous enrisher run was with has_policy enabled."
+                    )
+                    continue
+                if doc_metadata["has_policy"]:
+                    self.stat_update("line-filter-policy")
+                    continue
+
+            kept_lines.append(line)
+            self.stat_update("line-kept")
+
+        if self.min_num_sentences != -1:
+            if "num_sentences" not in doc.metadata["c4_quality"]:
+                logger.warning(
+                    f"num_sentences not found in metadata for {doc.id}."
+                    "Ensure that the previous enrisher run was with num_sentences enabled."
+                )
+                return False, "num_sentences_not_found"
+            if (
+                doc.metadata["c4_quality"]["num_sentences"] is not None
+                and doc.metadata["c4_quality"]["num_sentences"] < self.min_num_sentences
+            ):
+                return False, "too_few_sentences"
+
+        text = ("\n" if self.split_paragraph else " ").join(kept_lines).strip()
+
+        if text == "" or len(kept_lines) < self.min_num_sentences:
+            return False, "too_few_sentences"
+        doc.text = text
+        return True
+
+    def _filter_maybe_from_existing_stats(self, doc: Document) -> bool | tuple[bool, str]:
+        lines = [line.get("line", "") for line in doc.metadata.get("c4_quality", {}).get("lines", [])]
+
+        # we only recomputed lines instead of storing them
+        # ensure that the split_paragraph is the same as the one used in the previous enrisher run
+        if not lines or self.precalculated_stats == PRECALCULATED_STATS.re_calculate:
+            lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
+
+        _force_recalc = False
+        if self.precalculated_stats == PRECALCULATED_STATS.re_calculate_if_missing and len(lines) != len(
+            doc.metadata["c4_quality"]["lines"]
+        ):
+            _force_recalc = True
+
+        if self.precalculated_stats == PRECALCULATED_STATS.re_calculate:
+            _force_recalc = True
+
+        doc_metadata = doc.metadata.get("c4_quality", {}).get("lines", [None] * len(lines))
 
         num_sentences = 0
         kept_lines = []
-
-        for line in lines:
+        for line, line_metadata in zip(lines, doc_metadata):
             line = line.strip()
             words = line.split()
             self.stat_update("line-total")
             # check line has too long word
-            if self.max_word_length != -1 and any(len(word) > self.max_word_length for word in words):
-                self.stat_update("line-filter-too_long_word")
-                continue
+            if self.max_word_length != -1:
+                if "max_word_length" not in line_metadata or _force_recalc:
+                    if any(len(word) > self.max_word_length for word in words):
+                        self.stat_update("line-filter-too_long_word")
+                        continue
+                else:
+                    if line_metadata["max_word_length"] > self.max_word_length:
+                        self.stat_update("line-filter-too_long_word")
+                        continue
+
             # remove citation
             if self.remove_citations:
                 line = CITATION_REGEX.sub("", line)
+
             # end punctuation
-            if self.filter_no_terminal_punct and (not line.endswith(END_PUNCTUATION) or line.endswith(ELLIPSIS)):
-                self.stat_update("line-filter-no_terminal_punc")
-                continue
+            if self.filter_no_terminal_punct:
+                if "no_terminal_punct" not in line_metadata or _force_recalc:
+                    if not line.endswith(END_PUNCTUATION) or line.endswith(ELLIPSIS):
+                        self.stat_update("line-filter-no_terminal_punc")
+                        continue
+                else:
+                    if line_metadata["no_terminal_punct"]:
+                        self.stat_update("line-filter-no_terminal_punc")
+                        continue
+
             # min words per line
-            if len(words) < self.min_words_per_line:
-                self.stat_update("line-filter-too_few_words")
-                continue
+            if self.min_words_per_line != -1:
+                if "words_per_line" not in line_metadata or _force_recalc:
+                    if len(words) < self.min_words_per_line:
+                        self.stat_update("line-filter-too_few_words")
+                        continue
+                else:
+                    if line_metadata["words_per_line"] < self.min_words_per_line:
+                        self.stat_update("line-filter-too_few_words")
+                        continue
+
             line_l = line.lower()
             # lorem ipsum
-            if self.filter_lorem_ipsum and "lorem ipsum" in line_l:
-                return False, "lorem_ipsum"  # drop entire doc
+            if self.filter_lorem_ipsum:
+                if "has_lorem_ipsum" not in line_metadata or _force_recalc:
+                    if "lorem ipsum" in line_l:
+                        return False, "lorem_ipsum"
+                else:
+                    if line_metadata["has_lorem_ipsum"]:
+                        return False, "lorem_ipsum"
             # javascript
-            if self.filter_javascript and "javascript" in line_l:
-                self.stat_update("line-filter-javascript")
-                continue
+            if self.filter_javascript:
+                if "has_javascript" not in line_metadata or _force_recalc:
+                    if "javascript" in line_l:
+                        self.stat_update("line-filter-javascript")
+                        continue
+                else:
+                    if line_metadata["has_javascript"]:
+                        self.stat_update("line-filter-javascript")
+                        continue
             # bracket
-            if self.filter_curly_bracket and "{" in line:
-                return False, "curly_bracket"  # drop entire doc
+            if self.filter_curly_bracket:
+                if "has_curly_bracket" not in line_metadata or _force_recalc:
+                    if "{" in line:
+                        return False, "curly_bracket"
+                else:
+                    if line_metadata["has_curly_bracket"]:
+                        return False, "curly_bracket"
             # policy
-            if self.filter_policy and any(p in line_l for p in POLICY_SUBSTRINGS):
-                self.stat_update("line-filter-policy")
-                continue
-            if self.min_num_sentences != -1:
+            if self.filter_policy:
+                if "has_policy" not in line_metadata or _force_recalc:
+                    if any(substring in line_l for substring in POLICY_SUBSTRINGS):
+                        self.stat_update("line-filter-policy")
+                        continue
+                else:
+                    if line_metadata["has_policy"]:
+                        self.stat_update("line-filter-policy")
+                        continue
+
+            if self.min_num_sentences != -1 and (_force_recalc or "num_sentences" not in doc.metadata["c4_quality"]):
                 num_sentences += len(self.tokenizer.sent_tokenize(line)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
-        if num_sentences < self.min_num_sentences:
-            return False, "too_few_sentences"
 
-        doc.text = ("\n" if self.split_paragraph else " ").join(kept_lines).strip()
+        if self.min_num_sentences != -1:
+            if num_sentences and num_sentences < self.min_num_sentences:
+                return False, "too_few_sentences"
+            elif doc.metadata["c4_quality"]["num_sentences"] < self.min_num_sentences:
+                return False, "too_few_sentences"
+
+        text = ("\n" if self.split_paragraph else " ").join(kept_lines).strip()
+        if text == "" or len(kept_lines) < self.min_num_sentences:
+            return False, "too_few_sentences"
+        doc.text = text
         return True
+
+    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+        if (
+            self.precalculated_stats == PRECALCULATED_STATS.re_calculate
+            or self.precalculated_stats == PRECALCULATED_STATS.re_calculate_if_missing
+        ):
+            return self._filter_maybe_from_existing_stats(doc)
+        elif self.precalculated_stats == PRECALCULATED_STATS.re_use:
+            if "c4_quality" not in doc.metadata:
+                logger.warning("c4_quality not found in metadata for {doc.id}.")
+                return False, "missing_c4_quality"
+            return self._filter_from_existing_stats(doc)
+        else:
+            raise ValueError(f"Unknown precalculated_stats: {self.precalculated_stats}")
 
 
 class C4ParagraphFilter(BaseFilter):

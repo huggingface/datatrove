@@ -18,6 +18,12 @@ def get_filter_result(res):
     return result, reason
 
 
+class PRECALCULATED_STATS:
+    re_use = "re_use"  # Reuse the precalculated stats, ignore if missing
+    re_calculate = "re_calculate"  # Recalculate the stats
+    re_calculate_if_missing = "re_calculate_if_missing"
+
+
 class BaseFilter(PipelineStep, ABC):
     """Base module for Filters. Filters remove documents.
 
