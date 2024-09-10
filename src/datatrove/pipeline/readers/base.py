@@ -200,6 +200,9 @@ class BaseDiskReader(BaseReader):
                     doc_pbar.update()
                     li += 1
                 file_pbar.update()
+                # document count is non-zero, increment di and store the number
+                # of documents instead of the index of the last document
+                di += min(di, 1)
                 self.stat_update("documents", value=di, unit="input_file")
                 if self.limit != -1 and li >= self.limit:
                     break
