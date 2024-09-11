@@ -88,6 +88,7 @@ testing = [
   "pytest-timeout",
   "pytest-xdist",
   "moto[s3,server]",
+  "spacy[ja]"
 ]
 all = [
   "datatrove[quality]",

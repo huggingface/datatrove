@@ -1,12 +1,10 @@
 import unittest
 
-from nltk.tokenize import word_tokenize
-
 from datatrove.utils.word_tokenizers import WORD_TOKENIZER_FACTORY, load_word_tokenizer
 
 
 SAMPLE_TEXT = (
-    "I wish it need not have happened in my time,' said Frodo. 'So do I,' said Gandalf, 'and so do all who live to "
+    "'I wish it need not have happened in my time,' said Frodo. 'So do I,' said Gandalf, 'and so do all who live to "
     "see such times. But that is not for them to decide. All we have to decide is what to do with the time that is "
     "given us.' Hello world! \n\n ქართული \n\t Hello\nworld! "
 )
@@ -39,9 +37,83 @@ class TestWordTokenizers(unittest.TestCase):
             assert all(spans_match_sents), f"'{language}' tokenizer spans don't match with sentences"
 
     def test_english_tokenizer(self):
-        nltk_words = word_tokenize(SAMPLE_TEXT, language="english")
-
         en_tokenizer = load_word_tokenizer("en")
         tokenizer_words = en_tokenizer.word_tokenize(SAMPLE_TEXT)
 
-        self.assertEqual(nltk_words, tokenizer_words, "NLTK tokenizer and multilingual tokenizer differ")
+        self.assertEqual(
+            [
+                "'",
+                "I",
+                "wish",
+                "it",
+                "need",
+                "not",
+                "have",
+                "happened",
+                "in",
+                "my",
+                "time",
+                ",",
+                "'",
+                "said",
+                "Frodo",
+                ".",
+                "'",
+                "So",
+                "do",
+                "I",
+                ",",
+                "'",
+                "said",
+                "Gandalf",
+                ",",
+                "'",
+                "and",
+                "so",
+                "do",
+                "all",
+                "who",
+                "live",
+                "to",
+                "see",
+                "such",
+                "times",
+                ".",
+                "But",
+                "that",
+                "is",
+                "not",
+                "for",
+                "them",
+                "to",
+                "decide",
+                ".",
+                "All",
+                "we",
+                "have",
+                "to",
+                "decide",
+                "is",
+                "what",
+                "to",
+                "do",
+                "with",
+                "the",
+                "time",
+                "that",
+                "is",
+                "given",
+                "us",
+                ".",
+                "'",
+                "Hello",
+                "world",
+                "!",
+                "ქართული",
+                "Hello",
+                "world",
+                "!",
+            ],
+            tokenizer_words,
+            "NLTK tokenizer and multilingual tokenizer differ",
+        )
