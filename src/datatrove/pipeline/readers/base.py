@@ -190,6 +190,7 @@ class BaseDiskReader(BaseReader):
                 self.stat_update("input_files")
                 logger.info(f"Reading input file {filepath}, {i+1}/{len(shard)}")
                 di = 0
+                ndocs = 0
                 for di, document in enumerate(self.read_file(filepath)):
                     if skipped < self.skip:
                         skipped += 1
@@ -199,8 +200,9 @@ class BaseDiskReader(BaseReader):
                     yield document
                     doc_pbar.update()
                     li += 1
+                    ndocs += 1
                 file_pbar.update()
-                self.stat_update("documents", value=di, unit="input_file")
+                self.stat_update("documents", value=ndocs, unit="input_file")
                 if self.limit != -1 and li >= self.limit:
                     break
 
