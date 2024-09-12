@@ -117,6 +117,8 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     logger.info("Commit creation race condition issue. Waiting...")
                     time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
                     retries += 1
+                else:
+                    raise e
 
     def _on_file_switch(self, original_name, old_filename, new_filename):
         """
