@@ -71,6 +71,14 @@ def require_readability(test_case):
     return test_case
 
 
+def require_resiliparse(test_case):
+    try:
+        import resiliparse  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires resiliparse")(test_case)
+    return test_case
+
+
 def require_inscriptis(test_case):
     try:
         import inscriptis  # noqa: F401
