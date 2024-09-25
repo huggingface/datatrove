@@ -6,7 +6,6 @@ class Justext(BaseExtractor):
 
     We're actually only using the main entry point of justext: the `justext` function.
     No specific data structure is exchanged with Justext, only the text is passed and the extracted text is returned.
-    Alternatively and identically, `justext` could be used through its command line main interface.
 
     Args:
         length_low: the minimum length of a paragraph
