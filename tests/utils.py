@@ -87,6 +87,14 @@ def require_inscriptis(test_case):
     return test_case
 
 
+def require_readabilipy(test_case):
+    try:
+        import readabilipy  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires readabilipy")(test_case)
+    return test_case
+
+
 def require_pyarrow(test_case):
     try:
         import pyarrow  # noqa: F401
