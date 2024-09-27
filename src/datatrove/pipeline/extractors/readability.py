@@ -4,8 +4,10 @@ from .base import BaseExtractor
 class Readability(BaseExtractor):
     """Readability extractor, it uses https://github.com/buriy/python-readability
 
-    We're using the main entry point of readability-lxml: the `Document` class.
-    No specific data structure is exchanged with Readability, only the HTML is passed and the extracted text is returned.
+    We're using the main entry point of readability-lxml: the `Document` class, which cleans up the HTML and outputs a
+    cleaned HTML string.
+
+    The postprocessor (another Datatrove extractor) is used to convert the cleaned HTML to plain text
 
     Args:
         timeout: the timeout for extraction, per document, in seconds
@@ -21,6 +23,7 @@ class Readability(BaseExtractor):
 
     def __init__(
         self,
+        postprocessor: BaseExtractor,
         timeout: float = 0.1,
         min_text_length: int = 25,
         retry_length: int = 250,
@@ -28,12 +31,13 @@ class Readability(BaseExtractor):
         **kwargs,
     ):
         super().__init__(timeout)
+        self.postprocessor = postprocessor
         self.min_text_length = min_text_length
         self.retry_length = retry_length
         self.url = url
         self.kwargs = kwargs
 
-    def extract(self, text: str, postprocessor: BaseExtractor) -> str:
+    def extract(self, text: str) -> str:
         """
         Args:
           text: str: html content
@@ -41,9 +45,6 @@ class Readability(BaseExtractor):
         Returns: plaintext extracted text
         """
         from readability import Document
-
-        if not postprocessor:
-            raise ValueError("A postprocessor (extractor) must be provided")
 
         doc = Document(
             text,
@@ -55,4 +56,4 @@ class Readability(BaseExtractor):
 
         cleaned_html = doc.summary()
 
-        return postprocessor.extract(cleaned_html)
+        return self.postprocessor.extract(cleaned_html)
