@@ -73,6 +73,10 @@ multilingual = [
     "jieba",
     "indic-nlp-library",
     "kiwipiepy",
+    # urduhack has keras and tensorflow as dependencies and requires a specific version to work...
+    "urduhack",
+    "keras<3.0.0",
+    "tensorflow<2.16"
 ]
 quality = [
   "ruff>=0.1.5"

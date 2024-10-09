@@ -10,6 +10,9 @@ def strip_strings(els: list[str]) -> list[str]:
 
 
 def simple_span_tokenize(text: str, sents: list[str]) -> Iterator[tuple[int, int]]:
+    if len(sents) == 1:
+        yield 0, len(text)
+        return
     start_index = 0
     for sent in sents:
         start_char = text.index(sent, start_index)
@@ -328,6 +331,7 @@ WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {
     Languages.turkmen: lambda: SpaCyTokenizer("tr"),  # Proxy
     Languages.pashto: lambda: SpaCyTokenizer("xx"),  # Proxy. xx is "multi-language"
     # iso 639-3
+    # Languages.filipino: lambda: SpaCyTokenizer("tl"),
     Languages.war: lambda: IndicNLPTokenizer("war"),
     Languages.northern_kurdish: lambda: StanzaTokenizer("kmr"),
     Languages.nigerian_pidgin: lambda: StanzaTokenizer("pcm"),
