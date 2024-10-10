@@ -1,6 +1,6 @@
 import unittest
 
-from datatrove.utils.word_tokenizers import WORD_TOKENIZER_FACTORY, load_word_tokenizer
+from datatrove.utils.word_tokenizers import WORD_TOKENIZER_FACTORY, IndicNLPTokenizer, load_word_tokenizer
 
 
 SAMPLE_TEXT = (
@@ -34,7 +34,7 @@ class TestWordTokenizers(unittest.TestCase):
             spans = tokenizer.span_tokenize(SAMPLE_TEXT)
             assert len(spans) >= 1, f"'{language}' tokenizer doesn't output spans"
             spans_match_sents = [sent in SAMPLE_TEXT[span[0] : span[1]] for sent, span in zip(sents, spans)]
-            assert language == "ur" or all(
+            assert (isinstance(tokenizer, IndicNLPTokenizer) and tokenizer.language == "ur") or all(
                 spans_match_sents
             ), f"'{language}' tokenizer spans don't match with sentences"
 

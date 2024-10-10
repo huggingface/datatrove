@@ -43,7 +43,7 @@ class Languages:
     corsican = "co"
     cree = "cr"
     czech = "cs"
-    old_bulgarian = "cu"
+    church_slavonic = "cu"
     chuvash = "cv"
     welsh = "cy"
     danish = "da"
@@ -221,6 +221,10 @@ class Languages:
     upper_sorbian = "hsb"
     erzya = "myv"
     ligurian = "lij"
+    filipino = "fil"
+    bodo = "brx"
+    dogri = "doi"
+    maithili = "mai"
 
 
 class StatHints:
