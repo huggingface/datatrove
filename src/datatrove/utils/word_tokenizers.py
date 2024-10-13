@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable, Iterator
 
+from loguru import logger
+
 from datatrove.utils._import_utils import ASSETS_PATH, check_required_dependencies
 
 
@@ -21,6 +23,33 @@ def simple_span_tokenize(text: str, sents: list[str]) -> Iterator[tuple[int, int
         end_char = start_char + len(sent)
         start_index = end_char
         yield start_char, end_char
+
+
+def chunk_text_on_bytes(text: str, max_chunk_size: int = 1_000_000):
+    def __utf8len(s: str):
+        return len(s.encode("utf-8"))
+
+    factor = len(text) / __utf8len(text)
+    increase_by = int(max(min(max_chunk_size * 0.1, 10), 1))
+    initial_size_guess = int(max(max_chunk_size * factor - 10, 1))
+    final_list = []
+    remaining = text
+    while len(remaining):
+        part = remaining[:initial_size_guess]
+        if __utf8len(part) > max_chunk_size:
+            initial_size_guess = max(initial_size_guess - min(max_chunk_size * 0.001, 10), 1)
+            continue
+        cut_after = initial_size_guess
+        while __utf8len(part) < max_chunk_size and part != remaining:
+            cut_after = min(len(remaining), cut_after + increase_by)
+            part = remaining[:cut_after]
+
+        if __utf8len(part) > max_chunk_size:
+            cut_after -= increase_by
+        final_list.append(remaining[:cut_after])
+        remaining = remaining[cut_after:]
+
+    return final_list
 
 
 class WordTokenizer(ABC):
@@ -94,21 +123,28 @@ class SpaCyTokenizer(WordTokenizer):
             self._tokenizer.add_pipe("sentencizer")
         return self._tokenizer
 
+    def _do_tokenize(self, text: str):
+        # japanese has a max byte length
+        texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 49000)
+        return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
+
     def word_tokenize(self, text: str) -> list[str]:
         self.tokenizer.max_length = len(text) + 10
-        tokens = [token.text for token in self.tokenizer(text, disable=["parser", "tagger", "ner"])]
+        tokens = [token.text for tok_chunk in self._do_tokenize(text) for token in tok_chunk]
         return strip_strings(tokens)
 
     def sent_tokenize(self, text: str) -> list[str]:
         self.tokenizer.max_length = len(text) + 10
-        sents = [sent.text for sent in self.tokenizer(text, disable=["parser", "tagger", "ner"]).sents]
+        sents = [sent.text for t in self._do_tokenize(text) for sent in t.sents]
         return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
-        return [
-            (sent.start_char, sent.end_char)
-            for sent in self.tokenizer(text, disable=["parser", "tagger", "ner"]).sents
-        ]
+        spans = []
+        for tok_text in self._do_tokenize(text):
+            start = spans[-1][1] if spans else 0
+            for sent in tok_text.sents:
+                spans.append((start + sent.start_char, start + sent.end_char))
+        return spans
 
 
 class StanzaTokenizer(WordTokenizer):
@@ -275,13 +311,20 @@ class TibetanTokenizer(WordTokenizer):
             self._wt = WordTokenizer()
         return self._wt
 
+    def _try_tokenize(self, text: str) -> list[str]:
+        try:
+            return self.wt.tokenize(text, split_affixes=False)
+        except Exception as e:
+            logger.warning(f"Failed to tokenize with botok: {e}. Trying without spaces...")
+            return self.wt.tokenize(text.replace(" ", ""), split_affixes=False)
+
     def word_tokenize(self, text: str) -> list[str]:
-        return strip_strings([tok.text for tok in self.wt.tokenize(text, split_affixes=False)])
+        return strip_strings([tok.text for tok in self._try_tokenize(text)])
 
     def sent_tokenize(self, text: str) -> list[str]:
         from botok.tokenizers.sentencetokenizer import sentence_tokenizer
 
-        tokens = self.wt.tokenize(text, split_affixes=True)
+        tokens = self._try_tokenize(text)
         sents = sentence_tokenizer(tokens)
         out = ["".join([word.text for word in s["tokens"]]) for s in sents]
         return strip_strings(out)
@@ -289,7 +332,7 @@ class TibetanTokenizer(WordTokenizer):
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         from botok.tokenizers.sentencetokenizer import get_sentence_indices
 
-        tokens = self.wt.tokenize(text, split_affixes=True)
+        tokens = self._try_tokenize(text)
         idxs = get_sentence_indices(tokens)
         return [(sentence["start"], sentence["end"] + 1) for sentence in idxs]
 
