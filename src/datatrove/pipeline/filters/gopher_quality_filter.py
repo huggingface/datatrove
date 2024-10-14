@@ -54,7 +54,7 @@ class GopherQualityFilter(BaseFilter):
         self.max_symbol_word_ratio = max_symbol_word_ratio
         self.max_bullet_lines_ratio = max_bullet_lines_ratio
         self.max_ellipsis_lines_ratio = max_ellipsis_lines_ratio
-        self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
+        self.max_non_alpha_words_ratio = max_non_alpha_words_ratio  # TODO rename to min_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
         self.tokenizer = load_word_tokenizer(language)
@@ -114,6 +114,7 @@ class GopherQualityFilter(BaseFilter):
         # that 80 % of words in a document contain at least one alphabetic character
         if (
             self.max_non_alpha_words_ratio
+            # nb of words with at least 1 alpha char < 0.8
             and sum([any((c.isalpha() for c in w)) for w in words]) / n_words < self.max_non_alpha_words_ratio
         ):
             return False, "gopher_below_alpha_threshold"
