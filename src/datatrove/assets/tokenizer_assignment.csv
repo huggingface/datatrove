@@ -14,7 +14,7 @@ abx,,Latn,Inabaknon,Austronesian,SpaCyTokenizer,ms,True,True,True
 aby,,Latn,Aneme Wake,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
 abz,,Latn,Abui,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
 aca,,Latn,Achagua,Maipurean,SpaCyTokenizer,xx,True,True,True
-acd,,Latn,Gikyode,Nigspacy_languageer-Congo,SpaCyTokenizer,tn,True,True,True
+acd,,Latn,Gikyode,Niger-Congo,SpaCyTokenizer,tn,True,True,True
 ace,,Latn,Achinese,Austronesian,SpaCyTokenizer,ms,True,True,True
 ace,,Arab,Achinese,Austronesian,,,True,True,False
 acf,,Latn,Saint Lucian Creole French,Creole,SpaCyTokenizer,xx,True,True,True
@@ -801,7 +801,7 @@ kgp,,Latn,Kaingang,Jean,SpaCyTokenizer,xx,True,True,True
 kgr,,Latn,Abun,Language isolate,SpaCyTokenizer,xx,True,True,True
 kha,,Latn,Khasi,Austro-Asiatic,SpaCyTokenizer,vi,True,True,True
 khk,mn,Cyrl,Halh Mongolian,Mongolic,StanzaTokenizer,bxr,True,True,True
-khm,km,Khmr,Khmer,Austro-Asiatic,,,True,True,True
+khm,km,Khmr,Khmer,Austro-Asiatic,KhmerTokenizer,,False,False,True
 khq,,Latn,Koyra Chiini Songhay,Nilo-Saharan,SpaCyTokenizer,xx,True,True,True
 khs,,Latn,Kasua,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
 khy,,Latn,Kele (Democratic Republic of Congo),Niger-Congo,SpaCyTokenizer,tn,True,True,True
