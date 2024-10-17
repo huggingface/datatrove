@@ -33,7 +33,7 @@ class LanguageFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.language_threshold = language_threshold
         if isinstance(languages, str):
-            languages = list(languages)
+            languages = [languages]
         self.languages = languages
         self.backend = backend
         self.model = FT176LID(languages) if backend == "ft176" else GlotLID(languages)
