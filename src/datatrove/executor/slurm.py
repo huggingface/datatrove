@@ -295,7 +295,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args = {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
-            "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
             "output": slurm_logfile,
@@ -308,6 +307,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             sbatch_args["requeue"] = ""
         if self.qos:
             sbatch_args["qos"] = self.qos
+        if self.partition:
+            sbatch_args["partition"] = self.partition
         return sbatch_args
 
     def get_launch_file_contents(self, sbatch_args: dict, run_script: str) -> str:
