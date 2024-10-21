@@ -1225,8 +1225,8 @@ nab,,Latn,Southern Nambikuára,Nambikwara,SpaCyTokenizer,xx,True,True,True
 naf,,Latn,Nabak,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
 nah,,Latn,,,SpaCyTokenizer,xx,True,True,True
 nak,,Latn,Nakanai,Austronesian,SpaCyTokenizer,ms,True,True,True
-,,Hani,Min Nan Chinese,,,,True,True,True
-,,Latn,Min Nan Chinese,,SpaCyTokenizer,xx,True,True,False
+nan,,Hani,Min Nan Chinese,,,,True,True,True
+nan,,Latn,Min Nan Chinese,,SpaCyTokenizer,xx,True,True,False
 nap,,Latn,Neapolitan,Indo-European,SpaCyTokenizer,it,True,True,True
 naq,,Latn,Khoekhoe,Khoe-Kwadi,SpaCyTokenizer,xx,True,True,True
 nas,,Latn,Naasioi,South Bougainville,SpaCyTokenizer,xx,True,True,True
