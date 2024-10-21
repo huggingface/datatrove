@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable, Iterator
@@ -316,7 +317,7 @@ class TibetanTokenizer(WordTokenizer):
             return self.wt.tokenize(text, split_affixes=False)
         except Exception as e:
             logger.warning(f"Failed to tokenize with botok: {e}. Trying without spaces...")
-            return self.wt.tokenize(text.replace(" ", ""), split_affixes=False)
+            return self.wt.tokenize(re.sub(r"\s+", "", text), split_affixes=False)
 
     def word_tokenize(self, text: str) -> list[str]:
         return strip_strings([tok.text for tok in self._try_tokenize(text)])
