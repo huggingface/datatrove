@@ -144,7 +144,7 @@ aym,ay,Latn,Aymara,,SpaCyTokenizer,az,True,True,True
 ayo,,Latn,Ayoreo,Zamucoan,SpaCyTokenizer,xx,True,True,True
 ayp,ar,Arab,North Mesopotamian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,False,False,True
 ayr,ay,Latn,Central Aymara,Aymaran,SpaCyTokenizer,xx,True,True,True
-azb,az,Arab,South Azerbaijani,Turkic,,,True,True,True
+azb,az,Arab,South Azerbaijani,Turkic,SpaCyTokenizer,fa,True,False,True
 aze,az,Latn,Azerbaijani,,SpaCyTokenizer,xx,True,True,True
 aze,az,Arab,Azerbaijani,,,,True,True,False
 aze,az,Cyrl,Azerbaijani,,SpaCyTokenizer,xx,True,True,False
