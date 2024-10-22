@@ -245,7 +245,7 @@ class KiwiTokenizer(WordTokenizer):
         return self._tokenizer
 
     def word_tokenize(self, text: str) -> list[str]:
-        tokens = [token.form for token in self.tokenizer.tokenize(text)]
+        tokens = [text[token.start : token.end] for token in self.tokenizer.tokenize(text)]
         return strip_strings(tokens)
 
     def sent_tokenize(self, text: str) -> list[str]:
@@ -336,6 +336,28 @@ class TibetanTokenizer(WordTokenizer):
         tokens = self._try_tokenize(text)
         idxs = get_sentence_indices(tokens)
         return [(sentence["start"], sentence["end"] + 1) for sentence in idxs]
+
+
+class GeorgianTokenizer(WordTokenizer):
+    # https://www.reddit.com/r/Kartvelian/comments/195k2n2/what_are_the_punctuation_symbols_of_asomtavruli/
+    def __init__(self):
+        super().__init__()
+
+    def word_tokenize(self, text) -> list[str]:
+        import re
+
+        tokens = re.split(r"([\s!?.:჻]+)", text)
+        return strip_strings(tokens)
+
+    def sent_tokenize(self, text: str) -> list[str]:
+        import re
+
+        sents = re.findall(r".+?[!?.:჻\n]+", text)
+        return strip_strings(sents)
+
+    def span_tokenize(self, text: str) -> list[tuple[int, int]]:
+        sents = self.sent_tokenize(text)
+        return list(simple_span_tokenize(text, sents))
 
 
 """
