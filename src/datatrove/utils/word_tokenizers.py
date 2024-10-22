@@ -390,6 +390,8 @@ def load_tokenizer_assignments():
             tok_class = LaoTokenizer
         elif class_name == "TibetanTokenizer":
             tok_class = TibetanTokenizer
+        elif class_name == "GeorgianTokenizer":
+            tok_class = GeorgianTokenizer
         else:
             raise ValueError(f'Invalid tokenizer class "{class_name}"')
 

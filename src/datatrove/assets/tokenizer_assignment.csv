@@ -761,7 +761,7 @@ kaq,,Latn,Capanahua,Panoan,SpaCyTokenizer,xx,True,True,True
 kas,ks,Deva,Kashmiri,Indo-European,IndicNLPTokenizer,mr,True,True,True
 kas,ks,Latn,Kashmiri,Indo-European,StanzaTokenizer,kmr,True,True,False
 kas,ks,Arab,Kashmiri,Indo-European,IndicNLPTokenizer,ur,False,False,False
-kat,ka,Geor,Georgian,Kartvelian,,,True,True,True
+kat,ka,Geor,Georgian,Kartvelian,GeorgianTokenizer,,True,True,True
 kau,kr,Arab,Kanuri,,,,True,True,True
 kau,kr,Latn,Kanuri,,SpaCyTokenizer,xx,True,True,False
 kaz,kk,Cyrl,Kazakh,Turkic,StanzaTokenizer,kk,False,False,True
