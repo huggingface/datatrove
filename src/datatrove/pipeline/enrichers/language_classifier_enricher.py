@@ -16,13 +16,11 @@ class LanguageEnricher(BaseEnricher):
         keep_top_pairs_threshold: float = -1,
     ):
         """
-        filters if the predicted language is not among given language or if the language score is below language
-        language_threshold
-
+        Enricher to predict the language of a document
         Args:
-            languages: list of languages to keep. None for all
-            language_threshold: language_threshold minimum score to accept a document
-            keep_top_pairs_threshold: keep a list of all language pairs with at least this score. -1 to disable
+            languages (list[str] | str | None): List of languages to predict
+            backend (str): Backend to use for language prediction
+            keep_top_pairs_threshold (float): Threshold to keep top pairs
         """
         super().__init__()
         if isinstance(languages, str):
