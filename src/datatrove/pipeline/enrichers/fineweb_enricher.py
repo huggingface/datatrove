@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from datatrove.pipeline.enrishers.base_enrisher import BaseEnrisher
+from datatrove.pipeline.enrichers.base_enricher import BaseEnricher
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
@@ -9,8 +9,8 @@ from datatrove.utils.word_tokenizers import load_word_tokenizer
 STOP_CHARS = (".", "'", '"', "!", "?")
 
 
-class FineWebQualityEnrisher(BaseEnrisher):
-    name = "🍷 FineWeb Quality Enrisher"
+class FineWebQualityEnricher(BaseEnricher):
+    name = "🍷 FineWeb Quality Enricher"
 
     def __init__(
         self,
@@ -29,7 +29,7 @@ class FineWebQualityEnrisher(BaseEnrisher):
         self.tokenizer = load_word_tokenizer(language)
         self.stop_chars = stop_chars
 
-    def enrish(self, doc) -> bool | tuple[bool, str]:
+    def enrich(self, doc) -> bool | tuple[bool, str]:
         lines = doc.text.split("\n")
         fineweb_metadata = {}
         self.stat_update("doc-total")

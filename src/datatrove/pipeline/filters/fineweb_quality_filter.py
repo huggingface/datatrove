@@ -45,7 +45,7 @@ class FineWebQualityFilter(BaseFilter):
             if line_punct_ratio is None:
                 logger.warning(
                     f"Missing 'line_punct_ratio' in doc metadata for {doc.id}"
-                    "Ensure that the previous enrisher war run with `line_punct_ratio` enabled."
+                    "Ensure that the previous enricher war run with `line_punct_ratio` enabled."
                 )
                 return False, "missing_line_punct_ratio"
             if line_punct_ratio <= self.line_punct_thr and not (
@@ -58,7 +58,7 @@ class FineWebQualityFilter(BaseFilter):
             if line_length is None:
                 logger.warning(
                     f"Missing 'line_length' in doc metadata for {doc.id}"
-                    "Ensure that the previous enrisher war run with `line_length` enabled."
+                    "Ensure that the previous enricher war run with `line_length` enabled."
                 )
                 return False, "missing_line_length"
             if (
@@ -72,7 +72,7 @@ class FineWebQualityFilter(BaseFilter):
             if char_dup_ratio is None:
                 logger.warning(
                     f"Missing 'char_duplicates_ratio' in doc metadata for {doc.id}"
-                    "Ensure that the previous enrisher war run with `char_duplicates_ratio` enabled."
+                    "Ensure that the previous enricher war run with `char_duplicates_ratio` enabled."
                 )
                 return False, "missing_char_duplicates_ratio"
             if char_dup_ratio >= self.char_duplicates_ratio:
@@ -83,7 +83,7 @@ class FineWebQualityFilter(BaseFilter):
             if new_line_ratio is None:
                 logger.warning(
                     f"Missing 'new_line_ratio' in doc metadata for {doc.id}"
-                    "Ensure that the previous enrisher war run with `new_line_ratio` enabled."
+                    "Ensure that the previous enricher war run with `new_line_ratio` enabled."
                 )
                 return False, "missing_new_line_ratio"
             if new_line_ratio >= self.new_line_ratio:

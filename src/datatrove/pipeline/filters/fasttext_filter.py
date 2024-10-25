@@ -107,7 +107,7 @@ class FastTextClassifierFilter(BaseFilter):
             units = doc.metadata[self.field_name]["units"]
 
         if "label_scores" not in doc.metadata[self.field_name]:
-            logger.warning("No label scores found in metadata. Check that the Enrisher was run before the filter.")
+            logger.warning("No label scores found in metadata. Check that the Enricher was run before the filter.")
             return False, "no_label_scores"
 
         len_units = len(units)
@@ -117,7 +117,7 @@ class FastTextClassifierFilter(BaseFilter):
         ):
             logger.warning(
                 "Number of units in document does not match number of label scores."
-                "Check that the split mode is the same as in the Enrisher."
+                "Check that the split mode is the same as in the Enricher."
             )
             return False, "split_mode_mismatch"
 

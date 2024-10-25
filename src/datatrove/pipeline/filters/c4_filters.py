@@ -92,13 +92,13 @@ class C4QualityFilter(BaseFilter):
         lines = [line.get("line", "") for line in doc.metadata["c4_quality"]["lines"]]
 
         # we only recomputed lines instead of storing them
-        # ensure that the split_paragraph is the same as the one used in the previous enrisher run
+        # ensure that the split_paragraph is the same as the one used in the previous enricher run
         if not lines:
             lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
 
         if len(lines) != len(doc.metadata["c4_quality"]["lines"]):
             logger.warning(
-                "Line count mismatch. Check that the split_paragraph is the same as the one used in the previous enrisher run."
+                "Line count mismatch. Check that the split_paragraph is the same as the one used in the previous enricher run."
             )
             return False, "line_count_mismatch"
 
@@ -113,7 +113,7 @@ class C4QualityFilter(BaseFilter):
                 if "max_word_length" not in doc_metadata:
                     logger.warning(
                         f"max_word_length not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with max_word_length enabled."
+                        "Ensure that the previous enricher run was with max_word_length enabled."
                     )
                     continue
                 if (
@@ -132,7 +132,7 @@ class C4QualityFilter(BaseFilter):
                 if "no_terminal_punct" not in doc_metadata:
                     logger.warning(
                         f"no_terminal_punct not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with no_terminal_punct enabled."
+                        "Ensure that the previous enricher run was with no_terminal_punct enabled."
                     )
                     continue
                 if doc_metadata["no_terminal_punct"]:
@@ -144,7 +144,7 @@ class C4QualityFilter(BaseFilter):
                 if "words_per_line" not in doc_metadata:
                     logger.warning(
                         f"words_per_line not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with words_per_line enabled."
+                        "Ensure that the previous enricher run was with words_per_line enabled."
                     )
                     continue
                 if (
@@ -159,7 +159,7 @@ class C4QualityFilter(BaseFilter):
                 if "has_lorem_ipsum" not in doc_metadata:
                     logger.warning(
                         f"has_lorem_ipsum not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with has_lorem_ipsum enabled."
+                        "Ensure that the previous enricher run was with has_lorem_ipsum enabled."
                     )
                     return False, "missing_has_lorem_ipsum"
                 if doc_metadata["has_lorem_ipsum"]:
@@ -170,7 +170,7 @@ class C4QualityFilter(BaseFilter):
                 if "has_javascript" not in doc_metadata:
                     logger.warning(
                         f"has_javascript not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with has_javascript enabled."
+                        "Ensure that the previous enricher run was with has_javascript enabled."
                     )
                     continue
                 if doc_metadata["has_javascript"]:
@@ -182,7 +182,7 @@ class C4QualityFilter(BaseFilter):
                 if "has_curly_bracket" not in doc_metadata:
                     logger.warning(
                         f"has_curly_bracket not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with has_curly_bracket enabled."
+                        "Ensure that the previous enricher run was with has_curly_bracket enabled."
                     )
                     return False, "missing_has_curly_bracket"
                 if doc_metadata["has_curly_bracket"]:
@@ -193,7 +193,7 @@ class C4QualityFilter(BaseFilter):
                 if "has_policy" not in doc_metadata:
                     logger.warning(
                         f"has_policy not found in metadata for {doc.id}."
-                        "Ensure that the previous enrisher run was with has_policy enabled."
+                        "Ensure that the previous enricher run was with has_policy enabled."
                     )
                     continue
                 if doc_metadata["has_policy"]:
@@ -207,7 +207,7 @@ class C4QualityFilter(BaseFilter):
             if "num_sentences" not in doc.metadata["c4_quality"]:
                 logger.warning(
                     f"num_sentences not found in metadata for {doc.id}."
-                    "Ensure that the previous enrisher run was with num_sentences enabled."
+                    "Ensure that the previous enricher run was with num_sentences enabled."
                 )
                 return False, "num_sentences_not_found"
             if (
@@ -227,7 +227,7 @@ class C4QualityFilter(BaseFilter):
         lines = [line.get("line", "") for line in doc.metadata.get("c4_quality", {}).get("lines", [])]
 
         # we only recomputed lines instead of storing them
-        # ensure that the split_paragraph is the same as the one used in the previous enrisher run
+        # ensure that the split_paragraph is the same as the one used in the previous enricher run
         if not lines or self.precalculated_stats == PRECALCULATED_STATS.re_calculate:
             lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
 

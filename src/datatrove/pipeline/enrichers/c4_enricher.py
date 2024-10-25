@@ -1,7 +1,7 @@
 import re
 
 from datatrove.data import Document
-from datatrove.pipeline.enrishers.base_enrisher import BaseEnrisher
+from datatrove.pipeline.enrichers.base_enricher import BaseEnricher
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
 
@@ -19,7 +19,7 @@ POLICY_SUBSTRINGS = [
 ]
 
 
-class C4QualityEnrisher(BaseEnrisher):
+class C4QualityEnricher(BaseEnricher):
     """Applies heuristic rules from C4 https://jmlr.org/papers/volume21/20-074/20-074.pdf
 
     Check for the following filters and store the results in the metadata instead of dropping the documents:
@@ -50,7 +50,7 @@ class C4QualityEnrisher(BaseEnrisher):
         check_policy: check if lines contain any of the phrases in POLICY_SUBSTRINGS
     """
 
-    name = "⛰ C4 Quality Enrisher"
+    name = "⛰ C4 Quality Enricher"
 
     def __init__(
         self,
@@ -81,7 +81,7 @@ class C4QualityEnrisher(BaseEnrisher):
         self.tokenizer = load_word_tokenizer(language)
         self.store_lines = store_lines
 
-    def enrish(self, doc: Document) -> Document:
+    def enrich(self, doc: Document) -> Document:
         lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
 
         num_sentences = 0

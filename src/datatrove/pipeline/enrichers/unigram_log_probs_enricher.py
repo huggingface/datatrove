@@ -6,7 +6,7 @@ import numpy as np
 from huggingface_hub import cached_assets_path
 
 from datatrove.data import Document
-from datatrove.pipeline.enrishers.base_enrisher import BaseEnrisher
+from datatrove.pipeline.enrichers.base_enricher import BaseEnricher
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
@@ -15,7 +15,7 @@ from datatrove.utils.word_tokenizers import load_word_tokenizer
 UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lucas/google-1T-unigram/unigram_freq.csv"
 
 
-class UnigramLogProbEnrisher(BaseEnrisher):
+class UnigramLogProbEnricher(BaseEnricher):
     """
     Computes average unigram log probability based on word frequencies from
     https://www.kaggle.com/datasets/rtatman/english-word-frequency
@@ -68,6 +68,6 @@ class UnigramLogProbEnrisher(BaseEnrisher):
             return 0
         return sum([np.log(f) for f in freqs]) / len(freqs)
 
-    def enrish(self, doc: Document) -> Document:
+    def enrich(self, doc: Document) -> Document:
         doc.metadata["unigram_logprob"] = self.get_logprob(doc)
         return doc

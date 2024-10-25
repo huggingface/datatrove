@@ -1,12 +1,12 @@
 from typing import Literal
 
 from datatrove.data import Document
-from datatrove.pipeline.enrishers.base_enrisher import BaseEnrisher
+from datatrove.pipeline.enrichers.base_enricher import BaseEnricher
 from datatrove.utils.lid import FT176LID, GlotLID
 
 
-class LanguageEnrisher(BaseEnrisher):
-    name = "🌍 Language ID Enrisher"
+class LanguageEnricher(BaseEnricher):
+    name = "🌍 Language ID Enricher"
     _requires_dependencies = [("fasttext", "fasttext-wheel"), "fasteners"]
 
     def __init__(
@@ -32,7 +32,7 @@ class LanguageEnrisher(BaseEnrisher):
         self.model = FT176LID(languages) if backend == "ft176" else GlotLID(languages)
         self.keep_top_pairs_threshold = keep_top_pairs_threshold
 
-    def enrish(self, doc: Document) -> Document:
+    def enrich(self, doc: Document) -> Document:
         """Args:
             doc: document
 

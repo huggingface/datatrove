@@ -4,7 +4,7 @@ from collections import Counter
 import numpy as np
 
 from datatrove.data import Document
-from datatrove.pipeline.enrishers.base_enrisher import BaseEnrisher
+from datatrove.pipeline.enrichers.base_enricher import BaseEnricher
 from datatrove.utils.text import PUNCTUATION_SET
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
@@ -55,8 +55,8 @@ def find_all_duplicate(words: list[str], n: int) -> int:
     return repeated_chars
 
 
-class GopherQualityEnrisher(BaseEnrisher):
-    name = "🥇 Gopher Quality Enrisher"
+class GopherQualityEnricher(BaseEnricher):
+    name = "🥇 Gopher Quality Enricher"
 
     def __init__(
         self,
@@ -104,7 +104,7 @@ class GopherQualityEnrisher(BaseEnrisher):
         self._line_splitter = re.compile("\n+")
         self.tokenizer = load_word_tokenizer(language)
 
-    def enrish(self, doc: Document) -> Document:
+    def enrich(self, doc: Document) -> Document:
         text = doc.text
         gopher_metadata = {}
 

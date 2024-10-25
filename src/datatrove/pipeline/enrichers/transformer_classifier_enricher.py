@@ -1,11 +1,11 @@
 from typing import List
 
 from datatrove.data import Document
-from datatrove.pipeline.enrishers.base_enrisher import BaseEnrisher
+from datatrove.pipeline.enrichers.base_enricher import BaseEnricher
 from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts
 
 
-class TransformerClassifierEnrisher(BaseEnrisher):
+class TransformerClassifierEnricher(BaseEnricher):
     """Adds the output of a Transformer classifier to the metadata of the document.
 
     Args:
@@ -16,7 +16,7 @@ class TransformerClassifierEnrisher(BaseEnrisher):
         kwargs: additional arguments to pass to the TextClassificationPipeline
     """
 
-    name = "🤖 Transformer Enrisher"
+    name = "🤖 Transformer Enricher"
     _requires_dependencies = ["transformers"]
 
     def __init__(
@@ -49,7 +49,7 @@ class TransformerClassifierEnrisher(BaseEnrisher):
             )
         return self._model
 
-    def enrish_batch(self, batch: List[Document]) -> List[Document]:
+    def enrich_batch(self, batch: List[Document]) -> List[Document]:
         text_batch = []
         batch_id_to_text_batch_id_map = {}
         for idx, doc in enumerate(batch):
@@ -71,7 +71,7 @@ class TransformerClassifierEnrisher(BaseEnrisher):
 
         return batch
 
-    def enrish(self, doc: Document) -> Document:
+    def enrich(self, doc: Document) -> Document:
         units = split_into_parts(doc.text, mode=self.split_mode)
 
         self.stat_update("doc-total")

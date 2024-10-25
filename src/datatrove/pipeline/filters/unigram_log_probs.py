@@ -78,7 +78,7 @@ class UnigramLogProbFilter(BaseFilter):
         if "unigram_logprob" not in doc.metadata:
             logger.warning(
                 f"Missing 'unigram_logprob' in doc metadata for {doc.id}"
-                "Ensure that the previous enrisher war run with `unigram_logprob` enabled."
+                "Ensure that the previous enricher war run with `unigram_logprob` enabled."
             )
             return False, "missing_unigram_logprob"
 
@@ -115,7 +115,7 @@ class UnigramLogProbFilter(BaseFilter):
             if "unigram_logprob" not in doc.metadata:
                 logger.warning(
                     f"Missing 'unigram_logprob' in doc metadata for {doc.id}"
-                    "Ensure that the previous enrisher war run with `unigram_logprob` enabled."
+                    "Ensure that the previous enricher war run with `unigram_logprob` enabled."
                 )
                 return False, "missing_unigram_logprob_field"
             return self._filter_from_existing_stats(doc)
