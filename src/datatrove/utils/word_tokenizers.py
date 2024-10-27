@@ -235,6 +235,7 @@ class KiwiTokenizer(WordTokenizer):
         check_required_dependencies("ko word tokenizer", ["kiwipiepy"])
         self.model_type = model_type
         self._tokenizer = None
+        self._preprocess_regex = re.compile("[0-9,]{20,}")
 
     @property
     def tokenizer(self):
@@ -244,16 +245,20 @@ class KiwiTokenizer(WordTokenizer):
             self._tokenizer = Kiwi(model_type=self.model_type)
         return self._tokenizer
 
+    def preprocess(self, text):
+        # seems to have issue with very large numbers
+        return self._preprocess_regex.sub("", text)
+
     def word_tokenize(self, text: str) -> list[str]:
-        tokens = [text[token.start : token.end] for token in self.tokenizer.tokenize(text)]
+        tokens = [text[token.start : token.end] for token in self.tokenizer.tokenize(self.preprocess(text))]
         return strip_strings(tokens)
 
     def sent_tokenize(self, text: str) -> list[str]:
-        sents = [sent.text for sent in self.tokenizer.split_into_sents(text)]
+        sents = [sent.text for sent in self.tokenizer.split_into_sents(self.preprocess(text))]
         return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
-        return [(sent.start, sent.end) for sent in self.tokenizer.split_into_sents(text)]
+        return [(sent.start, sent.end) for sent in self.tokenizer.split_into_sents(self.preprocess(text))]
 
 
 class KhmerTokenizer(WordTokenizer):

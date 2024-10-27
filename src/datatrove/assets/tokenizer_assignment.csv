@@ -631,8 +631,8 @@ gyr,,Latn,Guarayu,Tupian,SpaCyTokenizer,xx,True,True,True
 hac,,Arab,Gurani,Indo-European,IndicNLPTokenizer,ur,True,True,True
 hae,om,Latn,Eastern Oromo,Afro-Asiatic,SpaCyTokenizer,xx,True,True,True
 hag,,Latn,Hanga,Niger-Congo,SpaCyTokenizer,tn,True,True,True
-hak,zh,Hani,Hakka Chinese,Sino-Tibetan,SpaCyTokenizer,zh,False,False,True
-hak,zh,Latn,Hakka Chinese,Sino-Tibetan,SpaCyTokenizer,xx,True,True,False
+hak,,Hani,Hakka Chinese,Sino-Tibetan,SpaCyTokenizer,zh,False,False,True
+hak,,Latn,Hakka Chinese,Sino-Tibetan,SpaCyTokenizer,xx,True,True,False
 hat,ht,Latn,Haitian,Creole,SpaCyTokenizer,xx,True,True,True
 hau,ha,Latn,Hausa,Afro-Asiatic,SpaCyTokenizer,xx,True,True,True
 hav,,Latn,Havu,Niger-Congo,SpaCyTokenizer,lg,True,True,True
@@ -1022,7 +1022,7 @@ lvs,lv,Latn,Standard Latvian,Indo-European,SpaCyTokenizer,lv,False,False,True
 lwg,,Latn,Wanga,Niger-Congo,SpaCyTokenizer,lg,True,True,True
 lwo,,Latn,Luwo,Nilo-Saharan,SpaCyTokenizer,xx,True,True,True
 lww,,Latn,Lewo,Austronesian,SpaCyTokenizer,ms,True,True,True
-lzh,zh,Hani,Literary Chinese,Sino-Tibetan,StanzaTokenizer,lzh,False,False,True
+lzh,,Hani,Literary Chinese,Sino-Tibetan,StanzaTokenizer,lzh,False,False,True
 maa,,Latn,San Jerónimo Tecóatl Mazatec,Otomanguean,SpaCyTokenizer,xx,True,True,True
 mad,,Latn,Madurese,Austronesian,SpaCyTokenizer,ms,True,True,True
 maf,,Latn,Mafa,Afro-Asiatic,SpaCyTokenizer,xx,True,True,True
@@ -2059,7 +2059,7 @@ wrk,,Latn,Garrwa,Australian,SpaCyTokenizer,xx,True,True,True
 wrs,,Latn,Waris,Border,SpaCyTokenizer,xx,True,True,True
 wsg,,Telu,Adilabad Gondi,Dravidian,IndicNLPTokenizer,te,True,True,True
 wsk,,Latn,Waskia,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
-wuu,zh,Hani,Wu Chinese,Sino-Tibetan,SpaCyTokenizer,zh,False,False,True
+wuu,,Hani,Wu Chinese,Sino-Tibetan,SpaCyTokenizer,zh,False,False,True
 wuv,,Latn,Wuvulu-Aua,Austronesian,SpaCyTokenizer,ms,True,True,True
 wwa,,Latn,Waama,Niger-Congo,SpaCyTokenizer,tn,True,True,True
 xal,,Cyrl,Kalmyk,Mongolic,StanzaTokenizer,bxr,True,True,True
@@ -2116,7 +2116,7 @@ yrk,,Cyrl,Nenets,Uralic,SpaCyTokenizer,xx,True,True,True
 yrl,,Latn,Nhengatu,Tupian,SpaCyTokenizer,xx,True,True,True
 yss,,Latn,Yessan-Mayo,Sepik,SpaCyTokenizer,xx,True,True,True
 yua,,Latn,Yucateco,Mayan,SpaCyTokenizer,xx,True,True,True
-yue,zh,Hani,Yue Chinese,Sino-Tibetan,SpaCyTokenizer,zh,False,False,True
+yue,,Hani,Yue Chinese,Sino-Tibetan,SpaCyTokenizer,zh,False,False,True
 yuj,,Latn,Karkar-Yuri,Pauwasi,SpaCyTokenizer,xx,True,True,True
 yup,,Latn,Yukpa,Cariban,SpaCyTokenizer,xx,True,True,True
 yut,,Latn,Yopno,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
@@ -2142,8 +2142,8 @@ zdj,,Latn,Ngazidja Comorian,Niger-Congo,SpaCyTokenizer,tn,True,True,True
 zea,,Latn,Zeeuws,Indo-European,SpaCyTokenizer,nl,True,True,True
 zgh,,Tfng,Standard Moroccan Tamazight,Afro-Asiatic,,,True,True,True
 zha,za,Latn,Zhuang,,SpaCyTokenizer,xx,True,True,True
-zho,zh,Hani,Chinese,,SpaCyTokenizer,zh,False,False,True
-zho,zh,Latn,Chinese,,,,True,True,False
+zho,,Hani,Chinese,,SpaCyTokenizer,zh,False,False,True
+zho,,Latn,Chinese,,,,True,True,False
 zia,,Latn,Zia,Trans-New Guinea,SpaCyTokenizer,xx,True,True,True
 ziw,,Latn,Zigula,Niger-Congo,SpaCyTokenizer,tn,True,True,True
 zne,,Latn,Zande (individual language),Niger-Congo,SpaCyTokenizer,tn,True,True,True
