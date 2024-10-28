@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from itertools import tee
 from typing import Iterable
 
+import regex
+
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
 
@@ -187,13 +189,13 @@ class TextNormConfig:
 
 DEF_TEXT_NORM_CONFIG = TextNormConfig()
 # Match digits in any script, allowing for different decimal separators
-NUMBERS_PATTERN = re.compile(
-    r"""
-    \p{Nd}+           # One or more digits in any script
-    ([.,،٫⎖⎗⎘]{1}    # Common decimal separators (period, comma, Arabic decimal, etc)
-    \p{Nd}+)?         # Optional decimal part with digits
-""",
-    re.VERBOSE | re.UNICODE,
+# One or more digits in any script
+# Common decimal separators (period, comma, Arabic decimal, etc)
+# Optional decimal part with digits
+# we need regex and not re for this one to match unicode
+NUMBERS_PATTERN = regex.compile(
+    r"\p{Nd}+([.,،٫⎖⎗⎘]{1}\p{Nd}+)?",
+    regex.VERBOSE | regex.UNICODE,
 )
 WHITESPACE_PATTERN = re.compile(r"\s+")
 # WARNING: english specific
