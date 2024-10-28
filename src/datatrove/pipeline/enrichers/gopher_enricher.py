@@ -190,6 +190,7 @@ class GopherQualityEnricher(BaseEnricher):
             for n in self.top_ngram_ratio:
                 n_grams = get_n_grams(words, n)
                 if not n_grams:
+                    gopher_metadata[f"top_{n}_gram"] = 1.0
                     continue
                 top_char_length = find_top_duplicate(n_grams)
                 ngram_ratio = top_char_length / len(text)

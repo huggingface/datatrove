@@ -44,8 +44,8 @@ class LanguageFilter(BaseFilter):
     def _filter_from_existing_stats(self, doc: Document) -> bool | tuple[bool, str]:
         if "language" not in doc.metadata or "language_score" not in doc.metadata:
             logger.warning(
-                f"Missing 'language' in doc metadata for {doc.id}"
-                "Ensure that the previous enricher war run with `language` enabled."
+                f"Missing 'language' in doc metadata for {doc.id} "
+                "Ensure that the previous enricher was run with `language` enabled."
             )
             return False, "missing_language_field"
 
@@ -129,8 +129,8 @@ class LanguageFilter(BaseFilter):
         elif self.precalculated_stats == PRECALCULATED_STATS.re_use:
             if "language" not in doc.metadata:
                 logger.warning(
-                    f"Missing 'language' in doc metadata for {doc.id}"
-                    "Ensure that the previous enricher war run with `language` enabled."
+                    f"Missing 'language' in doc metadata for {doc.id} "
+                    "Ensure that the previous enricher was run with `language` enabled."
                 )
                 return False, "missing_language_field"
             return self._filter_from_existing_stats(doc)

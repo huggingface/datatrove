@@ -66,8 +66,8 @@ class GopherQualityFilter(BaseFilter):
         if self.min_doc_words:
             if "n_non_symbol_words" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'n_non_symbol_words' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `n_non_symbol_words` enabled."
+                    f"Missing 'n_non_symbol_words' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `n_non_symbol_words` enabled."
                 )
                 return False, "missing_n_non_symbol_words"
             if (
@@ -79,8 +79,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_doc_words:
             if "n_non_symbol_words" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'n_non_symbol_words' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `n_non_symbol_words` enabled."
+                    f"Missing 'n_non_symbol_words' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `n_non_symbol_words` enabled."
                 )
                 return False, "missing_n_non_symbol_words"
             if (
@@ -92,8 +92,8 @@ class GopherQualityFilter(BaseFilter):
         if self.min_avg_word_length:
             if "avg_word_length" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'avg_word_length' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `avg_word_length` enabled."
+                    f"Missing 'avg_word_length' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `avg_word_length` enabled."
                 )
                 return False, "missing_avg_word_length"
             if (
@@ -105,8 +105,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_avg_word_length:
             if "avg_word_length" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'avg_word_length' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `avg_word_length` enabled."
+                    f"Missing 'avg_word_length' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `avg_word_length` enabled."
                 )
                 return False, "missing_avg_word_length"
             if (
@@ -118,8 +118,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_symbol_word_ratio:
             if "hash_to_word_ratio" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'hash_to_word_ratio' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `hash_to_word_ratio` enabled."
+                    f"Missing 'hash_to_word_ratio' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `hash_to_word_ratio` enabled."
                 )
                 return False, "missing_hash_to_word_ratio"
             if (
@@ -131,8 +131,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_symbol_word_ratio:
             if "ellipsis_to_word_ratio" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'ellipsis_to_word_ratio' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `ellipsis_to_word_ratio` enabled."
+                    f"Missing 'ellipsis_to_word_ratio' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `ellipsis_to_word_ratio` enabled."
                 )
                 return False, "missing_ellipsis_to_word_ratio"
             if (
@@ -144,8 +144,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_bullet_lines_ratio:
             if "bullet_lines_ratio" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'bullet_lines_ratio' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `bullet_lines_ratio` enabled."
+                    f"Missing 'bullet_lines_ratio' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `bullet_lines_ratio` enabled."
                 )
                 return False, "missing_bullet_lines_ratio"
             if (
@@ -157,8 +157,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_ellipsis_lines_ratio:
             if "end_ellipsis_ratio" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'end_ellipsis_ratio' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `end_ellipsis_ratio` enabled."
+                    f"Missing 'end_ellipsis_ratio' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `end_ellipsis_ratio` enabled."
                 )
                 return False, "missing_end_ellipsis_ratio"
             if (
@@ -170,8 +170,8 @@ class GopherQualityFilter(BaseFilter):
         if self.max_non_alpha_words_ratio:
             if "non_alpha_words_ratio" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'non_alpha_words_ratio' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `non_alpha_words_ratio` enabled."
+                    f"Missing 'non_alpha_words_ratio' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `non_alpha_words_ratio` enabled."
                 )
                 return False, "missing_non_alpha_words_ratio"
             if (
@@ -183,8 +183,8 @@ class GopherQualityFilter(BaseFilter):
         if self.min_stop_words:
             if "stop_words_count" not in doc.metadata["gopher"]:
                 logger.warning(
-                    f"Missing 'stop_words_count' in doc metadata for {doc.id}."
-                    "Ensure that the previous enricher war run with `stop_words_count` enabled."
+                    f"Missing 'stop_words_count' in doc metadata for {doc.id} ."
+                    "Ensure that the previous enricher was run with `stop_words_count` enabled."
                 )
                 return False, "missing_stop_words_count"
             if (

@@ -122,8 +122,8 @@ class GopherRepetitionFilter(BaseFilter):
             dup_para_frac = doc.metadata.get("gopher", {}).get("dup_para_frac")
             if dup_para_frac is None:
                 logger.warning(
-                    f"Missing 'dup_para_frac' in doc metadata for {doc.id}"
-                    "Ensure that the previous enricher war run with `dup_para_frac` enabled."
+                    f"Missing 'dup_para_frac' in doc metadata for {doc.id} "
+                    "Ensure that the previous enricher was run with `dup_para_frac` enabled."
                 )
                 return False, "missing_dup_para_frac"
             if dup_para_frac > self.dup_para_frac:
@@ -133,8 +133,8 @@ class GopherRepetitionFilter(BaseFilter):
             dup_para_char_frac = doc.metadata.get("gopher", {}).get("dup_para_char_frac")
             if dup_para_char_frac is None:
                 logger.warning(
-                    f"Missing 'dup_para_char_frac' in doc metadata for {doc.id}"
-                    "Ensure that the previous enricher war run with `dup_para_char_frac` enabled."
+                    f"Missing 'dup_para_char_frac' in doc metadata for {doc.id} "
+                    "Ensure that the previous enricher was run with `dup_para_char_frac` enabled."
                 )
                 return False, "missing_dup_para_char_frac"
             if dup_para_char_frac > self.dup_para_char_frac:
@@ -144,8 +144,8 @@ class GopherRepetitionFilter(BaseFilter):
             dup_line_frac = doc.metadata.get("gopher", {}).get("dup_line_frac")
             if dup_line_frac is None:
                 logger.warning(
-                    f"Missing 'dup_line_frac' in doc metadata for {doc.id}"
-                    "Ensure that the previous enricher war run with `dup_line_frac` enabled."
+                    f"Missing 'dup_line_frac' in doc metadata for {doc.id} "
+                    "Ensure that the previous enricher was run with `dup_line_frac` enabled."
                 )
                 return False, "missing_dup_line_frac"
             if dup_line_frac > self.dup_line_frac:
@@ -155,8 +155,8 @@ class GopherRepetitionFilter(BaseFilter):
             dup_line_char_frac = doc.metadata.get("gopher", {}).get("dup_line_char_frac")
             if dup_line_char_frac is None:
                 logger.warning(
-                    f"Missing 'dup_line_char_frac' in doc metadata for {doc.id}"
-                    "Ensure that the previous enricher war run with `dup_line_char_frac` enabled."
+                    f"Missing 'dup_line_char_frac' in doc metadata for {doc.id} "
+                    "Ensure that the previous enricher was run with `dup_line_char_frac` enabled."
                 )
                 return False, "missing_dup_line_char_frac"
             if dup_line_char_frac > self.dup_line_char_frac:
@@ -167,8 +167,8 @@ class GopherRepetitionFilter(BaseFilter):
                 top_n_gram = doc.metadata.get("gopher", {}).get(f"top_{n}_gram")
                 if top_n_gram is None:
                     logger.warning(
-                        f"Missing 'top_{n}_gram' in doc metadata for {doc.id}"
-                        "Ensure that the previous enricher war run with `top_n_gram` enabled."
+                        f"Missing 'top_{n}_gram' in doc metadata for {doc.id} "
+                        "Ensure that the previous enricher was run with `top_n_gram` enabled."
                     )
                     return False, "missing_top_n_gram"
                 if top_n_gram > n_frac:
@@ -179,8 +179,8 @@ class GopherRepetitionFilter(BaseFilter):
                 dup_n_gram = doc.metadata.get("gopher", {}).get(f"duplicated_{n}_n_grams")
                 if dup_n_gram is None:
                     logger.warning(
-                        f"Missing 'duplicated_{n}_n_grams' in doc metadata for {doc.id}"
-                        "Ensure that the previous enricher war run with `duplicated_{n}_n_grams` enabled."
+                        f"Missing 'duplicated_{n}_n_grams' in doc metadata for {doc.id} "
+                        "Ensure that the previous enricher was run with `duplicated_{n}_n_grams` enabled."
                     )
                     return False, "missing_duplicated_n_grams"
                 if dup_n_gram > n_frac:
