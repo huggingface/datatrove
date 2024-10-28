@@ -49,13 +49,27 @@ class LanguageFilter(BaseFilter):
             )
             return False, "missing_language_field"
 
+        lang = doc.metadata["language"]
         lang_score = doc.metadata["language_score"]
         lang_pairs = {
             key.split("_")[-2]: value for key, value in doc.metadata.items() if key.startswith("top_language_")
         }
-        return (self.languages and any(score > self.language_threshold for score in lang_pairs.values())) or (
-            self.languages is None and lang_score > self.language_threshold
-        )
+        if self.languages is not None:
+            if lang not in self.languages:
+                return False, "language_not_in_list"
+            if lang_score < self.language_threshold:
+                return False, "language_score_below_threshold"
+            # check if there is intersection between the top languages and the languages
+            if lang_pairs and set(lang_pairs.keys()).isdisjoint(self.languages):
+                return False, "top_language_not_in_list"
+        else:
+            if lang_score < self.language_threshold:
+                return False, "language_score_below_threshold"
+
+        if lang_pairs and all(score < self.language_threshold for score in lang_pairs.values()):
+            return False, "all_top_language_score_below_threshold"
+
+        return True
 
     def _filter_maybe_from_existing_stats(self, doc: Document) -> bool:
         """Args:
@@ -80,7 +94,7 @@ class LanguageFilter(BaseFilter):
                 key.split("_")[-2]: value for key, value in doc.metadata.items() if key.startswith("top_language_")
             }
 
-        if self.backend == "glotlid" and "language_script" not in doc.metadata:
+        if self.backend == "glotlid" and ("language_script" not in doc.metadata or _force_recalc):
             lang, script = lang.split("_")
             doc.metadata["language_script"] = script
 
@@ -88,9 +102,23 @@ class LanguageFilter(BaseFilter):
             for key, value in lang_pairs.items():
                 if value > self.keep_top_pairs_threshold:
                     doc.metadata[f"top_language_{key}_score"] = value
-        return (self.languages and any(score > self.language_threshold for score in lang_pairs.values())) or (
-            self.languages is None and lang_score > self.language_threshold
-        )
+
+        if self.languages is not None:
+            if lang not in self.languages:
+                return False, "language_not_in_list"
+            if lang_score < self.language_threshold:
+                return False, "language_score_below_threshold"
+            # check if there is intersection between the top languages and the languages
+            if lang_pairs and set(lang_pairs.keys()).isdisjoint(self.languages):
+                return False, "top_language_not_in_list"
+        else:
+            if lang_score < self.language_threshold:
+                return False, "language_score_below_threshold"
+
+        if lang_pairs and all(score < self.language_threshold for score in lang_pairs.values()):
+            return False, "all_top_language_score_below_threshold"
+
+        return True
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         if (
