@@ -430,6 +430,7 @@ class MinhashDedupCluster(PipelineStep):
         output_folder: DataFolderLike,
         config: MinhashConfig = None,
         save_cluster_id: bool = False,
+        save_cluster_size: bool = False,
         ignore_index_matches: bool = False,
         lines_to_buffer: int = 5,
     ):
@@ -438,6 +439,7 @@ class MinhashDedupCluster(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
         self.save_cluster_id = save_cluster_id
+        self.save_cluster_size = save_cluster_size
         self.ignore_index_matches = ignore_index_matches
         self.lines_to_buffer = lines_to_buffer
 
@@ -448,13 +450,30 @@ class MinhashDedupCluster(PipelineStep):
         ) == 0, "Number of .dups files should be divisible by number of buckets"
         assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
+        set_size = {}
 
         def parent(x):
             if x not in union_set or union_set[x] == x:
+                union_set[x] = x  # if we don't save it we can not retrieve this document in the for node... loop below
                 return x
             # Path Compression
             union_set[x] = parent(union_set[x])
             return union_set[x]
+
+        def union(v_a, v_b):
+            root_a = parent(v_a)
+            root_b = parent(v_b)
+
+            if root_a != root_b:
+                # Union by size
+                size_a = set_size.get(root_a, 1)
+                size_b = set_size.get(root_b, 1)
+                if size_a < size_b:
+                    root_a, root_b, size_a, size_b = root_b, root_a, size_b, size_a
+                # #a > #b
+                union_set[root_b] = root_a  # make the smallest one join the biggest one to keep sets shallow
+                set_size[root_a] = size_a + size_b
+                set_size.pop(root_b, None)  # clear up space
 
         with self.track_time():
             for dup_file in dup_files:
@@ -464,7 +483,7 @@ class MinhashDedupCluster(PipelineStep):
                         if self.ignore_index_matches and a == (SENTINEL, SENTINEL):
                             # if we are skipping matches with the index and "a" is from the index
                             continue
-                        union_set[parent(b)] = parent(a)
+                        union(a, b)
 
             ci = 0
             cluster_ids = {}
@@ -476,6 +495,8 @@ class MinhashDedupCluster(PipelineStep):
                     if node != p:
                         output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
                         self.stat_update("to_remove")
+
+                    # additional metadata
                     if self.save_cluster_id:
                         if p not in cluster_ids:
                             cluster_ids[p] = ci
@@ -483,6 +504,12 @@ class MinhashDedupCluster(PipelineStep):
                             self.stat_update("clusters")
                         output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
                         output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
+                    if node == p:
+                        # only run once per cluster
+                        self.stat_update("cluster_size", value=set_size[p], unit="cluster")
+                    if self.save_cluster_size:
+                        output_mg.write(f"{file:06d}.sizes", struct.pack("<I", doc))
+                        output_mg.write(f"{file:06d}.sizes", struct.pack("<I", set_size[p]))
 
 
 class MinhashDedupFilter(PipelineStep):
@@ -499,19 +526,26 @@ class MinhashDedupFilter(PipelineStep):
         input_folder: DataFolderLike,
         exclusion_writer: DiskWriter = None,
         load_cluster_ids: bool = False,
+        load_cluster_sizes: bool = False,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
         self.data_folder = get_datafolder(input_folder)
         self.exclusion_writer = exclusion_writer
         self.load_cluster_ids = load_cluster_ids
+        self.load_cluster_sizes = load_cluster_sizes
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        clusters_data = self.data_folder.get_shard(rank, world_size, glob_pattern="*.clusters")
-        assert (
-            not self.load_cluster_ids or len(clusters_data) <= 1
-        ), f"Must have exactly one .clusters file per task. Found {len(clusters_data)} files."
+        # additional metadata files
+        # cluster ids
+        if self.load_cluster_ids and not self.data_folder.exists(f"{rank:06d}.clusters"):
+            logger.warning(f"No .clusters file for {rank=}.")
+            raise FileNotFoundError
+        # cluster sizes
+        if self.load_cluster_sizes and not self.data_folder.exists(f"{rank:06d}.sizes"):
+            logger.warning(f"No .sizes file for {rank=}.")
+            raise FileNotFoundError
 
         if not self.data_folder.isfile(f"{rank:06d}.remove"):
             logger.warning(f"No .remove file for {rank=}.")
@@ -527,22 +561,35 @@ class MinhashDedupFilter(PipelineStep):
                     if data:
                         return struct.unpack("<I", data)[0]
 
-                def load_clusters():
-                    if clusters_data:
-                        with self.data_folder.open(clusters_data[0], "rb") as clustersf:
-                            yield from read_tuples_from_file(clustersf, "2I", lines_to_buffer=self.lines_to_buffer)
+                def metadata_loader(file):
+                    with self.data_folder.open(file, "rb") as metadata_f:
+                        yield from read_tuples_from_file(metadata_f, "2I", lines_to_buffer=self.lines_to_buffer)
 
                 if self.load_cluster_ids:
-                    cluster_loader = load_clusters()
+                    cluster_loader = metadata_loader(f"{rank:06d}.clusters")
                     next_cluster = next(cluster_loader, None)
+
+                if self.load_cluster_sizes:
+                    sizes_loader = metadata_loader(f"{rank:06d}.sizes")
+                    next_size = next(sizes_loader, None)
 
                 next_removal = get_next()
                 for idx, doc in enumerate(data):
                     with self.track_time():
+                        # load and save metadata
                         if self.load_cluster_ids:
                             if next_cluster and idx == next_cluster[0]:
-                                doc.metadata["minhash_cluster"] = next_cluster[1]
+                                doc.metadata["minhash_cluster_id"] = next_cluster[1]
                                 next_cluster = next(cluster_loader, None)
+                            else:
+                                doc.metadata["minhash_cluster_id"] = -1
+
+                        if self.load_cluster_sizes:
+                            if next_size and idx == next_size[0]:
+                                doc.metadata["minhash_cluster_size"] = next_size[1]
+                                next_size = next(sizes_loader, None)
+                            else:
+                                doc.metadata["minhash_cluster_size"] = 1
 
                         self.stat_update(StatHints.total)
                         if next_removal == idx:

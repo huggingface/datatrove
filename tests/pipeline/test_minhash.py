@@ -168,6 +168,53 @@ class TestMinhash(unittest.TestCase):
         assert filtered_ids == kept
 
     @use_hash_configs()
+    def test_cluster_ids_sizes(self, hash_config):
+        sigs_folder = os.path.join(self.tmp_dir, "b_signatures")
+        buckets_folder = os.path.join(self.tmp_dir, "b_buckets")
+        clusters_folder = os.path.join(self.tmp_dir, "b_clusters")
+        config = MinhashConfig(hash_config=hash_config)
+
+        signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config)
+        buckets_block = MinhashDedupBuckets(
+            input_folder=sigs_folder,
+            output_folder=buckets_folder,
+            config=config,
+        )
+
+        clusters = [[0, 20, 50], [400, 420], [800, 810, 820, 840, 860], [1205, 1215, 1225, 1245], [1600], [2000]]
+        cluster_sizes = {
+            f"{ci}_{xi}": len(cluster) for ci, cluster in enumerate(clusters) for xi, x in enumerate(cluster)
+        }
+
+        cluster_samples = [
+            Document(text=lorem_ipsum[x : x + 400], id=f"{ci}_{xi}", metadata={"ci": ci, "xi": xi})
+            for ci, cluster in enumerate(clusters)
+            for xi, x in enumerate(cluster)
+        ]
+
+        signatures_block(cluster_samples)
+        for b in range(config.num_buckets * 10):
+            buckets_block(None, rank=b, world_size=config.num_buckets * 10)
+        bucket_results_folder = get_datafolder(buckets_folder)
+        # clustering
+        cluster_block = MinhashDedupCluster(
+            bucket_results_folder, clusters_folder, save_cluster_id=True, save_cluster_size=True, config=config
+        )
+        cluster_block(None)
+
+        cluster_results_folder = get_datafolder(clusters_folder)
+
+        # filtering
+        filter_block = MinhashDedupFilter(cluster_results_folder, load_cluster_ids=True, load_cluster_sizes=True)
+        filtered = filter_block(cluster_samples)
+        cluster_ids = set()
+        for doc in filtered:
+            print(doc)
+            assert cluster_sizes[doc.id] == doc.metadata["minhash_cluster_size"]
+            cluster_ids.add(doc.metadata["minhash_cluster_id"])
+        assert len(cluster_ids) == 5  # number of clusters with > 1 element + 1 (empty cluster has id -1)
+
+    @use_hash_configs()
     def test_multiprocess_s2(self, hash_config):
         sigs_folder = os.path.join(self.tmp_dir, "b_signatures")
         buckets_folder1 = os.path.join(self.tmp_dir, "b_buckets")
