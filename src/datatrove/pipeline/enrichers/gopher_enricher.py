@@ -190,7 +190,10 @@ class GopherQualityEnricher(BaseEnricher):
             for n in self.top_ngram_ratio:
                 n_grams = get_n_grams(words, n)
                 if not n_grams:
-                    gopher_metadata[f"top_{n}_gram"] = 1.0
+                    # We set it to -1 if there are no n-grams since
+                    # if we are writing to parquet, we can't have None
+                    # before having a float value
+                    gopher_metadata[f"top_{n}_gram"] = -1.0
                     continue
                 top_char_length = find_top_duplicate(n_grams)
                 ngram_ratio = top_char_length / len(text)
