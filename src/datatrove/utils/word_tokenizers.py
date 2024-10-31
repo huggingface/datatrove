@@ -8,6 +8,7 @@ from typing import Callable, Iterator
 from loguru import logger
 
 from datatrove.utils._import_utils import ASSETS_PATH, check_required_dependencies
+from datatrove.utils.text import TERMINAL_PUNCTUATION
 
 
 def strip_strings(els: list[str]) -> list[str]:
@@ -127,6 +128,7 @@ class SpaCyTokenizer(WordTokenizer):
     def _do_tokenize(self, text: str):
         # japanese has a max byte length
         texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 49000)
+        self.tokenizer.max_length = len(text)
         return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
 
     def word_tokenize(self, text: str) -> list[str]:
@@ -308,6 +310,7 @@ class TibetanTokenizer(WordTokenizer):
         super().__init__()
         check_required_dependencies("tibetan word tokenizer", ["botok"])
         self._wt = None
+        self._whitespace_regex = re.compile(r"\s+")
 
     @property
     def wt(self):
@@ -322,7 +325,7 @@ class TibetanTokenizer(WordTokenizer):
             return self.wt.tokenize(text, split_affixes=False)
         except Exception as e:
             logger.warning(f"Failed to tokenize with botok: {e}. Trying without spaces...")
-            return self.wt.tokenize(re.sub(r"\s+", "", text), split_affixes=False)
+            return self.wt.tokenize(self._whitespace_regex.sub("", text), split_affixes=False)
 
     def word_tokenize(self, text: str) -> list[str]:
         return strip_strings([tok.text for tok in self._try_tokenize(text)])
@@ -343,21 +346,22 @@ class TibetanTokenizer(WordTokenizer):
         return [(sentence["start"], sentence["end"] + 1) for sentence in idxs]
 
 
-class GeorgianTokenizer(WordTokenizer):
-    # https://www.reddit.com/r/Kartvelian/comments/195k2n2/what_are_the_punctuation_symbols_of_asomtavruli/
+class WhitespaceTokenizer(WordTokenizer):
+    """
+    This is a fallback tokenizer when no other tokenizer is available.
+    """
+
     def __init__(self):
         super().__init__()
+        # works generally well for white spaces, but does not work to split sentences with a different script
+        self._spacy_xx = SpaCyTokenizer("xx")
+        self._sent_regex = re.compile(rf".+?[{re.escape(''.join(TERMINAL_PUNCTUATION))}\n]+[\"'”]?")
 
     def word_tokenize(self, text) -> list[str]:
-        import re
-
-        tokens = re.split(r"([\s!?.:჻]+)", text)
-        return strip_strings(tokens)
+        return self._spacy_xx.word_tokenize(text)
 
     def sent_tokenize(self, text: str) -> list[str]:
-        import re
-
-        sents = re.findall(r".+?[!?.:჻\n]+", text)
+        sents = self._sent_regex.findall(text)
         return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
@@ -366,11 +370,8 @@ class GeorgianTokenizer(WordTokenizer):
 
 
 """
+    The actual tokenizer assignments are saved in src/datatrove/assets/tokenizer_assignments.csv
     If you know a better tokenizer or better proxy language, please submit a PR
-
-    Notes:
-        - SpaCy is generally preferred over NLTK as it is faster
-        - Stanza is at least one order of magnitude slower than NLTK/SpaCy
 """
 
 WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {}
@@ -395,8 +396,8 @@ def load_tokenizer_assignments():
             tok_class = LaoTokenizer
         elif class_name == "TibetanTokenizer":
             tok_class = TibetanTokenizer
-        elif class_name == "GeorgianTokenizer":
-            tok_class = GeorgianTokenizer
+        elif class_name == "WhitespaceTokenizer":
+            tok_class = WhitespaceTokenizer
         else:
             raise ValueError(f'Invalid tokenizer class "{class_name}"')
 
@@ -405,10 +406,18 @@ def load_tokenizer_assignments():
         return tok_class()
 
     with open(os.path.join(ASSETS_PATH, "tokenizer_assignment.csv")) as f:
-        reader = csv.reader(f)
+        reader = csv.DictReader(f)
         next(reader)  # skip header
         for row in reader:
-            code_3, code_1, script, name, family, tok_class_name, tok_code, proxy, auto_assigned, default_script = row
+            code_3, code_1, script, tok_class_name, tok_code, default_script, default_code_1 = (
+                row["code_3"],
+                row["code_1"],
+                row["script"],
+                row["type"],
+                row["tok_code"],
+                row["default_script"],
+                row["default_code_1"],
+            )
 
             if not tok_class_name:
                 continue
@@ -421,7 +430,7 @@ def load_tokenizer_assignments():
                 if default_script:
                     WORD_TOKENIZER_FACTORY[code_3] = tok_factory
             code_1_script = f"{code_1}_{script}"
-            if code_1_script and code_1_script not in WORD_TOKENIZER_FACTORY:
+            if code_1 and default_code_1 and code_1_script not in WORD_TOKENIZER_FACTORY:
                 WORD_TOKENIZER_FACTORY[code_1_script] = tok_factory
                 if default_script:
                     WORD_TOKENIZER_FACTORY[code_1] = tok_factory
