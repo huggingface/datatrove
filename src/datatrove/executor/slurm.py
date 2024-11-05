@@ -179,17 +179,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 signal.signal(signal.Signals[ss], requeue_handler)
 
             if self.run_tasks_in_parallel:
-                processes = []
-                for rank_to_run in range(*ranks_to_run_range):
-                    if rank_to_run >= len(all_ranks):
-                        break
-                    rank = all_ranks[rank_to_run]
-                    p = multiprocessing.Process(target=self._run_for_rank, args=(rank,))
-                    p.start()
-                    processes.append(p)
+                ctx = multiprocessing.get_context("forkserver")
+                logger.info(f"Running {self.tasks_per_job} tasks in parallel for rank {slurm_rank}")
+                with ctx.Pool(self.tasks_per_job) as pool:
+                    pool.imap_unordered(
+                        self._run_for_rank,
+                        range(*ranks_to_run_range),
+                    )
 
-                for p in processes:
-                    p.join()
             else:
                 for rank_to_run in range(*ranks_to_run_range):
                     if rank_to_run >= len(all_ranks):
