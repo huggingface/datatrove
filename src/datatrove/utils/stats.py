@@ -333,8 +333,7 @@ class MetricStats:
                 (f"±{self.standard_deviation:,.0f}", self.standard_deviation != 0.0),
             ]
             return f"{self.total:,} [" + "".join([t for t, c in elements if c]) + f"/{self.unit}]"
-        str_total = str(self.total)
-        return f"{str_total:,}"
+        return f"{self.total:,}"
 
 
 @dataclass
