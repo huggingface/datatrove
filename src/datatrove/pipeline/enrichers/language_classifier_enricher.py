@@ -14,6 +14,7 @@ class LanguageEnricher(BaseEnricher):
         languages: list[str] | str | None = None,
         backend: Literal["ft176", "glotlid"] = "ft176",
         keep_top_pairs_threshold: float = -1,
+        batch_size: int = 1,
     ):
         """
         Enricher to predict the language of a document
@@ -22,7 +23,7 @@ class LanguageEnricher(BaseEnricher):
             backend (str): Backend to use for language prediction
             keep_top_pairs_threshold (float): Threshold to keep top pairs
         """
-        super().__init__()
+        super().__init__(batch_size)
         if isinstance(languages, str):
             languages = list(languages)
         self.languages = languages

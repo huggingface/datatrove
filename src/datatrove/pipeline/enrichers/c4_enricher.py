@@ -66,8 +66,9 @@ class C4QualityEnricher(BaseEnricher):
         check_policy: bool = True,
         language: str = Languages.english,
         store_lines: bool = False,
+        batch_size: int = 1,
     ):
-        super().__init__()
+        super().__init__(batch_size)
         self.split_paragraph = split_paragraph
         self.remove_citations = remove_citations
         self.no_terminal_punct = no_terminal_punct

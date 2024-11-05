@@ -20,8 +20,9 @@ class FineWebQualityEnricher(BaseEnricher):
         new_line_ratio: bool = True,
         language: str = Languages.english,
         stop_chars: Tuple[str] = STOP_CHARS,
+        batch_size: int = 1,
     ):
-        super().__init__()
+        super().__init__(batch_size)
         self.line_punct_ratio = line_punct_ratio
         self.line_length = line_length
         self.char_duplicates_ratio = char_duplicates_ratio

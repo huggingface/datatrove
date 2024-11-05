@@ -76,6 +76,7 @@ class GopherQualityEnricher(BaseEnricher):
         dup_ngram_ratio: list[int] = [5, 6, 7, 8, 9, 10],
         stop_words: list[str] = STOP_WORDS,
         language: str = Languages.english,
+        batch_size: int = 1,
     ):
         """
         Filter to apply Gopher's quality heuristic rules.
@@ -84,7 +85,7 @@ class GopherQualityEnricher(BaseEnricher):
         Args:
 
         """
-        super().__init__()
+        super().__init__(batch_size)
         self.n_non_symbol_words = n_non_symbol_words
         self.avg_word_length = avg_word_length
         self.hash_to_word_ratio = hash_to_word_ratio
