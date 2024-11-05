@@ -184,7 +184,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             if self.run_tasks_in_parallel and self.tasks_per_job > 1:
                 logger.info(f"Running {self.tasks_per_job} tasks in parallel for rank {slurm_rank}")
                 # deepcopy the executor for each task and launch them with subprocess
-                # python launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}
+                # launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}
                 # but add CUSTOM_RANK to the environment for each task
                 local_jobs = []
                 for rank_to_run in range(*ranks_to_run_range):
@@ -194,11 +194,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     logger.info(f"Launching task {rank} in parallel")
                     local_jobs.append(
                         subprocess.Popen(
-                            [
-                                sys.executable,
-                                "launch_pickled_pipeline",
-                                self.logging_dir.resolve_paths("executor.pik"),
-                            ],
+                            f"launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
                             env={**os.environ, "CUSTOM_RANK": str(rank)},
                         )
                     )
