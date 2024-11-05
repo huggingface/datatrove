@@ -178,7 +178,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
-            if self.run_tasks_in_parallel:
+            if self.run_tasks_in_parallel and self.tasks_per_job > 1:
                 ctx = multiprocessing.get_context("forkserver")
                 logger.info(f"Running {self.tasks_per_job} tasks in parallel for rank {slurm_rank}")
                 with ctx.Pool(self.tasks_per_job) as pool:
