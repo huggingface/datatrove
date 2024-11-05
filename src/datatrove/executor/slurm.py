@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import multiprocessing
 import os
 import signal
 import subprocess
@@ -112,6 +113,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         requeue: bool = True,
         srun_args: dict = None,
         tasks_per_job: int = 1,
+        run_tasks_in_parallel: bool = False,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -120,6 +122,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.cpus_per_task = cpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.tasks_per_job = tasks_per_job
+        self.run_tasks_in_parallel = run_tasks_in_parallel
         self.time = time
         self.job_name = job_name
         self.qos = qos
@@ -163,7 +166,10 @@ class SlurmPipelineExecutor(PipelineExecutor):
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
             )
-            ranks_to_run_range = (slurm_rank * self.tasks_per_job, (slurm_rank + 1) * self.tasks_per_job)
+            ranks_to_run_range = (
+                slurm_rank * self.tasks_per_job,
+                (slurm_rank + 1) * self.tasks_per_job,
+            )
             with self.logging_dir.open("ranks_to_run.json", "r") as ranks_to_run_file:
                 all_ranks = json.load(ranks_to_run_file)
             if ranks_to_run_range[0] >= len(all_ranks):
@@ -172,12 +178,26 @@ class SlurmPipelineExecutor(PipelineExecutor):
             for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
-            for rank_to_run in range(*ranks_to_run_range):
-                if rank_to_run >= len(all_ranks):
-                    break
-                rank = all_ranks[rank_to_run]
+            if self.run_tasks_in_parallel:
+                processes = []
+                for rank_to_run in range(*ranks_to_run_range):
+                    if rank_to_run >= len(all_ranks):
+                        break
+                    rank = all_ranks[rank_to_run]
+                    p = multiprocessing.Process(target=self._run_for_rank, args=(rank,))
+                    p.start()
+                    processes.append(p)
 
-                self._run_for_rank(rank)
+                for p in processes:
+                    p.join()
+            else:
+                for rank_to_run in range(*ranks_to_run_range):
+                    if rank_to_run >= len(all_ranks):
+                        break
+                    rank = all_ranks[rank_to_run]
+
+                    self._run_for_rank(rank)
+
         else:
             # we still have to launch the job
             self.launch_job()
