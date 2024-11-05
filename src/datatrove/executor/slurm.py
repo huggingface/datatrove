@@ -194,7 +194,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     logger.info(f"Launching task {rank} in parallel")
                     local_jobs.append(
                         subprocess.Popen(
-                            f"launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
+                            f"python -m datatrove.tools.launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
                             env={**os.environ, "CUSTOM_RANK": str(rank)},
                         )
                     )
