@@ -197,6 +197,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     local_jobs.append(
                         subprocess.Popen(
                             "bash -c '" + CMD + "'",
+                            shell=True,
                             env={**os.environ, "CUSTOM_RANK": str(rank)},
                         )
                     )
