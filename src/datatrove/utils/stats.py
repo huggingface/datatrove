@@ -84,7 +84,7 @@ class Stats:
                 lambda x: x is not None,
                 [
                     f"{self.name}",
-                    f"Runtime: {self.time_stats.get_repr(total_time)}" if self.time_stats.total > 0 else None,
+                    (f"Runtime: {self.time_stats.get_repr(total_time)}" if self.time_stats.total > 0 else None),
                     f"Stats: {{{self.stats}}}" if len(self.stats) > 0 else None,
                 ],
             )
@@ -327,13 +327,14 @@ class MetricStats:
         if self.mean != 1:
             # only display relevant fields
             elements = [
-                (f"min={self.min}, ", self.min != self.mean),
-                (f"max={self.max}, ", self.max != self.mean),
-                (f"{self.mean:.2f}", True),
-                (f"±{self.standard_deviation:.0f}", self.standard_deviation != 0.0),
+                (f"min={self.min:,}, ", self.min != self.mean),
+                (f"max={self.max:,}, ", self.max != self.mean),
+                (f"{self.mean:,.2f}", True),
+                (f"±{self.standard_deviation:,.0f}", self.standard_deviation != 0.0),
             ]
-            return f"{self.total} [" + "".join([t for t, c in elements if c]) + f"/{self.unit}]"
-        return str(self.total)
+            return f"{self.total:,} [" + "".join([t for t, c in elements if c]) + f"/{self.unit}]"
+        str_total = str(self.total)
+        return f"{str_total:,}"
 
 
 @dataclass
@@ -431,7 +432,8 @@ class TimingStats(MetricStats):
                 datetime.timedelta(seconds=self.mean), minimum_unit="milliseconds"
             )
             data["std_dev_human"] = humanize.precisedelta(
-                datetime.timedelta(seconds=self.standard_deviation), minimum_unit="milliseconds"
+                datetime.timedelta(seconds=self.standard_deviation),
+                minimum_unit="milliseconds",
             )
             data["min_human"] = humanize.precisedelta(
                 datetime.timedelta(seconds=self.min), minimum_unit="milliseconds"
