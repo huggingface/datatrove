@@ -182,10 +182,13 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 ctx = multiprocessing.get_context("forkserver")
                 logger.info(f"Running {self.tasks_per_job} tasks in parallel for rank {slurm_rank}")
                 with ctx.Pool(self.tasks_per_job) as pool:
-                    pool.imap_unordered(
-                        self._run_for_rank,
-                        range(*ranks_to_run_range),
+                    _ = list(
+                        pool.imap_unordered(
+                            self._run_for_rank,
+                            range(*ranks_to_run_range),
+                        )
                     )
+                logger.info(f"Parallel tasks for rank {slurm_rank} completed.")
 
             else:
                 for rank_to_run in range(*ranks_to_run_range):
