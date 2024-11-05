@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import multiprocessing
 import os
 import signal
 import subprocess
@@ -161,7 +160,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         Returns:
 
         """
-        if "SLURM_ARRAY_TASK_ID" in os.environ:
+        if "CUSTOM_RANK" in os.environ:
+            # we are running locally, just run the pipeline
+            logger.info(f"Running pipeline for custom rank {os.environ['CUSTOM_RANK']}")
+            self._run_for_rank(int(os.environ["CUSTOM_RANK"]))
+        elif "SLURM_ARRAY_TASK_ID" in os.environ:
             # we are already "inside" the slurm task, get our rank from env vars and run pipeline
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
@@ -179,21 +182,30 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 signal.signal(signal.Signals[ss], requeue_handler)
 
             if self.run_tasks_in_parallel and self.tasks_per_job > 1:
-                ctx = multiprocessing.get_context("spawn")
                 logger.info(f"Running {self.tasks_per_job} tasks in parallel for rank {slurm_rank}")
-                # deepcopy the executor for each task and run them in parallel
-                processes = []
+                # deepcopy the executor for each task and launch them with subprocess
+                # python launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}
+                # but add CUSTOM_RANK to the environment for each task
+                local_jobs = []
                 for rank_to_run in range(*ranks_to_run_range):
                     if rank_to_run >= len(all_ranks):
                         break
                     rank = all_ranks[rank_to_run]
-                    executor = deepcopy(self)
-                    p = ctx.Process(target=executor._run_for_rank, args=(rank,))
-                    p.start()
-                    processes.append(p)
-                for p in processes:
-                    p.join()
-                logger.info(f"Parallel tasks for rank {slurm_rank} completed.")
+                    logger.info(f"Launching task {rank} in parallel")
+                    local_jobs.append(
+                        subprocess.Popen(
+                            [
+                                sys.executable,
+                                "launch_pickled_pipeline",
+                                self.logging_dir.resolve_paths("executor.pik"),
+                            ],
+                            env={**os.environ, "CUSTOM_RANK": str(rank)},
+                        )
+                    )
+
+                # wait for all tasks to finish
+                for local_job in local_jobs:
+                    local_job.wait()
 
             else:
                 for rank_to_run in range(*ranks_to_run_range):
