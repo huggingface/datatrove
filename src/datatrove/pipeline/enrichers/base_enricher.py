@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 from loguru import logger
@@ -45,9 +44,7 @@ class BaseEnricher(PipelineStep, ABC):
 
         Returns: a list, the same size as `batch`, containing the enriched documents
         """
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            enriched_docs = list(executor.map(self.enrich, batch))
-        return enriched_docs
+        return list(map(self.enrich, batch))
 
     def run(self, data: DocumentsPipeline, rank, world_size) -> DocumentsPipeline:
         """
