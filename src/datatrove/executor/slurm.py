@@ -246,14 +246,17 @@ class SlurmPipelineExecutor(PipelineExecutor):
         Returns:
 
         """
+        sbatch_args = {
+            **self.get_sbatch_args(),
+            "cpus-per-task": 1,
+            "mem-per-cpu": "1G",
+        }
+        if self.job_id > 0:
+            sbatch_args["dependency"] = f"afterok:{self.job_id}"
+
         launch_slurm_job(
             self.get_launch_file_contents(
-                {
-                    **self.get_sbatch_args(),
-                    "cpus-per-task": 1,
-                    "mem-per-cpu": "1G",
-                    "dependency": f"afterok:{self.job_id}" if self.job_id > 0 else "",
-                },
+                sbatch_args,
                 f'merge_stats {self.logging_dir.resolve_paths("stats")} '
                 f'-o {self.logging_dir.resolve_paths("stats.json")}',
             )
