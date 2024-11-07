@@ -114,6 +114,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         srun_args: dict = None,
         tasks_per_job: int = 1,
         run_tasks_in_parallel: bool = False,
+        force_launch_merge_stats: bool = False,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -152,6 +153,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             )
         )
         self.requeue = requeue
+        self.force_launch_merge_stats = force_launch_merge_stats
 
     def run(self):
         """
@@ -250,7 +252,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     **self.get_sbatch_args(),
                     "cpus-per-task": 1,
                     "mem-per-cpu": "1G",
-                    "dependency": f"afterok:{self.job_id}",
+                    "dependency": f"afterok:{self.job_id}" if self.job_id > 0 else "",
                 },
                 f'merge_stats {self.logging_dir.resolve_paths("stats")} '
                 f'-o {self.logging_dir.resolve_paths("stats.json")}',
@@ -293,6 +295,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
             self.job_id = -1
+            if self.force_launch_merge_stats:
+                self.launch_merge_stats()
             return
 
         executor = deepcopy(self)
