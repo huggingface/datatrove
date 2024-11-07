@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import multiprocessing
 import os
 import signal
 import subprocess
@@ -186,25 +187,44 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 # deepcopy the executor for each task and launch them with subprocess
                 # launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}
                 # but add CUSTOM_RANK to the environment for each task
-                local_jobs = []
-                for rank_to_run in range(*ranks_to_run_range):
-                    if rank_to_run >= len(all_ranks):
-                        break
-                    rank = all_ranks[rank_to_run]
-                    logger.info(f"Launching task {rank} in parallel")
-                    CMD = self.env_command.replace("\n", " && ") if self.env_command else ""
-                    CMD += f" && export CUSTOM_RANK={rank} && python -m datatrove.tools.launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}"
-                    local_jobs.append(
-                        subprocess.Popen(
-                            "bash -c '" + CMD + "'",
-                            shell=True,
-                            env={**os.environ, "CUSTOM_RANK": str(rank)},
+                # local_jobs = []
+                # for rank_to_run in range(*ranks_to_run_range):
+                #     if rank_to_run >= len(all_ranks):
+                #         break
+                #     rank = all_ranks[rank_to_run]
+                #     logger.info(f"Launching task {rank} in parallel")
+                #     CMD = self.env_command.replace("\n", " && ") if self.env_command else ""
+                #     CMD += f" && export CUSTOM_RANK={rank} && python -m datatrove.tools.launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}"
+                #     local_jobs.append(
+                #         subprocess.Popen(
+                #             "bash -c '" + CMD + "'",
+                #             shell=True,
+                #             env={**os.environ, "CUSTOM_RANK": str(rank)},
+                #         )
+                #     )
+
+                # # wait for all tasks to finish or fail
+                # # wait even if one fails
+                # for local_job in local_jobs:
+                #     local_job.wait()
+                #     if local_job.returncode != 0:
+                #         logger.error(f"Task failed with return code {local_job.returncode}")
+
+                ranks = [
+                    all_ranks[rank_to_run]
+                    for rank_to_run in range(*ranks_to_run_range)
+                    if rank_to_run < len(all_ranks)
+                ]
+                ctx = multiprocessing.get_context("forkserver")
+                with ctx.Pool(self.tasks_per_job) as pool:
+                    _ = list(
+                        pool.imap_unordered(
+                            self._run_for_rank,
+                            ranks,
                         )
                     )
 
-                # wait for all tasks to finish
-                for local_job in local_jobs:
-                    local_job.wait()
+                logger.success(f"Processing done for {ranks_to_run_range}")
 
             else:
                 for rank_to_run in range(*ranks_to_run_range):
