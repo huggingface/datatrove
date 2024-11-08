@@ -163,11 +163,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         Returns:
 
         """
-        if "CUSTOM_RANK" in os.environ:
-            # we are running locally, just run the pipeline
-            logger.info(f"Running pipeline for custom rank {os.environ['CUSTOM_RANK']}")
-            self._run_for_rank(int(os.environ["CUSTOM_RANK"]))
-        elif "SLURM_ARRAY_TASK_ID" in os.environ:
+        if "SLURM_ARRAY_TASK_ID" in os.environ:
             # we are already "inside" the slurm task, get our rank from env vars and run pipeline
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
@@ -186,32 +182,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
 
             if self.run_tasks_in_parallel and self.tasks_per_job > 1:
                 logger.info(f"Running {self.tasks_per_job} tasks in parallel for rank {slurm_rank}")
-                # deepcopy the executor for each task and launch them with subprocess
-                # launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}
-                # but add CUSTOM_RANK to the environment for each task
-                # local_jobs = []
-                # for rank_to_run in range(*ranks_to_run_range):
-                #     if rank_to_run >= len(all_ranks):
-                #         break
-                #     rank = all_ranks[rank_to_run]
-                #     logger.info(f"Launching task {rank} in parallel")
-                #     CMD = self.env_command.replace("\n", " && ") if self.env_command else ""
-                #     CMD += f" && export CUSTOM_RANK={rank} && python -m datatrove.tools.launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}"
-                #     local_jobs.append(
-                #         subprocess.Popen(
-                #             "bash -c '" + CMD + "'",
-                #             shell=True,
-                #             env={**os.environ, "CUSTOM_RANK": str(rank)},
-                #         )
-                #     )
-
-                # # wait for all tasks to finish or fail
-                # # wait even if one fails
-                # for local_job in local_jobs:
-                #     local_job.wait()
-                #     if local_job.returncode != 0:
-                #         logger.error(f"Task failed with return code {local_job.returncode}")
-
                 ranks = [
                     all_ranks[rank_to_run]
                     for rank_to_run in range(*ranks_to_run_range)
