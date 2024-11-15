@@ -150,10 +150,11 @@ class SpaCyTokenizer(WordTokenizer):
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         spans = []
-        for tok_text in self._do_tokenize(text):
-            start = spans[-1][1] if spans else 0
-            for sent in tok_text.sents:
-                spans.append((start + sent.start_char, start + sent.end_char))
+        with self.tokenizer.memory_zone():
+            for tok_text in self._do_tokenize(text):
+                start = spans[-1][1] if spans else 0
+                for sent in tok_text.sents:
+                    spans.append((start + sent.start_char, start + sent.end_char))
         return spans
 
 
