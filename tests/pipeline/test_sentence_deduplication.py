@@ -87,8 +87,9 @@ TEXT_2_1 = (
 
 TEXT_3_1 = "1 + 1 = 2, 2 + 2 = 4, 4 + 4 = 8, ..."
 
-rs_1 = get_random_string()
-rs_2 = get_random_string()
+# Ensure there are dots so that it's tokenized as a separate sentence
+rs_1 = f".{get_random_string()}."
+rs_2 = f".{get_random_string()}."
 
 DOCS = [
     Document(text=TEXT_0, id="0"),
