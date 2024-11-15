@@ -382,6 +382,7 @@ class WhitespaceTokenizer(WordTokenizer):
     If you know a better tokenizer or better proxy language, please submit a PR
 """
 
+
 @lru_cache(maxsize=1)
 def load_tokenizer_assignments() -> dict[str, Callable[[], WordTokenizer]]:
     def tok_factory_wrapper(class_name, arg):
@@ -442,6 +443,7 @@ def load_tokenizer_assignments() -> dict[str, Callable[[], WordTokenizer]]:
                     word_tokenizer_factories[code_1] = tok_factory
 
     return word_tokenizer_factories
+
 
 @lru_cache(maxsize=None)
 def load_word_tokenizer(language_or_tok: str | WordTokenizer) -> WordTokenizer:
