@@ -27,8 +27,8 @@ dependencies = [
     "huggingface-hub>=0.17.0",
     "humanize",
     "loguru>=0.7.0",
-    "numpy>=2.0.0",
     "multiprocess",
+    "numpy>=2.0.0",
     "tqdm",
 ]
 
@@ -41,7 +41,7 @@ io = [
   "pyarrow",
   "python-magic",
   "warcio",
-  "datasets>=2.18.0",
+  "datasets>=3.1.0",
   "orjson",
   "zstandard"
 ]
@@ -58,6 +58,7 @@ processing = [
     "tokenizers",
     "ftfy",
     "fasteners",
+    "regex",
     "xxhash",
     "kenlm",
     "pyahocorasick"
@@ -91,11 +92,12 @@ testing = [
   "datatrove[multilingual]",
   "datatrove[s3]",
   # Lighteval doesn't support numpy>=2.0.0
-  #  "datatrove[decont]",
+#  "datatrove[decont]",
   "pytest",
   "pytest-timeout",
   "pytest-xdist",
   "moto[s3,server]",
+  "spacy[ja]"
 ]
 all = [
   "datatrove[quality]",

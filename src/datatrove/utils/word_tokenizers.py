@@ -2,7 +2,7 @@ import csv
 import os
 import re
 from abc import ABC, abstractmethod
-from functools import partial
+from functools import lru_cache, partial
 from typing import Callable, Iterator
 
 from loguru import logger
@@ -382,11 +382,8 @@ class WhitespaceTokenizer(WordTokenizer):
     If you know a better tokenizer or better proxy language, please submit a PR
 """
 
-WORD_TOKENIZER_FACTORY: dict[str, Callable[[], WordTokenizer]] = {}
-WORD_TOKENIZER_CACHE: dict[str, WordTokenizer] = {}
-
-
-def load_tokenizer_assignments():
+@lru_cache(maxsize=1)
+def load_tokenizer_assignments() -> dict[str, Callable[[], WordTokenizer]]:
     def tok_factory_wrapper(class_name, arg):
         if class_name == "SpaCyTokenizer":
             tok_class = SpaCyTokenizer
@@ -413,6 +410,7 @@ def load_tokenizer_assignments():
             return tok_class(arg)
         return tok_class()
 
+    word_tokenizer_factories = {}
     with open(os.path.join(ASSETS_PATH, "tokenizer_assignment.csv")) as f:
         reader = csv.DictReader(f)
         next(reader)  # skip header
@@ -433,29 +431,27 @@ def load_tokenizer_assignments():
             tok_factory = partial(tok_factory_wrapper, tok_class_name, tok_code)
 
             code_3_script = f"{code_3}_{script}"
-            if code_3_script not in WORD_TOKENIZER_FACTORY:
-                WORD_TOKENIZER_FACTORY[code_3_script] = tok_factory
+            if code_3_script not in word_tokenizer_factories:
+                word_tokenizer_factories[code_3_script] = tok_factory
                 if default_script:
-                    WORD_TOKENIZER_FACTORY[code_3] = tok_factory
+                    word_tokenizer_factories[code_3] = tok_factory
             code_1_script = f"{code_1}_{script}"
-            if code_1 and default_code_1 and code_1_script not in WORD_TOKENIZER_FACTORY:
-                WORD_TOKENIZER_FACTORY[code_1_script] = tok_factory
+            if code_1 and default_code_1 and code_1_script not in word_tokenizer_factories:
+                word_tokenizer_factories[code_1_script] = tok_factory
                 if default_script:
-                    WORD_TOKENIZER_FACTORY[code_1] = tok_factory
+                    word_tokenizer_factories[code_1] = tok_factory
 
+    return word_tokenizer_factories
 
+@lru_cache(maxsize=None)
 def load_word_tokenizer(language_or_tok: str | WordTokenizer) -> WordTokenizer:
     if isinstance(language_or_tok, WordTokenizer):
         # for custom tokenizers
         return language_or_tok
-    if len(WORD_TOKENIZER_FACTORY) == 0:
-        load_tokenizer_assignments()
-    if language_or_tok not in WORD_TOKENIZER_CACHE:
-        if language_or_tok not in WORD_TOKENIZER_FACTORY:
-            raise ValueError(
-                f"Language '{language_or_tok}' doesn't have a tokenizer assigned. Pass in a "
-                f"WordTokenizer directly or update tokenizer_assignment.csv"
-            )
-        tokenizer = WORD_TOKENIZER_FACTORY[language_or_tok]()
-        WORD_TOKENIZER_CACHE[language_or_tok] = tokenizer
-    return WORD_TOKENIZER_CACHE[language_or_tok]
+    word_tokenizer_factories = load_tokenizer_assignments()
+    if language_or_tok not in word_tokenizer_factories:
+        raise ValueError(
+            f"Language '{language_or_tok}' doesn't have a tokenizer assigned. Pass in a "
+            f"WordTokenizer directly or update tokenizer_assignment.csv"
+        )
+    return word_tokenizer_factories[language_or_tok]()

@@ -1,6 +1,6 @@
 import unittest
 
-from datatrove.utils.word_tokenizers import WORD_TOKENIZER_FACTORY, TibetanTokenizer, load_word_tokenizer
+from datatrove.utils.word_tokenizers import TibetanTokenizer, load_tokenizer_assignments, load_word_tokenizer
 
 
 SAMPLE_TEXT = (
@@ -12,7 +12,7 @@ SAMPLE_TEXT = (
 
 def get_unique_tokenizers():
     uniq_toks = set()
-    for language in WORD_TOKENIZER_FACTORY.keys():
+    for language in load_tokenizer_assignments().keys():
         tokenizer = load_word_tokenizer(language)
         if (tokenizer.__class__, tokenizer.language) in uniq_toks:
             continue
