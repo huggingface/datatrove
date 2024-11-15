@@ -119,7 +119,7 @@ class SpaCyTokenizer(WordTokenizer):
             import spacy
 
             # Important to hot-fix the memory leak in Japanese Tokenizer
-            from datatrove.utils.japanese_tokenizer import JapaneseTokenizer
+            from datatrove.utils.japanese_tokenizer import JapaneseTokenizer  # noqa: F401
 
             if self.config is None:
                 self._tokenizer = spacy.blank(self.language)
