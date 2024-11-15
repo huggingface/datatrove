@@ -76,8 +76,7 @@ multilingual = [
     "kiwipiepy", # korean
     # urduhack has keras and tensorflow as dependencies and requires a specific version to work...
     "urduhack",
-    "keras<3.0.0",
-    "tensorflow<2.16",
+    "tensorflow>=2.16",
     "khmer-nltk", # khmer
     "laonlp", # lao
     "botok", # tibetan languages,
