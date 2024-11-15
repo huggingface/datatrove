@@ -27,8 +27,8 @@ dependencies = [
     "huggingface-hub>=0.17.0",
     "humanize",
     "loguru>=0.7.0",
+    "numpy>=2.0.0",
     "multiprocess",
-    "numpy>=1.25.0,<2.0.0",
     "tqdm",
 ]
 
@@ -49,7 +49,7 @@ s3 = [
   "s3fs>=2023.12.2",
 ]
 processing = [
-    "fasttext-wheel",
+    "fasttext-numpy2-wheel",
     "nltk",
     "inscriptis",
 #   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
@@ -66,7 +66,7 @@ decont = [
     "lighteval>=0.3.0"
 ]
 multilingual = [
-    "spacy",
+    "spacy[ja]>=3.8",
     "stanza",
     "pyvi", # vietnamese
     "pythainlp", # thai
@@ -90,12 +90,12 @@ testing = [
   "datatrove[processing]",
   "datatrove[multilingual]",
   "datatrove[s3]",
-  "datatrove[decont]",
+  # Lighteval doesn't support numpy>=2.0.0
+  #  "datatrove[decont]",
   "pytest",
   "pytest-timeout",
   "pytest-xdist",
   "moto[s3,server]",
-  "spacy[ja]"
 ]
 all = [
   "datatrove[quality]",
@@ -136,7 +136,8 @@ lint.select = [
   "E",
   "F",
   "I",
-  "W"
+  "W",
+  "NPY201", # numpy 2.0.0
 ]
 line-length = 119
 

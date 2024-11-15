@@ -118,6 +118,9 @@ class SpaCyTokenizer(WordTokenizer):
         if self._tokenizer is None:
             import spacy
 
+            # Important to hot-fix the memory leak in Japanese Tokenizer
+            from datatrove.utils.japanese_tokenizer import JapaneseTokenizer
+
             if self.config is None:
                 self._tokenizer = spacy.blank(self.language)
             else:
@@ -132,14 +135,18 @@ class SpaCyTokenizer(WordTokenizer):
         return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
 
     def word_tokenize(self, text: str) -> list[str]:
-        self.tokenizer.max_length = len(text) + 10
-        tokens = [token.text for tok_chunk in self._do_tokenize(text) for token in tok_chunk]
-        return strip_strings(tokens)
+        # Make sure to do all the token processing inside the memory zone, as after that memory address to tokens
+        # are not longer valid
+        with self.tokenizer.memory_zone():
+            self.tokenizer.max_length = len(text) + 10
+            tokens = [token.text for tok_chunk in self._do_tokenize(text) for token in tok_chunk]
+            return strip_strings(tokens)
 
     def sent_tokenize(self, text: str) -> list[str]:
-        self.tokenizer.max_length = len(text) + 10
-        sents = [sent.text for t in self._do_tokenize(text) for sent in t.sents]
-        return strip_strings(sents)
+        with self.tokenizer.memory_zone():
+            self.tokenizer.max_length = len(text) + 10
+            sents = [sent.text for t in self._do_tokenize(text) for sent in t.sents]
+            return strip_strings(sents)
 
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         spans = []
