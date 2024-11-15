@@ -92,6 +92,7 @@ testing = [
   "datatrove[s3]",
   # Lighteval doesn't support numpy>=2.0.0
 #  "datatrove[decont]",
+  "flask>=3.1.0",
   "pytest",
   "pytest-timeout",
   "pytest-xdist",
