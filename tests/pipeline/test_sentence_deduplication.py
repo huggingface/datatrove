@@ -17,7 +17,7 @@ from ..utils import require_nltk, require_xxhash, use_hash_configs
 
 
 def get_random_string(n: int = 20):
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "."
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "!"
 
 
 SENTENCE_ = "A SQUAT grey building of only thirty-four stories."
@@ -87,9 +87,8 @@ TEXT_2_1 = (
 
 TEXT_3_1 = "1 + 1 = 2, 2 + 2 = 4, 4 + 4 = 8, ..."
 
-# Ensure there are dots so that it's tokenized as a separate sentence
-rs_1 = f".{get_random_string()}."
-rs_2 = f".{get_random_string()}."
+rs_1 = get_random_string()
+rs_2 = get_random_string()
 
 DOCS = [
     Document(text=TEXT_0, id="0"),
