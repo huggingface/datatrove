@@ -221,7 +221,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             "cpus-per-task": 1,
             "mem-per-cpu": "1G",
         }
-        if self.job_id > 0:
+        if int(self.job_id) > 0:
             sbatch_args["dependency"] = f"afterok:{self.job_id}"
 
         launch_slurm_job(
