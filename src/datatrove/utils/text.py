@@ -37,7 +37,14 @@ WEEKDAYS_PATTERN = re.compile(r"monday|tuesday|wednesday|thursday|friday|saturda
 MONTHS_PATTERN = re.compile(r"january|february|march|april|may|june|july|august|september|october|november|december")
 
 
-def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
+def simplify_text(
+    text: str,
+    config=DEF_TEXT_NORM_CONFIG,
+    numbers_pattern=NUMBERS_PATTERN,
+    whitespace_pattern=WHITESPACE_PATTERN,
+    weekdays_pattern=WEEKDAYS_PATTERN,
+    months_pattern=MONTHS_PATTERN,
+) -> str:
     """Performs the following operations to increase recall when looking for matches between documents:
     - number normalization
     - weekday normalization
@@ -65,11 +72,11 @@ def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
     if config.lowercase:
         text = text.lower()
     if config.norm_numbers:
-        text = NUMBERS_PATTERN.sub("0", text)
+        text = numbers_pattern.sub("0", text)
     if config.norm_weekdays:
-        text = WEEKDAYS_PATTERN.sub("WEEKDAY", text)
+        text = weekdays_pattern.sub("WEEKDAY", text)
     if config.norm_monthnames:
-        text = MONTHS_PATTERN.sub("MONTH", text)
+        text = months_pattern.sub("MONTH", text)
 
     # convert punctuation to spaces
     if config.remove_punctuation:
@@ -77,7 +84,7 @@ def simplify_text(text: str, config=DEF_TEXT_NORM_CONFIG) -> str:
 
     # remove consecutive spaces, newlines, tabs in the middle and in the beginning / end
     if config.norm_whitespace:
-        text = WHITESPACE_PATTERN.sub(" ", text.strip())
+        text = whitespace_pattern.sub(" ", text.strip())
     # diacritics/unicode normalization
     if config.norm_unicode_diacritics:
         text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")

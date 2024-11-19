@@ -113,9 +113,21 @@ def read_sigs(
                 break
             last = sigdata
             yield (
-                HashSig(sig=sigdata, doc_id=-1, file_id=-1, reader_id=reader_id, file_stem=file_stem)
+                HashSig(
+                    sig=sigdata,
+                    doc_id=-1,
+                    file_id=-1,
+                    reader_id=reader_id,
+                    file_stem=file_stem,
+                )
                 if index_file
-                else HashSig(sig=sigdata, doc_id=data[-1], file_id=reader_id, reader_id=reader_id, file_stem=file_stem)
+                else HashSig(
+                    sig=sigdata,
+                    doc_id=data[-1],
+                    file_id=reader_id,
+                    reader_id=reader_id,
+                    file_stem=file_stem,
+                )
             )
 
 
@@ -132,7 +144,16 @@ class MinhashDedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
 
-    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = Languages.english):
+    def __init__(
+        self,
+        output_folder: DataFolderLike,
+        config: MinhashConfig = None,
+        language: str = Languages.english,
+        numbers_pattern=None,
+        whitespace_pattern=None,
+        weekdays_pattern=None,
+        months_pattern=None,
+    ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
@@ -141,6 +162,19 @@ class MinhashDedupSignature(PipelineStep):
         self._hash_func = create_hash_func(self.config.hash_config)
         self.language = language
         self.word_tokenizer = load_word_tokenizer(language)
+        self.numbers_pattern = numbers_pattern
+        self.whitespace_pattern = whitespace_pattern
+        self.weekdays_pattern = weekdays_pattern
+        self.months_pattern = months_pattern
+        self.simplify_text_kwargs = {}
+        if numbers_pattern:
+            self.simplify_text_kwargs["numbers_pattern"] = numbers_pattern
+        if whitespace_pattern:
+            self.simplify_text_kwargs["whitespace_pattern"] = whitespace_pattern
+        if weekdays_pattern:
+            self.simplify_text_kwargs["weekdays_pattern"] = weekdays_pattern
+        if months_pattern:
+            self.simplify_text_kwargs["months_pattern"] = months_pattern
 
     @property
     def parameters(self):
@@ -175,7 +209,10 @@ class MinhashDedupSignature(PipelineStep):
             phv = np.bitwise_and(phv, self.config.hash_config.max)
         return [
             x.tolist()
-            for x in np.split(np.min(phv, axis=0).astype(self.config.hash_config.np_dtype), self.config.num_buckets)
+            for x in np.split(
+                np.min(phv, axis=0).astype(self.config.hash_config.np_dtype),
+                self.config.num_buckets,
+            )
         ]
 
     def get_shingles(self, text: str) -> np.ndarray:
@@ -193,7 +230,9 @@ class MinhashDedupSignature(PipelineStep):
             [
                 self._hash_func(" ".join(x))
                 for x in ngrams(
-                    self.word_tokenizer.word_tokenize(simplify_text(text, self.config.norm_config)),
+                    self.word_tokenizer.word_tokenize(
+                        simplify_text(text, self.config.norm_config, **self.simplify_text_kwargs)
+                    ),
                     self.config.n_grams,
                 )
             ],
@@ -288,7 +327,7 @@ class MinhashDedupBuckets(PipelineStep):
         bucket, bucket_worker = divmod(rank, workers_per_bucket)
         hash_min, hash_max = (
             0,
-            _mersenne_prime if self.config.hash_config.precision == 64 else self.config.hash_config.max,
+            (_mersenne_prime if self.config.hash_config.precision == 64 else self.config.hash_config.max),
         )
         if workers_per_bucket > 1 and len(sig_files):
             # take the first file and find bucket_worker boundaries. all workers in a bucket process the same set of
@@ -300,14 +339,20 @@ class MinhashDedupBuckets(PipelineStep):
                 assert L >= workers_per_bucket, f"tried to use {workers_per_bucket=} but there are only {L} lines"
                 if bucket_worker > 0:
                     # not first
-                    f.seek(line_size * (L // workers_per_bucket) * bucket_worker, os.SEEK_SET)
+                    f.seek(
+                        line_size * (L // workers_per_bucket) * bucket_worker,
+                        os.SEEK_SET,
+                    )
                     hash_min = struct.unpack(
                         self.config.hash_config.struct_format,
                         f.read(struct.calcsize(self.config.hash_config.struct_format)),
                     )[0]
                 if bucket_worker + 1 < workers_per_bucket:
                     # not last
-                    f.seek(line_size * (L // workers_per_bucket) * (bucket_worker + 1), os.SEEK_SET)
+                    f.seek(
+                        line_size * (L // workers_per_bucket) * (bucket_worker + 1),
+                        os.SEEK_SET,
+                    )
                     hash_max = struct.unpack(
                         self.config.hash_config.struct_format,
                         f.read(struct.calcsize(self.config.hash_config.struct_format)),
@@ -377,7 +422,8 @@ class MinhashDedupBuckets(PipelineStep):
             out_index = None
             if self.index_folder and self.create_index_name:
                 out_index = self.index_folder.open(
-                    f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index", mode="wb"
+                    f"bucket_{bucket:03d}/{self.create_index_name}_{bucket_worker:02d}.minhash.index",
+                    mode="wb",
                 )
 
             with self.output_folder.open(f"{bucket:05d}_{bucket_worker:02d}.dups", mode="wb") as out_f:
@@ -390,12 +436,26 @@ class MinhashDedupBuckets(PipelineStep):
                             # write (file_id1, doc_id1, file_id2, doc_id2)
                             if last.is_from_index():
                                 # we can't actually write -1, so we use SENTINEL instead
-                                out_f.write(struct.pack("<4I", SENTINEL, SENTINEL, int(v.file_stem), v.doc_id))
+                                out_f.write(
+                                    struct.pack(
+                                        "<4I",
+                                        SENTINEL,
+                                        SENTINEL,
+                                        int(v.file_stem),
+                                        v.doc_id,
+                                    )
+                                )
                                 self.stat_update("index_match", "total_matches")
                             # if there isn't an index, or we are not only deduping in relation to the index
                             elif not index_files or not self.only_dedup_in_index:
                                 out_f.write(
-                                    struct.pack("<4I", int(last.file_stem), last.doc_id, int(v.file_stem), v.doc_id)
+                                    struct.pack(
+                                        "<4I",
+                                        int(last.file_stem),
+                                        last.doc_id,
+                                        int(v.file_stem),
+                                        v.doc_id,
+                                    )
                                 )
                                 self.stat_update("total_matches")
                         elif out_index:
@@ -602,7 +662,8 @@ class MinhashBuildIndex(PipelineStep):
                 if not last or last.sig != v.sig:
                     out_f.write(
                         struct.pack(
-                            f"<%d{self.config.hash_config.struct_format}" % self.config.hashes_per_bucket, *v.sig
+                            f"<%d{self.config.hash_config.struct_format}" % self.config.hashes_per_bucket,
+                            *v.sig,
                         )
                     )
                 last = v
