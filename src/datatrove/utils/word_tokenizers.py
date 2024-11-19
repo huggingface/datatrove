@@ -130,7 +130,7 @@ class SpaCyTokenizer(WordTokenizer):
 
     def _do_tokenize(self, text: str):
         # japanese has a max byte length
-        texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 49000)
+        texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 48050)
         self.tokenizer.max_length = len(text)
         return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
 
