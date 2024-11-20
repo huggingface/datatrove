@@ -27,6 +27,7 @@ def simple_span_tokenize(text: str, sents: list[str]) -> Iterator[tuple[int, int
         yield start_char, end_char
 
 
+# https://github.com/explosion/spaCy/issues/13207
 def chunk_text_on_bytes(text: str, max_chunk_size: int = 1_000_000):
     def __utf8len(s: str):
         return len(s.encode("utf-8"))
@@ -130,7 +131,7 @@ class SpaCyTokenizer(WordTokenizer):
 
     def _do_tokenize(self, text: str):
         # japanese has a max byte length
-        texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 48050)
+        texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 40000)
         self.tokenizer.max_length = len(text)
         return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
 
