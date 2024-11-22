@@ -195,7 +195,6 @@ class MegatronDocumentTokenizer(PipelineStepWithTokenizer):
             self.output_folder,
             filename,
             upload_block_size=self.upload_block_size,
-            tokenizer_name_or_path=self.tokenizer_name_or_path,
             token_size=self.token_size,
         )
         # Tokenize document's text in batches to go faster
