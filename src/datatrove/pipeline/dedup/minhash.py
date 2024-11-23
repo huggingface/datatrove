@@ -259,7 +259,7 @@ class MinhashDedupSignature(PipelineStep):
                     file.close()
 
             logger.info("Sorting buckets...")
-            for bi in range(len(buckets)):
+            for bi in range(self.config.num_buckets):
                 # read one by one, sort and write back
                 sigs = sorted(
                     read_sigs(
