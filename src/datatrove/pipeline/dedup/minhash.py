@@ -260,25 +260,22 @@ class MinhashDedupSignature(PipelineStep):
 
             logger.info("Sorting buckets...")
             for bi in range(self.config.num_buckets):
-                # read one by one, sort and write back
-                sigs = sorted(
-                    read_sigs(
-                        self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb"),
-                        -1,
-                        self.config,
-                        ensure_order=False,
-                        lines_to_buffer=-1,  # load everything in one go
-                    )
+                # read all records, sort and write back
+                dtype = np.dtype(
+                    [
+                        (f"field{i + 1}", f"<{self.config.hash_config.struct_format}")
+                        for i in range(self.config.hashes_per_bucket)
+                    ]
+                    + [(f"field{self.config.hashes_per_bucket + 1}", "<I")]
                 )
+                with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb") as fi:
+                    records = np.frombuffer(fi.read(), dtype=dtype)
+
+                indices = np.argsort(records, order=dtype.names)
+
                 with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb") as fo:
-                    for sig in sigs:
-                        fo.write(
-                            struct.pack(
-                                f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
-                                *sig.sig,
-                                sig.doc_id,
-                            )
-                        )
+                    for idx in indices:
+                        fo.write(records[idx].tobytes())
 
 
 class MinhashDedupBuckets(PipelineStep):
