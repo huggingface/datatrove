@@ -207,20 +207,36 @@ class MinhashDedupSignature(PipelineStep):
             dtype=np.uint64,
         ).reshape((-1, 1))
 
+    def check_can_skip_sig_writing(self, rank):
+        if not self.skip_existing_sigs:
+            return False
+
+        # check if the files exist
+        if any(
+            not self.output_folder.exists(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")
+            for bi in range(self.config.num_buckets)
+        ):
+            return False
+
+        # check if they all have the same size (same nb of docs)
+        fsizes = [
+            self.output_folder.size(f"bucket_{bi:03d}/{rank:05d}.minhash.sig") for bi in range(self.config.num_buckets)
+        ]
+        if any(fsize != fsizes[0] for fsize in fsizes):
+            return False
+
+        # check if they aren't empty and if they have a multiple of a full sig
+        sig_doc_size = struct.calcsize(f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I")
+        if fsizes[0] == 0 or fsizes[0] % sig_doc_size != 0:
+            return False
+
+        logger.info(f"Found existing sig files with {fsizes[0] // sig_doc_size} entries. Skipping sig writing step.")
+        return True
+
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.track_time():
             # check if we can skip the sig writing step
-            sig_doc_size = struct.calcsize(f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I")
-            if self.skip_existing_sigs and all(
-                self.output_folder.exists(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")
-                and (fsize := self.output_folder.size(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")) % sig_doc_size == 0
-                and fsize > 0
-                for bi in range(self.config.num_buckets)
-            ):
-                logger.info(
-                    f"Found existing sig file with {fsize // sig_doc_size} entries. Skipping sig writing step."
-                )
-            else:
+            if not self.check_can_skip_sig_writing(rank):
                 buckets = [
                     self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
                     for bi in range(self.config.num_buckets)
