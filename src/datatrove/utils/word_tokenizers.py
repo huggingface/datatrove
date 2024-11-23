@@ -32,7 +32,7 @@ def chunk_text_on_bytes(text: str, max_chunk_size: int = 1_000_000):
     def __utf8len(s: str):
         return len(s.encode("utf-8"))
 
-    factor = len(text) / __utf8len(text)
+    factor = len(text) / __utf8len(text) if __utf8len(text) > 0 else 1
     increase_by = int(max(min(max_chunk_size * 0.1, 10), 1))
     initial_size_guess = int(max(max_chunk_size * factor - 10, 1))
     final_list = []
