@@ -132,7 +132,13 @@ class MinhashDedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
 
-    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = Languages.english):
+    def __init__(
+        self,
+        output_folder: DataFolderLike,
+        config: MinhashConfig = None,
+        language: str = Languages.english,
+        skip_existing_sigs: bool = False,
+    ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
@@ -141,6 +147,7 @@ class MinhashDedupSignature(PipelineStep):
         self._hash_func = create_hash_func(self.config.hash_config)
         self.language = language
         self.word_tokenizer = load_word_tokenizer(language)
+        self.skip_existing_sigs = skip_existing_sigs
 
     @property
     def parameters(self):
@@ -201,28 +208,39 @@ class MinhashDedupSignature(PipelineStep):
         ).reshape((-1, 1))
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        buckets = [
-            self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
-            for bi in range(self.config.num_buckets)
-        ]
         with self.track_time():
-            for doc_idx, doc in enumerate(data):
-                self.stat_update(StatHints.total)
-                shingles = self.get_shingles(doc.text)
-                if shingles.size != 0:
-                    sig = self.get_signature(shingles)
-                    for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
-                        # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
-                        bucket.write(
-                            struct.pack(
-                                f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
-                                *bucket_sig,
-                                doc_idx,
+            # check if we can skip the sig writing step
+            sig_doc_size = struct.calcsize(f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I")
+            if self.skip_existing_sigs and all(
+                self.output_folder.exists(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")
+                and (fsize := self.output_folder.size(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")) % sig_doc_size == 0
+                and fsize > 0
+                for bi in range(self.config.num_buckets)
+            ):
+                logger.info(
+                    f"Found existing sig file with {fsize // sig_doc_size} entries. Skipping sig writing step."
+                )
+            else:
+                buckets = [
+                    self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
+                    for bi in range(self.config.num_buckets)
+                ]
+                for doc_idx, doc in enumerate(data):
+                    self.stat_update(StatHints.total)
+                    shingles = self.get_shingles(doc.text)
+                    if shingles.size != 0:
+                        sig = self.get_signature(shingles)
+                        for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
+                            # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
+                            bucket.write(
+                                struct.pack(
+                                    f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
+                                    *bucket_sig,
+                                    doc_idx,
+                                )
                             )
-                        )
-            # TODO: prevent these files from being uploaded/redownloaded in the first place
-            for file in buckets:
-                file.close()
+                for file in buckets:
+                    file.close()
 
             logger.info("Sorting buckets...")
             for bi in range(len(buckets)):
