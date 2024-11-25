@@ -216,8 +216,9 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
         .await
         .context("Failed to list S3 objects")?;
 
-    let contents = resp.contents().unwrap_or_default();
-    let files: Vec<String> = contents
+    let files: Vec<String> = resp
+        .contents()
+        .unwrap_or(&[])
         .iter()
         .filter_map(|obj| obj.key().map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
         .collect();
@@ -274,13 +275,13 @@ async fn process_post_union(
     let mut writers: HashMap<String, S3StreamWriter> = HashMap::new();
 
     // Create sorted list of nodes
-    let mut nodes: Vec<&(u32, u32)> = union_find.union_set.keys().collect();
+    let mut nodes: Vec<(u32, u32)> = union_find.union_set.keys().cloned().collect();
     nodes.sort();
 
-    for &node in nodes {
-        let (file, doc) = *node;
+    for node in nodes {
+        let (file, doc) = node;
         let p = {
-            let mut current = *node;
+            let mut current = node;
             while let Some(&parent) = union_find.union_set.get(&current) {
                 if parent == current {
                     break;
@@ -316,7 +317,7 @@ async fn process_post_union(
         }
 
         // Handle removal markers
-        if *node != p {
+        if node != p {
             let remove_key = format!("{:06}.remove", file);
             if !writers.contains_key(&remove_key) {
                 writers.insert(
@@ -341,7 +342,7 @@ async fn process_post_union(
             to_remove += 1;
         }
 
-        if *node == p {
+        if node == p {
             clusters += 1;
         }
     }
