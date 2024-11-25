@@ -216,13 +216,12 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
         .await
         .context("Failed to list S3 objects")?;
 
-    let files: Vec<String> = match resp.contents() {
-        Some(contents) => contents.iter()
-            .filter_map(|obj| obj.key()
-                .map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
-            .collect(),
-        None => Vec::new(),
-    };
+    let files: Vec<String> = resp
+        .contents()
+        .iter()
+        .filter_map(|obj| obj.key()
+            .map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
+        .collect();
 
     if files.len() != total_files {
         anyhow::bail!(
