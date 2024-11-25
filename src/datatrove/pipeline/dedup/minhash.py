@@ -584,6 +584,7 @@ class MinhashDedupCluster(PipelineStep):
                 set_size.pop(root_b, None)  # clear up space
 
         with self.track_time():
+            logger.info("Loading dup files...")
             for dup_file in tqdm(dup_files, desc="Reading dup files"):
                 with self.input_folder.open(dup_file, "rb") as dupf:
                     for f1, d1, f2, d2 in read_tuples_from_file(dupf, "4I", lines_to_buffer=self.lines_to_buffer):
