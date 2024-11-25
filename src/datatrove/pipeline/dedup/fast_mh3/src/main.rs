@@ -1,12 +1,11 @@
 use std::io::Cursor;
+use std::collections::HashMap;
 use anyhow::{Context, Result};
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
-use itertools::Itertools;
-use futures::StreamExt;
 use tokio::task;
 use std::sync::{Arc, Mutex};
 
@@ -217,9 +216,8 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
         .await
         .context("Failed to list S3 objects")?;
 
-    let files: Vec<String> = resp
-        .contents()
-        .unwrap_or(&[])
+    let contents = resp.contents().unwrap_or_default();
+    let files: Vec<String> = contents
         .iter()
         .filter_map(|obj| obj.key().map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
         .collect();
@@ -275,7 +273,11 @@ async fn process_post_union(
 
     let mut writers: HashMap<String, S3StreamWriter> = HashMap::new();
 
-    for node in union_find.union_set.keys().sorted() {
+    // Create sorted list of nodes
+    let mut nodes: Vec<&(u32, u32)> = union_find.union_set.keys().collect();
+    nodes.sort();
+
+    for &node in nodes {
         let (file, doc) = *node;
         let p = {
             let mut current = *node;
@@ -388,10 +390,10 @@ async fn main() -> Result<()> {
         handle.await??;
     }
 
-    let union_find = Arc::try_unwrap(union_find)
-        .unwrap()
-        .into_inner()
-        .unwrap();
+    let union_find = match Arc::try_unwrap(union_find) {
+        Ok(mutex) => mutex.into_inner().unwrap(),
+        Err(_) => panic!("Failed to unwrap Arc, some references still exist"),
+    };
 
     let (to_remove, clusters) = process_post_union(&client, &output_path, &union_find).await?;
 
