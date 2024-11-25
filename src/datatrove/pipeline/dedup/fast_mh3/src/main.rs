@@ -8,6 +8,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
 use tokio::task;
 use std::sync::{Arc, Mutex};
+use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -277,6 +278,12 @@ async fn process_post_union(
     // Create sorted list of nodes
     let mut nodes: Vec<(u32, u32)> = union_find.union_set.keys().cloned().collect();
     nodes.sort();
+    println!("Writing output files...");
+    let pb = ProgressBar::new(nodes.len() as u64);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+        .unwrap()
+        .progress_chars("#>-"));
 
     for node in nodes {
         let (file, doc) = node;
@@ -345,7 +352,9 @@ async fn process_post_union(
         if node == p {
             clusters += 1;
         }
+        pb.inc(1);
     }
+    pb.finish_with_message("Output writing complete");
 
     // Finalize all writers
     for (_, writer) in writers {
@@ -371,9 +380,17 @@ async fn main() -> Result<()> {
 
     let mut handles = Vec::new();
 
+    println!("Processing {} input files...", files.len());
+    let pb = ProgressBar::new(files.len() as u64);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+        .unwrap()
+        .progress_chars("#>-"));
+
     for file_path in files {
         let client = client.clone();
         let union_find = Arc::clone(&union_find);
+        let pb = pb.clone();
 
         let handle = task::spawn(async move {
             let tuples = download_and_parse_file(&client, &file_path).await?;
@@ -381,6 +398,7 @@ async fn main() -> Result<()> {
             for (f1, d1, f2, d2) in tuples {
                 uf.union((f1, d1), (f2, d2));
             }
+            pb.inc(1);
             Ok::<(), anyhow::Error>(())
         });
 
@@ -390,6 +408,7 @@ async fn main() -> Result<()> {
     for handle in handles {
         handle.await??;
     }
+    pb.finish_with_message("File processing complete");
 
     let union_find = match Arc::try_unwrap(union_find) {
         Ok(mutex) => mutex.into_inner().unwrap(),
