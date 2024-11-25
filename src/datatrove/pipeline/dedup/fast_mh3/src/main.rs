@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::io::Cursor;
 use anyhow::{Context, Result};
 use aws_sdk_s3::Client;
 use aws_sdk_s3::primitives::ByteStream;
@@ -7,7 +6,8 @@ use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
 use itertools::Itertools;
-use rayon::prelude::*;
+use futures::StreamExt;
+use tokio::task;
 use std::sync::{Arc, Mutex};
 
 #[derive(Parser, Debug)]
@@ -49,6 +49,7 @@ impl S3Path {
     }
 }
 
+#[derive(Debug)]
 struct UnionFind {
     union_set: HashMap<(u32, u32), (u32, u32)>,
     set_size: HashMap<(u32, u32), usize>,
@@ -218,7 +219,7 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
 
     let files: Vec<String> = resp
         .contents()
-        .unwrap_or_default()
+        .unwrap_or(&[])
         .iter()
         .filter_map(|obj| obj.key().map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
         .collect();
@@ -274,7 +275,6 @@ async fn process_post_union(
 
     let mut writers: HashMap<String, S3StreamWriter> = HashMap::new();
 
-    // Use itertools for sorted iteration
     for node in union_find.union_set.keys().sorted() {
         let (file, doc) = *node;
         let p = {
@@ -356,7 +356,7 @@ async fn process_post_union(
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    let config = aws_config::load_from_env().await;
+    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let client = Client::new(&config);
 
     let input_path = S3Path::from_path(&args.input_folder)?;
@@ -366,20 +366,30 @@ async fn main() -> Result<()> {
 
     let union_find = Arc::new(Mutex::new(UnionFind::new()));
 
-    files.par_iter().try_for_each(|file_path| {
+    let mut handles = Vec::new();
+
+    for file_path in files {
         let client = client.clone();
-        async move {
-            let tuples = download_and_parse_file(&client, file_path).await?;
+        let union_find = Arc::clone(&union_find);
+
+        let handle = task::spawn(async move {
+            let tuples = download_and_parse_file(&client, &file_path).await?;
             let mut uf = union_find.lock().unwrap();
             for (f1, d1, f2, d2) in tuples {
                 uf.union((f1, d1), (f2, d2));
             }
             Ok::<(), anyhow::Error>(())
-        }
-    })?;
+        });
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.await??;
+    }
 
     let union_find = Arc::try_unwrap(union_find)
-        .expect("All threads should be finished")
+        .unwrap()
         .into_inner()
         .unwrap();
 

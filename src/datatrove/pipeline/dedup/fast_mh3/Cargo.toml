@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 # AWS SDK
-aws-config = "1.1.1"
+aws-config = { version = "1.1.1", features = ["behavior-version-latest"] }
 aws-sdk-s3 = "1.1.1"
 
 # CLI argument parsing
@@ -14,14 +14,12 @@ clap = { version = "4.4.2", features = ["derive"] }
 # Error handling
 anyhow = "1.0.75"
 
-# Parallel processing
-rayon = "1.8.0"
-
 # Byte reading/writing
 byteorder = "1.5.0"
 
-# Async runtime
+# Async runtime and utilities
 tokio = { version = "1.33.0", features = ["full"] }
+futures = "0.3"
 
 # Sorting
 itertools = "0.11.0"
