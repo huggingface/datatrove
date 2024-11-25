@@ -218,10 +218,11 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
 
     let files: Vec<String> = resp
         .contents()
-        .unwrap_or(&[])
-        .iter()
-        .filter_map(|obj| obj.key().map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
-        .collect();
+        .map(|contents| contents.iter()
+            .filter_map(|obj| obj.key()
+                .map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
+            .collect())
+        .unwrap_or_else(Vec::new);
 
     if files.len() != total_files {
         anyhow::bail!(
