@@ -9,6 +9,24 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 use tokio::task;
 use std::sync::{Arc, Mutex};
+use tokio_retry::Retry;
+use tokio_retry::strategy::{ExponentialBackoff, jitter};
+use std::time::Duration;
+
+async fn with_retry<F, Fut, T>(f: F) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let retry_strategy = ExponentialBackoff::from_millis(1000)
+        .max_delay(Duration::from_secs(30))
+        .map(jitter)
+        .take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        f().await
+    }).await
+}
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -116,13 +134,15 @@ impl S3StreamWriter {
         key: &str,
         buffer_threshold: usize,
     ) -> Result<Self> {
-        let create_multipart_upload_output = client
-            .create_multipart_upload()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await
-            .context("Failed to create multipart upload")?;
+        let create_multipart_upload_output = with_retry(|| async {
+            client
+                .create_multipart_upload()
+                .bucket(bucket)
+                .key(key)
+                .send()
+                .await
+                .context("Failed to create multipart upload")
+        }).await?;
 
         Ok(Self {
             client: client.clone(),
@@ -151,18 +171,20 @@ impl S3StreamWriter {
             return Ok(());
         }
 
-        let part_body = ByteStream::from(self.buffer.clone());
-        let upload_part_output = self
-            .client
-            .upload_part()
-            .bucket(&self.bucket)
-            .key(&self.key)
-            .upload_id(&self.upload_id)
-            .part_number(self.part_number)
-            .body(part_body)
-            .send()
-            .await
-            .context("Failed to upload part")?;
+        let buffer_clone = self.buffer.clone();
+        let upload_part_output = with_retry(|| async {
+            let part_body = ByteStream::from(buffer_clone.clone());
+            self.client
+                .upload_part()
+                .bucket(&self.bucket)
+                .key(&self.key)
+                .upload_id(&self.upload_id)
+                .part_number(self.part_number)
+                .body(part_body)
+                .send()
+                .await
+                .context("Failed to upload part")
+        }).await?;
 
         let completed_part = CompletedPart::builder()
             .e_tag(upload_part_output.e_tag().unwrap_or_default())
@@ -180,31 +202,35 @@ impl S3StreamWriter {
         self.flush().await?;
 
         let completed_multipart_upload = CompletedMultipartUpload::builder()
-            .set_parts(Some(self.completed_parts))
+            .set_parts(Some(self.completed_parts.clone()))
             .build();
 
-        self.client
-            .complete_multipart_upload()
-            .bucket(&self.bucket)
-            .key(&self.key)
-            .upload_id(&self.upload_id)
-            .multipart_upload(completed_multipart_upload)
-            .send()
-            .await
-            .context("Failed to complete multipart upload")?;
+        with_retry(|| async {
+            self.client
+                .complete_multipart_upload()
+                .bucket(&self.bucket)
+                .key(&self.key)
+                .upload_id(&self.upload_id)
+                .multipart_upload(completed_multipart_upload.clone())
+                .send()
+                .await
+                .context("Failed to complete multipart upload")
+        }).await?;
 
         Ok(())
     }
 }
 
 async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) -> Result<Vec<String>> {
-    let resp = client
-        .list_objects_v2()
-        .bucket(&s3_path.bucket)
-        .prefix(&s3_path.prefix)
-        .send()
-        .await
-        .context("Failed to list S3 objects")?;
+    let resp = with_retry(|| async {
+        client
+            .list_objects_v2()
+            .bucket(&s3_path.bucket)
+            .prefix(&s3_path.prefix)
+            .send()
+            .await
+            .context("Failed to list S3 objects")
+    }).await?;
 
     let files: Vec<String> = resp
         .contents()
@@ -229,13 +255,15 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
 async fn download_and_parse_file(client: &Client, file_path: &str) -> Result<Vec<(u32, u32, u32, u32)>> {
     let s3_path = S3Path::from_path(file_path)?;
 
-    let resp = client
-        .get_object()
-        .bucket(&s3_path.bucket)
-        .key(&s3_path.prefix)
-        .send()
-        .await
-        .context("Failed to download S3 object")?;
+    let resp = with_retry(|| async {
+        client
+            .get_object()
+            .bucket(&s3_path.bucket)
+            .key(&s3_path.prefix)
+            .send()
+            .await
+            .context("Failed to download S3 object")
+    }).await?;
 
     let body = resp.body.collect().await?.into_bytes();
     let mut reader = Cursor::new(body);
