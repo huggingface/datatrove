@@ -63,44 +63,22 @@ impl UnionFind {
         }
     }
 
-    fn find_parent(&self, x: (u32, u32)) -> (u32, u32) {
-        let mut current = x;
-        while let Some(&parent) = self.union_set.get(&current) {
-            if parent == current {
-                break;
-            }
-            current = parent;
-        }
-        current
-    }
-
-    fn parent(&mut self, x: (u32, u32)) -> (u32, u32) {
-        if !self.union_set.contains_key(&x) {
+    fn find_parent(&mut self, x: (u32, u32)) -> (u32, u32) {
+        if !self.union_set.contains_key(&x) || self.union_set.get(&x) == Some(&x) {
             self.union_set.insert(x, x);
             return x;
         }
 
-        let mut current = x;
-        let mut path = Vec::new();
-
-        while let Some(&parent) = self.union_set.get(&current) {
-            if parent == current {
-                break;
-            }
-            path.push(current);
-            current = parent;
-        }
-
-        for node in path {
-            self.union_set.insert(node, current);
-        }
-
-        current
+        // Get parent and recurse
+        let parent = *self.union_set.get(&x).unwrap();
+        let root = self.find_parent(parent);
+        self.union_set.insert(x, root);
+        root
     }
 
     fn union(&mut self, v_a: (u32, u32), v_b: (u32, u32)) {
-        let mut root_a = self.parent(v_a);
-        let mut root_b = self.parent(v_b);
+        let mut root_a = self.find_parent(v_a);
+        let mut root_b = self.find_parent(v_b);
 
         if root_a == root_b {
             return;
@@ -278,7 +256,7 @@ async fn download_and_parse_file(client: &Client, file_path: &str) -> Result<Vec
 async fn process_post_union(
     client: &Client,
     output_path: &S3Path,
-    union_find: &UnionFind,
+    union_find: &mut UnionFind,
 ) -> Result<(usize, usize)> {
     let mut to_remove = 0;
     let mut clusters = 0;
@@ -361,9 +339,19 @@ async fn process_post_union(
     pb.finish_with_message("Output writing complete");
 
     // Finalize all writers
+    let num_writers = writers.len();
+    println!("Finalizing {} output files...", num_writers);
+    let pb = ProgressBar::new(num_writers as u64);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+        .unwrap()
+        .progress_chars("#>-"));
+
     for (_, writer) in writers {
         writer.finalize().await?;
+        pb.inc(1);
     }
+    pb.finish_with_message("All files finalized");
 
     Ok((to_remove, clusters))
 }
@@ -414,12 +402,12 @@ async fn main() -> Result<()> {
     }
     pb.finish_with_message("File processing complete");
 
-    let union_find = match Arc::try_unwrap(union_find) {
+    let mut union_find = match Arc::try_unwrap(union_find) {
         Ok(mutex) => mutex.into_inner().unwrap(),
         Err(_) => panic!("Failed to unwrap Arc, some references still exist"),
     };
 
-    let (to_remove, clusters) = process_post_union(&client, &output_path, &union_find).await?;
+    let (to_remove, clusters) = process_post_union(&client, &output_path, &mut union_find).await?;
 
     println!("Processing complete:");
     println!("  Total clusters: {}", clusters);
