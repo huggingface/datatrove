@@ -13,6 +13,15 @@ use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
 use std::time::Duration;
 use tokio::sync::Semaphore;
+use std::time::Duration;
+
+fn format_duration(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    let hours = secs / 3600;
+    let minutes = (secs % 3600) / 60;
+    let seconds = secs % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+}
 
 async fn with_retry<F, Fut, T>(f: F) -> Result<T>
 where
@@ -366,7 +375,21 @@ async fn process_post_union(
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
-    pb.enable_steady_tick(std::time::Duration::from_secs(1));
+
+    tokio::spawn(async move {
+        while !pb.is_finished() {
+            let elapsed = pb.elapsed(); // Time elapsed since progress bar creation
+            let eta = pb.eta();         // Estimated time remaining
+            eprintln!(
+                "Progress: {}/{} | Elapsed: {} | Remaining: {}",
+                pb.position(),
+                pb.length().unwrap_or(0),
+                format_duration(elapsed),
+                format_duration(eta)
+            );
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
 
     let mut handles = Vec::new();
     for file_number in files {
@@ -426,7 +449,22 @@ async fn main() -> Result<()> {
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
-    pb.enable_steady_tick(std::time::Duration::from_secs(1));
+//     pb.set_draw_target(ProgressDrawTarget::hidden()); // Disable the visual bar
+
+    tokio::spawn(async move {
+        while !pb.is_finished() {
+            let elapsed = pb.elapsed(); // Time elapsed since progress bar creation
+            let eta = pb.eta();         // Estimated time remaining
+            eprintln!(
+                "Progress: {}/{} | Elapsed: {} | Remaining: {}",
+                pb.position(),
+                pb.length().unwrap_or(0),
+                format_duration(elapsed),
+                format_duration(eta)
+            );
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
 
     let mut handles = Vec::new();
 
