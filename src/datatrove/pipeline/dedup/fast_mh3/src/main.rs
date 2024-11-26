@@ -45,7 +45,7 @@ struct Args {
     total_files: usize,
 
     /// Total number of concurrent downloads
-    #[arg(long, default_value = "-1")]
+    #[arg(long, default_value = "0")]
     downloads: usize,
 }
 
@@ -413,7 +413,7 @@ async fn main() -> Result<()> {
     let files = list_s3_files(&client, &input_path, args.total_files).await?;
 
     let union_find = UnionFind::new();
-    let semaphore = Arc::new(if args.downloads == -1 {
+    let semaphore = Arc::new(if args.downloads == 0 {
         Semaphore::new(args.total_files)  // Effectively unlimited
     } else {
         Semaphore::new(args.downloads as usize)
