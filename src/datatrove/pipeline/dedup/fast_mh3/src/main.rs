@@ -7,7 +7,7 @@ use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-use tokio::task;
+// use tokio::task;
 use std::sync::{Arc, Mutex};
 use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
@@ -408,7 +408,7 @@ async fn main() -> Result<()> {
         .unwrap()
         .progress_chars("#>-"));
 
-    let mut handles = Vec::new();
+//     let mut handles = Vec::new();
 
     for file_path in files {
         let client = client.clone();
