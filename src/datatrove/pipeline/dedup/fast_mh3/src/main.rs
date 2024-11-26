@@ -415,22 +415,30 @@ async fn main() -> Result<()> {
         let union_find = Arc::clone(&union_find);
         let pb = pb.clone();
 
-        let handle = task::spawn(async move {
-            let tuples = download_and_parse_file(&client, &file_path).await?;
-            let mut uf = union_find.lock().unwrap();
-            for (f1, d1, f2, d2) in tuples {
-                uf.union((f1, d1), (f2, d2));
-            }
-            pb.inc(1);
-            Ok::<(), anyhow::Error>(())
-        });
+        let tuples = download_and_parse_file(&client, &file_path).await?;
+        let mut uf = union_find.lock().unwrap();
+        for (f1, d1, f2, d2) in tuples {
+            uf.union((f1, d1), (f2, d2));
+        }
+        pb.inc(1);
+//
+//
+//         let handle = task::spawn(async move {
+//             let tuples = download_and_parse_file(&client, &file_path).await?;
+//             let mut uf = union_find.lock().unwrap();
+//             for (f1, d1, f2, d2) in tuples {
+//                 uf.union((f1, d1), (f2, d2));
+//             }
+//             pb.inc(1);
+//             Ok::<(), anyhow::Error>(())
+//         });
 
-        handles.push(handle);
+//         handles.push(handle);
     }
 
-    for handle in handles {
-        handle.await??;
-    }
+//     for handle in handles {
+//         handle.await??;
+//     }
     pb.finish_with_message("File processing complete");
 
     let mut union_find = match Arc::try_unwrap(union_find) {
