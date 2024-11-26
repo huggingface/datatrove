@@ -232,12 +232,15 @@ async fn list_s3_files(client: &Client, s3_path: &S3Path, total_files: usize) ->
             .context("Failed to list S3 objects")
     }).await?;
 
-    let files: Vec<String> = resp
+    let mut files: Vec<String> = resp
         .contents()
         .iter()
         .filter_map(|obj| obj.key()
             .map(|key| format!("s3://{}/{}", s3_path.bucket, key)))
         .collect();
+
+    // Sort files lexicographically
+    files.sort();
 
     if files.len() != total_files {
         anyhow::bail!(
