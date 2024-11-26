@@ -7,7 +7,7 @@ use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
-// use tokio::task;
+use tokio::task;
 use std::sync::{Arc, Mutex};
 use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
@@ -44,7 +44,7 @@ struct Args {
     total_files: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct S3Path {
     bucket: String,
     prefix: String,
@@ -287,102 +287,128 @@ async fn download_and_parse_file(client: &Client, file_path: &str) -> Result<Vec
 async fn process_post_union(
     client: &Client,
     output_path: &S3Path,
-    union_find: &mut UnionFind,
+    union_find: &UnionFind,
 ) -> Result<(usize, usize)> {
-    let mut to_remove = 0;
-    let mut clusters = 0;
-    const BUFFER_THRESHOLD: usize = 5 * 1024 * 1024; // 5MB
+    // Group docs by file number (just the doc IDs)
+    let mut nodes_by_file: HashMap<u32, Vec<u32>> = HashMap::new();
+    for &(file, doc) in union_find.union_set.keys() {
+        nodes_by_file.entry(file).or_default().push(doc);
+    }
 
-    let mut writers: HashMap<String, S3StreamWriter> = HashMap::new();
+    // Wrap our maps in Arc for shared read-only access
+    let union_set = Arc::new(union_find.union_set.clone());  // Clone happens only once
+    let sizes = Arc::new(union_find.set_size.clone());       // Clone happens only once
 
-    // Create sorted list of nodes
-    let mut nodes: Vec<(u32, u32)> = union_find.union_set.keys().cloned().collect();
-    nodes.sort();
-
-    println!("Writing output files...");
-    let pb = ProgressBar::new(nodes.len() as u64);
+    println!("Processing {} files in parallel...", nodes_by_file.len());
+    let pb = ProgressBar::new(union_find.union_set.len() as u64);
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
 
-    for node in nodes {
-        let (file, doc) = node;
-        let p = union_find.find_parent(node);
-        let size = *union_find.set_size.get(&p).unwrap_or(&1);
+    let mut handles = Vec::new();
+    for (file_number, docs) in nodes_by_file {
+        let client = client.clone();
+        let output_path = output_path.clone();
+        let union_set = Arc::clone(&union_set);  // Just clones the Arc, not the data
+        let sizes = Arc::clone(&sizes);          // Just clones the Arc, not the data
+        let pb = pb.clone();
+
+        let handle = task::spawn(async move {
+            process_single_file(
+                &client,
+                &output_path,
+                file_number,
+                docs,
+                &union_set,
+                &sizes,
+                &pb,
+            ).await
+        });
+        handles.push(handle);
+    }
+
+    let mut total_to_remove = 0;
+    let mut total_clusters = 0;
+
+    for handle in handles {
+        let (to_remove, clusters) = handle.await??;
+        total_to_remove += to_remove;
+        total_clusters += clusters;
+    }
+
+    pb.finish_with_message("Output writing complete");
+
+    Ok((total_to_remove, total_clusters))
+}
+
+async fn process_single_file(
+    client: &Client,
+    output_path: &S3Path,
+    file_number: u32,
+    docs: Vec<u32>,  // just the doc_ids for this file
+    union_set: &HashMap<(u32, u32), (u32, u32)>,
+    sizes: &HashMap<(u32, u32), usize>,
+    pb: &ProgressBar,
+) -> Result<(usize, usize)> {
+    let mut to_remove = 0;
+    let mut clusters = 0;
+    const BUFFER_THRESHOLD: usize = 5 * 1024 * 1024;
+
+    let mut sizes_writer = S3StreamWriter::new(
+        client,
+        &output_path.bucket,
+        &output_path.with_key(&format!("{:06}.sizes", file_number)),
+        BUFFER_THRESHOLD,
+    ).await?;
+
+    let mut remove_writer = S3StreamWriter::new(
+        client,
+        &output_path.bucket,
+        &output_path.with_key(&format!("{:06}.remove", file_number)),
+        BUFFER_THRESHOLD,
+    ).await?;
+
+    // Find root function
+    let find_root = |node: (u32, u32)| {
+        let mut current = node;
+        while let Some(&parent) = union_set.get(&current) {
+            if parent == current {
+                break;
+            }
+            current = parent;
+        }
+        current
+    };
+
+    for doc in docs {
+        let node = (file_number, doc);
+        let parent = find_root(node);
+        let size = *sizes.get(&parent).unwrap_or(&1);
 
         // Write sizes
-        let sizes_key = format!("{:06}.sizes", file);
-        if !writers.contains_key(&sizes_key) {
-            writers.insert(
-                sizes_key.clone(),
-                S3StreamWriter::new(
-                    client,
-                    &output_path.bucket,
-                    &output_path.with_key(&sizes_key),
-                    BUFFER_THRESHOLD,
-                )
-                .await?,
-            );
-        }
-
         let mut buffer = Vec::new();
         buffer.write_u32::<LittleEndian>(doc)?;
         buffer.write_u32::<LittleEndian>(size as u32)?;
-
-        if let Some(writer) = writers.get_mut(&sizes_key) {
-            writer.write(&buffer).await?;
-        }
+        sizes_writer.write(&buffer).await?;
 
         // Handle removal markers
-        if node != p {
-            let remove_key = format!("{:06}.remove", file);
-            if !writers.contains_key(&remove_key) {
-                writers.insert(
-                    remove_key.clone(),
-                    S3StreamWriter::new(
-                        client,
-                        &output_path.bucket,
-                        &output_path.with_key(&remove_key),
-                        BUFFER_THRESHOLD,
-                    )
-                    .await?,
-                );
-            }
-
+        if node != parent {
             let mut remove_buffer = Vec::new();
             remove_buffer.write_u32::<LittleEndian>(doc)?;
-
-            if let Some(writer) = writers.get_mut(&remove_key) {
-                writer.write(&remove_buffer).await?;
-            }
-
+            remove_writer.write(&remove_buffer).await?;
             to_remove += 1;
         }
 
-        if node == p {
+        if node == parent {
             clusters += 1;
         }
 
         pb.inc(1);
     }
 
-    pb.finish_with_message("Output writing complete");
-
-    // Finalize all writers
-    let num_writers = writers.len();
-    println!("Finalizing {} output files...", num_writers);
-    let pb = ProgressBar::new(num_writers as u64);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
-        .unwrap()
-        .progress_chars("#>-"));
-
-    for (_, writer) in writers {
-        writer.finalize().await?;
-        pb.inc(1);
-    }
-    pb.finish_with_message("All files finalized");
+    sizes_writer.finalize().await?;
+    remove_writer.finalize().await?;
 
     Ok((to_remove, clusters))
 }
