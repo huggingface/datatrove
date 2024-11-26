@@ -274,7 +274,7 @@ async fn process_single_file(
 
     // Collect all the data we need under one lock
     let nodes_data = {
-        let data = union_find.data.lock().unwrap();
+        let data = union_find.data;
 
         // Collect docs and their data
         let mut docs = data.union_set.keys()
@@ -366,6 +366,7 @@ async fn process_post_union(
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
+    pb.enable_steady_tick(std::time::Duration::from_secs(10));
 
     let mut handles = Vec::new();
     for file_number in files {
@@ -424,6 +425,7 @@ async fn main() -> Result<()> {
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
+    pb.enable_steady_tick(std::time::Duration::from_secs(10));
 
     let mut handles = Vec::new();
 
