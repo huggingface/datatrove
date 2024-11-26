@@ -265,39 +265,34 @@ async fn process_single_file(
     client: &Client,
     output_path: &S3Path,
     file_number: u32,
-    union_find: &UnionFind,
+    union_find: &Arc<UnionFindData>,
     pb: &ProgressBar,
 ) -> Result<(usize, usize)> {
     let mut to_remove = 0;
     let mut clusters = 0;
     const BUFFER_THRESHOLD: usize = 5 * 1024 * 1024;
 
-    // Collect all the data we need under one lock
     let nodes_data = {
-        let data = union_find.data;
-
-        // Collect docs and their data
-        let mut docs = data.union_set.keys()
+        let mut docs = union_find.union_set.keys()
             .filter(|(f, _)| *f == file_number)
             .map(|(_, d)| *d)
             .collect::<Vec<_>>();
         docs.sort_unstable();
 
-        // For each doc, collect its root and size
         docs.into_iter().map(|doc| {
             let node = (file_number, doc);
             let mut current = node;
-            while let Some(&parent) = data.union_set.get(&current) {
+            while let Some(&parent) = union_find.union_set.get(&current) {
                 if parent == current {
                     break;
                 }
                 current = parent;
             }
             let root = current;
-            let size = *data.set_size.get(&root).unwrap_or(&1);
+            let size = *union_find.set_size.get(&root).unwrap_or(&1);
             (doc, root, size)
         }).collect::<Vec<_>>()
-    };  // Lock is released here
+    };
 
     let mut sizes_writer = S3StreamWriter::new(
         client,
@@ -313,7 +308,6 @@ async fn process_single_file(
         BUFFER_THRESHOLD,
     ).await?;
 
-    // Process the collected data without holding the lock
     for (doc, root, size) in nodes_data {
         let node = (file_number, doc);
 
@@ -347,18 +341,24 @@ async fn process_single_file(
 async fn process_post_union(
     client: &Client,
     output_path: &S3Path,
-    union_find: &UnionFind,
+    union_find: UnionFind,  // Changed from &UnionFind to take ownership
 ) -> Result<(usize, usize)> {
-    // Get list of unique file numbers
     let data = union_find.data.lock().unwrap();
-    let files: Vec<_> = data.union_set.keys()
+    let mut files: Vec<_> = data.union_set.keys()
         .map(|(f, _)| *f)
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
-//     files.sort_unstable();
     let total_nodes = data.union_set.len();
     drop(data);
+
+    // Convert to immutable Arc
+    let union_find_data = Arc::new(Arc::try_unwrap(union_find.data)
+        .expect("All threads should be finished")
+        .into_inner()
+        .unwrap());
+
+    files.sort_unstable();
 
     println!("Processing {} files in parallel...", files.len());
     let pb = ProgressBar::new(total_nodes as u64);
@@ -372,7 +372,7 @@ async fn process_post_union(
     for file_number in files {
         let client = client.clone();
         let output_path = output_path.clone();
-        let union_find = Arc::clone(&union_find.data);
+        let union_find_data = Arc::clone(&union_find_data);
         let pb = pb.clone();
 
         let handle = task::spawn(async move {
@@ -380,7 +380,7 @@ async fn process_post_union(
                 &client,
                 &output_path,
                 file_number,
-                &UnionFind { data: union_find },
+                &union_find_data,
                 &pb,
             ).await
         });
@@ -417,8 +417,9 @@ async fn main() -> Result<()> {
     let semaphore = Arc::new(if args.downloads == 0 {
         Semaphore::new(args.total_files)  // Effectively unlimited
     } else {
-        Semaphore::new(args.downloads as usize)
+        Semaphore::new(args.downloads)
     });
+
     println!("Processing {} input files...", files.len());
     let pb = ProgressBar::new(files.len() as u64);
     pb.set_style(ProgressStyle::default_bar()
@@ -510,7 +511,7 @@ async fn main() -> Result<()> {
     }
     pb.finish_with_message("File processing complete");
 
-    let (to_remove, clusters) = process_post_union(&client, &output_path, &union_find).await?;
+    let (to_remove, clusters) = process_post_union(&client, &output_path, union_find).await?;
 
     println!("Processing complete:");
     println!("  Total clusters: {}", clusters);
