@@ -366,7 +366,7 @@ async fn process_post_union(
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
-    pb.enable_steady_tick(std::time::Duration::from_secs(10));
+    pb.enable_steady_tick(std::time::Duration::from_secs(1));
 
     let mut handles = Vec::new();
     for file_number in files {
@@ -426,7 +426,7 @@ async fn main() -> Result<()> {
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
-    pb.enable_steady_tick(std::time::Duration::from_secs(10));
+    pb.enable_steady_tick(std::time::Duration::from_secs(1));
 
     let mut handles = Vec::new();
 
