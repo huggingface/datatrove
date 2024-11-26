@@ -11,9 +11,8 @@ use tokio::task;
 use std::sync::{Arc, Mutex};
 use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
-use std::time::Duration;
+use tokio::time::{Duration, sleep};
 use tokio::sync::Semaphore;
-use std::time::Duration;
 
 fn format_duration(duration: Duration) -> String {
     let secs = duration.as_secs();
@@ -370,24 +369,27 @@ async fn process_post_union(
     files.sort_unstable();
 
     println!("Processing {} files in parallel...", files.len());
-    let pb = ProgressBar::new(total_nodes as u64);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
-        .unwrap()
-        .progress_chars("#>-"));
+    let pb = Arc::new(ProgressBar::new(total_nodes as u64));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
 
+    let pb_clone = Arc::clone(&pb);
     tokio::spawn(async move {
-        while !pb.is_finished() {
-            let elapsed = pb.elapsed(); // Time elapsed since progress bar creation
-            let eta = pb.eta();         // Estimated time remaining
+        while !pb_clone.is_finished() {
+            let elapsed = pb_clone.elapsed(); // Time elapsed since progress bar creation
+            let eta = pb_clone.eta();         // Estimated time remaining
             eprintln!(
                 "Progress: {}/{} | Elapsed: {} | Remaining: {}",
-                pb.position(),
-                pb.length().unwrap_or(0),
+                pb_clone.position(),
+                pb_clone.length().unwrap_or(0),
                 format_duration(elapsed),
                 format_duration(eta)
             );
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(5)).await;
         }
     });
 
@@ -444,28 +446,29 @@ async fn main() -> Result<()> {
     });
 
     println!("Processing {} input files...", files.len());
-    let pb = ProgressBar::new(files.len() as u64);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
-        .unwrap()
-        .progress_chars("#>-"));
-//     pb.set_draw_target(ProgressDrawTarget::hidden()); // Disable the visual bar
+    let pb = Arc::new(ProgressBar::new(files.len() as u64));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
 
+    let pb_clone = Arc::clone(&pb);
     tokio::spawn(async move {
-        while !pb.is_finished() {
-            let elapsed = pb.elapsed(); // Time elapsed since progress bar creation
-            let eta = pb.eta();         // Estimated time remaining
+        while !pb_clone.is_finished() {
+            let elapsed = pb_clone.elapsed(); // Time elapsed since progress bar creation
+            let eta = pb_clone.eta();         // Estimated time remaining
             eprintln!(
                 "Progress: {}/{} | Elapsed: {} | Remaining: {}",
-                pb.position(),
-                pb.length().unwrap_or(0),
+                pb_clone.position(),
+                pb_clone.length().unwrap_or(0),
                 format_duration(elapsed),
                 format_duration(eta)
             );
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(5)).await;
         }
     });
-
     let mut handles = Vec::new();
 
     for file_path in files {
