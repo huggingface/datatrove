@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::Write;
 use std::io::Cursor;
 use std::collections::HashMap;
 use anyhow::{Context, Result};
@@ -374,14 +372,6 @@ async fn process_post_union(
         .progress_chars("#>-"));
     pb.enable_steady_tick(std::time::Duration::from_secs(1));
 
-    // Create a custom draw target that writes to both stderr and the log file
-    pb.set_draw_target(indicatif::ProgressDrawTarget::custom(Box::new(
-        |s| {
-            std::io::stderr().write_all(s.as_bytes()).unwrap();
-            log_file.write_all(s.as_bytes()).unwrap();
-        },
-    )));
-
     let mut handles = Vec::new();
     for file_number in files {
         let client = client.clone();
@@ -434,9 +424,6 @@ async fn main() -> Result<()> {
         Semaphore::new(args.downloads)
     });
 
-    // Open the log file for writing
-    let mut log_file = File::create(&args.logspath)?;
-
     println!("Processing {} input files...", files.len());
     let pb = ProgressBar::new(files.len() as u64);
     pb.set_style(ProgressStyle::default_bar()
@@ -444,14 +431,6 @@ async fn main() -> Result<()> {
         .unwrap()
         .progress_chars("#>-"));
     pb.enable_steady_tick(std::time::Duration::from_secs(1));
-
-    // Create a custom draw target that writes to both stderr and the log file
-    pb.set_draw_target(indicatif::ProgressDrawTarget::custom(Box::new(
-        |s| {
-            std::io::stderr().write_all(s.as_bytes()).unwrap();
-            log_file.write_all(s.as_bytes()).unwrap();
-        },
-    )));
 
     let mut handles = Vec::new();
 
