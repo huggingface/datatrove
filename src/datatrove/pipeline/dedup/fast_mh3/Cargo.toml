@@ -25,3 +25,7 @@ tokio = { version = "1.33.0", features = ["full"] }
 
 # Retries
 tokio-retry = "0.3"
+
+[[bin]]
+name = "check"
+path = "src/check.rs"
