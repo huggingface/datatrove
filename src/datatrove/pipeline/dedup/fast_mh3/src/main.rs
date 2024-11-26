@@ -47,10 +47,6 @@ struct Args {
     /// Total number of concurrent downloads
     #[arg(long, default_value = "0")]
     downloads: usize,
-
-    /// Path to the log file for saving progress bar output
-    #[arg(long)]
-    logspath: String,
 }
 
 #[derive(Debug, Clone)]
