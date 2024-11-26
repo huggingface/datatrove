@@ -422,10 +422,7 @@ async fn main() -> Result<()> {
     });
 
     println!("Processing {} input files...", files.len());
-    let pb = ProgressBar::with_draw_target(
-        io::BufWriter::new(io::stdout()),
-        files.len() as u64,
-    );
+    let pb = ProgressBar::new(files.len() as u64);
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
