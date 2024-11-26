@@ -367,6 +367,7 @@ async fn process_post_union(
         .unwrap()
         .progress_chars("#>-"));
     pb.enable_steady_tick(std::time::Duration::from_secs(1));
+    pb.set_draw_target(indicatif::ProgressDrawTarget::stderr());
 
     let mut handles = Vec::new();
     for file_number in files {
@@ -421,12 +422,16 @@ async fn main() -> Result<()> {
     });
 
     println!("Processing {} input files...", files.len());
-    let pb = ProgressBar::new(files.len() as u64);
+    let pb = ProgressBar::with_draw_target(
+        io::BufWriter::new(io::stdout()),
+        files.len() as u64,
+    );
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
     pb.enable_steady_tick(std::time::Duration::from_secs(1));
+    pb.set_draw_target(indicatif::ProgressDrawTarget::stderr());
 
     let mut handles = Vec::new();
 
