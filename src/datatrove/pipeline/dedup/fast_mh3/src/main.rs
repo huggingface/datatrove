@@ -6,9 +6,9 @@ use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 use tokio::task;
 use std::sync::{Arc, Mutex};
-use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -61,6 +61,17 @@ impl UnionFind {
             union_set: HashMap::new(),
             set_size: HashMap::new(),
         }
+    }
+
+    fn find_parent(&self, x: (u32, u32)) -> (u32, u32) {
+        let mut current = x;
+        while let Some(&parent) = self.union_set.get(&current) {
+            if parent == current {
+                break;
+            }
+            current = parent;
+        }
+        current
     }
 
     fn parent(&mut self, x: (u32, u32)) -> (u32, u32) {
@@ -278,6 +289,7 @@ async fn process_post_union(
     // Create sorted list of nodes
     let mut nodes: Vec<(u32, u32)> = union_find.union_set.keys().cloned().collect();
     nodes.sort();
+
     println!("Writing output files...");
     let pb = ProgressBar::new(nodes.len() as u64);
     pb.set_style(ProgressStyle::default_bar()
@@ -287,17 +299,7 @@ async fn process_post_union(
 
     for node in nodes {
         let (file, doc) = node;
-        let p = {
-            let mut current = node;
-            while let Some(&parent) = union_find.union_set.get(&current) {
-                if parent == current {
-                    break;
-                }
-                current = parent;
-            }
-            current
-        };
-
+        let p = union_find.find_parent(node);
         let size = *union_find.set_size.get(&p).unwrap_or(&1);
 
         // Write sizes
@@ -352,8 +354,10 @@ async fn process_post_union(
         if node == p {
             clusters += 1;
         }
+
         pb.inc(1);
     }
+
     pb.finish_with_message("Output writing complete");
 
     // Finalize all writers
@@ -378,14 +382,14 @@ async fn main() -> Result<()> {
 
     let union_find = Arc::new(Mutex::new(UnionFind::new()));
 
-    let mut handles = Vec::new();
-
     println!("Processing {} input files...", files.len());
     let pb = ProgressBar::new(files.len() as u64);
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
         .unwrap()
         .progress_chars("#>-"));
+
+    let mut handles = Vec::new();
 
     for file_path in files {
         let client = client.clone();
