@@ -439,7 +439,7 @@ async fn process_post_union(
         .progress_chars("#>-"));
 
     // Create semaphore for concurrency control
-    let semaphore = Arc::new(Semaphore::new(remove_files.len());
+    let semaphore = Arc::new(Semaphore::new(remove_files.len()));
     let mut handles = Vec::new();
 
     // Process files in parallel
