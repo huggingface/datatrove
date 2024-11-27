@@ -28,7 +28,7 @@ where
     Fut: std::future::Future<Output = Result<T>>,
 {
     let retry_strategy = ExponentialBackoff::from_millis(1000)
-        .max_delay(Duration::from_secs(30))
+        .max_delay(Duration::from_secs(300))
         .map(jitter)
         .take(3);
 
@@ -393,6 +393,10 @@ async fn process_post_union(
         }
     });
 
+
+    let semaphore = Arc::new(Semaphore::new(100));
+
+
     let mut handles = Vec::new();
     for file_number in files {
         let client = client.clone();
@@ -401,6 +405,7 @@ async fn process_post_union(
         let pb = pb.clone();
 
         let handle = task::spawn(async move {
+            let _permit = semaphore.acquire().await?;
             process_single_file(
                 &client,
                 &output_path,
