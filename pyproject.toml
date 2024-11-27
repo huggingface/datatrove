@@ -80,6 +80,7 @@ multilingual = [
     "khmer-nltk", # khmer
     "laonlp", # lao
     "botok", # tibetan languages,
+    "pyidaungsu-numpy2", # burmese
 ]
 quality = [
   "ruff>=0.1.5"
