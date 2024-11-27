@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache, partial
 from typing import Callable, Iterator
 
+import regex
 from loguru import logger
 
 from datatrove.utils._import_utils import ASSETS_PATH, check_required_dependencies
@@ -362,9 +363,16 @@ class WhitespaceTokenizer(WordTokenizer):
 
     def __init__(self):
         super().__init__()
+        # should not split on acronyms "(?:\p{{Lu}}\.)"
+        self._sent_regex = regex.compile(
+            rf"(?:(?:\p{{Lu}}\.)|.)+?[{re.escape(''.join(TERMINAL_PUNCTUATION))}\n]+[\"'”]?", regex.UNICODE
+        )
+
+    @property
+    @lru_cache(1)
+    def _spacy_xx(self):
         # works generally well for white spaces, but does not work to split sentences with a different script
-        self._spacy_xx = SpaCyTokenizer("xx")
-        self._sent_regex = re.compile(rf".+?[{re.escape(''.join(TERMINAL_PUNCTUATION))}\n]+[\"'”]?")
+        return SpaCyTokenizer("xx")
 
     def word_tokenize(self, text) -> list[str]:
         return self._spacy_xx.word_tokenize(text)
@@ -376,6 +384,19 @@ class WhitespaceTokenizer(WordTokenizer):
     def span_tokenize(self, text: str) -> list[tuple[int, int]]:
         sents = self.sent_tokenize(text)
         return list(simple_span_tokenize(text, sents))
+
+
+class BurmeseTokenizer(WhitespaceTokenizer):
+    def __init__(self):
+        super().__init__()
+        check_required_dependencies("burmese word tokenizer", [("pyidaungsu", "pyidaungsu-numpy2")])
+        self._wt = None
+
+    def word_tokenize(self, text: str) -> list[str]:
+        import pyidaungsu as pds
+
+        tokens = pds.tokenize(text, form="word")
+        return strip_strings(tokens)
 
 
 """
@@ -403,6 +424,8 @@ def load_tokenizer_assignments() -> dict[str, Callable[[], WordTokenizer]]:
             tok_class = LaoTokenizer
         elif class_name == "TibetanTokenizer":
             tok_class = TibetanTokenizer
+        elif class_name == "BurmeseTokenizer":
+            tok_class = BurmeseTokenizer
         elif class_name == "WhitespaceTokenizer":
             tok_class = WhitespaceTokenizer
         else:
