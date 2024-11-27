@@ -574,8 +574,8 @@ class MinhashBuildIndex(PipelineStep):
         lines_to_buffer: int = 5,
     ):
         super().__init__()
-        self.input_folder = input_folder
-        self.output_folder = output_folder
+        self.input_folder = get_datafolder(input_folder)
+        self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer
