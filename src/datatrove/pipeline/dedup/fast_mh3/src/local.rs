@@ -8,16 +8,16 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 use tokio::task;
 use std::sync::{Arc, Mutex};
-use tokio::time::{Duration, sleep};
+// use tokio::time::{Duration, sleep};
 use tokio::sync::Semaphore;
 
-fn format_duration(duration: Duration) -> String {
-    let secs = duration.as_secs();
-    let hours = secs / 3600;
-    let minutes = (secs % 3600) / 60;
-    let seconds = secs % 60;
-    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
-}
+// fn format_duration(duration: Duration) -> String {
+//     let secs = duration.as_secs();
+//     let hours = secs / 3600;
+//     let minutes = (secs % 3600) / 60;
+//     let seconds = secs % 60;
+//     format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+// }
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -191,21 +191,21 @@ async fn process_post_union(
             .progress_chars("#>-"),
     );
 
-    let pb_clone = Arc::clone(&pb);
-    tokio::spawn(async move {
-        while !pb_clone.is_finished() {
-            let elapsed = pb_clone.elapsed();
-            let eta = pb_clone.eta();
-            eprintln!(
-                "Progress: {}/{} | Elapsed: {} | Remaining: {}",
-                pb_clone.position(),
-                pb_clone.length().unwrap_or(0),
-                format_duration(elapsed),
-                format_duration(eta)
-            );
-            sleep(Duration::from_secs(5)).await;
-        }
-    });
+//     let pb_clone = Arc::clone(&pb);
+//     tokio::spawn(async move {
+//         while !pb_clone.is_finished() {
+//             let elapsed = pb_clone.elapsed();
+//             let eta = pb_clone.eta();
+// //             eprintln!(
+//                 "Progress: {}/{} | Elapsed: {} | Remaining: {}",
+//                 pb_clone.position(),
+//                 pb_clone.length().unwrap_or(0),
+//                 format_duration(elapsed),
+//                 format_duration(eta)
+//             );
+//             sleep(Duration::from_secs(5)).await;
+//         }
+//     });
 
     let semaphore = Arc::new(Semaphore::new(100));
     let mut handles = Vec::new();
@@ -267,21 +267,21 @@ async fn main() -> Result<()> {
             .progress_chars("#>-"),
     );
 
-    let pb_clone = Arc::clone(&pb);
-    tokio::spawn(async move {
-        while !pb_clone.is_finished() {
-            let elapsed = pb_clone.elapsed();
-            let eta = pb_clone.eta();
-            eprintln!(
-                "Progress: {}/{} | Elapsed: {} | Remaining: {}",
-                pb_clone.position(),
-                pb_clone.length().unwrap_or(0),
-                format_duration(elapsed),
-                format_duration(eta)
-            );
-            sleep(Duration::from_secs(5)).await;
-        }
-    });
+//     let pb_clone = Arc::clone(&pb);
+//     tokio::spawn(async move {
+//         while !pb_clone.is_finished() {
+//             let elapsed = pb_clone.elapsed();
+//             let eta = pb_clone.eta();
+//             eprintln!(
+//                 "Progress: {}/{} | Elapsed: {} | Remaining: {}",
+//                 pb_clone.position(),
+//                 pb_clone.length().unwrap_or(0),
+//                 format_duration(elapsed),
+//                 format_duration(eta)
+//             );
+//             sleep(Duration::from_secs(5)).await;
+//         }
+//     });
 
     let mut handles = Vec::new();
 
