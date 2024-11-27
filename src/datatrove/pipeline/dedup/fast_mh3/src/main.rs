@@ -403,6 +403,7 @@ async fn process_post_union(
         let output_path = output_path.clone();
         let union_find_data = Arc::clone(&union_find_data);
         let pb = pb.clone();
+        let semaphore = Arc::clone(&semaphore);
 
         let handle = task::spawn(async move {
             let _permit = semaphore.acquire().await?;
