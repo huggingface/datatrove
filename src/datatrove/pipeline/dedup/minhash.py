@@ -571,6 +571,13 @@ class MinhashDedupFilter(PipelineStep):
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
+        if not self.data_folder.isfile(f"{rank:06d}.remove"):
+            logger.warning(f"No .remove file for {rank=}.")
+            for doc in data:
+                self.stat_update(StatHints.total, StatHints.forwarded)
+                yield doc
+            return
+
         # additional metadata files
         # cluster ids
         if self.load_cluster_ids and not self.data_folder.exists(f"{rank:06d}.clusters"):
@@ -581,12 +588,6 @@ class MinhashDedupFilter(PipelineStep):
             logger.warning(f"No .sizes file for {rank=}.")
             raise FileNotFoundError
 
-        if not self.data_folder.isfile(f"{rank:06d}.remove"):
-            logger.warning(f"No .remove file for {rank=}.")
-            for doc in data:
-                self.stat_update(StatHints.total, StatHints.forwarded)
-                yield doc
-            return
         with self.data_folder.open(f"{rank:06d}.remove", "rb") as f:
             with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
 
