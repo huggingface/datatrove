@@ -438,7 +438,6 @@ def load_tokenizer_assignments() -> dict[str, Callable[[], WordTokenizer]]:
     word_tokenizer_factories = {}
     with open(os.path.join(ASSETS_PATH, "tokenizer_assignment.csv")) as f:
         reader = csv.DictReader(f)
-        next(reader)  # skip header
         for row in reader:
             code_3, code_1, script, tok_class_name, tok_code, default_script, default_code_1 = (
                 row["code_3"],
