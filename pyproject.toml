@@ -41,7 +41,7 @@ io = [
   "pyarrow",
   "python-magic",
   "warcio",
-  "datasets>=2.18.0",
+  "datasets>=3.1.0",
   "orjson",
   "zstandard"
 ]
