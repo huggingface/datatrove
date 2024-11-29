@@ -187,7 +187,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
                     for rank_to_run in range(*ranks_to_run_range)
                     if rank_to_run < len(all_ranks)
                 ]
-                ctx = multiprocessing.get_context("spawn")
+                ctx = multiprocessing.get_context("forkserver")
                 with ctx.Pool(self.tasks_per_job) as pool:
                     _ = list(
                         pool.imap_unordered(
