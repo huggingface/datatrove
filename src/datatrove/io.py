@@ -162,7 +162,7 @@ class DataFolder(DirFileSystem):
             ]
         )
 
-    def get_shard(self, rank: int, world_size: int, **kwargs) -> list[str]:
+    def get_shard(self, rank: int, world_size: int, **kwargs) -> list[str] | None:
         """Fetch a shard (set of files) for a given rank, assuming there are a total of `world_size` shards.
         This should be deterministic to not have any overlap among different ranks.
         Will return files [rank, rank+world_size, rank+2*world_size, ...]
@@ -175,7 +175,10 @@ class DataFolder(DirFileSystem):
         Returns: a list of file paths
 
         """
-        return self.list_files(**kwargs)[rank::world_size]
+        all_files = self.list_files(**kwargs)
+        if len(all_files) == 0:
+            return None
+        return all_files[rank::world_size]
 
     def resolve_paths(self, paths) -> list[str] | str:
         """
