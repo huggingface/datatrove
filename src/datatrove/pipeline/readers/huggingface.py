@@ -76,7 +76,20 @@ class HuggingFaceDatasetReader(BaseReader):
                     f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
                 )
                 return None
-            ex_iterable = dst._ex_iterable.shard_data_sources(rank, world_size)
+            
+            # https://github.com/huggingface/datatrove/issues/308
+            # huggingface/datasets@65f6eb5#diff-edc4da5f2179552e25f4f3dc9d6bf07265b68bbef048a8f712e798520a23d048L103
+            # Order of the arguments to shard_data_sources function in datasets lib changed. Make sure current version of the datasets is up-to-date.
+            import inspect
+            ex_iterable = dst._ex_iterable.shard_data_sources(world_size, rank)
+            arg_names = inspect.signature(dst._ex_iterable.shard_data_sources).parameters
+
+            # Assert that the first argument is not "worker_id"
+            assert list(arg_names.keys())[0]!= "worker_id", "The first argument to shard_data_sources cannot be named 'worker_id'. Make sure datasets version is up-to-date"
+            # Assert that the second argument is not "num_workers"
+            assert list(arg_names.keys())[1]!= "num_workers", "The second argument to shard_data_sources cannot be named 'num_workers'. Make sure datasets version is up-to-date"
+
+            ex_iterable = dst._ex_iterable.shard_data_sources(world_size, rank)
             return IterableDataset(
                 ex_iterable=ex_iterable,
                 info=dst._info.copy(),
@@ -96,7 +109,7 @@ class HuggingFaceDatasetReader(BaseReader):
         if data:
             yield from data
         ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
-
+    
         if self.shuffle_files:
             if not self.streaming:
                 ds = ds.shuffle(seed=42)
