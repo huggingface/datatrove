@@ -3,9 +3,8 @@ import numpy as np
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.text import PUNCTUATION_SET
+from datatrove.utils.text import PUNCTUATION_SET, split_into_words
 from datatrove.utils.typeshelper import Languages
-from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 STOP_WORDS = ["the", "be", "to", "of", "and", "that", "have", "with"]
@@ -57,7 +56,7 @@ class GopherQualityFilter(BaseFilter):
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio  # TODO rename to min_alpha_words_ratio
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
-        self.tokenizer = load_word_tokenizer(language)
+        self.language = language
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
@@ -70,7 +69,7 @@ class GopherQualityFilter(BaseFilter):
 
         """
         text = doc.text
-        words = self.tokenizer.word_tokenize(text)
+        words = split_into_words(text, self.language)
         n_words = len(words)
 
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]

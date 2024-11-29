@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import tee
 from typing import Iterable
 
@@ -269,9 +270,12 @@ def ngrams(sequence: Iterable, n: int):
 SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
 SPLIT_TEXT_SENTENCES = "SENTENCE"
 SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
+SPLIT_TEXT_WORDS = "WORDS"
 
 
+@lru_cache(5)
 def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
+    print(f"splitting [{text[:20]}]", mode)
     from datatrove.utils.word_tokenizers import load_word_tokenizer
 
     if mode == SPLIT_TEXT_DOCUMENTS:
@@ -280,6 +284,9 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
         tokenizer = load_word_tokenizer(language)
         spans = [b for _, b in tokenizer.span_tokenize(text)]
         return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
+    elif mode == SPLIT_TEXT_WORDS:
+        tokenizer = load_word_tokenizer(language)
+        return tokenizer.word_tokenize(text)
     elif mode == SPLIT_TEXT_PARAGRAPHS:
         # merge whitespace with prev line
         og_lines = text.splitlines()
@@ -297,3 +304,15 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
         return lines
     else:
         raise ValueError(f"Unknown {mode=}")
+
+
+def split_into_words(text, language=Languages.english):
+    return split_into_parts(text, mode=SPLIT_TEXT_WORDS, language=language)
+
+
+def split_into_sentences(text, language=Languages.english):
+    return split_into_parts(text, mode=SPLIT_TEXT_SENTENCES, language=language)
+
+
+def split_into_paragraphs(text, language=Languages.english):
+    return split_into_parts(text, mode=SPLIT_TEXT_PARAGRAPHS, language=language)

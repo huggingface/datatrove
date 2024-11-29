@@ -1,8 +1,8 @@
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.text import split_into_words
 from datatrove.utils.typeshelper import Languages
-from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 class FineWebQualityFilter(BaseFilter):
@@ -28,7 +28,7 @@ class FineWebQualityFilter(BaseFilter):
         self.short_line_length = short_line_length
         self.char_duplicates_ratio = char_duplicates_ratio
         self.new_line_ratio = new_line_ratio
-        self.tokenizer = load_word_tokenizer(language)
+        self.language = language
 
     def filter(self, doc) -> bool | tuple[bool, str]:
         lines = doc.text.split("\n")
@@ -48,7 +48,7 @@ class FineWebQualityFilter(BaseFilter):
         if ratio > self.char_duplicates_ratio:
             return False, "char_dup_ratio"
 
-        words = self.tokenizer.word_tokenize(doc.text)
+        words = split_into_words(doc.text, self.language)
         new_line = doc.text.count("\n")
         if new_line / len(words) > self.new_line_ratio:
             return False, "list_ratio"
