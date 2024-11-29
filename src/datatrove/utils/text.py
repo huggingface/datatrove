@@ -275,7 +275,6 @@ SPLIT_TEXT_WORDS = "WORDS"
 
 @lru_cache(5)
 def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
-    print(f"splitting [{text[:20]}]", mode)
     from datatrove.utils.word_tokenizers import load_word_tokenizer
 
     if mode == SPLIT_TEXT_DOCUMENTS:
