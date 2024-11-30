@@ -5,6 +5,40 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
+def parquet_fix(document: dict) -> dict:
+    """
+    You can create your own adapter that returns a dictionary in your preferred format,
+    while addressing the Parquet issue with empty struct fields.
+
+    Args:
+        document: document to format
+
+    Returns: a dictionary to write to disk
+    """
+
+    def ensure_non_empty_structs(data):
+        """
+        Recursively ensure that any dictionary which would correspond to an empty struct
+        in Parquet has a dummy field added.
+        """
+        for key, value in data.items():
+            if isinstance(value, dict):
+                # Recursively fix nested dictionaries
+                data[key] = ensure_non_empty_structs(value)
+                # Add a dummy field if the dictionary is empty
+                if not data[key]:
+                    data[key] = {"__dummy_field": None}
+        return data
+
+    data = {key: val for key, val in document.items() if val}
+
+    # if self.expand_metadata and "metadata" in data:
+    #     data |= data.pop("metadata")
+
+    # Fix empty structs in the dictionary
+    return ensure_non_empty_structs(data)
+
+
 class ParquetWriter(DiskWriter):
     default_output_filename: str = "${rank}.parquet"
     name = "📒 Parquet"
@@ -67,6 +101,8 @@ class ParquetWriter(DiskWriter):
     def _write(self, document: dict, file_handler: IO, filename: str):
         import pyarrow as pa
         import pyarrow.parquet as pq
+
+        document = parquet_fix(document)
 
         if filename not in self._writers:
             self._writers[filename] = pq.ParquetWriter(
