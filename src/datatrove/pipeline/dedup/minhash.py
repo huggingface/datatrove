@@ -474,15 +474,17 @@ class MinhashDedupCluster(PipelineStep):
                     file, doc = node
                     p = parent(node)
                     if node != p:
-                        output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
-                        self.stat_update("to_remove")
+                        if file != SENTINEL:
+                            output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
+                            self.stat_update("to_remove")
                     if self.save_cluster_id:
                         if p not in cluster_ids:
                             cluster_ids[p] = ci
                             ci += 1
                             self.stat_update("clusters")
-                        output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
-                        output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
+                        if file != SENTINEL:
+                            output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
+                            output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
 
 
 class MinhashDedupFilter(PipelineStep):
