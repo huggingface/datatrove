@@ -35,6 +35,52 @@ probability of inclusion for s=0.8: 1-(1-0.8^8)^14=0.924
 SENTINEL = (1 << 32) - 1
 
 
+def affine_61(a, b, x):
+    """Computes the affine transform mod mersenne prime: (a*x + b) % (2^61 - 1)
+
+    Args:
+        a: int in range [0, (1<<61) - 1)
+        b: int in range [0, (1<<61) - 1)
+        x: int in range [0, (1<<61) - 1)
+    """
+    # This expects 64-bit uints less than (1<<P)-1
+    P = 61  # Mersenne prime exponent
+    H = 32  # Half Width
+    Pm = (1 << P) - 1
+    Hm = (1 << H) - 1
+
+    # Split multiplicands into low and high bits.
+    # a1, x1 in range [0, 2^32-1)
+    # a2, x2 in range [0, 2^29-1)
+    a1, a2 = a & Hm, a >> H
+    x1, x2 = x & Hm, x >> H
+
+    # ret = (p11 + p12 + p22 + b) % Pm
+    # p11 = a1 * x1
+    #     ~ a1 * x1 % Pm
+    # p12 = (a2 * x1 + x2 * a1)*(1<<32)
+    #     ~ (a2 * x1 + x2 * a1)*(1<<32) % Pm
+    # p22 = a2*x2*(1<<64)
+    #     ~ (a2*x2 % Pm) * ((1<<64) % Pm)
+    #     ~ (a2*x2*8) % Pm
+
+    # Multiply low bits with low bits (No uint overflow)
+    # Take modulus Pm (and add b-term here due to broadcasting reason)
+    p11 = a1 * x1
+    ret = b + (p11 & Pm) + (p11 >> P)
+
+    # Multiply low bits with high bits
+    # Take "modulus" Pm accounting for 32-bit shift.
+    p12 = a1 * x2 + a2 * x1
+    ret += ((p12 << H) & Pm) + (p12 >> (P - H))
+
+    # Multiply high bits with high bits
+    p22 = a2 * x2
+    # Take "modulus" Pm accounting for 64-bit shift.
+    ret += ((p22 << 3) & Pm) + (p22 >> (P - 3))
+    return ret % Pm
+
+
 @dataclass
 class MinhashConfig:
     """Configuration for Min-Hash deduplication
@@ -170,7 +216,7 @@ class MinhashDedupSignature(PipelineStep):
             list (num buckets) of lists of integers (hashes)
         """
         a, b = self.parameters
-        phv = (shingles * a + b) % _mersenne_prime
+        phv = affine_61(a, b, shingles)
         if self.config.hash_config.precision == 32:
             phv = np.bitwise_and(phv, self.config.hash_config.max)
         return [
