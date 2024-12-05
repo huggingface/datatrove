@@ -9,6 +9,7 @@ from typing import Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
+from tqdm import tqdm
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -492,6 +493,7 @@ class MinhashDedupCluster(PipelineStep):
         save_cluster_id: bool = False,
         ignore_index_matches: bool = False,
         lines_to_buffer: int = 5,
+        show_progress: bool = True,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -517,7 +519,7 @@ class MinhashDedupCluster(PipelineStep):
             return union_set[x]
 
         with self.track_time():
-            for dup_file in dup_files:
+            for dup_file in tqdm(dup_files, desc="Reading duplicates", disable=not self.show_progress):
                 with self.input_folder.open(dup_file, "rb") as dupf:
                     for f1, d1, f2, d2 in read_tuples_from_file(dupf, "4I", lines_to_buffer=self.lines_to_buffer):
                         a, b = (f1, d1), (f2, d2)
@@ -529,7 +531,11 @@ class MinhashDedupCluster(PipelineStep):
             ci = 0
             cluster_ids = {}
             with self.output_folder.get_output_file_manager(mode="wb") as output_mg:
-                for node in sorted(union_set.keys()):
+                for node in tqdm(
+                    sorted(union_set.keys()),
+                    desc="Writing clusters",
+                    disable=not self.show_progress,
+                ):
                     self.stat_update("duplicates")
                     file, doc = node
                     p = parent(node)
