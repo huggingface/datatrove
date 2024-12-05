@@ -313,6 +313,7 @@ class MinhashDedupBuckets(PipelineStep):
         only_dedup_in_index: bool = True,
         create_index_name: str = None,
         lines_to_buffer: int = 5,
+        show_progress: bool = True,
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -322,6 +323,7 @@ class MinhashDedupBuckets(PipelineStep):
         self.only_dedup_in_index = only_dedup_in_index
         self.create_index_name = create_index_name
         self.lines_to_buffer = lines_to_buffer
+        self.show_progress = show_progress
 
     def get_worker_hash_range(self, sig_files, rank, world_size):
         workers_per_bucket = world_size // self.config.num_buckets
@@ -427,6 +429,10 @@ class MinhashDedupBuckets(PipelineStep):
                     mode="wb",
                 )
 
+            pbar = tqdm(
+                desc=f"RANK: {rank} - Processing signatures",
+                disable=not self.show_progress,
+            )
             with self.output_folder.open(f"{bucket:05d}_{bucket_worker:02d}.dups", mode="wb") as out_f:
                 last: HashSig | None = None
                 while pq:
@@ -472,6 +478,7 @@ class MinhashDedupBuckets(PipelineStep):
                     if next_sig:
                         assert next_sig >= v, f"Next sig sort error. {next_sig=} < {v=}"
                         heapq.heappush(pq, next_sig)
+                    pbar.update(1)
                 if out_index:
                     out_index.close()
 
@@ -502,6 +509,7 @@ class MinhashDedupCluster(PipelineStep):
         self.save_cluster_id = save_cluster_id
         self.ignore_index_matches = ignore_index_matches
         self.lines_to_buffer = lines_to_buffer
+        self.show_progress = show_progress
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(glob_pattern="*.dups")
