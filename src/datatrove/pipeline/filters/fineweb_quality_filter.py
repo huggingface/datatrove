@@ -1,7 +1,7 @@
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.text import split_into_words
+from datatrove.utils.text import TERMINAL_PUNCTUATION, split_into_words
 from datatrove.utils.typeshelper import Languages
 
 
@@ -13,7 +13,7 @@ class FineWebQualityFilter(BaseFilter):
         exclusion_writer: DiskWriter = None,
         line_punct_thr: float = 0.12,
         line_punct_exclude_zero: bool = False,
-        stop_chars: tuple[str] = (".", "'", '"', "!", "?"),
+        stop_chars: tuple[str] | None = None,
         short_line_thr: float = 0.67,
         short_line_length: int = 30,
         char_duplicates_ratio: float = 0.01,
@@ -23,7 +23,7 @@ class FineWebQualityFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.line_punct_thr = line_punct_thr
         self.line_punct_exclude_zero = line_punct_exclude_zero
-        self.stop_chars = stop_chars
+        self.stop_chars = stop_chars if stop_chars is not None else tuple(TERMINAL_PUNCTUATION)
         self.short_line_threshold = short_line_thr
         self.short_line_length = short_line_length
         self.char_duplicates_ratio = char_duplicates_ratio
