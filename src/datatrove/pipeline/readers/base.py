@@ -224,11 +224,12 @@ class BaseDiskReader(BaseReader):
             if not self.paths_file
             else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
         )
-        if len(files_shard) == 0:
-            if rank == 0:
-                raise RuntimeError(f"No files found on {self.data_folder.path}!")
+        if files_shard is None:
+            raise RuntimeError(f"No files found on {self.data_folder.path}!")
+        elif len(files_shard) == 0:
             # otherwise just a warning
             logger.warning(f"No files found on {self.data_folder.path} for {rank=}")
+
         if self.shuffle_files:
             random.shuffle(files_shard)
         for doc in self.read_files_shard(files_shard):

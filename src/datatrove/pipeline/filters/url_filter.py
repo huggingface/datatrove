@@ -81,20 +81,18 @@ class URLFilter(BaseFilter):
         if self._downloaded or not self.use_integrated_lists:
             return
         download_dir = cached_assets_path(library_name="datatrove", namespace="filters", subfolder="url_filter")
-        file_to_lock = os.path.join(download_dir, "url_filterblacklists.tar.gz")
+        file_to_lock = os.path.join(download_dir, "url_filterblacklistsv0_3_0.tar.gz")
 
         def do_extract():
             logger.info("💥 Extracting url filter blacklists...")
-            with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklists.tar.gz"), "r:gz") as tar:
+            with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklistsv0_3_0.tar.gz"), "r:gz") as tar:
                 tar.extractall(download_dir)
             logger.info("💥 Extracted url filter blacklists.")
 
         safely_create_file(file_to_lock, do_extract)
 
-        self.block_listed_domains = get_list(
-            download_dir, "adult/domains", self.block_listed_domains, do_normalize=False
-        )
-        self.block_listed_url = get_list(download_dir, "adult/urls", self.block_listed_url, do_normalize=False)
+        self.block_listed_domains = get_list(download_dir, "domains", self.block_listed_domains, do_normalize=False)
+        self.block_listed_url = get_list(download_dir, "urls", self.block_listed_url, do_normalize=False)
         self.banned_words = get_list(ASSETS_PATH, "banned_words.txt", self.banned_words)
         self.banned_subwords = get_list(ASSETS_PATH, "banned_subwords.txt", self.banned_subwords)
         self.soft_banned_words = get_list(ASSETS_PATH, "soft_banned_words.txt", self.soft_banned_words)

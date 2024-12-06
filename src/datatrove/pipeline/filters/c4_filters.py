@@ -7,8 +7,8 @@ from datatrove.data import Document
 from datatrove.io import cached_asset_path_or_download
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.text import split_into_sentences
 from datatrove.utils.typeshelper import Languages
-from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 CITATION_REGEX = re.compile(r"\[\d*]|\[edit]|\[citation needed]")
@@ -83,10 +83,10 @@ class C4QualityFilter(BaseFilter):
         self.filter_javascript = filter_javascript
         self.filter_curly_bracket = filter_curly_bracket
         self.filter_policy = filter_policy
-        self.tokenizer = load_word_tokenizer(language)
+        self.language = language
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        lines = doc.text.splitlines() if self.split_paragraph else self.tokenizer.sent_tokenize(doc.text)
+        lines = doc.text.splitlines() if self.split_paragraph else split_into_sentences(doc.text, self.language)
 
         num_sentences = 0
         kept_lines = []
@@ -126,7 +126,7 @@ class C4QualityFilter(BaseFilter):
                 self.stat_update("line-filter-policy")
                 continue
             if self.min_num_sentences != -1:
-                num_sentences += len(self.tokenizer.sent_tokenize(line)) if self.split_paragraph else 1
+                num_sentences += len(split_into_sentences(line, self.language)) if self.split_paragraph else 1
             kept_lines.append(line)
             self.stat_update("line-kept")
         if num_sentences < self.min_num_sentences:
