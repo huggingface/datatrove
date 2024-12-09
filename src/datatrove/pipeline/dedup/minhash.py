@@ -370,10 +370,11 @@ class MinhashDedupBuckets(PipelineStep):
 
         with self.track_time():
             sig_files = self.input_folder.list_files(subdirectory=f"bucket_{bucket:03d}")
+            logger.info(f"RANK: {rank} - Found {len(sig_files)} signature file(s): {', '.join(sig_files)}")
             hash_min, hash_max = self.get_worker_hash_range(sig_files, rank, world_size)
 
             logger.info(
-                f"Running worker {bucket_worker + 1}/{workers_per_bucket} on bucket {bucket:03d}. "
+                f"RANK: {rank} - Running worker {bucket_worker + 1}/{workers_per_bucket} on bucket {bucket:03d}. "
                 f"Hash range: {[hash_min, hash_max]}"
             )
 
@@ -386,7 +387,12 @@ class MinhashDedupBuckets(PipelineStep):
                     max_hash=hash_max,
                     lines_to_buffer=self.lines_to_buffer,
                 )
-                for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
+                for file_i, file in enumerate(
+                    tqdm(
+                        self.input_folder.open_files(sig_files, mode="rb"),
+                        desc=f"RANK: {rank} - Reading signatures",
+                    )
+                )
             ]
 
             own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
@@ -413,11 +419,17 @@ class MinhashDedupBuckets(PipelineStep):
                             max_hash=hash_max,
                             lines_to_buffer=self.lines_to_buffer,
                         )
-                        for file_i, file in enumerate(self.index_folder.open_files(index_files, mode="rb"))
+                        for file_i, file in enumerate(
+                            tqdm(
+                                self.index_folder.open_files(index_files, mode="rb"),
+                                desc=f"RANK: {rank} - Reading index",
+                            )
+                        )
                     ]
                 )
 
             pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
+            logger.info("Initialized signatures priority queue.")
             heapq.heapify(pq)
             logger.info("Finished initializing signatures priority queue.")
 
