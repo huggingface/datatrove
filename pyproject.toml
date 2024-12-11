@@ -50,9 +50,10 @@ s3 = [
 ]
 processing = [
     "fasttext-wheel",
+    "brotlipy",
     "nltk",
     "inscriptis",
-#   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+    "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
     "trafilatura>=1.8.0,<1.12.0",
     "justext",

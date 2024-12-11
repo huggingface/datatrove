@@ -32,6 +32,20 @@ class ReadabiliPy(BaseExtractor):
         self.node_indexes = node_indexes
         self.kwargs = kwargs
 
+    def clean_html(self, html: str) -> str:
+        """
+
+        Args:
+          html: str: html content
+
+        Returns: cleaned HTML
+        """
+        from readabilipy import simple_tree_from_html_string    
+
+        result = simple_tree_from_html_string(html)
+        return str(result)
+
+
     def extract(self, text: str) -> str:
         """
         Args:
@@ -39,17 +53,12 @@ class ReadabiliPy(BaseExtractor):
 
         Returns: plaintext extracted text
         """
-        from readabilipy import simple_json_from_html_string
+        from readabilipy.simple_json import plain_content, extract_text_blocks_as_plain_text
 
-        result = simple_json_from_html_string(
-            text,
-            use_readability=self.use_readability,
-            content_digests=self.content_digests,
-            node_indexes=self.node_indexes,
-            **self.kwargs,
-        )
+        cleaned_html = self.clean_html(text)
 
-        content = result.get("plain_text", "")
+        pl_content = plain_content(cleaned_html, self.content_digests, self.node_indexes)
+        content = extract_text_blocks_as_plain_text(pl_content)
 
         if isinstance(content, list):
             content = "\n\n".join(block["text"] for block in content)
