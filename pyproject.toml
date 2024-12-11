@@ -49,6 +49,7 @@ s3 = [
   "s3fs>=2023.12.2",
 ]
 processing = [
+    "brotlipy",
     "fasttext-numpy2-wheel",
     "brotlipy",
     "nltk",
