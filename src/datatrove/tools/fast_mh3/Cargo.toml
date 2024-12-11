@@ -1,0 +1,35 @@
+[package]
+name = "s3_union_find"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# AWS SDK
+aws-config = { version = "1.1.1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.1.1"
+
+# CLI argument parsing
+clap = { version = "4.4.2", features = ["derive"] }
+
+# Error handling
+anyhow = "1.0.75"
+
+# Byte reading/writing
+byteorder = "1.5.0"
+
+# Progress bars
+indicatif = "0.17.7"
+
+# Async runtime and utilities
+tokio = { version = "1.33.0", features = ["full"] }
+
+# Retries
+tokio-retry = "0.3"
+
+[[bin]]
+name = "s3"
+path = "src/s3_union_find.rs"
+
+[[bin]]
+name = "local"
+path = "src/local_union_find.rs"

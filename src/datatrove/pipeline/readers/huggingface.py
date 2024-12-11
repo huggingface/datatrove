@@ -56,10 +56,10 @@ class HuggingFaceDatasetReader(BaseReader):
         self.streaming = streaming
         self.shuffle_files = shuffle_files
 
-    def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
-        document = super().get_document_from_dict(data, source, id_in_file)
+    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
+        document = super().get_document_from_dict(data, source_file, id_in_file)
         if document:
-            document.metadata.setdefault("dataset", source)
+            document.metadata.setdefault("dataset", source_file)
         return document
 
     def _get_dataset_shard(self, dst, rank: int, world_size: int):
@@ -76,7 +76,7 @@ class HuggingFaceDatasetReader(BaseReader):
                     f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
                 )
                 return None
-            ex_iterable = dst._ex_iterable.shard_data_sources(rank, world_size)
+            ex_iterable = dst._ex_iterable.shard_data_sources(index=rank, num_shards=world_size, contiguous=False)
             return IterableDataset(
                 ex_iterable=ex_iterable,
                 info=dst._info.copy(),

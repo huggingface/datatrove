@@ -1,0 +1,2178 @@
+code_3,code_1,script,name,family,type,tok_code,proxy,auto_assigned,default_code_1,default_script
+aai,,Latn,Arifama-Miniafia,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+aak,,Latn,Ankave,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aau,,Latn,Abau,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aaz,,Latn,Amarasi,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+aba,,Latn,Abé,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+abi,,Latn,Abidji,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+abk,ab,Cyrl,Abkhazian,Abkhaz-Adyghe,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+abn,,Latn,Abua,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+abq,,Cyrl,Abaza,Abkhaz-Adyghe,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+abs,,Latn,Ambonese Malay,Creole,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+abt,,Latn,Ambulas,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+abx,,Latn,Inabaknon,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+aby,,Latn,Aneme Wake,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+abz,,Latn,Abui,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aca,,Latn,Achagua,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+acd,,Latn,Gikyode,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ace,,Arab,Achinese,Austronesian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+ace,,Latn,Achinese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+acf,,Latn,Saint Lucian Creole French,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ach,,Latn,Acoli,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+acm,ar,Arab,Mesopotamian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+acn,,Latn,Achang,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+acr,,Latn,Achi,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+acu,,Latn,Achuar-Shiwiar,Jivaroan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ada,,Latn,Adangme,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ade,,Latn,Adele,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+adh,,Latn,Adhola,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+adi,,Latn,Adi,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+adj,,Latn,Adioukrou,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+adl,,Latn,Galo,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ady,,Cyrl,Adyghe,Abkhaz-Adyghe,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+adz,,Latn,Adzera,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+aeb,ar,Arab,Tunisian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+aer,,Latn,Eastern Arrernte,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aeu,,Latn,Akeu,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aey,,Latn,Amele,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+afr,af,Latn,Afrikaans,Indo-European,SpaCyTokenizer,af,FALSE,FALSE,TRUE,TRUE
+agd,,Latn,Agarabi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+agg,,Latn,Angor,Senagi,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+agm,,Latn,Angaataha,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+agn,,Latn,Agutaynen,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+agr,,Latn,Aguaruna,Jivaroan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+agt,,Latn,Central Cagayan Agta,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+agu,,Latn,Aguacateco,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+agw,,Latn,Kahua,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+agx,,Cyrl,Aghul,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aha,,Latn,Ahanta,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ahk,,Latn,Akha,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aia,,Latn,Arosi,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+aii,,Syrc,Assyrian Neo-Aramaic,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+aim,,Latn,Aimol,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ain,,Latn,Ainu (Japan),Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ajg,,Latn,Aja (Benin),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+aji,,Latn,Ajië,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ajp,ar,Arab,,,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+ajz,,Latn,Amri Karbi,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aka,ak,Latn,Akan,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+akb,,Latn,Batak Angkola,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ake,,Latn,Akawaio,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+akh,,Latn,Angal Heneng,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+akp,,Latn,Siwu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ald,,Latn,Alladian,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+alj,,Latn,Alangan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+aln,sq,Latn,Gheg Albanian,Indo-European,SpaCyTokenizer,sq,FALSE,FALSE,FALSE,TRUE
+alp,,Latn,Alune,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+alq,,Latn,Algonquin,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+als,sq,Latn,Tosk Albanian,Indo-European,SpaCyTokenizer,sq,FALSE,FALSE,TRUE,TRUE
+alt,,Cyrl,Southern Altai,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aly,,Latn,Alyawarr,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+alz,,Latn,Alur,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ame,,Latn,Yanesha',Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amf,,Latn,Hamer-Banna,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amh,am,Ethi,Amharic,Afro-Asiatic,SpaCyTokenizer,am,FALSE,FALSE,TRUE,TRUE
+ami,,Latn,Amis,Austronesian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amk,,Latn,Ambai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+amm,,Latn,Ama (Papua New Guinea),Arai (Left May),SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amn,,Latn,Amanab,Border,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amp,,Latn,Alamblak,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amr,,Latn,Amarakaeri,Harákmbut,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amu,,Latn,Guerrero Amuzgo,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+amx,,Latn,Anmatyerre,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ang,,Latn,Old English (ca. 450-1100),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+anm,,Latn,Anal,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ann,,Latn,Obolo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+anp,,Deva,Angika,Indo-European,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+anv,,Latn,Denya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+any,,Latn,Anyin,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+aoi,,Latn,Anindilyakwa,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aoj,,Latn,Mufian,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aom,,Latn,Ömie,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aoz,,Latn,Uab Meto,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+apb,,Latn,Sa'a,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+apc,ar,Arab,Levantine Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+ape,,Latn,Bukiyip,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+apn,,Latn,Apinayé,Jean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+apr,,Latn,Arop-Lokep,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+apt,,Latn,Apatani,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+apu,,Latn,Apurinã,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+apw,,Latn,Western Apache,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+apy,,Latn,Apalaí,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+apz,,Latn,Safeyoka,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aqz,,Latn,Akuntsu,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ara,ar,Arab,Arabic,,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+ara,ar,Latn,Arabic,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+arb,ar,Arab,Standard Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,TRUE,TRUE
+arb,ar,Latn,Standard Arabic,Afro-Asiatic,StanzaTokenizer,mt,TRUE,TRUE,TRUE,FALSE
+are,,Latn,Western Arrarnta,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+arg,an,Latn,Aragonese,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,TRUE,TRUE
+arl,,Latn,Arabela,Zaparoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+arn,,Latn,Mapudungun,Mapudungu,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+arp,,Latn,Arapaho,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+arq,ar,Arab,Algerian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+arr,,Latn,Karo (Brazil),Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ars,ar,Arab,Najdi Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+ary,ar,Arab,Moroccan Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+arz,ar,Arab,Egyptian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+asg,,Latn,Cishingini,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+asm,as,Beng,Assamese,Indo-European,IndicNLPTokenizer,as,FALSE,FALSE,TRUE,TRUE
+asm,as,Latn,Assamese,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+aso,,Latn,Dano,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ast,,Latn,Asturian,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,FALSE,TRUE
+ata,,Latn,Pele-Ata,Yele-West New Britain,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+atb,,Latn,Zaiwa,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+atd,,Latn,Ata Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+atg,,Latn,Ivbie North-Okpela-Arhe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ati,,Latn,Attié,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+atj,,Latn,Atikamekw,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+atq,,Latn,Aralle-Tabulahan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+att,,Latn,Pamplona Atta,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+auc,,Latn,Waorani,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aui,,Latn,Anuki,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+auy,,Latn,Awiyaana,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ava,av,Cyrl,Avaric,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+avk,,Latn,Kotava,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+avn,,Latn,Avatime,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+avt,,Latn,Au,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+avu,,Latn,Avokaya,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+awa,,Deva,Awadhi,Indo-European,IndicNLPTokenizer,ne,TRUE,TRUE,FALSE,TRUE
+awb,,Latn,Awa (Papua New Guinea),Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+awi,,Latn,Aekyom,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+awx,,Latn,Awara,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+aym,ay,Latn,Aymara,,SpaCyTokenizer,az,TRUE,TRUE,FALSE,TRUE
+ayo,,Latn,Ayoreo,Zamucoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ayp,ar,Arab,North Mesopotamian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+ayr,ay,Latn,Central Aymara,Aymaran,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+azb,az,Arab,South Azerbaijani,Turkic,SpaCyTokenizer,fa,TRUE,FALSE,FALSE,TRUE
+aze,az,Arab,Azerbaijani,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+aze,az,Cyrl,Azerbaijani,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+aze,az,Latn,Azerbaijani,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+azg,,Latn,San Pedro Amuzgos Amuzgo,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+azj,az,Cyrl,North Azerbaijani,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+azj,az,Latn,North Azerbaijani,Turkic,SpaCyTokenizer,az,FALSE,FALSE,TRUE,TRUE
+azz,,Latn,Highland Puebla Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bak,ba,Cyrl,Bashkir,Turkic,SpaCyTokenizer,tt,TRUE,TRUE,TRUE,TRUE
+bal,,Arab,Baluchi,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+bam,bm,Latn,Bambara,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+ban,,Latn,Balinese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bao,,Latn,Waimaha,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bar,,Latn,Bavarian,Indo-European,SpaCyTokenizer,de,TRUE,TRUE,FALSE,TRUE
+bas,,Latn,Basa (Cameroon),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bav,,Latn,Vengo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bba,,Latn,Baatonum,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bbb,,Latn,Barai,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bbc,,Latn,Batak Toba,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bbj,,Latn,Ghomálá',Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bbk,,Latn,Babanki,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bbo,,Latn,Northern Bobo Madaré,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bbr,,Latn,Girawa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bcc,,Arab,Southern Balochi,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+bch,,Latn,Bariai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bci,,Latn,Baoulé,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bcl,,Latn,Central Bikol,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+bco,,Latn,Kaluli,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bcw,,Latn,Bana,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bdd,,Latn,Bunama,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bdh,,Latn,Baka (South Sudan),Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bdq,,Latn,Bahnar,Austro-Asiatic,SpaCyTokenizer,vi,TRUE,TRUE,FALSE,TRUE
+bea,,Latn,Beaver,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bef,,Latn,Benabena,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bel,be,Cyrl,Belarusian,Indo-European,StanzaTokenizer,be,FALSE,FALSE,TRUE,TRUE
+bem,,Latn,Bemba (Zambia),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ben,bn,Beng,Bengali,Indo-European,IndicNLPTokenizer,bn,FALSE,FALSE,TRUE,TRUE
+ben,bn,Latn,Bengali,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+beq,,Latn,Beembe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bew,,Latn,Betawi,Creole,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bex,,Latn,Jur Modo,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bfd,,Latn,Bafut,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bfo,,Latn,Malba Birifor,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bgr,,Latn,Bawm Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bgs,,Latn,Tagabawa,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+bgt,,Latn,Bughotu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bgz,,Latn,Banggai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bhg,,Latn,Binandere,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bhl,,Latn,Bimin,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bho,,Deva,Bhojpuri,Indo-European,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+bhp,,Latn,Bima,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bhw,,Latn,Biak,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bhz,,Latn,Bada (Indonesia),Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bib,,Latn,Bissa,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+big,,Latn,Biangai,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bik,,Latn,Bikol,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bim,,Latn,Bimoba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bin,,Latn,Bini,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bis,bi,Latn,Bislama,Creole,StanzaTokenizer,pcm,TRUE,TRUE,TRUE,TRUE
+biu,,Latn,Biete,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+biv,,Latn,Southern Birifor,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bjn,ms,Arab,Banjar,Austronesian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+bjn,ms,Latn,Banjar,Austronesian,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+bjp,,Latn,Fanamaket,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bjr,,Latn,Binumarien,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bjv,,Latn,Bedjond,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bkd,,Latn,Binukid,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+bkl,,Latn,Berik,Tor-Kwerba,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bkq,,Latn,Bakairí,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bku,,Latn,Buhid,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+bkv,,Latn,Bekwarra,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bla,,Latn,Siksika,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+blh,,Latn,Kuwaa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+blk,,Mymr,Pa'o Karen,Sino-Tibetan,BurmeseTokenizer,,TRUE,TRUE,FALSE,TRUE
+blt,,Latn,Tai Dam,Kra-Dai,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+blw,,Latn,Balangao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+blz,,Latn,Balantak,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bmh,,Latn,Kein,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bmk,,Latn,Ghayavi,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bmq,,Latn,Bomu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bmr,,Latn,Muinane,Witotoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bmu,,Latn,Somba-Siawari,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bmv,,Latn,Bum,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bnc,,Latn,Bontok,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bnj,,Latn,Eastern Tawbuid,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+bno,,Latn,Bantoanon,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+bnp,,Latn,Bola,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+boa,,Latn,Bora,Witotoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bod,bo,Tibt,Tibetan,Sino-Tibetan,TibetanTokenizer,,FALSE,FALSE,TRUE,TRUE
+boj,,Latn,Anjam,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bom,,Latn,Berom,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bon,,Latn,Bine,Eastern Trans-Fly,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bor,,Latn,Borôro,Bororoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bos,bs,Latn,Bosnian,Indo-European,SpaCyTokenizer,sr,FALSE,FALSE,TRUE,TRUE
+bov,,Latn,Tuwuli,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+box,,Latn,Buamu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bpr,,Latn,Koronadal Blaan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bps,,Latn,Sarangani Blaan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bpy,,Beng,Bishnupriya,Indo-European,IndicNLPTokenizer,bn,TRUE,TRUE,FALSE,TRUE
+bqc,,Latn,Boko (Benin),Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bqj,,Latn,Bandial,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+bqp,,Latn,Busa,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bre,br,Latn,Breton,Indo-European,StanzaTokenizer,cy,TRUE,TRUE,TRUE,TRUE
+brh,,Arab,Brahui,Dravidian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+bru,,Latn,Eastern Bru,Austro-Asiatic,SpaCyTokenizer,vi,TRUE,TRUE,FALSE,TRUE
+brx,,Deva,Bodo (India),Sino-Tibetan,IndicNLPTokenizer,hi,FALSE,FALSE,FALSE,FALSE
+brx,,Latn,Bodo (India),Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bsc,,Latn,Bassari,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+bsn,,Latn,Barasana-Eduria,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bsp,,Latn,Baga Sitemu,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+bsq,,Latn,Bassa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bss,,Latn,Akoose,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+btd,,Latn,Batak Dairi,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bth,,Latn,Biatah Bidayuh,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bts,,Latn,Batak Simalungun,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+btt,,Latn,Bete-Bendi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+btx,,Latn,Batak Karo,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bua,,Cyrl,Buriat,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bud,,Latn,Ntcham,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bug,,Latn,Buginese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+buk,,Latn,Bugawac,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bul,bg,Cyrl,Bulgarian,Indo-European,SpaCyTokenizer,bg,FALSE,FALSE,TRUE,TRUE
+bum,,Latn,Bulu (Cameroon),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bus,,Latn,Bokobaru,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bvc,,Latn,Baelelea,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bvd,,Latn,Baeggu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bvr,,Latn,Burarra,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bvz,,Latn,Bauzi,East Geelvink Bay,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bwd,,Latn,Bwaidoka,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bwi,,Latn,Baniwa,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bwq,,Latn,Southern Bobo Madaré,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bwu,,Latn,Buli (Ghana),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+bxh,,Latn,Buhutu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bxr,,Cyrl,Russia Buriat,Mongolic,StanzaTokenizer,bxr,FALSE,FALSE,FALSE,TRUE
+byr,,Latn,Baruya,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+byv,,Latn,Medumba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+byx,,Latn,Qaqet,East New Britain,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bzd,,Latn,Bribri,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+bzh,,Latn,Mapos Buang,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+bzi,,Thai,Bisu,Sino-Tibetan,ThaiTokenizer,,TRUE,TRUE,FALSE,TRUE
+bzj,,Latn,Belize Kriol English,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+caa,,Latn,Chortí,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cab,,Latn,Garifuna,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cac,,Latn,Chuj,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+caf,,Latn,Southern Carrier,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cag,,Latn,Nivaclé,Matacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cak,,Latn,Kaqchikel,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cao,,Latn,Chácobo,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cap,,Latn,Chipaya,Chipaya-Uru,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+caq,,Latn,Car Nicobarese,Austro-Asiatic,SpaCyTokenizer,vi,TRUE,TRUE,FALSE,TRUE
+car,,Latn,Galibi Carib,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cas,,Latn,Tsimané,Mosetenan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cat,ca,Latn,Catalan,Indo-European,SpaCyTokenizer,ca,FALSE,FALSE,TRUE,TRUE
+cav,,Latn,Cavineña,Tacanan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cax,,Latn,Chiquitano,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbc,,Latn,Carapana,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbi,,Latn,Chachi,Barbacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbk,,Latn,Chavacano,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbr,,Latn,Cashibo-Cacataibo,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbs,,Latn,Cashinahua,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbt,,Latn,Chayahuita,Cahuapanan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbu,,Latn,Candoshi-Shapra,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cbv,,Latn,Cacua,Puinavean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cce,,Latn,Chopi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+cco,,Latn,Comaltepec Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ccp,,Latn,Chakma,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+cdf,,Latn,Chiru,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ceb,,Latn,Cebuano,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+ceg,,Latn,Chamacoco,Zamucoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cek,,Latn,Eastern Khumi Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ces,cs,Latn,Czech,Indo-European,SpaCyTokenizer,cs,FALSE,FALSE,TRUE,TRUE
+cfm,,Latn,Falam Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cgc,,Latn,Kagayanen,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+cgg,,Latn,Chiga,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+cha,ch,Latn,Chamorro,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+chd,,Latn,Highland Oaxaca Chontal,Tequistlatecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+che,ce,Cyrl,Chechen,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+chf,,Latn,Tabasco Chontal,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+chj,,Latn,Ojitlán Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+chk,,Latn,Chuukese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+chm,,Cyrl,Mari (Russia),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cho,,Latn,Choctaw,Muskogean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+chq,,Latn,Quiotepec Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+chr,,Cher,Cherokee,Iroquoian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+chr,,Latn,Cherokee,Iroquoian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+chu,cu,Cyrl,Church Slavic,Indo-European,StanzaTokenizer,cu,FALSE,FALSE,TRUE,TRUE
+chv,cv,Cyrl,Chuvash,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+chw,,Latn,Chuwabu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+chz,,Latn,Ozumacín Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cjk,,Latn,Chokwe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+cjo,,Latn,Ashéninka Pajonal,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cjp,,Latn,Cabécar,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cjs,,Cyrl,Shor,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cjv,,Latn,Chuave,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ckb,ku,Arab,Central Kurdish,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,TRUE,TRUE
+ckm,,Latn,Chakavian,Indo-European,SpaCyTokenizer,sr,TRUE,TRUE,FALSE,TRUE
+cko,,Latn,Anufo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ckt,,Cyrl,Chukot,Chukotko-Kamchatkan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cle,,Latn,Lealao Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+clu,,Latn,Caluyanun,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+cly,,Latn,Eastern Highland Chatino,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cme,,Latn,Cerma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+cmn,zh,Hani,Mandarin Chinese,Sino-Tibetan,SpaCyTokenizer,zh,FALSE,FALSE,TRUE,TRUE
+cmo,,Khmr,Central Mnong,Austro-Asiatic,KhmerTokenizer,,FALSE,FALSE,FALSE,FALSE
+cmo,,Latn,Central Mnong,Austro-Asiatic,SpaCyTokenizer,vi,TRUE,TRUE,FALSE,TRUE
+cmr,,Latn,Mro-Khimi Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cnh,,Latn,Hakha Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cni,,Latn,Asháninka,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cnk,,Latn,Khumi Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cnl,,Latn,Lalana Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cnr,sh,Latn,Montenegrin,Indo-European,SpaCyTokenizer,sr,FALSE,FALSE,TRUE,TRUE
+cnt,,Latn,Tepetotutla Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cnw,,Latn,Ngawn Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+coe,,Latn,Koreguaje,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cof,,Latn,Colorado,Barbacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cok,,Latn,Santa Teresa Cora,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+con,,Latn,Cofán,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cop,,Copt,Coptic,Afro-Asiatic,StanzaTokenizer,cop,FALSE,FALSE,FALSE,TRUE
+cor,kw,Latn,Cornish,Indo-European,StanzaTokenizer,cy,TRUE,TRUE,TRUE,TRUE
+cos,co,Latn,Corsican,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,TRUE,TRUE
+cot,,Latn,Caquinte,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cou,,Latn,Wamey,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+cpa,,Latn,Palantla Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cpb,,Latn,Ucayali-Yurúa Ashéninka,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cpc,,Latn,Ajyíninka Apurucayali,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cpu,,Latn,Pichis Ashéninka,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cpy,,Latn,South Ucayali Ashéninka,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cre,cr,Cans,Cree,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+cre,cr,Latn,Cree,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+crh,,Cyrl,Crimean Tatar,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+crh,,Latn,Crimean Tatar,Turkic,SpaCyTokenizer,tr,TRUE,TRUE,FALSE,TRUE
+cri,,Latn,Sãotomense,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+crj,cr,Cans,Southern East Cree,Algic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+crk,cr,Cans,Plains Cree,Algic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+crk,cr,Latn,Plains Cree,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+crl,cr,Cans,Northern East Cree,Algic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+crm,cr,Cans,Moose Cree,Algic,WhitespaceTokenizer,,TRUE,TRUE,TRUE,TRUE
+crn,,Latn,El Nayar Cora,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+crs,,Latn,Seselwa Creole French,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+crt,,Latn,Iyojwa'ja Chorote,Matacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+crx,,Latn,Carrier,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+csb,,Latn,Kashubian,Indo-European,SpaCyTokenizer,pl,TRUE,TRUE,FALSE,TRUE
+csk,,Latn,Jola-Kasa,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+cso,,Latn,Sochiapam Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+csw,cr,Latn,Swampy Cree,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+csy,,Latn,Siyin Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cta,,Latn,Tataltepec Chatino,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ctd,,Latn,Tedim Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cto,,Latn,Emberá-Catío,Chocoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ctp,,Latn,Western Highland Chatino,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ctu,,Latn,Chol,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cub,,Latn,Cubeo,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cuc,,Latn,Usila Chinantec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cui,,Latn,Cuiba,Guajiboan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cuk,,Latn,San Blas Kuna,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cul,,Latn,Culina,Arauan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cut,,Latn,Teutila Cuicatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cux,,Latn,Tepeuxila Cuicatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cwd,cr,Cans,Woods Cree,Algic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+cwe,,Latn,Kwere,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+cwt,,Latn,Kuwaataay,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+cya,,Latn,Nopala Chatino,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+cym,cy,Latn,Welsh,Indo-European,StanzaTokenizer,cy,FALSE,FALSE,TRUE,TRUE
+czt,,Latn,Zotung Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+daa,,Latn,Dangaléat,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dad,,Latn,Marik,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+daf,,Latn,,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dag,,Latn,Dagbani,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dah,,Latn,Gwahatike,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dak,,Latn,Dakota,Siouan-Catawban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dan,da,Latn,Danish,Indo-European,SpaCyTokenizer,da,FALSE,FALSE,TRUE,TRUE
+dar,,Cyrl,Dargwa,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dbq,,Latn,Daba,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ddg,,Latn,Fataluku,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ddn,,Latn,Dendi (Benin),Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ded,,Latn,Dedua,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+des,,Latn,Desano,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+deu,de,Latn,German,Indo-European,SpaCyTokenizer,de,FALSE,FALSE,TRUE,TRUE
+dga,,Latn,Southern Dagaare,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dgc,,Latn,Casiguran Dumagat Agta,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+dgi,,Latn,Northern Dagara,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dgr,,Latn,Tlicho,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dgz,,Latn,Daga,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dhg,,Latn,Dhangu-Djangu,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dhm,,Latn,Zemba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dhv,,Latn,Dehu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+did,,Latn,Didinga,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dig,,Latn,Digo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dik,,Latn,Southwestern Dinka,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+din,,Latn,Dinka,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dip,,Latn,Northeastern Dinka,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+diq,,Latn,Dimli (individual language),Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+dis,,Latn,Dimasa,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+diu,,Latn,Diriku,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+div,dv,Thaa,Dhivehi,Indo-European,WhitespaceTokenizer,,TRUE,TRUE,TRUE,TRUE
+dje,,Latn,Zarma,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+djk,,Latn,Eastern Maroon Creole,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+djr,,Latn,Djambarrpuyngu,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dks,,Latn,Southeastern Dinka,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dln,,Latn,Darlong,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dng,,Cyrl,Dungan,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dnj,,Latn,Dan,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dnw,,Latn,Western Dani,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dob,,Latn,Dobu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+doi,,Deva,Dogri (macrolanguage),,WhitespaceTokenizer,,FALSE,FALSE,FALSE,TRUE
+dop,,Latn,Lukpa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dos,,Latn,Dogosé,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dow,,Latn,Doyayo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+drg,,Latn,Rungus,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+dru,,Latn,Rukai,Austronesian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dsb,,Latn,Lower Sorbian,Indo-European,SpaCyTokenizer,dsb,FALSE,FALSE,FALSE,TRUE
+dsh,,Latn,Daasanach,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dtb,,Latn,Labuk-Kinabatangan Kadazan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+dtp,,Latn,Kadazan Dusun,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+dts,,Latn,Toro So Dogon,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dty,ne,Deva,Dotyali,Indo-European,IndicNLPTokenizer,ne,FALSE,FALSE,FALSE,TRUE
+dua,,Latn,Duala,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+due,,Latn,Umiray Dumaget Agta,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+dug,,Latn,Duruma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+duo,,Latn,Dupaninan Agta,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+dur,,Latn,Dii,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dwr,,Latn,Dawro,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dww,,Latn,Dawawa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+dyi,,Latn,Djimini Senoufo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+dyo,,Latn,Jola-Fonyi,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+dyu,,Latn,Dyula,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+dzo,dz,Tibt,Dzongkha,Sino-Tibetan,TibetanTokenizer,,FALSE,FALSE,TRUE,TRUE
+ebk,,Latn,Eastern Bontok,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+efi,,Latn,Efik,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+eka,,Latn,Ekajuk,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ekk,et,Latn,Standard Estonian,Uralic,SpaCyTokenizer,et,FALSE,FALSE,TRUE,TRUE
+eko,,Latn,Koti,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ell,el,Grek,Modern Greek (1453-),Indo-European,SpaCyTokenizer,el,FALSE,FALSE,TRUE,TRUE
+eme,,Latn,Emerillon,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+emi,,Latn,Mussau-Emira,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+eml,,Latn,,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+emp,,Latn,Northern Emberá,Chocoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+enb,,Latn,Markweeta,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+eng,en,Latn,English,Indo-European,SpaCyTokenizer,en,FALSE,FALSE,TRUE,TRUE
+enl,,Latn,Enlhet,Mascoyan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+enm,,Latn,Middle English (1100-1500),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+enq,,Latn,Enga,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+enx,,Latn,Enxet,Mascoyan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+epo,eo,Latn,Esperanto,Constructed language,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+eri,,Latn,Ogea,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ese,,Latn,Ese Ejja,Tacanan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+esi,ik,Latn,North Alaskan Inupiatun,Eskimo-Aleut,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+esk,ik,Latn,Northwest Alaska Inupiatun,Eskimo-Aleut,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+ess,,Latn,Central Siberian Yupik,Eskimo-Aleut,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+est,et,Latn,Estonian,,SpaCyTokenizer,et,FALSE,FALSE,FALSE,TRUE
+esu,,Latn,Central Yupik,Eskimo-Aleut,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+eto,,Latn,Eton (Cameroon),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+etr,,Latn,Edolo,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+etu,,Latn,Ejagham,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+eus,eu,Latn,Basque,Language isolate,SpaCyTokenizer,eu,FALSE,FALSE,TRUE,TRUE
+eve,,Cyrl,Even,Tungusic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ewe,ee,Latn,Ewe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+ewo,,Latn,Ewondo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ext,,Latn,Extremaduran,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,FALSE,TRUE
+eza,,Latn,Ezaa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+faa,,Latn,Fasu,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+fad,,Latn,Wagi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+fai,,Latn,Faiwol,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+fal,,Latn,South Fali,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+fan,,Latn,Fang (Equatorial Guinea),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+fao,fo,Latn,Faroese,Indo-European,SpaCyTokenizer,fo,FALSE,FALSE,TRUE,TRUE
+far,,Latn,Fataleka,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+fas,fa,Arab,Persian,Indo-European,SpaCyTokenizer,fa,FALSE,FALSE,TRUE,TRUE
+fat,ak,Latn,Fanti,,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+ffm,ff,Latn,Maasina Fulfulde,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+fij,fj,Latn,Fijian,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+fil,,Latn,Filipino,Austronesian,SpaCyTokenizer,tl,FALSE,FALSE,FALSE,TRUE
+fin,fi,Latn,Finnish,Uralic,SpaCyTokenizer,fi,FALSE,FALSE,TRUE,TRUE
+fit,,Latn,Tornedalen Finnish,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+fkv,,Latn,Kven Finnish,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+fmu,,Deva,Far Western Muria,Dravidian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+fon,,Latn,Fon,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+for,,Latn,Fore,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+fra,fr,Latn,French,Indo-European,SpaCyTokenizer,fr,FALSE,FALSE,TRUE,TRUE
+frd,,Latn,Fordata,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+fro,,Latn,Old French (842-ca. 1400),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+frp,,Latn,Arpitan,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,FALSE,TRUE
+frr,,Latn,Northern Frisian,Indo-European,SpaCyTokenizer,en,TRUE,TRUE,FALSE,TRUE
+fry,fy,Latn,Western Frisian,Indo-European,SpaCyTokenizer,en,TRUE,TRUE,TRUE,TRUE
+fub,ff,Latn,Adamawa Fulfulde,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+fud,,Latn,East Futuna,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+fue,ff,Latn,Borgu Fulfulde,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+fuf,ff,Latn,Pular,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+fuh,ff,Latn,Western Niger Fulfulde,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+ful,ff,Arab,Fulah,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+ful,ff,Latn,Fulah,,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+fuq,ff,Latn,Central-Eastern Niger Fulfulde,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+fur,,Latn,Friulian,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,FALSE,TRUE
+fuv,ff,Arab,Nigerian Fulfulde,Niger-Congo,WhitespaceTokenizer,,TRUE,TRUE,TRUE,FALSE
+fuv,ff,Latn,Nigerian Fulfulde,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,TRUE,TRUE
+gaa,,Latn,Ga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gag,,Cyrl,Gagauz,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+gag,,Latn,Gagauz,Turkic,SpaCyTokenizer,tr,TRUE,TRUE,FALSE,TRUE
+gah,,Latn,Alekano,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gai,,Latn,Borei,Ramu-Lower Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gam,,Latn,Kandawo,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gaw,,Latn,Nobonob,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gaz,om,Latn,West Central Oromo,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+gba,,Latn,Gbaya (Central African Republic),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gbi,,Latn,Galela,West Papuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gbo,,Latn,Northern Grebo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gbr,,Latn,Gbagyi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gcf,,Latn,Guadeloupean Creole French,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gcr,,Latn,Guianese Creole French,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gde,,Latn,Gude,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gdg,,Latn,Ga'dang,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+gdn,,Latn,Umanakaina,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gdr,,Latn,Wipi,Eastern Trans-Fly,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+geb,,Latn,Kire,Ramu-Lower Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gej,,Latn,Gen,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gfk,,Latn,Patpatar,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ghe,,Deva,Southern Ghale,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+ghs,,Latn,Guhu-Samane,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gid,,Latn,Gidar,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gil,,Latn,Gilbertese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+giz,,Latn,South Giziga,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gjn,,Latn,Gonja,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gkn,,Latn,Gokana,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gla,gd,Latn,Scottish Gaelic,Indo-European,StanzaTokenizer,gd,FALSE,FALSE,TRUE,TRUE
+gle,ga,Latn,Irish,Indo-European,SpaCyTokenizer,ga,FALSE,FALSE,TRUE,TRUE
+glg,gl,Latn,Galician,Indo-European,StanzaTokenizer,gl,FALSE,FALSE,TRUE,TRUE
+glk,,Arab,Gilaki,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+glv,gv,Latn,Manx,Indo-European,StanzaTokenizer,gv,FALSE,FALSE,TRUE,TRUE
+gmh,,Latn,Middle High German (ca. 1050-1500),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gmv,,Ethi,Gamo,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+gmv,,Latn,Gamo,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gna,,Latn,Kaansa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gnb,,Latn,Gangte,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gnd,,Latn,Zulgo-Gemzek,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gng,,Latn,Ngangam,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gnn,,Latn,Gumatj,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gnw,gn,Latn,Western Bolivian Guaraní,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+goa,,Latn,Guro,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gof,,Ethi,Gofa,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+gof,,Latn,Gofa,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gog,,Latn,Gogo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+goh,,Latn,Old High German (ca. 750-1050),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gom,,Deva,Goan Konkani,Indo-European,IndicNLPTokenizer,kK,FALSE,FALSE,FALSE,FALSE
+gom,,Latn,Goan Konkani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+gon,,Telu,Gondi,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+gor,,Latn,Gorontalo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+gos,,Latn,Gronings,Indo-European,SpaCyTokenizer,nl,TRUE,TRUE,FALSE,TRUE
+got,,Goth,Gothic,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+got,,Latn,Gothic,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gqr,,Latn,Gor,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+grb,,Latn,Grebo,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+grc,,Grek,Ancient Greek (to 1453),Indo-European,SpaCyTokenizer,grc,FALSE,FALSE,FALSE,TRUE
+grn,gn,Latn,Guarani,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+grt,,Beng,Garo,Sino-Tibetan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+gso,,Latn,Southwest Gbaya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gsw,,Latn,Swiss German,Indo-European,SpaCyTokenizer,de,TRUE,TRUE,FALSE,TRUE
+gub,,Latn,Guajajára,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+guc,,Latn,Wayuu,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gud,,Latn,Yocoboué Dida,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gug,gn,Latn,Paraguayan Guaraní,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+guh,,Latn,Guahibo,Guajiboan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gui,gn,Latn,Eastern Bolivian Guaraní,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+guj,gu,Gujr,Gujarati,Indo-European,IndicNLPTokenizer,gu,FALSE,FALSE,TRUE,TRUE
+guj,gu,Latn,Gujarati,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+guk,,Ethi,Gumuz,Nilo-Saharan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+gul,,Latn,Sea Island Creole English,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+gum,,Latn,Guambiano,Paezan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gun,gn,Latn,Mbyá Guaraní,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+guo,,Latn,Guayabero,Guajiboan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+guq,,Latn,Aché,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gur,,Latn,Farefare,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+guu,,Latn,Yanomamö,Yanomaman,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+guw,,Latn,Gun,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gux,,Latn,Gourmanchéma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+guz,,Latn,Gusii,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+gvc,,Latn,Guanano,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gvf,,Latn,Golin,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gvl,,Latn,Gulay,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gvn,,Latn,Kuku-Yalanji,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gwi,,Latn,Gwichʼin,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gwr,,Latn,Gwere,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+gya,,Latn,Northwest Gbaya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+gym,,Latn,Ngäbere,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+gyr,,Latn,Guarayu,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hac,,Arab,Gurani,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+hae,om,Latn,Eastern Oromo,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hag,,Latn,Hanga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+hak,zh,Hani,Hakka Chinese,Sino-Tibetan,SpaCyTokenizer,zh,FALSE,FALSE,FALSE,TRUE
+hak,zh,Latn,Hakka Chinese,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+hat,ht,Latn,Haitian,Creole,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+hau,ha,Latn,Hausa,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+hav,,Latn,Havu,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+haw,,Latn,Hawaiian,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+hay,,Latn,Haya,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+hbo,,Hebr,Ancient Hebrew,Afro-Asiatic,StanzaTokenizer,hbo,FALSE,FALSE,FALSE,TRUE
+hbs,sh,Cyrl,Serbo-Croatian,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+hbs,sh,Latn,Serbo-Croatian,,SpaCyTokenizer,sr,TRUE,TRUE,FALSE,TRUE
+hch,,Latn,Huichol,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+heb,he,Hebr,Hebrew,Afro-Asiatic,SpaCyTokenizer,he,FALSE,FALSE,TRUE,TRUE
+heg,,Latn,Helong,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+heh,,Latn,Hehe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+her,hz,Latn,Herero,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+hif,,Latn,Fiji Hindi,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+hig,,Latn,Kamwe,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hil,,Latn,Hiligaynon,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+hin,hi,Deva,Hindi,Indo-European,IndicNLPTokenizer,hi,FALSE,FALSE,TRUE,TRUE
+hin,hi,Latn,Hindi,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+hix,,Latn,Hixkaryána,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hla,,Latn,Halia,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+hlt,,Latn,Matu Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hmn,,Latn,Hmong,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hmo,ho,Latn,Hiri Motu,Pidgin,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+hmr,,Latn,Hmar,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hne,,Deva,Chhattisgarhi,Indo-European,IndicNLPTokenizer,ne,TRUE,TRUE,FALSE,TRUE
+hnj,,Latn,Hmong Njua,Hmong-Mien,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hnn,,Latn,Hanunoo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+hns,,Latn,Caribbean Hindustani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+hoc,,Latn,Ho,Austro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hoc,,Wara,Ho,Austro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+hop,,Latn,Hopi,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hot,,Latn,Hote,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+hra,,Latn,Hrangkhol,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hrv,hr,Latn,Croatian,Indo-European,SpaCyTokenizer,hr,FALSE,FALSE,TRUE,TRUE
+hrx,,Latn,Hunsrik,Indo-European,SpaCyTokenizer,de,TRUE,TRUE,FALSE,TRUE
+hsb,,Latn,Upper Sorbian,Indo-European,SpaCyTokenizer,hsb,FALSE,FALSE,FALSE,TRUE
+hto,,Latn,Minica Huitoto,Witotoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hub,,Latn,Huambisa,Jivaroan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hui,,Latn,Huli,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hun,hu,Latn,Hungarian,Uralic,SpaCyTokenizer,hu,FALSE,FALSE,TRUE,TRUE
+hus,,Latn,Huastec,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+huu,,Latn,Murui Huitoto,Witotoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+huv,,Latn,San Mateo Del Mar Huave,Huavean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+hvn,,Latn,Sabu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+hwc,,Latn,Hawai'i Creole English,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+hye,hy,Armn,Armenian,Indo-European,SpaCyTokenizer,hy,FALSE,FALSE,TRUE,TRUE
+hyw,,Armn,Western Armenian,Indo-European,StanzaTokenizer,hyw,FALSE,FALSE,FALSE,TRUE
+ian,,Latn,Iatmul,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+iba,,Latn,Iban,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ibg,,Latn,Ibanag,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ibo,ig,Latn,Igbo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+icr,,Latn,Islander Creole English,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+ido,io,Latn,Ido,,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+idu,,Latn,Idoma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ifa,,Latn,Amganad Ifugao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ifb,,Latn,Batad Ifugao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ife,,Latn,Ifè,Niger-Congo,SpaCyTokenizer,yo,TRUE,TRUE,FALSE,TRUE
+ifk,,Latn,Tuwali Ifugao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ifu,,Latn,Mayoyao Ifugao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ify,,Latn,Keley-I Kallahan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ige,,Latn,Igede,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ign,,Latn,Ignaciano,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ike,iu,Cans,Eastern Canadian Inuktitut,Eskimo-Aleut,WhitespaceTokenizer,,TRUE,TRUE,TRUE,TRUE
+ikk,,Latn,Ika,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ikt,iu,Latn,Inuinnaqtun,Eskimo-Aleut,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+iku,iu,Cans,Inuktitut,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+iku,iu,Latn,Inuktitut,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+ikw,,Latn,Ikwere,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ilb,,Latn,Ila,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ile,ie,Latn,Interlingue,,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+ilo,,Latn,Iloko,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+imo,,Latn,Imbongu,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ina,ia,Latn,Interlingua (International Auxiliary Language Association),,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+inb,,Latn,Inga,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ind,id,Latn,Indonesian,Austronesian,SpaCyTokenizer,id,FALSE,FALSE,TRUE,TRUE
+inh,,Cyrl,Ingush,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ino,,Latn,Inoke-Yate,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+iou,,Latn,Tuma-Irumu,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ipi,,Latn,Ipili,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ipk,ik,Latn,Inupiaq,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+iqw,,Latn,Ikwo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+iri,,Latn,Rigwe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+irk,,Latn,Iraqw,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+iry,,Latn,Iraya,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+isd,,Latn,Isnag,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ish,,Latn,Esan,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+isl,is,Latn,Icelandic,Indo-European,SpaCyTokenizer,is,FALSE,FALSE,TRUE,TRUE
+iso,,Latn,Isoko,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ita,it,Latn,Italian,Indo-European,SpaCyTokenizer,it,FALSE,FALSE,TRUE,TRUE
+itl,,Cyrl,Itelmen,Chukotko-Kamchatkan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+itv,,Latn,Itawit,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ium,,Latn,Iu Mien,Hmong-Mien,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ivb,,Latn,Ibatan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ivv,,Latn,Ivatan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+iws,,Latn,Sepik Iwam,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ixl,,Latn,Ixil,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+izr,,Latn,Izere,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+izz,,Latn,Izii,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+jaa,,Latn,Jamamadí,Arauan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+jac,,Latn,Popti',Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+jae,,Latn,Yabem,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+jam,,Latn,Jamaican Creole English,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+jav,jv,Java,Javanese,Austronesian,,,TRUE,TRUE,TRUE,FALSE
+jav,jv,Latn,Javanese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+jbo,,Latn,Lojban,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+jbu,,Latn,Jukun Takum,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+jic,,Latn,Tol,Jicaquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+jiv,,Latn,Shuar,Jivaroan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+jmc,,Latn,Machame,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+jpn,ja,Jpan,Japanese,Japonic,SpaCyTokenizer,ja,FALSE,FALSE,TRUE,TRUE
+jra,,Latn,Jarai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+jun,,Orya,Juang,Austro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+jvn,,Latn,Caribbean Javanese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kaa,,Cyrl,Kara-Kalpak,Turkic,StanzaTokenizer,kk,TRUE,TRUE,FALSE,TRUE
+kaa,,Latn,Kara-Kalpak,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+kab,,Latn,Kabyle,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kac,,Latn,Kachin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kak,,Latn,Kalanguya,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kal,kl,Latn,Kalaallisut,Eskimo-Aleut,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+kam,,Latn,Kamba (Kenya),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kan,kn,Knda,Kannada,Dravidian,IndicNLPTokenizer,kn,FALSE,FALSE,TRUE,TRUE
+kan,kn,Latn,Kannada,Dravidian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+kao,,Latn,Xaasongaxango,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kap,,Cyrl,Bezhta,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kaq,,Latn,Capanahua,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kas,ks,Arab,Kashmiri,Indo-European,IndicNLPTokenizer,ur,FALSE,FALSE,TRUE,FALSE
+kas,ks,Deva,Kashmiri,Indo-European,IndicNLPTokenizer,mr,TRUE,TRUE,TRUE,TRUE
+kas,ks,Latn,Kashmiri,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+kat,ka,Geor,Georgian,Kartvelian,WhitespaceTokenizer,,FALSE,FALSE,TRUE,TRUE
+kau,kr,Arab,Kanuri,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+kau,kr,Latn,Kanuri,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+kaz,kk,Cyrl,Kazakh,Turkic,StanzaTokenizer,kk,FALSE,FALSE,TRUE,TRUE
+kbc,,Latn,Kadiwéu,Guaykuruan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kbd,,Cyrl,Kabardian,Abkhaz-Adyghe,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kbh,,Latn,Camsá,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kbm,,Latn,Iwal,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kbo,,Latn,Keliko,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kbp,,Latn,Kabiyè,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kbq,,Latn,Kamano,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kbr,,Latn,Kafa,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kby,kr,Latn,Manga Kanuri,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kca,,Cyrl,Khanty,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kcg,,Latn,Tyap,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kck,,Latn,Kalanga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kdc,,Latn,Kutu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kde,,Latn,Makonde,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kdh,,Latn,Tem,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kdi,,Latn,Kumam,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kdj,,Latn,Karamojong,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kdl,,Latn,Tsikimba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kdp,,Latn,Kaningdon-Nindem,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kdr,,Latn,Karaim,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kea,,Latn,Kabuverdianu,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kei,,Latn,Kei,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kek,,Latn,Kekchí,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ken,,Latn,Kenyang,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+keo,,Latn,Kakwa,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ker,,Latn,Kera,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kew,,Latn,West Kewa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kex,,Deva,Kukna,Indo-European,IndicNLPTokenizer,kK,TRUE,TRUE,FALSE,TRUE
+kez,,Latn,Kukele,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kff,,Telu,Koya,Dravidian,IndicNLPTokenizer,te,TRUE,TRUE,FALSE,TRUE
+kgf,,Latn,Kube,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kgk,,Latn,Kaiwá,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kgp,,Latn,Kaingang,Jean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kgr,,Latn,Abun,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kha,,Latn,Khasi,Austro-Asiatic,SpaCyTokenizer,vi,TRUE,TRUE,FALSE,TRUE
+khk,mn,Cyrl,Halh Mongolian,Mongolic,StanzaTokenizer,bxr,TRUE,TRUE,TRUE,TRUE
+khm,km,Khmr,Khmer,Austro-Asiatic,KhmerTokenizer,,FALSE,FALSE,TRUE,TRUE
+khq,,Latn,Koyra Chiini Songhay,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+khs,,Latn,Kasua,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+khy,,Latn,Kele (Democratic Republic of Congo),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+khz,,Latn,Keapara,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kia,,Latn,Kim,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kij,,Latn,Kilivila,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kik,ki,Latn,Kikuyu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+kin,rw,Latn,Kinyarwanda,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,TRUE,TRUE
+kir,ky,Cyrl,Kirghiz,Turkic,SpaCyTokenizer,ky,FALSE,FALSE,TRUE,TRUE
+kiu,,Latn,Kirmanjki (individual language),Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+kix,,Latn,Khiamniungan Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kjb,,Latn,Q'anjob'al,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kje,,Latn,Kisar,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kjh,,Cyrl,Khakas,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kjs,,Latn,East Kewa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kkc,,Latn,Odoodee,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kki,,Latn,Kagulu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kkj,,Latn,Kako,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kkl,,Latn,Kosarek Yale,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kle,,Deva,Kulung (Nepal),Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+kln,,Latn,Kalenjin,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+klt,,Latn,Nukna,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+klv,,Latn,Maskelynes,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kma,,Latn,Konni,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kmb,,Latn,Kimbundu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kmd,,Latn,Majukayang Kalinga,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kmg,,Latn,Kâte,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kmh,,Latn,Kalam,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kmk,,Latn,Limos Kalinga,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kmm,,Latn,Kom (India),Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kmo,,Latn,Kwoma,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kmr,ku,Cyrl,Northern Kurdish,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+kmr,ku,Latn,Northern Kurdish,Indo-European,StanzaTokenizer,kmr,FALSE,FALSE,FALSE,TRUE
+kms,,Latn,Kamasau,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kmu,,Latn,Kanite,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kmy,,Latn,Koma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+knc,kr,Arab,Central Kanuri,Nilo-Saharan,WhitespaceTokenizer,,TRUE,TRUE,TRUE,TRUE
+knc,kr,Latn,Central Kanuri,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+kne,,Latn,Kankanaey,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+knf,,Latn,Mankanya,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+kng,kg,Latn,Koongo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+knj,,Latn,Western Kanjobal,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+knk,,Latn,Kuranko,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kno,,Latn,Kono (Sierra Leone),Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+knv,,Latn,Tabo,South-Central Papuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+knx,,Latn,Kendayan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kny,,Latn,Kanyok,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kog,,Latn,Cogui,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+koi,kv,Cyrl,Komi-Permyak,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kok,,Deva,Konkani (macrolanguage),,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+kok,,Latn,Konkani (macrolanguage),,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+kom,kv,Cyrl,Komi,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kon,kg,Latn,Kongo,,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+koo,,Latn,Konzo,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+kor,ko,Hang,Korean,Koreanic,KiwiTokenizer,,FALSE,FALSE,TRUE,TRUE
+kos,,Latn,Kosraean,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kpe,,Latn,Kpelle,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpf,,Latn,Komba,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpg,,Latn,Kapingamarangi,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kpj,,Latn,Karajá,Karajá,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpq,,Latn,Korupun-Sela,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpr,,Latn,Korafe-Yegha,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpv,kv,Cyrl,Komi-Zyrian,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+kpw,,Latn,Kobon,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpx,,Latn,Mountain Koiali,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kpz,,Latn,Kupsabiny,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kqa,,Latn,Mum,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kqc,,Latn,Doromu-Koki,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kqe,,Latn,Kalagan,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+kqf,,Latn,Kakabai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kql,,Latn,Kyenele,Yuat,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kqn,,Latn,Kaonde,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kqo,,Latn,Eastern Krahn,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kqp,,Latn,Kimré,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kqs,,Latn,Northern Kissi,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+kqw,,Latn,Kandas,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kqy,,Ethi,Koorete,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+krc,,Cyrl,Karachay-Balkar,Turkic,StanzaTokenizer,kk,TRUE,TRUE,FALSE,TRUE
+kri,,Latn,Krio,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+krj,,Latn,Kinaray-A,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+krl,,Latn,Karelian,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+kru,,Deva,Kurukh,Dravidian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+krx,,Latn,Karon,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+ksb,,Latn,Shambala,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ksc,,Latn,Southern Kalinga,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ksd,,Latn,Kuanua,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ksf,,Latn,Bafia,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ksh,,Latn,Kölsch,Indo-European,SpaCyTokenizer,lb,TRUE,TRUE,FALSE,TRUE
+ksj,,Latn,Uare,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ksp,,Latn,Kaba,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ksr,,Latn,Borong,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kss,,Latn,Southern Kisi,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+ksw,,Mymr,S'gaw Karen,Sino-Tibetan,BurmeseTokenizer,,TRUE,TRUE,FALSE,TRUE
+ktb,,Ethi,Kambaata,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+ktj,,Latn,Plapo Krumen,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ktm,,Latn,Kurti,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kto,,Latn,Kuot,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ktu,,Latn,Kituba (Democratic Republic of Congo),Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ktz,,Latn,Juǀʼhoan,Kx’a,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kua,kj,Latn,Kuanyama,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+kub,,Latn,Kutep,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kud,,Latn,Auhelawa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kue,,Latn,Kuman (Papua New Guinea),Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kuj,,Latn,Kuria,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+kum,,Cyrl,Kumyk,Turkic,StanzaTokenizer,kk,TRUE,TRUE,FALSE,TRUE
+kup,,Latn,Kunimaipa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kur,ku,Arab,Kurdish,,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+kur,ku,Cyrl,Kurdish,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+kur,ku,Latn,Kurdish,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+kus,,Latn,Kusaal,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kvg,,Latn,Kuni-Boazi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kvj,,Latn,Psikye,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kvn,,Latn,Border Kuna,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kwd,,Latn,Kwaio,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kwf,,Latn,Kwara'ae,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kwi,,Latn,Awa-Cuaiquer,Barbacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kwj,,Latn,Kwanga,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kwn,,Latn,Kwangali,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kwy,kg,Latn,San Salvador Kongo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kxc,,Ethi,Konso,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+kxm,,Thai,Northern Khmer,Austro-Asiatic,ThaiTokenizer,,TRUE,TRUE,FALSE,TRUE
+kxw,,Latn,Konai,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kyc,,Latn,Kyaka,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kyf,,Latn,Kouya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+kyg,,Latn,Keyagana,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kyq,,Latn,Kenga,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kyu,,Kali,Western Kayah,Sino-Tibetan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+kyu,,Latn,Western Kayah,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kyu,,Mymr,Western Kayah,Sino-Tibetan,BurmeseTokenizer,,TRUE,TRUE,FALSE,FALSE
+kyz,,Latn,Kayabí,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kze,,Latn,Kosena,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kzf,,Latn,Da'a Kaili,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+kzj,,Latn,,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+kzn,,Latn,Kokola,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lac,,Latn,Lacandon,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lad,,Hebr,Ladino,Indo-European,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+lad,,Latn,Ladino,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,FALSE,TRUE
+lah,,Arab,Lahnda,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+lai,,Latn,Lambya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+laj,,Latn,Lango (Uganda),Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lam,,Latn,Lamba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lao,lo,Laoo,Lao,Kra-Dai,LaoTokenizer,,FALSE,FALSE,TRUE,TRUE
+lap,,Latn,Laka (Chad),Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+las,,Latn,Lama (Togo),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lat,la,Latn,Latin,Indo-European,SpaCyTokenizer,la,FALSE,FALSE,TRUE,TRUE
+lav,lv,Latn,Latvian,,SpaCyTokenizer,lv,FALSE,FALSE,FALSE,TRUE
+law,,Latn,Lauje,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lbb,,Latn,Label,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lbe,,Cyrl,Lak,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lbj,,Tibt,Ladakhi,Sino-Tibetan,TibetanTokenizer,,TRUE,TRUE,FALSE,TRUE
+lbk,,Latn,Central Bontok,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lcm,,Latn,Tungag,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lcp,,Thai,Western Lawa,Austro-Asiatic,ThaiTokenizer,,TRUE,TRUE,FALSE,TRUE
+ldi,kg,Latn,Laari,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ldn,,Latn,Láadan,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lea,,Latn,Lega-Shabunda,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+led,,Latn,Lendu,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lee,,Latn,Lyélé,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lef,,Latn,Lelemi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+leh,,Latn,Lenje,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lem,,Latn,Nomaande,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+leu,,Latn,Kara (Papua New Guinea),Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lew,,Latn,Ledo Kaili,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lex,,Latn,Luang,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lez,,Cyrl,Lezghian,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lfn,,Cyrl,Lingua Franca Nova,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+lfn,,Latn,Lingua Franca Nova,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lgg,,Latn,Lugbara,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lgl,,Latn,Wala,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lgm,,Latn,Lega-Mwenga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lhi,,Latn,Lahu Shi,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lhu,,Latn,Lahu,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lia,,Latn,West-Central Limba,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+lid,,Latn,Nyindrou,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lif,,Deva,Limbu,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+lif,,Limb,Limbu,Sino-Tibetan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+lij,,Latn,Ligurian,Indo-European,SpaCyTokenizer,lij,FALSE,FALSE,FALSE,TRUE
+lim,li,Latn,Limburgan,Indo-European,SpaCyTokenizer,nl,TRUE,TRUE,TRUE,TRUE
+lin,ln,Latn,Lingala,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+lip,,Latn,Sekpele,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lis,,Lisu,Lisu,Sino-Tibetan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+lit,lt,Latn,Lithuanian,Indo-European,SpaCyTokenizer,lt,FALSE,FALSE,TRUE,TRUE
+liv,,Latn,Liv,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+ljp,,Latn,Lampung Api,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lki,,Arab,Laki,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+llb,,Latn,Lolo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lld,,Latn,Ladin,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,FALSE,TRUE
+llg,,Latn,Lole,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lln,,Latn,Lele (Chad),Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lmk,,Latn,Lamkang,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lmo,,Latn,Lombard,Indo-European,SpaCyTokenizer,lij,TRUE,TRUE,FALSE,TRUE
+lmp,,Latn,Limbum,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lnd,,Latn,Lundayeh,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lob,,Latn,Lobi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+loe,,Latn,Saluan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+log,,Latn,Logo,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lok,,Latn,Loko,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lol,,Latn,Mongo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lom,,Latn,Loma (Liberia),Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+loq,,Latn,Lobala,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+loz,,Latn,Lozi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lrc,,Arab,Northern Luri,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+lsi,,Latn,Lashi,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lsm,,Latn,Saamia,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+ltg,lv,Latn,Latgalian,Indo-European,SpaCyTokenizer,lv,FALSE,FALSE,FALSE,TRUE
+ltz,lb,Latn,Luxembourgish,Indo-European,SpaCyTokenizer,lb,FALSE,FALSE,TRUE,TRUE
+lua,,Latn,Luba-Lulua,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lub,lu,Latn,Luba-Katanga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+luc,,Latn,Aringa,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lud,,Latn,Ludian,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+lue,,Latn,Luvale,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+lug,lg,Latn,Ganda,Niger-Congo,SpaCyTokenizer,lg,FALSE,FALSE,TRUE,TRUE
+lun,,Latn,Lunda,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+luo,,Latn,Luo (Kenya and Tanzania),Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lus,,Latn,Lushai,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+luy,,Latn,Luyia,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lvs,lv,Latn,Standard Latvian,Indo-European,SpaCyTokenizer,lv,FALSE,FALSE,TRUE,TRUE
+lwg,,Latn,Wanga,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+lwo,,Latn,Luwo,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+lww,,Latn,Lewo,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+lzh,zh,Hani,Literary Chinese,Sino-Tibetan,StanzaTokenizer,lzh,FALSE,FALSE,FALSE,TRUE
+maa,,Latn,San Jerónimo Tecóatl Mazatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mad,,Latn,Madurese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+maf,,Latn,Mafa,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mag,,Deva,Magahi,Indo-European,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+mah,mh,Latn,Marshallese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+mai,,Deva,Maithili,Indo-European,IndicNLPTokenizer,hi,FALSE,FALSE,FALSE,TRUE
+maj,,Latn,Jalapa De Díaz Mazatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mak,,Latn,Makasar,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mal,ml,Latn,Malayalam,Dravidian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+mal,ml,Mlym,Malayalam,Dravidian,IndicNLPTokenizer,ml,FALSE,FALSE,TRUE,TRUE
+mam,,Latn,Mam,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+man,,Latn,Mandingo,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+maq,,Latn,Chiquihuitlán Mazatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mar,mr,Deva,Marathi,Indo-European,IndicNLPTokenizer,mr,FALSE,FALSE,TRUE,TRUE
+mar,mr,Latn,Marathi,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+mas,,Latn,Masai,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mau,,Latn,Huautla Mazatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mav,,Latn,Sateré-Mawé,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+maw,,Latn,Mampruli,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+max,ms,Latn,North Moluccan Malay,Creole,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+maz,,Latn,Central Mazahua,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mbb,,Latn,Western Bukidnon Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mbc,,Latn,Macushi,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mbd,,Latn,Dibabawon Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mbf,,Latn,Baba Malay,Creole,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mbh,,Latn,Mangseng,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mbi,,Latn,Ilianen Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mbj,,Latn,Nadëb,Puinavean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mbl,,Latn,Maxakalí,Maxakalian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mbs,,Latn,Sarangani Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mbt,,Latn,Matigsalug Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mca,,Latn,Maca,Matacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mcb,,Latn,Machiguenga,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mcd,,Latn,Sharanahua,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mcf,,Latn,Matsés,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mck,,Latn,Mbunda,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mcn,,Latn,Masana,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mco,,Latn,Coatlán Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mcp,,Latn,Makaa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mcq,,Latn,Ese,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mcu,,Latn,Cameroon Mambila,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mda,,Latn,Mada (Nigeria),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mdf,,Cyrl,Moksha,Uralic,StanzaTokenizer,myv,TRUE,TRUE,FALSE,TRUE
+mdy,,Ethi,Male (Ethiopia),Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+med,,Latn,Melpa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mee,,Latn,Mengen,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mej,,Latn,Meyah,East Bird’s Head-Sentani,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mek,,Latn,Mekeo,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+men,,Latn,Mende (Sierra Leone),Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+meq,,Latn,Merey,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mer,,Latn,Meru,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+met,,Latn,Mato,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+meu,,Latn,Motu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mev,,Latn,Mano,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfe,,Latn,Morisyen,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfg,,Latn,Mogofin,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfh,,Latn,Matal,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfi,,Latn,Wandala,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfk,,Latn,North Mofu,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfq,,Latn,Moba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mfy,,Latn,Mayo,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mfz,,Latn,Mabaan,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mgc,,Latn,Morokodo,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mgh,,Latn,Makhuwa-Meetto,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mgm,,Latn,Mambae,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mgo,,Latn,Meta',Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mgr,,Latn,Mambwe-Lungu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mhi,,Latn,Ma'di,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mhl,,Latn,Mauwake,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mhr,,Cyrl,Eastern Mari,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mhw,,Latn,Mbukushu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mhx,,Latn,Maru,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mhy,,Latn,Ma'anyan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mib,,Latn,Atatláhuca Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mic,,Latn,Mi'kmaq,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mie,,Latn,Ocotepec Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mif,,Latn,Mofu-Gudur,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mig,,Latn,San Miguel El Grande Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mih,,Latn,Chayuco Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mil,,Latn,Peñoles Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mim,,Latn,Alacatlatzala Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+min,ms,Arab,Minangkabau,Austronesian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+min,ms,Latn,Minangkabau,Austronesian,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+mio,,Latn,Pinotepa Nacional Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mip,,Latn,Apasco-Apoala Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+miq,,Latn,Mískito,Misumalpan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mir,,Latn,Isthmus Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mit,,Latn,Southern Puebla Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+miy,,Latn,Ayutla Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+miz,,Latn,Coatzospan Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mjc,,Latn,San Juan Colorado Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mjw,,Latn,Karbi,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mkd,mk,Cyrl,Macedonian,Indo-European,SpaCyTokenizer,mk,FALSE,FALSE,TRUE,TRUE
+mkl,,Latn,Mokole,Niger-Congo,SpaCyTokenizer,yo,TRUE,TRUE,FALSE,TRUE
+mkn,,Latn,Kupang Malay,Creole,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mks,,Latn,Silacayoapan Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mkz,,Latn,Makasae,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mlg,mg,Latn,Malagasy,,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mlh,,Latn,Mape,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mlp,,Latn,Bargam,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mlt,mt,Latn,Maltese,Afro-Asiatic,StanzaTokenizer,mt,FALSE,FALSE,TRUE,TRUE
+mlu,,Latn,To'abaita,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mmn,,Latn,Mamanwa,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mmo,,Latn,Mangga Buang,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mmx,,Latn,Madak,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mna,,Latn,Mbula,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mnb,,Latn,Muna,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mnf,,Latn,Mundani,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mni,,Beng,Manipuri,Sino-Tibetan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+mni,,Latn,Manipuri,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mni,,Mtei,Manipuri,Sino-Tibetan,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+mnk,,Latn,Mandinka,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mns,,Cyrl,Mansi,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mnw,,Mymr,Mon,Austro-Asiatic,BurmeseTokenizer,,TRUE,TRUE,FALSE,TRUE
+mnx,,Latn,Manikion,East Bird’s Head-Sentani,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mny,,Latn,Manyawa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+moa,,Latn,Mwan,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+moc,,Latn,Mocoví,Guaykuruan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mog,,Latn,Mongondow,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+moh,,Latn,Mohawk,Iroquoian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mon,mn,Cyrl,Mongolian,,StanzaTokenizer,bxr,TRUE,TRUE,FALSE,TRUE
+mop,,Latn,Mopán Maya,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mor,,Latn,Moro,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mos,,Latn,Mossi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mox,,Latn,Molima,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mpg,,Latn,Marba,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mph,,Latn,Maung,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mpm,,Latn,Yosondúa Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mpp,,Latn,Migabac,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mps,,Latn,Dadibi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mpt,,Latn,Mian,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mpx,,Latn,Misima-Panaeati,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mqb,,Latn,Mbuko,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mqj,,Latn,Mamasa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mqy,,Latn,Manggarai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mrg,,Latn,Mising,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mri,mi,Latn,Maori,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+mrj,,Cyrl,Western Mari,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mrq,,Latn,North Marquesan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mrv,,Latn,Mangareva,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mrw,,Latn,Maranao,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+msa,ms,Arab,Malay (macrolanguage),,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+msa,ms,Latn,Malay (macrolanguage),,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+msa,ms,Thai,Malay (macrolanguage),,ThaiTokenizer,,TRUE,TRUE,FALSE,FALSE
+msb,,Latn,Masbatenyo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+msc,,Latn,Sankaran Maninka,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mse,,Latn,Musey,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+msk,,Latn,Mansaka,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+msm,,Latn,Agusan Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+msy,,Latn,Aruamu,Ramu-Lower Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mta,,Latn,Cotabato Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+mtg,,Latn,Una,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mti,,Latn,Maiwa (Papua New Guinea),Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mtj,,Latn,Moskona,East Bird’s Head-Sentani,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mto,,Latn,Totontepec Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mtp,,Latn,Wichí Lhamtés Nocten,Matacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mua,,Latn,Mundang,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mug,,Latn,Musgu,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+muh,,Latn,Mündü,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mui,ms,Latn,Musi,Austronesian,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+mup,,Deva,Malvi,Indo-European,IndicNLPTokenizer,ne,TRUE,TRUE,FALSE,TRUE
+mur,,Latn,Murle,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mus,,Latn,Creek,Muskogean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mux,,Latn,Bo-Ung,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+muy,,Latn,Muyang,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mva,,Latn,Manam,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mvn,,Latn,Minaveha,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mvp,,Latn,Duri,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mwc,,Latn,Are,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mwf,,Latn,Murrinh-Patha,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mwl,,Latn,Mirandese,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,FALSE,TRUE
+mwm,,Latn,Sar,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mwn,,Latn,Nyamwanga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mwp,,Latn,Kala Lagaw Ya,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mwq,,Latn,Mün Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mwv,,Latn,Mentawai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+mww,,Latn,Hmong Daw,Hmong-Mien,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mxb,,Latn,Tezoatlán Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mxp,,Latn,Tlahuitoltepec Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mxq,,Latn,Juquila Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mxt,,Latn,Jamiltepec Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mxv,,Latn,Metlatónoc Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mya,my,Mymr,Burmese,Sino-Tibetan,BurmeseTokenizer,,FALSE,FALSE,TRUE,TRUE
+myb,,Latn,Mbay,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+myk,,Latn,Mamara Senoufo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+myu,,Latn,Mundurukú,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+myv,,Cyrl,Erzya,Uralic,StanzaTokenizer,myv,FALSE,FALSE,FALSE,TRUE
+myw,,Latn,Muyuw,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+myx,,Latn,Masaaba,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+myy,,Latn,Macuna,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mza,,Latn,Santa María Zacatepec Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mzh,,Latn,Wichí Lhamtés Güisnay,Matacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mzk,,Latn,Nigeria Mambila,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mzl,,Latn,Mazatlán Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+mzm,,Latn,Mumuye,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mzn,,Arab,Mazanderani,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+mzw,,Latn,Deg,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+mzz,,Latn,Maiadomu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nab,,Latn,Southern Nambikuára,Nambikwara,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+naf,,Latn,Nabak,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nah,,Latn,,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nak,,Latn,Nakanai,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nan,,Hani,Min Nan Chinese,,SpaCyTokenizer,zh,TRUE,TRUE,FALSE,TRUE
+nan,,Latn,Min Nan Chinese,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+nap,,Latn,Neapolitan,Indo-European,SpaCyTokenizer,it,TRUE,TRUE,FALSE,TRUE
+naq,,Latn,Khoekhoe,Khoe-Kwadi,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nas,,Latn,Naasioi,South Bougainville,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nav,nv,Latn,Navajo,Eyak-Athabaskan,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+naw,,Latn,Nawuri,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nba,,Latn,Nyemba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nbc,,Latn,Chang Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nbe,,Latn,Konyak Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nbl,nr,Latn,South Ndebele,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+nbq,,Latn,Nggem,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nbu,,Latn,Rongmei Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nca,,Latn,Iyo,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nch,,Latn,Central Huasteca Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ncj,,Latn,Northern Puebla Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ncl,,Latn,Michoacán Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ncq,,Laoo,Northern Katang,Austro-Asiatic,LaoTokenizer,,TRUE,TRUE,FALSE,TRUE
+nct,,Latn,Chothe Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ncu,,Latn,Chumburung,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ncx,,Latn,Central Puebla Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ndc,,Latn,Ndau,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nde,nd,Latn,North Ndebele,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+ndh,,Latn,Ndali,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ndi,,Latn,Samba Leko,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ndj,,Latn,Ndamba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ndo,ng,Latn,Ndonga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+ndp,,Latn,Ndo,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nds,,Latn,Low German,Indo-European,SpaCyTokenizer,nl,TRUE,TRUE,FALSE,TRUE
+ndy,,Latn,Lutos,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ndz,,Latn,Ndogo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+neb,,Latn,Toura (Côte d'Ivoire),Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nep,ne,Deva,Nepali (macrolanguage),,IndicNLPTokenizer,ne,FALSE,FALSE,FALSE,TRUE
+nep,ne,Latn,Nepali (macrolanguage),,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,FALSE
+new,,Deva,Newari,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+nfa,,Latn,Dhao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nfr,,Latn,Nafaanra,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ngb,,Latn,Northern Ngbandi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ngc,,Latn,Ngombe (Democratic Republic of Congo),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ngl,,Latn,Lomwe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ngp,,Latn,Ngulu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ngu,,Latn,Guerrero Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhd,gn,Latn,Chiripá,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhe,,Latn,Eastern Huasteca Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhg,,Latn,Tetelcingo Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhi,,Latn,Zacatlán-Ahuacatlán-Tepetzintla Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhk,,Latn,Isthmus-Cosoleacaque Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nho,,Latn,Takuu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nhr,,Latn,Naro,Khoe-Kwadi,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhu,,Latn,Noone,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nhw,,Latn,Western Huasteca Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhx,,Latn,Isthmus-Mecayapan Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nhy,,Latn,Northern Oaxaca Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nia,,Latn,Nias,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nif,,Latn,Nek,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nii,,Latn,Nii,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nij,,Latn,Ngaju,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nim,,Latn,Nilamba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nin,,Latn,Ninzo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nio,,Cyrl,Nganasan,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+niq,,Latn,Nandi,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+niu,,Latn,Niuean,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+niy,,Latn,Ngiti,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+njb,,Latn,Nocte Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+njm,,Latn,Angami Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+njn,,Latn,Liangmai Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+njo,,Latn,Ao Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+njz,,Latn,Nyishi,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nkf,,Latn,Inpui Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nki,,Latn,Thangal Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nko,,Latn,Nkonya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nla,,Latn,Ngombale,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nlc,,Latn,Nalca,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nld,nl,Latn,Dutch,Indo-European,SpaCyTokenizer,nl,FALSE,FALSE,TRUE,TRUE
+nlg,,Latn,Gela,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nma,,Latn,Maram Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nmf,,Latn,Tangkhul Naga (India),Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nmh,,Latn,Monsang Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nmo,,Latn,Moyon Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nmw,,Latn,Nimoa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nmz,,Latn,Nawdm,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nnb,,Latn,Nande,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+nng,,Latn,Maring Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nnh,,Latn,Ngiemboon,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nnl,,Latn,Northern Rengma Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nno,nn,Latn,Norwegian Nynorsk,,SpaCyTokenizer,nb,FALSE,FALSE,TRUE,TRUE
+nnp,,Latn,Wancho Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nnq,,Latn,Ngindo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nnw,,Latn,Southern Nuni,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+noa,,Latn,Woun Meu,Chocoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nob,nb,Latn,Norwegian Bokmål,,SpaCyTokenizer,nb,FALSE,FALSE,TRUE,TRUE
+nod,,Thai,Northern Thai,Kra-Dai,ThaiTokenizer,,TRUE,TRUE,FALSE,TRUE
+nog,,Cyrl,Nogai,Turkic,StanzaTokenizer,kk,TRUE,TRUE,FALSE,TRUE
+non,,Latn,Old Norse,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nop,,Latn,Numanggang,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nor,no,Latn,Norwegian,Indo-European,SpaCyTokenizer,nb,FALSE,FALSE,FALSE,TRUE
+not,,Latn,Nomatsiguenga,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nou,,Latn,Ewage-Notu,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nov,,Latn,Novial,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nph,,Latn,Phom Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+npi,ne,Deva,Nepali (individual language),Indo-European,IndicNLPTokenizer,ne,FALSE,FALSE,TRUE,TRUE
+npi,ne,Latn,Nepali (individual language),Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+npl,,Latn,Southeastern Puebla Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+npo,,Latn,Pochuri Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+npy,,Latn,Napu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nqo,,Nkoo,N'Ko,Mixed language,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+nre,,Latn,Southern Rengma Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nrf,,Latn,Jèrriais,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,FALSE,TRUE
+nri,,Latn,Chokri Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nrm,,Latn,Jèrriais,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,FALSE,TRUE
+nrm_narom,,Latn,Narom,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nsa,,Latn,Sangtam Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nse,,Latn,Nsenga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nsm,,Latn,Sumi Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nsn,,Latn,Nehan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nso,,Latn,Pedi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nss,,Latn,Nali,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nst,,Latn,Tase Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nsu,,Latn,Sierra Negra Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ntp,,Latn,Northern Tepehuan,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ntr,,Latn,Delo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ntu,,Latn,Natügu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nuj,,Latn,Nyole,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+nus,,Latn,Nuer,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nuy,,Latn,Nunggubuyu,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nuz,,Latn,Tlamacazapa Nahuatl,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nvm,,Latn,Namiae,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+nwb,,Latn,Nyabwa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nwi,,Latn,Southwest Tanna,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+nwx,,Deva,Middle Newar,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+nxd,,Latn,Ngando (Democratic Republic of Congo),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nya,ny,Latn,Nyanja,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+nyf,,Latn,Giryama,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nyk,,Latn,Nyaneka,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nyn,,Latn,Nyankole,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+nyo,,Latn,Nyoro,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+nyu,,Latn,Nyungwe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nyy,,Latn,Nyakyusa-Ngonde,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nza,,Latn,Tigon Mbembe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nzi,,Latn,Nzima,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+nzm,,Latn,Zeme Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+obo,,Latn,Obo Manobo,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+oci,oc,Latn,Occitan (post 1500),Indo-European,SpaCyTokenizer,es,TRUE,TRUE,TRUE,TRUE
+ogo,,Latn,Khana,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ojb,oj,Cans,Northwestern Ojibwa,Algic,WhitespaceTokenizer,,TRUE,TRUE,TRUE,FALSE
+ojb,oj,Latn,Northwestern Ojibwa,Algic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+oji,oj,Cans,Ojibwa,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+oji,oj,Latn,Ojibwa,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+oke,,Latn,Okpe (Southwestern Edo),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+oku,,Latn,Oku,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+okv,,Latn,Orokaiva,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+old,,Latn,Mochi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+olo,,Latn,Livvi,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+omb,,Latn,East Ambae,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+omw,,Latn,South Tairora,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ong,,Latn,Olo,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ons,,Latn,Ono,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ood,,Latn,Tohono O'odham,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+opm,,Latn,Oksapmin,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ori,or,Latn,Oriya (macrolanguage),,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,FALSE
+ori,or,Orya,Oriya (macrolanguage),,IndicNLPTokenizer,or,FALSE,FALSE,FALSE,TRUE
+orm,om,Latn,Oromo,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+orv,,Cyrl,Old Russian,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ory,or,Latn,Odia,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+ory,or,Orya,Odia,Indo-European,IndicNLPTokenizer,or,FALSE,FALSE,TRUE,TRUE
+oss,os,Cyrl,Ossetian,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+ota,,Arab,Ottoman Turkish (1500-1928),,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+otd,,Latn,Ot Danum,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ote,,Latn,Mezquital Otomi,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+otm,,Latn,Eastern Highland Otomi,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+otn,,Latn,Tenango Otomi,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+oto,,Latn,,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+otq,,Latn,Querétaro Otomi,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ots,,Latn,Estado de México Otomi,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+otw,oj,Latn,Ottawa,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+oym,,Latn,Wayampi,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ozm,,Latn,Koonzime,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+pab,,Latn,Parecís,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pad,,Latn,Paumarí,Arauan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pag,,Latn,Pangasinan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pah,,Latn,Tenharim,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pam,,Latn,Pampanga,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pan,pa,Guru,Panjabi,Indo-European,IndicNLPTokenizer,pa,FALSE,FALSE,TRUE,TRUE
+pan,pa,Latn,Panjabi,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+pao,,Latn,Northern Paiute,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pap,,Latn,Papiamento,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pau,,Latn,Palauan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pbb,,Latn,Páez,Paezan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pbc,,Latn,Patamona,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pbi,,Latn,Parkwa,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pbt,ps,Arab,Southern Pashto,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,TRUE,TRUE
+pcd,,Latn,Picard,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,FALSE,TRUE
+pck,,Latn,Paite Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pcm,,Latn,Nigerian Pidgin,Creole,StanzaTokenizer,pcm,FALSE,FALSE,FALSE,TRUE
+pdc,,Latn,Pennsylvania German,Indo-European,SpaCyTokenizer,lb,TRUE,TRUE,FALSE,TRUE
+pdt,,Latn,Plautdietsch,Indo-European,SpaCyTokenizer,nl,TRUE,TRUE,FALSE,TRUE
+pem,,Latn,Phende,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+pfe,,Latn,Pere,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+pfl,,Latn,Pfaelzisch,Indo-European,SpaCyTokenizer,lb,TRUE,TRUE,FALSE,TRUE
+phm,,Latn,Phimbi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+pib,,Latn,Yine,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pio,,Latn,Piapoco,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pir,,Latn,Piratapuyo,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pis,,Latn,Pijin,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+pjt,,Latn,Pitjantjatjara,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pkb,,Latn,Pokomo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+plg,,Latn,Pilagá,Guaykuruan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pls,,Latn,San Marcos Tlacoyalco Popoloca,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+plt,mg,Latn,Plateau Malagasy,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+plu,,Latn,Palikúr,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+plw,,Latn,Brooke's Point Palawano,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+pma,,Latn,Paama,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pmf,,Latn,Pamona,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pmq,,Latn,Northern Pame,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pms,,Latn,Piemontese,Indo-European,SpaCyTokenizer,lij,TRUE,TRUE,FALSE,TRUE
+pmx,,Latn,Poumei Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pnb,,Arab,Western Panjabi,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+pne,,Latn,Western Penan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pnt,,Grek,Pontic,Indo-European,SpaCyTokenizer,el,TRUE,TRUE,FALSE,TRUE
+pny,,Latn,Pinyin,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+poe,,Latn,San Juan Atzingo Popoloca,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+poh,,Latn,Poqomchi',Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+poi,,Latn,Highland Popoluca,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pol,pl,Latn,Polish,Indo-European,SpaCyTokenizer,pl,FALSE,FALSE,TRUE,TRUE
+pon,,Latn,Pohnpeian,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+por,pt,Latn,Portuguese,Indo-European,SpaCyTokenizer,pt,FALSE,FALSE,TRUE,TRUE
+pos,,Latn,Sayula Popoluca,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pot,,Latn,Potawatomi,Algic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pov,,Latn,Upper Guinea Crioulo,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+poy,,Latn,Pogolo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ppk,,Latn,Uma,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ppo,,Latn,Folopa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pps,,Latn,San Luís Temalacayuca Popoloca,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+prf,,Latn,Paranan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+prg,,Latn,Prussian,Indo-European,SpaCyTokenizer,lv,TRUE,TRUE,FALSE,TRUE
+pri,,Latn,Paicî,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+prq,,Latn,Ashéninka Perené,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pse,ms,Latn,Central Malay,Austronesian,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+pss,,Latn,Kaulong,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ptp,,Latn,Patep,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ptu,,Latn,Bambam,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pua,,Latn,Western Highland Purepecha,Tarascan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pui,,Latn,Puinave,Puinavean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pus,ps,Arab,Pushto,,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+pwg,,Latn,Gapapaiwa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+pwn,,Latn,Paiwan,Austronesian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+pww,,Thai,Pwo Northern Karen,Sino-Tibetan,ThaiTokenizer,,TRUE,TRUE,FALSE,TRUE
+pxm,,Latn,Quetzaltepec Mixe,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qub,qu,Latn,Huallaga Huánuco Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+quc,,Latn,K'iche',Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+que,qu,Latn,Quechua,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+quf,qu,Latn,Lambayeque Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qug,qu,Latn,Chimborazo Highland Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+quh,qu,Latn,South Bolivian Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+qul,qu,Latn,North Bolivian Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qup,qu,Latn,Southern Pastaza Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qus,qu,Latn,Santiago del Estero Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+quw,qu,Latn,Tena Lowland Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+quy,qu,Latn,Ayacucho Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+quz,qu,Latn,Cusco Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qva,qu,Latn,Ambo-Pasco Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvc,qu,Latn,Cajamarca Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qve,qu,Latn,Eastern Apurímac Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvh,qu,Latn,Huamalíes-Dos de Mayo Huánuco Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvi,qu,Latn,Imbabura Highland Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvm,qu,Latn,Margos-Yarowilca-Lauricocha Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvn,qu,Latn,North Junín Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvo,qu,Latn,Napo Lowland Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvs,qu,Latn,San Martín Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvw,qu,Latn,Huaylla Wanca Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qvz,qu,Latn,Northern Pastaza Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qwh,qu,Latn,Huaylas Ancash Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qxh,qu,Latn,Panao Huánuco Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qxl,qu,Latn,Salasaca Highland Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qxn,qu,Latn,Northern Conchucos Ancash Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qxo,qu,Latn,Southern Conchucos Ancash Quechua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+qxr,qu,Latn,Cañar Highland Quichua,Quechuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rad,,Latn,Rade,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rai,,Latn,Ramoaaina,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+raj,,Deva,Rajasthani,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+rap,,Latn,Rapanui,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rar,,Latn,Rarotongan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rav,,Deva,Sampang,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+raw,,Latn,Rawang,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rcf,,Latn,Réunion Creole French,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rej,,Latn,Rejang,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rel,,Latn,Rendille,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rgu,,Latn,Ringgou,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rhg,,Latn,Rohingya,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+ria,,Latn,Riang (India),Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rim,,Latn,Nyaturu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+rjs,,Deva,Rajbanshi,Indo-European,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+rkb,,Latn,Rikbaktsa,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rmc,,Latn,Carpathian Romani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+rme,,Latn,Angloromani,Mixed language,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rml,,Latn,Baltic Romani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+rmn,,Cyrl,Balkan Romani,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+rmn,,Grek,Balkan Romani,Indo-European,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+rmn,,Latn,Balkan Romani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+rmo,,Latn,Sinte Romani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+rmq,,Latn,Caló,Mixed language,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rmy,,Cyrl,Vlax Romani,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+rmy,,Latn,Vlax Romani,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+rnd,,Latn,Ruund,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+rng,,Latn,Ronga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+rnl,,Latn,Ranglong,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+roh,rm,Latn,Romansh,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,TRUE,TRUE
+rom,,Cyrl,Romany,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+rom,,Grek,Romany,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+rom,,Latn,Romany,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ron,ro,Cyrl,Romanian,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+ron,ro,Latn,Romanian,Indo-European,SpaCyTokenizer,ro,FALSE,FALSE,TRUE,TRUE
+roo,,Latn,Rotokas,North Bougainville,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+rop,,Latn,Kriol,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+row,,Latn,Dela-Oenale,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rro,,Latn,Waima,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rtm,,Latn,Rotuman,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+rub,,Latn,Gungu,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+rue,,Cyrl,Rusyn,Indo-European,SpaCyTokenizer,ru,TRUE,TRUE,FALSE,TRUE
+ruf,,Latn,Luguru,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+rug,,Latn,Roviana,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+run,rn,Latn,Rundi,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,TRUE,TRUE
+rup,,Latn,Macedo-Romanian,Indo-European,SpaCyTokenizer,ro,TRUE,TRUE,FALSE,TRUE
+rus,ru,Cyrl,Russian,Indo-European,SpaCyTokenizer,ru,FALSE,FALSE,TRUE,TRUE
+rwo,,Latn,Rawa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sab,,Latn,Buglere,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sag,sg,Latn,Sango,Creole,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+sah,,Cyrl,Yakut,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+saj,,Latn,Sahu,West Papuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+san,sa,Deva,Sanskrit,Indo-European,IndicNLPTokenizer,sa,FALSE,FALSE,TRUE,TRUE
+san,sa,Latn,Sanskrit,Indo-European,SpaCyTokenizer,sq,TRUE,TRUE,TRUE,FALSE
+sas,,Latn,Sasak,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sat,,Latn,Santali,Austro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+sat,,Olck,Santali,Austro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+say,,Latn,Saya,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sba,,Latn,Ngambay,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sbd,,Latn,Southern Samo,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sbe,,Latn,Saliba,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sbl,,Latn,Botolan Sambal,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sbs,,Latn,Subiya,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sby,,Latn,Soli,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sck,,Deva,Sadri,Indo-European,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+scn,,Latn,Sicilian,Indo-European,SpaCyTokenizer,it,TRUE,TRUE,FALSE,TRUE
+sco,,Latn,Scots,Indo-European,SpaCyTokenizer,en,TRUE,TRUE,FALSE,TRUE
+sda,,Latn,Toraja-Sa'dan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sdc,sc,Latn,Sassarese Sardinian,Indo-European,SpaCyTokenizer,es,TRUE,TRUE,FALSE,TRUE
+sdh,ku,Arab,Southern Kurdish,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+sdo,,Latn,Bukar-Sadung Bidayuh,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sdq,,Latn,Semandang,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+seh,,Latn,Sena,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sel,,Cyrl,Selkup,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ses,,Latn,Koyraboro Senni Songhai,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sey,,Latn,Secoya,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sfw,,Latn,Sehwi,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sgb,,Latn,Mag-antsi Ayta,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sgc,,Latn,Kipsigis,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sgh,,Cyrl,Shughni,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sgs,,Latn,Samogitian,Indo-European,SpaCyTokenizer,lv,TRUE,TRUE,FALSE,TRUE
+sgw,,Ethi,Sebat Bet Gurage,Afro-Asiatic,SpaCyTokenizer,am,TRUE,TRUE,FALSE,TRUE
+sgz,,Latn,Sursurunga,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+shi,,Latn,Tachelhit,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+shk,,Latn,Shilluk,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+shn,,Mymr,Shan,Kra-Dai,BurmeseTokenizer,,TRUE,TRUE,FALSE,TRUE
+shp,,Latn,Shipibo-Conibo,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+shr,,Latn,Shi,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+shu,ar,Arab,Chadian Arabic,Afro-Asiatic,SpaCyTokenizer,ar,FALSE,FALSE,FALSE,TRUE
+sid,,Latn,Sidamo,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sig,,Latn,Paasaal,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sil,,Latn,Tumulung Sisaala,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sim,,Latn,Mende (Papua New Guinea),Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sin,si,Sinh,Sinhala,Indo-European,IndicNLPTokenizer,si,FALSE,FALSE,TRUE,TRUE
+sja,,Latn,Epena,Chocoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sjo,,Mong,Xibe,Tungusic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+sju,,Latn,Ume Sami,Uralic,StanzaTokenizer,se,TRUE,TRUE,FALSE,TRUE
+skg,mg,Latn,Sakalava Malagasy,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+skr,,Arab,Saraiki,Indo-European,IndicNLPTokenizer,ur,TRUE,TRUE,FALSE,TRUE
+sld,,Latn,Sissala,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+slk,sk,Latn,Slovak,Indo-European,SpaCyTokenizer,sk,FALSE,FALSE,TRUE,TRUE
+sll,,Latn,Salt-Yui,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+slv,sl,Latn,Slovenian,Indo-European,SpaCyTokenizer,sl,FALSE,FALSE,TRUE,TRUE
+sma,,Latn,Southern Sami,Uralic,StanzaTokenizer,se,TRUE,TRUE,FALSE,TRUE
+sme,se,Latn,Northern Sami,Uralic,StanzaTokenizer,se,FALSE,FALSE,TRUE,TRUE
+smj,,Latn,Lule Sami,Uralic,StanzaTokenizer,se,TRUE,TRUE,FALSE,TRUE
+smk,,Latn,Bolinao,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sml,,Latn,Central Sama,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+smn,,Latn,Inari Sami,Uralic,StanzaTokenizer,se,TRUE,TRUE,FALSE,TRUE
+smo,sm,Latn,Samoan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+sms,,Latn,Skolt Sami,Uralic,StanzaTokenizer,se,TRUE,TRUE,FALSE,TRUE
+smt,,Latn,Simte,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sna,sn,Latn,Shona,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+snc,,Latn,Sinaugoro,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+snd,sd,Arab,Sindhi,Indo-European,IndicNLPTokenizer,ur,FALSE,FALSE,TRUE,TRUE
+snd,sd,Deva,Sindhi,Indo-European,IndicNLPTokenizer,mr,TRUE,TRUE,TRUE,FALSE
+snd,sd,Latn,Sindhi,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+snf,,Latn,Noon,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+snn,,Latn,Siona,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+snp,,Latn,Siane,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+snw,,Latn,Selee,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sny,,Latn,Saniyo-Hiyewe,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+soe,,Latn,Songomeno,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+som,so,Latn,Somali,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+sop,,Latn,Songe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+soq,,Latn,Kanasi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sot,st,Latn,Southern Sotho,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+soy,,Latn,Miyobe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+spa,es,Latn,Spanish,Indo-European,SpaCyTokenizer,es,FALSE,FALSE,TRUE,TRUE
+spl,,Latn,Selepet,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+spm,,Latn,Akukem,Ramu-Lower Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+spp,,Latn,Supyire Senoufo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sps,,Latn,Saposa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+spy,,Latn,Sabaot,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sqi,sq,Latn,Albanian,,SpaCyTokenizer,sq,FALSE,TRUE,FALSE,TRUE
+srd,sc,Latn,Sardinian,,SpaCyTokenizer,es,TRUE,TRUE,TRUE,TRUE
+sri,,Latn,Siriano,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+srm,,Latn,Saramaccan,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+srn,,Latn,Sranan Tongo,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+srp,sr,Cyrl,Serbian,Indo-European,SpaCyTokenizer,sr,FALSE,FALSE,TRUE,TRUE
+srp,sr,Latn,Serbian,Indo-European,SpaCyTokenizer,sr,FALSE,FALSE,TRUE,FALSE
+srq,,Latn,Sirionó,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+srr,,Latn,Serer,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+ssd,,Latn,Siroi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ssg,,Latn,Seimat,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ssw,ss,Latn,Swati,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+ssx,,Latn,Samberigi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+stn,,Latn,Owa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+stp,,Latn,Southeastern Tepehuan,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+stq,,Latn,Saterfriesisch,Indo-European,SpaCyTokenizer,en,TRUE,TRUE,FALSE,TRUE
+sua,,Latn,Sulka,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+suc,,Latn,Western Subanon,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+sue,,Latn,Suena,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+suk,,Latn,Sukuma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+sun,su,Latn,Sundanese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+sur,,Latn,Mwaghavul,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+sus,,Arab,Susu,Niger-Congo,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+sus,,Latn,Susu,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+suz,,Deva,Sunwar,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+swa,sw,Latn,Swahili (macrolanguage),,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+swb,,Latn,Maore Comorian,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+swc,sw,Latn,Congo Swahili,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+swe,sv,Latn,Swedish,Indo-European,SpaCyTokenizer,sv,FALSE,FALSE,TRUE,TRUE
+swg,,Latn,Swabian,Indo-European,SpaCyTokenizer,de,TRUE,TRUE,FALSE,TRUE
+swh,sw,Latn,Swahili (individual language),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+swk,,Latn,Malawi Sena,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+swp,,Latn,Suau,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+sxb,,Latn,Suba,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+sxn,,Latn,Sangir,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+syb,,Latn,Central Subanen,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+syc,,Syrc,Classical Syriac,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+syl,,Beng,Sylheti,Indo-European,IndicNLPTokenizer,bn,TRUE,TRUE,FALSE,FALSE
+syl,,Latn,Sylheti,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+syr,,Syrc,Syriac,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+szb,,Latn,Ngalum,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+szl,,Latn,Silesian,Indo-European,SpaCyTokenizer,pl,TRUE,TRUE,FALSE,TRUE
+szy,,Latn,Sakizaya,Austronesian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tab,,Cyrl,Tabassaran,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tac,,Latn,Lowland Tarahumara,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tah,ty,Latn,Tahitian,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+taj,,Deva,Eastern Tamang,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+tam,ta,Latn,Tamil,Dravidian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+tam,ta,Taml,Tamil,Dravidian,IndicNLPTokenizer,ta,FALSE,FALSE,TRUE,TRUE
+tap,,Latn,Taabwa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+taq,,Latn,Tamasheq,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+taq,,Tfng,Tamasheq,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+tar,,Latn,Central Tarahumara,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tat,tt,Cyrl,Tatar,Turkic,SpaCyTokenizer,tt,FALSE,FALSE,TRUE,TRUE
+tat,tt,Latn,Tatar,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+tav,,Latn,Tatuyo,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+taw,,Latn,Tai,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tay,,Latn,Atayal,Austronesian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tbc,,Latn,Takia,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tbg,,Latn,North Tairora,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tbk,,Latn,Calamian Tagbanwa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tbl,,Latn,Tboli,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tbo,,Latn,Tawala,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tbw,,Latn,Tagbanwa,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+tby,,Latn,Tabaru,West Papuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tbz,,Latn,Ditammari,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tca,,Latn,Ticuna,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tcc,,Latn,Datooga,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tcf,,Latn,Malinaltepec Me'phaa,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tcs,,Latn,Torres Strait Creole,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+tcy,,Knda,Tulu,Dravidian,IndicNLPTokenizer,kn,TRUE,TRUE,FALSE,TRUE
+tcz,,Latn,Thado Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tdt,,Latn,Tetun Dili,Creole,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tdx,mg,Latn,Tandroy-Mahafaly Malagasy,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ted,,Latn,Tepo Krumen,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tee,,Latn,Huehuetla Tepehua,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tel,te,Latn,Telugu,Dravidian,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+tel,te,Telu,Telugu,Dravidian,IndicNLPTokenizer,te,FALSE,FALSE,TRUE,TRUE
+tem,,Latn,Timne,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+teo,,Latn,Teso,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ter,,Latn,Tereno,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tet,,Latn,Tetum,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tew,,Latn,Tewa (USA),Kiowa-Tanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tfr,,Latn,Teribe,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tgk,tg,Cyrl,Tajik,Indo-European,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+tgo,,Latn,Sudest,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tgp,,Latn,Tangoa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tha,th,Thai,Thai,Kra-Dai,ThaiTokenizer,,FALSE,FALSE,TRUE,TRUE
+thk,,Latn,Tharaka,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+thl,,Deva,Dangaura Tharu,Indo-European,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+thv,,Latn,Tahaggart Tamahaq,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tif,,Latn,Tifal,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tig,,Ethi,Tigre,Afro-Asiatic,SpaCyTokenizer,ti,TRUE,TRUE,FALSE,TRUE
+tih,,Latn,Timugon Murut,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tik,,Latn,Tikar,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tim,,Latn,Timbe,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tir,ti,Ethi,Tigrinya,Afro-Asiatic,SpaCyTokenizer,ti,FALSE,FALSE,TRUE,TRUE
+tiv,,Latn,Tiv,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tiy,,Latn,Tiruray,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tke,,Latn,Takwane,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tkl,,Latn,Tokelau,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tkr,,Cyrl,Tsakhur,Nakh-Daghestanian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tku,,Latn,Upper Necaxa Totonac,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tlb,,Latn,Tobelo,West Papuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tlf,,Latn,Telefol,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tlh,,Latn,Klingon,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tlj,,Latn,Talinga-Bwisi,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+tll,,Latn,Tetela,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tly,,Latn,Talysh,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,FALSE,TRUE
+tmc,,Latn,Tumak,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tmd,,Latn,Haruai,Piawi,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tmh,,Latn,Tamashek,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tmh,,Tfng,Tamashek,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+tna,,Latn,Tacana,Tacanan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tnc,,Latn,Tanimuca-Retuarã,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tnk,,Latn,Kwamera,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tnn,,Latn,North Tanna,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tnp,,Latn,Whitesands,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tnr,,Latn,Ménik,Niger-Congo,StanzaTokenizer,wo,TRUE,TRUE,FALSE,TRUE
+tob,,Latn,Toba,Guaykuruan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+toc,,Latn,Coyutla Totonac,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tod,,Latn,Toma,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tog,,Latn,Tonga (Nyasa),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+toh,,Latn,Gitonga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+toi,,Latn,Tonga (Zambia),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+toj,,Latn,Tojolabal,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tok,,Latn,Toki Pona,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ton,to,Latn,Tonga (Tonga Islands),Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,TRUE,TRUE
+too,,Latn,Xicotepec De Juárez Totonac,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+top,,Latn,Papantla Totonac,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tos,,Latn,Highland Totonac,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tpa,,Latn,Taupota,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tpi,,Latn,Tok Pisin,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+tpm,,Latn,Tampulma,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tpn,,Latn,Tupinambá,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tpp,,Latn,Pisaflores Tepehua,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tpt,,Latn,Tlachichilco Tepehua,Totonacan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tpw,,Latn,,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tpz,,Latn,Tinputz,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tqo,,Latn,Toaripi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+trc,,Latn,Copala Triqui,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+trn,,Latn,Trinitario,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tro,,Latn,Tarao Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+trp,,Latn,Kok Borok,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+trq,,Latn,San Martín Itunyoso Triqui,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+trs,,Latn,Chicahuaxtla Triqui,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+trv,,Latn,Sediq,Austronesian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tsc,,Latn,Tswa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tsg,,Latn,Tausug,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+tsn,tn,Latn,Tswana,Niger-Congo,SpaCyTokenizer,tn,FALSE,FALSE,TRUE,TRUE
+tso,ts,Latn,Tsonga,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+tsw,,Latn,Tsishingini,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tsz,,Latn,Purepecha,Tarascan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ttc,,Latn,Tektiteko,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tte,,Latn,Bwanabwana,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ttj,,Latn,Tooro,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+ttq,,Latn,Tawallammat Tamajaq,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ttq,,Tfng,Tawallammat Tamajaq,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+tuc,,Latn,Mutu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tue,,Latn,Tuyuca,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tuf,,Latn,Central Tunebo,Chibchan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tui,,Latn,Tupuri,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tuk,tk,Arab,Turkmen,Turkic,WhitespaceTokenizer,,TRUE,TRUE,TRUE,FALSE
+tuk,tk,Cyrl,Turkmen,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+tuk,tk,Latn,Turkmen,Turkic,SpaCyTokenizer,tr,TRUE,TRUE,TRUE,TRUE
+tul,,Latn,Tula,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tum,,Latn,Tumbuka,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+tuo,,Latn,Tucano,Tucanoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tur,tr,Latn,Turkish,Turkic,SpaCyTokenizer,tr,FALSE,FALSE,TRUE,TRUE
+tuv,,Latn,Turkana,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tvk,,Latn,Southeast Ambrym,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+tvl,,Latn,Tuvalu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+twb,,Latn,Western Tawbuid,Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+twi,tw,Latn,Twi,,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+twu,,Latn,Termanu,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+twx,,Latn,Tewe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+txq,,Latn,Tii,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+txu,,Latn,Kayapó,Jean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tyv,,Cyrl,Tuvinian,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tzh,,Latn,Tzeltal,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tzj,,Latn,Tz'utujil,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tzl,,Latn,Talossan,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+tzm,,Tfng,Central Atlas Tamazight,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+tzo,,Latn,Tzotzil,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ubr,,Latn,Ubir,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ubu,,Latn,Umbu-Ungu,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+udm,,Cyrl,Udmurt,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+udu,,Latn,Uduk,Nilo-Saharan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+uig,ug,Arab,Uighur,Turkic,StanzaTokenizer,ug,FALSE,FALSE,TRUE,TRUE
+uig,ug,Cyrl,Uighur,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+uig,ug,Latn,Uighur,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+ukr,uk,Cyrl,Ukrainian,Indo-European,SpaCyTokenizer,uk,FALSE,FALSE,TRUE,TRUE
+umb,,Latn,Umbundu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+und,,Adlm,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Aghb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Ahom,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Armi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Armn,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Avst,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Bali,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Bamu,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Bass,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Batk,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Beng,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Bhks,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Bopo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Brah,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Brai,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Bugi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Buhd,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cakm,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cans,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cari,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cham,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cher,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Chrs,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Copt,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cpmn,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cprt,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Cyrl,Undetermined,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+und,,Deva,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Diak,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Dogr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Dsrt,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Dupl,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Egyp,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Elba,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Elym,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Ethi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Geor,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Glag,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Gong,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Gonm,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Goth,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Gran,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Grek,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Gujr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Guru,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hano,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hatr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hebr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hira,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hluw,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hmng,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hmnp,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Hung,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Ital,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Java,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Kali,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Kana,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Kawi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Khar,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Khmr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Khoj,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Kits,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Knda,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Kthi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Lana,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Laoo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Lepc,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Limb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Lina,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Linb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Lisu,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Lyci,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Lydi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mahj,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Maka,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mand,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mani,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Marc,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Medf,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mend,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Merc,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mero,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mlym,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Modi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mong,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mroo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mtei,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Mult,Undetermined,,,,TRUE,TRUE,FALSE,TRUE
+und,,Mymr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Nagm,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Nand,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Narb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Nbat,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Newa,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Nkoo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Nshu,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Ogam,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Olck,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Orkh,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Orya,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Osge,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Osma,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Ougr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Palm,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Pauc,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Perm,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Phag,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Phli,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Phlp,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Phnx,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Plrd,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Prti,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Rjng,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Rohg,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Runr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Samr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sarb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Saur,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sgnw,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Shaw,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Shrd,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sidd,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sind,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sinh,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sogd,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sogo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sora,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Soyo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sund,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Sylo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Syrc,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tagb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Takr,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tale,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Talu,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Taml,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tang,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tavt,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Telu,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tfng,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tglg,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Thaa,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Thai,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tibt,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tirh,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Tnsa,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Toto,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Ugar,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Vaii,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Vith,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Wara,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Wcho,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Xpeo,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Xsux,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Yezi,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Yiii,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+und,,Zanb,Undetermined,,,,TRUE,TRUE,FALSE,FALSE
+upv,,Latn,Uripiv-Wala-Rano-Atchin,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+ura,,Latn,Urarina,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+urb,,Latn,Urubú-Kaapor,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+urd,ur,Arab,Urdu,Indo-European,IndicNLPTokenizer,ur,FALSE,FALSE,TRUE,TRUE
+urd,ur,Latn,Urdu,Indo-European,StanzaTokenizer,kmr,TRUE,TRUE,TRUE,FALSE
+urh,,Latn,Urhobo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+uri,,Latn,Urim,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+urk,ms,Thai,Urak Lawoi',Austronesian,ThaiTokenizer,,TRUE,TRUE,FALSE,TRUE
+urt,,Latn,Urat,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+urw,,Latn,Sop,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ury,,Latn,Orya,Tor-Kwerba,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+usa,,Latn,Usarufa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+usp,,Latn,Uspanteco,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+uth,,Latn,ut-Hun,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+uvh,,Latn,Uri,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+uvl,,Latn,Lote,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+uzb,uz,Arab,Uzbek,,StanzaTokenizer,ug,TRUE,TRUE,FALSE,FALSE
+uzb,uz,Cyrl,Uzbek,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,FALSE
+uzb,uz,Latn,Uzbek,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+uzn,uz,Cyrl,Northern Uzbek,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,FALSE
+uzn,uz,Latn,Northern Uzbek,Turkic,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+uzs,uz,Arab,Southern Uzbek,Turkic,StanzaTokenizer,ug,TRUE,TRUE,FALSE,TRUE
+vag,,Latn,Vagla,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+vap,,Latn,Vaiphei,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+var,,Latn,Huarijio,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+vec,,Latn,Venetian,Indo-European,SpaCyTokenizer,lij,TRUE,TRUE,FALSE,TRUE
+ven,ve,Latn,Venda,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+vep,,Latn,Veps,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+vid,,Latn,Vidunda,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+vie,vi,Latn,Vietnamese,Austro-Asiatic,SpaCyTokenizer,vi,FALSE,FALSE,TRUE,TRUE
+viv,,Latn,Iduna,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+vls,,Latn,Vlaams,Indo-European,SpaCyTokenizer,nl,TRUE,TRUE,FALSE,TRUE
+vmk,,Latn,Makhuwa-Shirima,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+vmw,,Latn,Makhuwa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+vmy,,Latn,Ayautla Mazatec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+vol,vo,Latn,Volapük,,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+vot,,Latn,Votic,Uralic,SpaCyTokenizer,fi,TRUE,TRUE,FALSE,TRUE
+vro,et,Latn,Võro,Uralic,SpaCyTokenizer,et,FALSE,FALSE,FALSE,TRUE
+vun,,Latn,Vunjo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+vut,,Latn,Vute,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+waj,,Latn,Waffa,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wal,,Ethi,Wolaytta,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+wal,,Latn,Wolaytta,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wap,,Latn,Wapishana,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+war,,Latn,Waray (Philippines),Austronesian,SpaCyTokenizer,tl,TRUE,TRUE,FALSE,TRUE
+wat,,Latn,Kaninuwa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+way,,Latn,Wayana,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wba,,Latn,Warao,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wbm,,Latn,Wa,Austro-Asiatic,SpaCyTokenizer,vi,TRUE,TRUE,FALSE,TRUE
+wbp,,Latn,Warlpiri,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wed,,Latn,Wedau,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+wer,,Latn,Weri,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wes,,Latn,Cameroon Pidgin,Creole,StanzaTokenizer,pcm,TRUE,TRUE,FALSE,TRUE
+wew,,Latn,Wejewa,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+whg,,Latn,North Wahgi,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+whk,,Latn,Wahau Kenyah,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+wib,,Latn,Southern Toussian,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+wim,,Latn,Wik-Mungkan,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wiu,,Latn,Wiru,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wln,wa,Latn,Walloon,Indo-European,SpaCyTokenizer,fr,TRUE,TRUE,TRUE,TRUE
+wls,,Latn,Wallisian,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+wlv,,Latn,Wichí Lhamtés Vejoz,Matacoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wlx,,Latn,Wali (Ghana),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+wmt,,Latn,Walmajarri,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wmw,,Latn,Mwani,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+wnc,,Latn,Wantoat,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wnu,,Latn,Usan,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wob,,Latn,Wè Northern,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+wol,wo,Latn,Wolof,Niger-Congo,StanzaTokenizer,wo,FALSE,FALSE,TRUE,TRUE
+wos,,Latn,Hanga Hundi,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wrk,,Latn,Garrwa,Australian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wrs,,Latn,Waris,Border,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wsg,,Telu,Adilabad Gondi,Dravidian,IndicNLPTokenizer,te,TRUE,TRUE,FALSE,TRUE
+wsk,,Latn,Waskia,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+wuu,zh,Hani,Wu Chinese,Sino-Tibetan,SpaCyTokenizer,zh,FALSE,FALSE,FALSE,TRUE
+wuv,,Latn,Wuvulu-Aua,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+wwa,,Latn,Waama,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+xal,,Cyrl,Kalmyk,Mongolic,StanzaTokenizer,bxr,TRUE,TRUE,FALSE,TRUE
+xav,,Latn,Xavánte,Jean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xbi,,Latn,Kombio,Torricelli,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xbr,,Latn,Kambera,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+xed,,Latn,Hdi,Afro-Asiatic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xho,xh,Latn,Xhosa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+xla,,Latn,Kamula,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xmf,,Geor,Mingrelian,Kartvelian,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+xmm,ms,Latn,Manado Malay,Creole,SpaCyTokenizer,ms,FALSE,FALSE,FALSE,TRUE
+xmv,mg,Latn,Antankarana Malagasy,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+xnn,,Latn,Northern Kankanay,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+xog,,Latn,Soga,Niger-Congo,SpaCyTokenizer,lg,TRUE,TRUE,FALSE,TRUE
+xon,,Latn,Konkomba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+xrb,,Latn,Eastern Karaboro,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+xsb,,Latn,Sambal,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+xsi,,Latn,Sio,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+xsm,,Latn,Kasem,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+xsr,,Deva,Sherpa,Sino-Tibetan,IndicNLPTokenizer,hi,TRUE,TRUE,FALSE,TRUE
+xsu,,Latn,Sanumá,Yanomaman,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xtd,,Latn,Diuxi-Tilantongo Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xtm,,Latn,Magdalena Peñasco Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xtn,,Latn,Northern Tlaxiaco Mixtec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xum,,Latn,Umbrian,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+xuo,,Latn,Kuo,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yaa,,Latn,Yaminahua,Panoan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yad,,Latn,Yagua,Yaguan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yal,,Latn,Yalunka,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yam,,Latn,Yamba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yan,,Latn,Mayangna,Misumalpan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yao,,Latn,Yao,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yap,,Latn,Yapese,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+yaq,,Latn,Yaqui,Uto-Aztecan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yas,,Latn,Nugunu (Cameroon),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yat,,Latn,Yambeta,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yaz,,Latn,Lokaa,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+ybb,,Latn,Yemba,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yby,,Latn,Yaweyuha,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ycn,,Latn,Yucuna,Maipurean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ydd,yi,Hebr,Eastern Yiddish,Indo-European,WhitespaceTokenizer,,TRUE,TRUE,TRUE,TRUE
+yid,yi,Hebr,Yiddish,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+yim,,Latn,Yimchungru Naga,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yka,,Latn,Yakan,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+yle,,Latn,Yele,Yele-West New Britain,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yli,,Latn,Angguruk Yali,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yml,,Latn,Iamalele,Austronesian,SpaCyTokenizer,ms,TRUE,TRUE,FALSE,TRUE
+yom,,Latn,Yombe,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+yon,,Latn,Yongkom,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yor,yo,Latn,Yoruba,Niger-Congo,SpaCyTokenizer,yo,FALSE,FALSE,TRUE,TRUE
+yrb,,Latn,Yareba,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yre,,Latn,Yaouré,Niger-Congo,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yrk,,Cyrl,Nenets,Uralic,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yrl,,Latn,Nhengatu,Tupian,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yss,,Latn,Yessan-Mayo,Sepik,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yua,,Latn,Yucateco,Mayan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yue,zh,Hani,Yue Chinese,Sino-Tibetan,SpaCyTokenizer,zh,FALSE,FALSE,FALSE,TRUE
+yuj,,Latn,Karkar-Yuri,Pauwasi,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yup,,Latn,Yukpa,Cariban,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yut,,Latn,Yopno,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yuw,,Latn,Yau (Morobe Province),Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yuz,,Latn,Yuracare,Language isolate,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+yva,,Latn,Yawa,West Papuan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zaa,,Latn,Sierra de Juárez Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zab,,Latn,Western Tlacolula Valley Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zac,,Latn,Ocotlán Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zad,,Latn,Cajonos Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zae,,Latn,Yareni Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zai,,Latn,Isthmus Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zam,,Latn,Miahuatlán Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zao,,Latn,Ozolotepec Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zap,,Latn,Zapotec,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zar,,Latn,Rincón Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zas,,Latn,Santo Domingo Albarradas Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zat,,Latn,Tabaa Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zav,,Latn,Yatzachi Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zaw,,Latn,Mitla Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zca,,Latn,Coatecas Altas Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zdj,,Latn,Ngazidja Comorian,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+zea,,Latn,Zeeuws,Indo-European,SpaCyTokenizer,nl,TRUE,TRUE,FALSE,TRUE
+zgh,,Tfng,Standard Moroccan Tamazight,Afro-Asiatic,WhitespaceTokenizer,,TRUE,TRUE,FALSE,TRUE
+zha,za,Latn,Zhuang,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zho,zh,Hani,Chinese,,SpaCyTokenizer,zh,FALSE,FALSE,FALSE,TRUE
+zho,zh,Latn,Chinese,,WhitespaceTokenizer,,TRUE,TRUE,FALSE,FALSE
+zia,,Latn,Zia,Trans-New Guinea,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ziw,,Latn,Zigula,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+zne,,Latn,Zande (individual language),Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,FALSE,TRUE
+zoc,,Latn,Copainalá Zoque,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zom,,Latn,Zou,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zos,,Latn,Francisco León Zoque,Mixe-Zoquean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpa,,Latn,Lachiguiri Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpc,,Latn,Choapan Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpg,,Latn,Guevea De Humboldt Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpi,,Latn,Santa María Quiegolani Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpj,,Latn,Quiavicuzas Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpl,,Latn,Lachixío Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpm,,Latn,Mixtepec Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpo,,Latn,Amatlán Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpq,,Latn,Zoogocho Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpt,,Latn,San Vicente Coatlán Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpu,,Latn,Yalálag Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpv,,Latn,Chichicapan Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zpz,,Latn,Texmelucan Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zsm,ms,Arab,Standard Malay,Austronesian,WhitespaceTokenizer,,TRUE,TRUE,TRUE,FALSE
+zsm,ms,Latn,Standard Malay,Austronesian,SpaCyTokenizer,ms,FALSE,FALSE,TRUE,TRUE
+zsr,,Latn,Southern Rincon Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+ztq,,Latn,Quioquitani-Quierí Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zty,,Latn,Yatee Zapotec,Otomanguean,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zul,zu,Latn,Zulu,Niger-Congo,SpaCyTokenizer,tn,TRUE,TRUE,TRUE,TRUE
+zxx,,Arab,No linguistic content,,,,TRUE,TRUE,FALSE,FALSE
+zxx,,Latn,No linguistic content,,,,TRUE,TRUE,FALSE,FALSE
+zxx,,Zzzz,No linguistic content,,,,TRUE,TRUE,FALSE,FALSE
+zyb,za,Latn,Yongbei Zhuang,Kra-Dai,SpaCyTokenizer,xx,TRUE,TRUE,TRUE,TRUE
+zyp,,Latn,Zyphe Chin,Sino-Tibetan,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE
+zza,,Latn,Zaza,,SpaCyTokenizer,xx,TRUE,TRUE,FALSE,TRUE

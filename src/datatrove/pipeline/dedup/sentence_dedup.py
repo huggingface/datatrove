@@ -26,7 +26,12 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
 from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
-from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, ngrams, simplify_text, split_into_parts
+from datatrove.utils.text import (
+    TextNormConfig,
+    ngrams,
+    simplify_text,
+    split_into_sentences,
+)
 from datatrove.utils.typeshelper import ExtensionHelperSD, Languages, StatHints
 
 from ...utils.word_tokenizers import load_word_tokenizer
@@ -427,7 +432,7 @@ class SentenceDedupFilter(PipelineStep):
                             and (
                                 # min num sentences
                                 self.config.min_num_sentences <= 0
-                                or len(split_into_parts(filtered_text, SPLIT_TEXT_SENTENCES, self.language))
+                                or len(split_into_sentences(filtered_text, self.language))
                                 >= self.config.min_num_sentences
                             )
                         )

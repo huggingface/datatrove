@@ -9,6 +9,7 @@ from typing import Generator
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
+from tqdm import tqdm
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
@@ -132,7 +133,13 @@ class MinhashDedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
 
-    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = Languages.english):
+    def __init__(
+        self,
+        output_folder: DataFolderLike,
+        config: MinhashConfig = None,
+        language: str = Languages.english,
+        skip_existing_sigs: bool = False,
+    ):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
@@ -141,6 +148,7 @@ class MinhashDedupSignature(PipelineStep):
         self._hash_func = create_hash_func(self.config.hash_config)
         self.language = language
         self.word_tokenizer = load_word_tokenizer(language)
+        self.skip_existing_sigs = skip_existing_sigs
 
     @property
     def parameters(self):
@@ -200,51 +208,75 @@ class MinhashDedupSignature(PipelineStep):
             dtype=np.uint64,
         ).reshape((-1, 1))
 
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        buckets = [
-            self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
+    def check_can_skip_sig_writing(self, rank):
+        if not self.skip_existing_sigs:
+            return False
+
+        # check if the files exist
+        if any(
+            not self.output_folder.exists(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")
             for bi in range(self.config.num_buckets)
+        ):
+            return False
+
+        # check if they all have the same size (same nb of docs)
+        fsizes = [
+            self.output_folder.size(f"bucket_{bi:03d}/{rank:05d}.minhash.sig") for bi in range(self.config.num_buckets)
         ]
+        if any(fsize != fsizes[0] for fsize in fsizes):
+            return False
+
+        # check if they aren't empty and if they have a multiple of a full sig
+        sig_doc_size = struct.calcsize(f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I")
+        if fsizes[0] == 0 or fsizes[0] % sig_doc_size != 0:
+            return False
+
+        logger.info(f"Found existing sig files with {fsizes[0] // sig_doc_size} entries. Skipping sig writing step.")
+        return True
+
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.track_time():
-            for doc_idx, doc in enumerate(data):
-                self.stat_update(StatHints.total)
-                shingles = self.get_shingles(doc.text)
-                if shingles.size != 0:
-                    sig = self.get_signature(shingles)
-                    for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
-                        # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
-                        bucket.write(
-                            struct.pack(
-                                f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
-                                *bucket_sig,
-                                doc_idx,
+            # check if we can skip the sig writing step
+            if not self.check_can_skip_sig_writing(rank):
+                buckets = [
+                    self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
+                    for bi in range(self.config.num_buckets)
+                ]
+                for doc_idx, doc in enumerate(data):
+                    self.stat_update(StatHints.total)
+                    shingles = self.get_shingles(doc.text)
+                    if shingles.size != 0:
+                        sig = self.get_signature(shingles)
+                        for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
+                            # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
+                            bucket.write(
+                                struct.pack(
+                                    f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
+                                    *bucket_sig,
+                                    doc_idx,
+                                )
                             )
-                        )
-            # TODO: prevent these files from being uploaded/redownloaded in the first place
-            for file in buckets:
-                file.close()
+                for file in buckets:
+                    file.close()
 
             logger.info("Sorting buckets...")
-            for bi in range(len(buckets)):
-                # read one by one, sort and write back
-                sigs = sorted(
-                    read_sigs(
-                        self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb"),
-                        -1,
-                        self.config,
-                        ensure_order=False,
-                        lines_to_buffer=-1,  # load everything in one go
-                    )
+            for bi in range(self.config.num_buckets):
+                # read all records, sort and write back
+                dtype = np.dtype(
+                    [
+                        (f"field{i + 1}", f"<{self.config.hash_config.struct_format}")
+                        for i in range(self.config.hashes_per_bucket)
+                    ]
+                    + [(f"field{self.config.hashes_per_bucket + 1}", "<I")]
                 )
+                with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb") as fi:
+                    records = np.frombuffer(fi.read(), dtype=dtype)
+
+                indices = np.argsort(records, order=dtype.names)
+
                 with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb") as fo:
-                    for sig in sigs:
-                        fo.write(
-                            struct.pack(
-                                f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I",
-                                *sig.sig,
-                                sig.doc_id,
-                            )
-                        )
+                    for idx in indices:
+                        fo.write(records[idx].tobytes())
 
 
 class MinhashDedupBuckets(PipelineStep):
@@ -386,7 +418,7 @@ class MinhashDedupBuckets(PipelineStep):
                     v: HashSig = heapq.heappop(pq)
                     assert last is None or v >= last, f"Sig queue sort error. {v=} < {last=}"
                     if not v.is_from_index():
-                        if last and last.sig == v.sig:
+                        if last is not None and last.sig == v.sig:
                             # write (file_id1, doc_id1, file_id2, doc_id2)
                             if last.is_from_index():
                                 # we can't actually write -1, so we use SENTINEL instead
@@ -430,6 +462,7 @@ class MinhashDedupCluster(PipelineStep):
         output_folder: DataFolderLike,
         config: MinhashConfig = None,
         save_cluster_id: bool = False,
+        save_cluster_size: bool = False,
         ignore_index_matches: bool = False,
         lines_to_buffer: int = 5,
     ):
@@ -438,6 +471,7 @@ class MinhashDedupCluster(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
         self.save_cluster_id = save_cluster_id
+        self.save_cluster_size = save_cluster_size
         self.ignore_index_matches = ignore_index_matches
         self.lines_to_buffer = lines_to_buffer
 
@@ -448,34 +482,55 @@ class MinhashDedupCluster(PipelineStep):
         ) == 0, "Number of .dups files should be divisible by number of buckets"
         assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
+        set_size = {}
 
         def parent(x):
             if x not in union_set or union_set[x] == x:
+                union_set[x] = x
                 return x
             # Path Compression
             union_set[x] = parent(union_set[x])
             return union_set[x]
 
+        def union(v_a, v_b):
+            root_a = parent(v_a)
+            root_b = parent(v_b)
+
+            if root_a != root_b:
+                # Union by size
+                size_a = set_size.get(root_a, 1)
+                size_b = set_size.get(root_b, 1)
+                if size_a < size_b:
+                    root_a, root_b = root_b, root_a
+                # #a >= #b
+                union_set[root_b] = root_a  # make the smallest one join the biggest one to keep sets shallow
+                set_size[root_a] = size_a + size_b
+                set_size.pop(root_b, None)  # clear up space
+
         with self.track_time():
-            for dup_file in dup_files:
+            logger.info("Loading dup files...")
+            for dup_file in tqdm(dup_files, desc="Reading dup files"):
                 with self.input_folder.open(dup_file, "rb") as dupf:
                     for f1, d1, f2, d2 in read_tuples_from_file(dupf, "4I", lines_to_buffer=self.lines_to_buffer):
                         a, b = (f1, d1), (f2, d2)
                         if self.ignore_index_matches and a == (SENTINEL, SENTINEL):
                             # if we are skipping matches with the index and "a" is from the index
                             continue
-                        union_set[parent(b)] = parent(a)
+                        union(a, b)
 
+            logger.info("Finished reading dup files.")
             ci = 0
             cluster_ids = {}
             with self.output_folder.get_output_file_manager(mode="wb") as output_mg:
-                for node in sorted(union_set.keys()):
+                for node in sorted(union_set):
                     self.stat_update("duplicates")
                     file, doc = node
                     p = parent(node)
                     if node != p:
                         output_mg.write(f"{file:06d}.remove", struct.pack("<I", doc))
                         self.stat_update("to_remove")
+
+                    # additional metadata
                     if self.save_cluster_id:
                         if p not in cluster_ids:
                             cluster_ids[p] = ci
@@ -483,6 +538,12 @@ class MinhashDedupCluster(PipelineStep):
                             self.stat_update("clusters")
                         output_mg.write(f"{file:06d}.clusters", struct.pack("<I", doc))
                         output_mg.write(f"{file:06d}.clusters", struct.pack("<I", cluster_ids[p]))
+                    if node == p:
+                        # only run once per cluster
+                        self.stat_update("cluster_size", value=set_size[p], unit="cluster")
+                    if self.save_cluster_size:
+                        output_mg.write(f"{file:06d}.sizes", struct.pack("<I", doc))
+                        output_mg.write(f"{file:06d}.sizes", struct.pack("<I", set_size[p]))
 
 
 class MinhashDedupFilter(PipelineStep):
@@ -499,26 +560,34 @@ class MinhashDedupFilter(PipelineStep):
         input_folder: DataFolderLike,
         exclusion_writer: DiskWriter = None,
         load_cluster_ids: bool = False,
+        load_cluster_sizes: bool = False,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
         self.data_folder = get_datafolder(input_folder)
         self.exclusion_writer = exclusion_writer
         self.load_cluster_ids = load_cluster_ids
+        self.load_cluster_sizes = load_cluster_sizes
         self.lines_to_buffer = lines_to_buffer
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        clusters_data = self.data_folder.get_shard(rank, world_size, glob_pattern="*.clusters")
-        assert (
-            not self.load_cluster_ids or len(clusters_data) <= 1
-        ), f"Must have exactly one .clusters file per task. Found {len(clusters_data)} files."
-
         if not self.data_folder.isfile(f"{rank:06d}.remove"):
             logger.warning(f"No .remove file for {rank=}.")
             for doc in data:
                 self.stat_update(StatHints.total, StatHints.forwarded)
                 yield doc
             return
+
+        # additional metadata files
+        # cluster ids
+        if self.load_cluster_ids and not self.data_folder.exists(f"{rank:06d}.clusters"):
+            logger.warning(f"No .clusters file for {rank=}.")
+            raise FileNotFoundError
+        # cluster sizes
+        if self.load_cluster_sizes and not self.data_folder.exists(f"{rank:06d}.sizes"):
+            logger.warning(f"No .sizes file for {rank=}.")
+            raise FileNotFoundError
+
         with self.data_folder.open(f"{rank:06d}.remove", "rb") as f:
             with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
 
@@ -527,22 +596,35 @@ class MinhashDedupFilter(PipelineStep):
                     if data:
                         return struct.unpack("<I", data)[0]
 
-                def load_clusters():
-                    if clusters_data:
-                        with self.data_folder.open(clusters_data[0], "rb") as clustersf:
-                            yield from read_tuples_from_file(clustersf, "2I", lines_to_buffer=self.lines_to_buffer)
+                def metadata_loader(file):
+                    with self.data_folder.open(file, "rb") as metadata_f:
+                        yield from read_tuples_from_file(metadata_f, "2I", lines_to_buffer=self.lines_to_buffer)
 
                 if self.load_cluster_ids:
-                    cluster_loader = load_clusters()
+                    cluster_loader = metadata_loader(f"{rank:06d}.clusters")
                     next_cluster = next(cluster_loader, None)
+
+                if self.load_cluster_sizes:
+                    sizes_loader = metadata_loader(f"{rank:06d}.sizes")
+                    next_size = next(sizes_loader, None)
 
                 next_removal = get_next()
                 for idx, doc in enumerate(data):
                     with self.track_time():
+                        # load and save metadata
                         if self.load_cluster_ids:
                             if next_cluster and idx == next_cluster[0]:
-                                doc.metadata["minhash_cluster"] = next_cluster[1]
+                                doc.metadata["minhash_cluster_id"] = next_cluster[1]
                                 next_cluster = next(cluster_loader, None)
+                            else:
+                                doc.metadata["minhash_cluster_id"] = -1
+
+                        if self.load_cluster_sizes:
+                            if next_size and idx == next_size[0]:
+                                doc.metadata["minhash_cluster_size"] = next_size[1]
+                                next_size = next(sizes_loader, None)
+                            else:
+                                doc.metadata["minhash_cluster_size"] = 1
 
                         self.stat_update(StatHints.total)
                         if next_removal == idx:
@@ -574,8 +656,8 @@ class MinhashBuildIndex(PipelineStep):
         lines_to_buffer: int = 5,
     ):
         super().__init__()
-        self.input_folder = input_folder
-        self.output_folder = output_folder
+        self.input_folder = get_datafolder(input_folder)
+        self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer

@@ -9,8 +9,8 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.logging import logger
+from datatrove.utils.text import split_into_words
 from datatrove.utils.typeshelper import Languages
-from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 UNIGRAM_DOWNLOAD = "https://ai2-s2-research-public.s3-us-west-2.amazonaws.com/lucas/google-1T-unigram/unigram_freq.csv"
@@ -38,7 +38,7 @@ class UnigramLogProbFilter(BaseFilter):
         super().__init__(exclusion_writer)
         self.logprobs_threshold = logprobs_threshold
         self.unigram_frequencies = self.get_frequencies()
-        self.tokenizer = load_word_tokenizer(language)
+        self.language = language
 
     def get_frequencies(self):
         download_dir = cached_assets_path(
@@ -60,7 +60,7 @@ class UnigramLogProbFilter(BaseFilter):
         return {word: count / total_count for word, count in zip(words, counts)}
 
     def get_logprob(self, doc):
-        words = self.tokenizer.word_tokenize(doc.text)
+        words = split_into_words(doc.text, self.language)
         freqs = [self.unigram_frequencies.get(word.lower(), 1e-9) for word in words]
 
         if len(freqs) == 0:

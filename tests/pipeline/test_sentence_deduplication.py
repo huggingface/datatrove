@@ -17,7 +17,7 @@ from ..utils import require_nltk, require_xxhash, use_hash_configs
 
 
 def get_random_string(n: int = 20):
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "."
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "!"
 
 
 SENTENCE_ = "A SQUAT grey building of only thirty-four stories."

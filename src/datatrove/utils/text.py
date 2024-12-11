@@ -1,11 +1,13 @@
 import re
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 from itertools import tee
 from typing import Iterable
 
+import regex
+
 from datatrove.utils.typeshelper import Languages
-from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';’{|∶´[=-`*．（–？！：$～«〉,><》)?）。…@_.\"}►»" + "".join(
@@ -14,7 +16,169 @@ PUNCTUATION = "!/—”:％１〈&(、━\\【#%「」，】；+^]~“《„';�
         (x for a, b in ((0, 9), (11, 13), (13, 32), (127, 160)) for x in range(a, b)),
     )
 )
-PUNCTUATION_SET = set(PUNCTUATION)
+TERMINAL_PUNCTUATION = {
+    "᪩",
+    "？",
+    "⁈",
+    "𑩂",
+    "．",
+    "꩞",
+    "𑅃",
+    "﹗",
+    "𑂾",
+    "\u1b7d",
+    "፧",
+    "𑅂",
+    "꡶",
+    "꘎",
+    "⁉",
+    "࠾",
+    "᪨",
+    "𑊩",
+    "𑱂",
+    "᱿",
+    "𖩮",
+    "᥅",
+    "\U00011f43",
+    "\U00011f44",
+    "﹒",
+    "𑈹",
+    "𑈸",
+    "።",
+    "܂",
+    "؞",
+    "꛳",
+    "\U00010f88",
+    "𑗍",
+    "𐩖",
+    "𑙂",
+    "\u061d",
+    "꩟",
+    "᠉",
+    "\u1b7e",
+    "𑗗",
+    "᰼",
+    "𑻸",
+    "؟",
+    "𑪜",
+    "꧉",
+    "𑗉",
+    "𐽙",
+    "𖫵",
+    "𖬷",
+    "܀",
+    "꓿",
+    "᜵",
+    "𑗏",
+    "𑁇",
+    "𑗓",
+    "𑥄",
+    "៖",
+    "𑥆",
+    "𑗑",
+    "𑗒",
+    "꯫",
+    "۔",
+    "𐩗",
+    "\U00010f86",
+    "꡷",
+    "\u2e54",
+    "｡",
+    "៕",
+    "߹",
+    "⸮",
+    ".",
+    "𑇅",
+    "࠹",
+    "𛲟",
+    "꫰",
+    "꤯",
+    "𐽗",
+    "᭞",
+    "𑜼",
+    "፨",
+    "𑃁",
+    "꣏",
+    "𑇟",
+    "𖬸",
+    "𑪛",
+    "𑜾",
+    "࠷",
+    "𝪈",
+    "?",
+    "𑃀",
+    "𑗃",
+    "！",
+    "։",
+    "꣎",
+    "॥",
+    "𑗖",
+    "᭛",
+    "᠃",
+    "!",
+    "၊",
+    "𖺘",
+    "⁇",
+    "𑗌",
+    "𑑋",
+    "𖭄",
+    "᭟",
+    "𑅁",
+    "𑙁",
+    "⸼",
+    "꩝",
+    "𑗋",
+    "。",
+    "꧈",
+    "꫱",
+    "𑜽",
+    "𐽖",
+    "𑂿",
+    "᙮",
+    "។",
+    "꛷",
+    "\U00010f89",
+    "៚",
+    "᥄",
+    "𑗕",
+    "𑗎",
+    "᪪",
+    "᭚",
+    "࠽",
+    "𑇞",
+    "𑗊",
+    "𐽘",
+    "\u2e53",
+    "𑗔",
+    "𖩯",
+    "𑇍",
+    "𑻷",
+    "𐽕",
+    "𑩃",
+    "।",
+    "𑗂",
+    "𑇆",
+    "𑁈",
+    "။",
+    "᱾",
+    "𑱁",
+    "꘏",
+    "܁",
+    "᜶",
+    "‼",
+    "𑈻",
+    "‽",
+    "᪫",
+    "﹖",
+    "𑑌",
+    "𑈼",
+    "\U00010f87",
+    "𑗐",
+    "៙",
+    "᰻",
+}
+# add other scripts
+PUNCTUATION_SET = set(PUNCTUATION).union(TERMINAL_PUNCTUATION)
 PUNCTUATION_TRANS = str.maketrans(PUNCTUATION, " " * len(PUNCTUATION))
 
 
@@ -30,7 +194,15 @@ class TextNormConfig:
 
 
 DEF_TEXT_NORM_CONFIG = TextNormConfig()
-NUMBERS_PATTERN = re.compile(r"\d+(\.\d+)?")
+# Match digits in any script, allowing for different decimal separators
+# One or more digits in any script
+# Common decimal separators (period, comma, Arabic decimal, etc)
+# Optional decimal part with digits
+# we need regex and not re for this one to match unicode
+NUMBERS_PATTERN = regex.compile(
+    r"\p{Nd}+([.,،٫⎖⎗⎘]{1}\p{Nd}+)?",
+    regex.VERBOSE | regex.UNICODE,
+)
 WHITESPACE_PATTERN = re.compile(r"\s+")
 # WARNING: english specific
 WEEKDAYS_PATTERN = re.compile(r"monday|tuesday|wednesday|thursday|friday|saturday|sunday")
@@ -98,15 +270,22 @@ def ngrams(sequence: Iterable, n: int):
 SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
 SPLIT_TEXT_SENTENCES = "SENTENCE"
 SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
+SPLIT_TEXT_WORDS = "WORDS"
 
 
+@lru_cache(5)
 def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
+    from datatrove.utils.word_tokenizers import load_word_tokenizer
+
     if mode == SPLIT_TEXT_DOCUMENTS:
         return [text]
     elif mode == SPLIT_TEXT_SENTENCES:
         tokenizer = load_word_tokenizer(language)
         spans = [b for _, b in tokenizer.span_tokenize(text)]
         return [text[a:b] for a, b in zip([0] + spans[:-1], spans[:-1] + [len(text)])]
+    elif mode == SPLIT_TEXT_WORDS:
+        tokenizer = load_word_tokenizer(language)
+        return tokenizer.word_tokenize(text)
     elif mode == SPLIT_TEXT_PARAGRAPHS:
         # merge whitespace with prev line
         og_lines = text.splitlines()
@@ -124,3 +303,15 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
         return lines
     else:
         raise ValueError(f"Unknown {mode=}")
+
+
+def split_into_words(text, language=Languages.english):
+    return split_into_parts(text, mode=SPLIT_TEXT_WORDS, language=language)
+
+
+def split_into_sentences(text, language=Languages.english):
+    return split_into_parts(text, mode=SPLIT_TEXT_SENTENCES, language=language)
+
+
+def split_into_paragraphs(text, language=Languages.english):
+    return split_into_parts(text, mode=SPLIT_TEXT_PARAGRAPHS, language=language)

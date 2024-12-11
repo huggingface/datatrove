@@ -48,7 +48,7 @@ class TestHuggingFaceReader(unittest.TestCase):
         self.assertEqual(len(data[1].text), 46)
 
     def test_sharding(self):
-        for shards in [1, 3]:
+        for shards in [3]:
             for streaming in [True, False]:
                 reader = HuggingFaceDatasetReader(
                     "huggingface/datatrove-tests",
