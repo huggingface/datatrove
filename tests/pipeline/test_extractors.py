@@ -52,11 +52,12 @@ class TestExtractors(unittest.TestCase):
 
     @require_inscriptis
     def test_basic_article_inscriptis(self):
-        extractor = Inscriptis()
+        preprocessor = Trafilatura()
+        extractor = Inscriptis(preprocessor=preprocessor)
         self.assertEqual(extractor.extract(ARTICLE_HTML), "Hello World!")
 
     @require_readability
     def test_basic_article_readability(self):
-        extractor = Readability(min_text_length=10, min_text_score=1)
         postprocessor = Trafilatura()
-        self.assertEqual(extractor.extract(ARTICLE_HTML, postprocessor=postprocessor), "Hello World!")
+        extractor = Readability(postprocessor=postprocessor, min_text_length=10, min_text_score=1)
+        self.assertEqual(extractor.extract(ARTICLE_HTML), "Hello World!")

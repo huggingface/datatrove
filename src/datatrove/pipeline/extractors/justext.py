@@ -39,7 +39,7 @@ class Justext(BaseExtractor):
     ):
         super().__init__(timeout)
         if stoplist is None:
-            stoplist = self.get_stoplist(lang="english")
+            stoplist = self.get_stoplist()
         self.stoplist = frozenset(stoplist)
         self.length_low = length_low
         self.length_high = length_high
@@ -52,10 +52,26 @@ class Justext(BaseExtractor):
         self.kwargs = kwargs
 
     @staticmethod
-    def get_stoplist(lang: str = "english") -> list[str]:
+    def get_stoplist(lang: str = "English") -> list[str]:
         from justext import get_stoplist
 
         return get_stoplist(lang)
+    
+    def clean_html(self, html: str) -> str:
+        """
+
+        Args:
+          html: str: html content
+
+        Returns: cleaned HTML
+        """
+        from justext.core import html_to_dom, preprocessor
+        from lxml.html import tostring
+
+        dom = html_to_dom(html)
+        dom = preprocessor(dom)
+        cleaned_html = tostring(dom).decode()
+        return cleaned_html
 
     def extract(self, text: str) -> str:
         """

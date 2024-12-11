@@ -22,6 +22,7 @@ class Inscriptis(BaseExtractor):
 
     def __init__(
         self,
+        preprocessor: BaseExtractor,
         timeout: float = 0.1,
         max_new_lines: int = 2,
         deduplicate_captions: bool = True,
@@ -30,6 +31,7 @@ class Inscriptis(BaseExtractor):
         **kwargs,
     ):
         super().__init__(timeout)
+        self.preprocessor = preprocessor
         self.new_line_chars = "\n" * max_new_lines
         self.deduplicate_captions = deduplicate_captions
         self.display_links = display_links
@@ -48,8 +50,10 @@ class Inscriptis(BaseExtractor):
         from inscriptis.css_profiles import CSS_PROFILES
         from inscriptis.model.config import ParserConfig
 
+        cleaned_html = self.preprocessor.clean_html(text)
+
         text = get_text(
-            html_content=text,
+            html_content=cleaned_html,
             config=ParserConfig(
                 css=CSS_PROFILES["strict"],
                 deduplicate_captions=self.deduplicate_captions,

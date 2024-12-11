@@ -37,13 +37,7 @@ class Readability(BaseExtractor):
         self.url = url
         self.kwargs = kwargs
 
-    def extract(self, text: str) -> str:
-        """
-        Args:
-          text: str: html content
-
-        Returns: plaintext extracted text
-        """
+    def clean_html(self, text: str) -> str:
         from readability import Document
 
         doc = Document(
@@ -54,6 +48,16 @@ class Readability(BaseExtractor):
             **self.kwargs,
         )
 
-        cleaned_html = doc.summary()
+        return doc.summary()
 
+
+    def extract(self, text: str) -> str:
+        """
+        Args:
+          text: str: html content
+
+        Returns: plaintext extracted text
+        """
+
+        cleaned_html = self.clean_html(text)
         return self.postprocessor.extract(cleaned_html)
