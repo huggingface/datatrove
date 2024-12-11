@@ -200,7 +200,7 @@ class NGramsDecontFilter(BaseFilter):
                 ).tolist()
 
         with ThreadPoolExecutor() as pool:
-            hashes = pool.map(load_index_from_file, self.index_folder.list_files())
+            hashes = pool.map(load_index_from_file, self.index_folder.list_files(glob_pattern='**/*.index.hashes'))
 
         self._index_hashes = {}
         for filename, hashlist in hashes:
