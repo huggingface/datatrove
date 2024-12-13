@@ -139,8 +139,9 @@ class NGramsDecontIndexer(PipelineStep):
         from lighteval.tasks.lighteval_task import LightevalTask
         from lighteval.tasks.registry import Registry
 
-        task_dict = Registry(cache_dir=os.getenv("HF_HOME")).get_task_dict(
-            self.lighteval_tasks, custom_tasks=self.custom_lighteval_tasks
+        task_dict = Registry(cache_dir=os.getenv("HF_HOME"),
+                             custom_tasks=self.custom_lighteval_tasks).get_task_dict(
+            self.lighteval_tasks
         )
         LightevalTask.load_datasets(task_dict.values())
 
