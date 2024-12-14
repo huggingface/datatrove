@@ -9,3 +9,4 @@ from .regex_filter import RegexFilter
 from .sampler_filter import SamplerFilter
 from .unigram_log_probs import UnigramLogProbFilter
 from .url_filter import URLFilter
+from .video_frozen_filter import VideoFrozenFilter
