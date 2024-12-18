@@ -1,4 +1,5 @@
 from .base import BaseExtractor
+from datatrove.utils.logging import logger
 
 
 class Resiliparse(BaseExtractor):
@@ -48,6 +49,9 @@ class Resiliparse(BaseExtractor):
         self.noscript = noscript
         self.comments = comments
         self.skip_elements = skip_elements
+        logger.warning(
+            f"{self.name} doesn't have a clean_html() method by default, so the original HTML will be used as is."
+        )
 
     def extract(self, text: str) -> str:
         """
