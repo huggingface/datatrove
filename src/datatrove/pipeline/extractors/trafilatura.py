@@ -34,6 +34,21 @@ class Trafilatura(BaseExtractor):
         self.kwargs = kwargs
         if self.include_images:
             raise NotImplementedError
+        
+    def clean_html(self, html: str) -> str:
+        """
+
+        Args:
+          html: str: html content
+
+        Returns: cleaned HTML
+        """
+        from trafilatura import bare_extraction
+        from xml.etree import ElementTree
+
+        html_body = bare_extraction(html, favor_precision=self.favour_precision, **self.kwargs)['body']
+        cleaned_html = ElementTree.tostring(html_body, encoding = "unicode")
+        return cleaned_html
 
     def extract(self, text: str) -> str:
         """
