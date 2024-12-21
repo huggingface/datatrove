@@ -51,7 +51,6 @@ s3 = [
 processing = [
     "brotlipy",
     "fasttext-numpy2-wheel",
-    "brotlipy",
     "nltk",
     "inscriptis",
     "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
