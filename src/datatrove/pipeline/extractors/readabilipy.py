@@ -45,7 +45,6 @@ class ReadabiliPy(BaseExtractor):
         result = simple_tree_from_html_string(html)
         return str(result)
 
-
     def extract(self, text: str) -> str:
         """
         Args:

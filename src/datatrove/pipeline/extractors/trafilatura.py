@@ -47,8 +47,8 @@ class Trafilatura(BaseExtractor):
 
         from trafilatura import bare_extraction
 
-        html_body = bare_extraction(html, favor_precision=self.favour_precision, **self.kwargs)['body']
-        cleaned_html = ElementTree.tostring(html_body, encoding = "unicode")
+        html_body = bare_extraction(html, favor_precision=self.favour_precision, **self.kwargs)["body"]
+        cleaned_html = ElementTree.tostring(html_body, encoding="unicode")
         return cleaned_html
 
     def extract(self, text: str) -> str:

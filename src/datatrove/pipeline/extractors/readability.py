@@ -50,7 +50,6 @@ class Readability(BaseExtractor):
 
         return doc.summary()
 
-
     def extract(self, text: str) -> str:
         """
         Args:

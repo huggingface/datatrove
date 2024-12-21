@@ -67,12 +67,10 @@ class BaseExtractor(PipelineStep):
                     try:
                         doc.text = future.result(timeout=self.timeout)
                     except TimeoutError:
-                        logger.warning(
-                            "⏰ Timeout while cleaning record text. Skipping record.")
+                        logger.warning("⏰ Timeout while cleaning record text. Skipping record.")
                         continue
                     except Exception as e:
-                        logger.warning(
-                            f'❌ Error "{e}" while cleaning record text. Skipping record.')
+                        logger.warning(f'❌ Error "{e}" while cleaning record text. Skipping record.')
                         continue
                 if doc.text:
                     self.stat_update(StatHints.forwarded)
