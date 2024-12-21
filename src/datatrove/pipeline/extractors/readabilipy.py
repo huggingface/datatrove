@@ -40,7 +40,7 @@ class ReadabiliPy(BaseExtractor):
 
         Returns: cleaned HTML
         """
-        from readabilipy import simple_tree_from_html_string    
+        from readabilipy import simple_tree_from_html_string
 
         result = simple_tree_from_html_string(html)
         return str(result)
@@ -53,7 +53,7 @@ class ReadabiliPy(BaseExtractor):
 
         Returns: plaintext extracted text
         """
-        from readabilipy.simple_json import plain_content, extract_text_blocks_as_plain_text
+        from readabilipy.simple_json import extract_text_blocks_as_plain_text, plain_content
 
         cleaned_html = self.clean_html(text)
 

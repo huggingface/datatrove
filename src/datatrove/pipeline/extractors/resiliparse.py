@@ -1,5 +1,6 @@
-from .base import BaseExtractor
 from datatrove.utils.logging import logger
+
+from .base import BaseExtractor
 
 
 class Resiliparse(BaseExtractor):

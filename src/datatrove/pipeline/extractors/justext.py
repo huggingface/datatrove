@@ -56,7 +56,7 @@ class Justext(BaseExtractor):
         from justext import get_stoplist
 
         return get_stoplist(lang)
-    
+
     def clean_html(self, html: str) -> str:
         """
 
