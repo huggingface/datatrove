@@ -39,6 +39,9 @@ class Inscriptis(BaseExtractor):
         self.kwargs = kwargs
         self.regex_excessive_lines = re.compile(r"(" + self.new_line_chars + "\n+)")
 
+    def clean_html(self, html: str) -> str:
+        return self.preprocessor.clean_html(html)
+
     def extract(self, text: str) -> str:
         """
         Args:
@@ -50,7 +53,7 @@ class Inscriptis(BaseExtractor):
         from inscriptis.css_profiles import CSS_PROFILES
         from inscriptis.model.config import ParserConfig
 
-        cleaned_html = self.preprocessor.clean_html(text)
+        cleaned_html = self.clean_html(text)
 
         text = get_text(
             html_content=cleaned_html,
