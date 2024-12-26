@@ -2,7 +2,7 @@ import os
 import random
 import tempfile
 import time
-from typing import Callable
+from typing import Callable, Literal
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -31,7 +31,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         private: bool = True,
         local_working_dir: DataFolderLike | None = None,
         output_filename: str = None,
-        compression: str | None = None,
+        compression: Literal["snappy", "gzip", "brotli", "lz4", "zstd"] | None = "snappy",
         adapter: Callable = None,
         cleanup: bool = True,
         expand_metadata: bool = True,
