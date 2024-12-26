@@ -29,16 +29,15 @@ class Resiliparse(BaseExtractor):
     def __init__(
         self,
         preserve_formatting: bool = True,
-        main_content: bool = True,
+        main_content: bool = True,  # default is false
         list_bullets: bool = True,
         alt_texts: bool = False,
-        links: bool = False,
+        links: bool = False,  # default is true
         form_fields: bool = False,
         noscript: bool = False,
-        comments: bool = True,
+        comments: bool = None,
         skip_elements: list = None,
         timeout: float = 0.1,
-        **kwargs,
     ):
         super().__init__(timeout)
         self.preserve_formatting = preserve_formatting
