@@ -22,6 +22,7 @@ class Trafilatura(BaseExtractor):
     def __init__(
         self,
         favour_precision: bool = True,
+        include_comments: bool = False,
         include_images: bool = False,
         timeout: float = 0.1,
         deduplicate: bool = True,
@@ -29,6 +30,7 @@ class Trafilatura(BaseExtractor):
     ):
         super().__init__(timeout)
         self.favour_precision = favour_precision
+        self.include_comments = include_comments
         self.include_images = include_images
         self.deduplicate = deduplicate
         self.kwargs = kwargs
@@ -65,7 +67,7 @@ class Trafilatura(BaseExtractor):
         return extract(
             text,
             favor_precision=self.favour_precision,
-            include_comments=False,
+            include_comments=self.include_comments,
             deduplicate=self.deduplicate,
             **self.kwargs,
         )
