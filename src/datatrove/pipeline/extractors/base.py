@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
@@ -21,6 +21,7 @@ class BaseExtractor(PipelineStep):
         """
         super().__init__()
         self.timeout = timeout
+        self._warned_error = False
 
     @abstractmethod
     def extract(self, text: str) -> str:
@@ -45,7 +46,10 @@ class BaseExtractor(PipelineStep):
         Returns:
 
         """
-        with ThreadPoolExecutor() as executor:  # more reliable than using signal for timeouts
+        with ProcessPoolExecutor(
+            max_workers=1
+        ) as executor:  # Single process. We use ProcessPool instead of ThreadPool
+            # to be able to kill timed out tasks, lest them continue running for minutes and OOM
             for doc in data:
                 self.stat_update(StatHints.total)
                 with self.track_time():
@@ -53,11 +57,18 @@ class BaseExtractor(PipelineStep):
                     try:
                         doc.text = future.result(timeout=self.timeout)
                     except TimeoutError:
+                        future.cancel()  # Kill the timed-out process
                         logger.warning("⏰ Timeout while cleaning record text. Skipping record.")
                         continue
                     except Exception as e:
-                        logger.warning(f'❌ Error "{e}" while cleaning record text. Skipping record.')
+                        future.cancel()  # Good practice to cancel on other errors too
+                        if not self._warned_error:
+                            logger.warning(
+                                f'❌ Error "{e}" while cleaning record text. Skipping record. This message will only appear once.'
+                            )
+                            self._warned_error = True
                         continue
+
                 if doc.text:
                     self.stat_update(StatHints.forwarded)
                     self.update_doc_stats(doc)
