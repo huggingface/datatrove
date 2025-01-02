@@ -23,7 +23,7 @@ class Trafilatura(BaseExtractor):
         self,
         favour_precision: bool = True,
         include_images: bool = False,
-        timeout: float = 0.1,
+        timeout: float = 1,
         deduplicate: bool = True,
         **kwargs,
     ):
