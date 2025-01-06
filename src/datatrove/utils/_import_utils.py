@@ -8,11 +8,26 @@ ASSETS_PATH = os.path.join(importlib.resources.files(__package__.split(".")[0]),
 
 
 def check_required_dependencies(step_name: str, required_dependencies: list[str] | list[tuple[str, str]]):
+    """Check whether the required dependencies are installed or not.
+
+    Args:
+        step_name: str
+            The name of the step
+        required_dependencies: List[str] | List[tuple[str, str]]
+        required dependencies. If the format is a tuple, it is checked as (module name, pip name).
+        When provided as a tuple, an error will be raised if the top-level module name is correct but the pip distribution name differs
+        (e.g., (fasttext, fasttext-numpy2-wheel)).
+
+    """
     missing_dependencies: dict[str, str] = {}
     for dependency in required_dependencies:
         dependency = dependency if isinstance(dependency, tuple) else (dependency, dependency)
         package_name, pip_name = dependency
+        # case1: in case we didn't install package
         if not _is_package_available(package_name):
+            missing_dependencies[package_name] = pip_name
+        # case2: top-level package is installed but distribution is incorrect. (i. e. fasttext-numpy2-wheel; compatibility for numpy2)
+        if not _is_distribution_available(pip_name):
             missing_dependencies[package_name] = pip_name
     if missing_dependencies:
         _raise_error_for_missing_dependencies(step_name, missing_dependencies)
@@ -64,6 +79,15 @@ def is_pyarrow_available():
 
 def is_tokenizers_available():
     return _is_package_available("tokenizers")
+
+
+# Distribution Check
+def _is_distribution_available(distribution_name: str):
+    found = None
+    for dist in importlib.metadata.distributions():
+        if dist.metadata["Name"] == distribution_name:
+            found = True
+    return found
 
 
 # Used in tests
