@@ -53,9 +53,8 @@ class ESDatasetToSequence(PipelineStepWithTokenizer):
     name = "🪞 - exact-substrings stage 1"
 
     def __init__(self, output_folder: DataFolderLike, tokenizer_name_or_path: str = "gpt2"):
-        super().__init__()
+        super().__init__(tokenizer_name_or_path)
         self.output_folder = get_datafolder(output_folder)
-        self.tokenizer_name_or_path = tokenizer_name_or_path
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         """Saves the byte sizes of each doc in a file.
@@ -158,9 +157,8 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         min_doc_words: int = 50,
         language: str = Languages.english,
     ):
-        super().__init__()
+        super().__init__(tokenizer_name_or_path)
         self.sequence_folder = get_datafolder(sequence_folder)
-        self.tokenizer_name_or_path = tokenizer_name_or_path
         self.min_doc_words = min_doc_words
         self.sequence_bytes_offset = None
         self.dup_ranges = None

@@ -11,7 +11,7 @@ from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
 
 if TYPE_CHECKING:
-    from tokenizers import Encoding
+    pass
 
 _INDEX_HEADER = b"MMIDIDX\x00\x00"
 
@@ -173,12 +173,10 @@ class MegatronDocumentTokenizer(PipelineStepWithTokenizer):
         # You can set this if your s3 uploads are failing because of "Part
         # number must be an integer between 1 and 10000, inclusive". Example: 20 * 2**20 (20MB)
     ):
-        super().__init__()
+        super().__init__(tokenizer_name_or_path, eos_token)
 
         self.output_folder = get_datafolder(output_folder)
         self.save_filename = save_filename
-        self.tokenizer_name_or_path = tokenizer_name_or_path
-        self.eos_token = eos_token
         self.batch_size = batch_size
         self.upload_block_size = upload_block_size
 

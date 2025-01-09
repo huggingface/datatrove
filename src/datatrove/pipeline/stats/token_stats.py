@@ -26,8 +26,7 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         BaseStats.__init__(self, output_folder, groups_to_compute, histogram_rounding, top_k_config)
-        PipelineStepWithTokenizer.__init__(self)
-        self.tokenizer_name_or_path = tokenizer_name_or_path
+        PipelineStepWithTokenizer.__init__(self, tokenizer_name_or_path)
 
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
         tokens_count = doc.metadata.get("token_count", None)

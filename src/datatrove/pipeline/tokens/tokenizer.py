@@ -293,7 +293,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         # you can set this if your s3 uploads are failing because of "Part
         # number must be an integer between 1 and 10000, inclusive". Example: 20 * 2**20 (20MB)
     ):
-        super().__init__()
+        super().__init__(tokenizer_name_or_path, eos_token)
         self.output_folder = get_datafolder(output_folder)
         self.local_working_dir = get_datafolder(local_working_dir) if local_working_dir else None
         if self.local_working_dir and not self.local_working_dir.is_local():
@@ -303,8 +303,6 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
                 "local_working_dir is not set and output folder is not local. This may slow down the process."
             )
         self.save_filename = save_filename
-        self.tokenizer_name_or_path = tokenizer_name_or_path
-        self.eos_token = eos_token
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle
         self.batch_size = batch_size
