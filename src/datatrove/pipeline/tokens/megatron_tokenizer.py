@@ -1,5 +1,5 @@
 import struct
-from typing import TYPE_CHECKING, List
+from typing import List
 
 import numpy as np
 
@@ -9,9 +9,6 @@ from datatrove.utils.batching import batched
 from datatrove.utils.logging import logger
 from datatrove.utils.tokenization import PipelineStepWithTokenizer
 
-
-if TYPE_CHECKING:
-    pass
 
 _INDEX_HEADER = b"MMIDIDX\x00\x00"
 
