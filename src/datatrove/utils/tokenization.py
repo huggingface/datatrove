@@ -15,8 +15,9 @@ if TYPE_CHECKING:
 def load_tokenizer(name_or_path: str) -> "Tokenizer":
     from tokenizers import Tokenizer
 
-    if os.path.exists(name_or_path):
+    if os.path.isfile(name_or_path):
         return Tokenizer.from_file(name_or_path)
+
     return Tokenizer.from_pretrained(name_or_path)
 
 
