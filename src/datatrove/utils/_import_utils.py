@@ -82,10 +82,11 @@ def is_tokenizers_available():
 
 
 # Distribution Check
+@lru_cache
 def _is_distribution_available(distribution_name: str):
     found = None
     for dist in importlib.metadata.distributions():
-        if dist.metadata["Name"] == distribution_name:
+        if dist.metadata["Name"] and dist.metadata["Name"].lower() == distribution_name:
             found = True
     return found
 
