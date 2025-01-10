@@ -63,6 +63,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         depends_job_id: alternatively to the above, you can pass the job id of a dependency
         job_id_position: position of job ID in custom Sbatch outputs.
             default: -1
+        job_id_retriever: a callable that takes the output of the sbatch command (as written to terminal)
+            as input and returns the extracted job id to be used as 'self.job_id'. Defaults to take the
+            `job_id_position`-th element from the split output. default: default_job_id_retriever
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
             previous runs. default: True
