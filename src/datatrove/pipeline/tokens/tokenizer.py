@@ -282,6 +282,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         local_working_dir: DataFolderLike | None = None,
         save_filename: str = None,  # if defined, the final output filename will be this
         tokenizer_name_or_path: str = "gpt2",  # tokenizer to use, from HF or a local
+        bos_token: str = "<|startoftext|>",  # whether to add the BOS token nefore each document
         eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
         save_loss_metadata: bool = False,  # save the loss information
         shuffle: bool = True,  # whether to shuffle documents in the dataset,
@@ -304,6 +305,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
             )
         self.save_filename = save_filename
         self.tokenizer_name_or_path = tokenizer_name_or_path
+        self.bos_token = bos_token
         self.eos_token = eos_token
         self.save_loss_metadata = save_loss_metadata
         self.shuffle = shuffle

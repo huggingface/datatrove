@@ -26,6 +26,7 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
     def __init__(self):
         super().__init__()
         self.tokenizer_name_or_path = None
+        self.bos_token = None
         self.eos_token = None
         self._tokenizer: "Tokenizer" | None = None
         self._post_processor = None
@@ -50,10 +51,21 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
             self._tokenizer = load_tokenizer(self.tokenizer_name_or_path)
             if self._post_processor:
                 self._tokenizer.post_processor = self._post_processor
-            elif self.eos_token:
+            elif self.bos_token is not None or self.eos_token is not None:
+                special_tokens = []
+                if self.bos_token:
+                    special_tokens.append(("<BOS>", self.tokenizer.token_to_id(self.bos_token)))
+                if self.eos_token:
+                    special_tokens.append(("<EOS>", self.tokenizer.token_to_id(self.eos_token)))
+                if self.bos_token and not self.eos_token:
+                    single = "<BOS> $A"
+                elif self.eos_token and not self.bos_token:
+                    single = "$A <EOS>"
+                else:
+                    single = "<BOS> $A <EOS>"
                 self._tokenizer.post_processor = TemplateProcessing(
-                    single="$A <EOS>",
-                    special_tokens=[("<EOS>", self.tokenizer.token_to_id(self.eos_token))],
+                    single=single,
+                    special_tokens=special_tokens,
                     pair=None,
                 )
         return self._tokenizer
