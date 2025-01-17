@@ -74,7 +74,7 @@ You can check the following [examples](examples):
 > Your number of `tasks` controls how much you can parallelize and also how much time each individual processing unit will take. If you have a small number of tasks (and they each therefore have to process a large number of files) and they fail, you will have to restart from scratch, whereas if you have a larger number of small tasks each failed task will take way less time to rerun.
 
 > [!CAUTION]
-> If your `tasks` > `files`, some tasks will not process any data, so there usually isn't a point in setting `tasks` to a number larger than `files.
+> If your `tasks` > `files`, some tasks will not process any data, so there usually isn't a point in setting `tasks` to a number larger than `files`.
 
 ### Example 
 Running a `job` to process **10000** `files`, on a machine with **100** cpu cores (`workers`). If we choose to use **1000** tasks, each one will process a `shard` of 10 files. `workers=100` means that we can process **100** tasks at a time.
