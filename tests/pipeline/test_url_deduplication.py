@@ -5,6 +5,7 @@ import unittest
 
 from datatrove.data import Document
 from datatrove.pipeline.dedup.url_dedup import (
+    UrlDedupBuildIndex,
     UrlDedupConfig,
     UrlDedupFilter,
     UrlDedupSignature,
@@ -107,6 +108,34 @@ class UrlDedup(unittest.TestCase):
         self.assertEqual(
             {doc.metadata["url"] for doc in docs},
             {"https://example.com", "https://new-site.com"},
+        )
+
+    def test_url_deduplication_with_index(self):
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs")
+        index_signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/index_sigs")
+        build_index = UrlDedupBuildIndex(
+            data_folder=self.tmp_dir + "/index_sigs",
+            output_folder=self.tmp_dir + "/index",
+            index_name="index",
+            lines_to_buffer=1000,
+        )
+        find_duplicates = UrlFindDedups(
+            data_folder=self.tmp_dir + "/sigs",
+            index_folder=self.tmp_dir + "/index",
+            output_folder=self.tmp_dir + "/dups",
+            lines_to_buffer=1000,
+        )
+        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups")
+
+        index_signature_creation(data=DOCS[:1])
+        build_index()
+        signature_creation(data=DOCS[1:])
+        find_duplicates()
+        docs = list(dedup_filter(data=copy.deepcopy(DOCS[1:])))
+        self.assertEqual(len(docs), 2)
+        self.assertEqual(
+            {doc.metadata["url"] for doc in docs},
+            {doc.metadata["url"] for doc in DOCS[1:]} - {doc.metadata["url"] for doc in DOCS[:1]},
         )
 
     def test_sd_worker(self):
