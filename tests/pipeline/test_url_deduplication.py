@@ -22,6 +22,11 @@ DOCS = [
     Document(text="", metadata={"url": "https://example2.com"}, id="5"),
 ]
 
+INDEX = [
+    Document(text="", metadata={"url": "https://example.com"}, id="1"),
+    Document(text="", metadata={"url": "https://example2.com"}, id="2"),
+]
+
 DOCS_1 = DOCS[:2]
 DOCS_2 = DOCS[2:]
 
@@ -127,15 +132,15 @@ class UrlDedup(unittest.TestCase):
         )
         dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups")
 
-        index_signature_creation(data=DOCS[:1])
+        index_signature_creation(data=INDEX)
         build_index()
-        signature_creation(data=DOCS[1:])
+        signature_creation(data=DOCS)
         find_duplicates()
-        docs = list(dedup_filter(data=copy.deepcopy(DOCS[1:])))
-        self.assertEqual(len(docs), 2)
+        docs = list(dedup_filter(data=copy.deepcopy(DOCS)))
+        self.assertEqual(len(docs), 1)
         self.assertEqual(
             {doc.metadata["url"] for doc in docs},
-            {doc.metadata["url"] for doc in DOCS[1:]} - {doc.metadata["url"] for doc in DOCS[:1]},
+            {doc.metadata["url"] for doc in DOCS} - {doc.metadata["url"] for doc in INDEX},
         )
 
     def test_sd_worker(self):
