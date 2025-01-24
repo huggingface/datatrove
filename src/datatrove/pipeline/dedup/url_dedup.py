@@ -51,7 +51,7 @@ class HashSig:
     file_stem: str
 
     def is_from_index(self):
-        return self.doc_id == -1 and self.priority == 1
+        return self.doc_id == -1 and self.priority == 65536
 
     def __lt__(self, other: "HashSig") -> bool:
         # Ensure that highest priority is always first of the hashes
@@ -168,7 +168,7 @@ def read_sigs(
             assert last is None or data[0] >= last, f"Hash order error. {f.tell()=}, {data[0]=}, {last=}"
             last = data[0]
             yield (
-                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=-1, file_stem=file_stem)
+                HashSig(hash_value=data[0], doc_id=-1, file_id=file_id, priority=65536, file_stem=file_stem)
                 if index_file
                 else HashSig(
                     file_id=file_id,
@@ -248,7 +248,7 @@ class UrlFindDedups(PipelineStep):
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
                         )
-                        for file_i, file in enumerate(self.data_folder.open_files(index_files))
+                        for file_i, file in enumerate(self.index_folder.open_files(index_files))
                     ]
                 )
 
@@ -271,12 +271,15 @@ class UrlFindDedups(PipelineStep):
             packer = struct.Struct("<I")
             while pq:
                 v: HashSig = heapq.heappop(pq)
+
                 if last and last.hash_value == v.hash_value and not v.is_from_index():
                     out_filename = f"{rank:04d}/{v.file_stem}{ExtensionHelperSD.stage_2_duplicates}"
                     if not index_files or last.is_from_index() or not self.config.only_dedup_in_index:
                         doc_id_bytes = packer.pack(v.doc_id)
                         output_mg.write(out_filename, doc_id_bytes)
-                last = v
+
+                if not last or last.hash_value != v.hash_value or not last.is_from_index():
+                    last = v
                 new_v = next(sig_readers[v.file_id], None)
 
                 if new_v:
@@ -390,7 +393,7 @@ class UrlDedupBuildIndex(PipelineStep):
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "UrlDedupBuildIndex can only run on a single worker."
         with self.stats.time_stats:
-            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
+            sig_files = self.data_folder.list_files(glob_pattern="*/*" + ExtensionHelperSD.stage_1_signature)
             sig_readers = [
                 read_sigs(file, file_i, self.config.hash_config, lines_to_buffer=self.lines_to_buffer)
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))
@@ -399,10 +402,11 @@ class UrlDedupBuildIndex(PipelineStep):
             pq = [next(sig_reader) for sig_reader in sig_readers]
             heapq.heapify(pq)
 
-            with self.output_folder.open(f"{self.index_name}.{ExtensionHelperSD.index}", mode="wb") as out_f:
+            with self.output_folder.open(f"{self.index_name}{ExtensionHelperSD.index}", mode="wb") as out_f:
                 last = None
                 while pq:
                     v: HashSig = heapq.heappop(pq)
+
                     if last != v.hash_value:
                         out_f.write(struct.pack(f"<{self.config.hash_config.struct_format}", v.hash_value))
                     last = v.hash_value
