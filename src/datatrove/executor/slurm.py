@@ -10,6 +10,7 @@ import tempfile
 import textwrap
 import time
 from copy import deepcopy
+from functools import partial
 from typing import Callable
 
 import dill
