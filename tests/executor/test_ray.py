@@ -10,7 +10,6 @@ from datatrove.executor.ray import RayPipelineExecutor
 from datatrove.io import get_datafolder
 from datatrove.utils._import_utils import is_boto3_available, is_moto_available, is_s3fs_available
 
-# Decorators to skip tests if boto3/moto/s3fs unavailable
 from ..utils import require_boto3, require_moto, require_s3fs
 
 
@@ -30,17 +29,14 @@ endpoint_uri = f"http://127.0.0.1:{port}/"
 @require_moto
 class TestRayExecutor(unittest.TestCase):
     def setUp(self):
-        # Start Moto’s local S3 mock server
         self.server = ThreadedMotoServer(ip_address="127.0.0.1", port=port)
         self.server.start()
         os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["AWS_ACCESS_KEY_ID"] = "foo"
 
         ray.init()
 
-        # Local temp folder
         self.tmp_dir = tempfile.mkdtemp()
 
-        # Clean up after test
         self.addCleanup(shutil.rmtree, self.tmp_dir)
         self.addCleanup(self.server.stop)
         self.addCleanup(ray.shutdown)
@@ -48,10 +44,6 @@ class TestRayExecutor(unittest.TestCase):
     @require_boto3
     @require_s3fs
     def test_executor(self):
-        """
-        Test the RayPipelineExecutor with different (tasks, workers)-like configs,
-        verifying that it writes the same completion/log/stat files as the Local/Slurm executors.
-        """
         s3fs = S3FileSystem(client_kwargs={"endpoint_url": endpoint_uri})
         s3 = boto3.client("s3", region_name="us-east-1", endpoint_url=endpoint_uri)
         s3.create_bucket(Bucket="test-bucket")
@@ -82,7 +74,6 @@ class TestRayExecutor(unittest.TestCase):
                 )
                 executor.run()
 
-                # Verify the expected files exist
                 for file in file_list:
                     self.assertTrue(
                         log_dir.isfile(file),
