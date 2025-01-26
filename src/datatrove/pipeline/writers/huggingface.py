@@ -2,7 +2,7 @@ import os
 import random
 import tempfile
 import time
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -11,7 +11,6 @@ from huggingface_hub import (
     preupload_lfs_files,
 )
 from huggingface_hub.utils import HfHubHTTPError
-from pyarrow.lib import Schema
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.writers import ParquetWriter
@@ -37,7 +36,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         cleanup: bool = True,
         expand_metadata: bool = True,
         max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
-        schema: Schema = None,
+        schema: Any = None,
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
