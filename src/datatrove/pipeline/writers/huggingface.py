@@ -11,6 +11,7 @@ from huggingface_hub import (
     preupload_lfs_files,
 )
 from huggingface_hub.utils import HfHubHTTPError
+from pyarrow.lib import Schema
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.writers import ParquetWriter
@@ -36,6 +37,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         cleanup: bool = True,
         expand_metadata: bool = True,
         max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
+        schema: Schema = None,
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
@@ -73,6 +75,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             adapter=adapter,
             expand_metadata=expand_metadata,
             max_file_size=max_file_size,
+            schema=schema,
         )
         self.operations = []
         self._repo_init = False

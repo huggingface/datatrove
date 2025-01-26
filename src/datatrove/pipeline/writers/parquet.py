@@ -1,6 +1,8 @@
 from collections import Counter, defaultdict
 from typing import IO, Callable, Literal
 
+from pyarrow.lib import Schema
+
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
@@ -19,6 +21,7 @@ class ParquetWriter(DiskWriter):
         batch_size: int = 1000,
         expand_metadata: bool = False,
         max_file_size: int = 5 * 2**30,  # 5GB
+        schema: Schema = None,
     ):
         # Validate the compression setting
         if compression not in {"snappy", "gzip", "brotli", "lz4", "zstd", None}:
@@ -40,6 +43,7 @@ class ParquetWriter(DiskWriter):
         self._file_counter = Counter()
         self.compression = compression
         self.batch_size = batch_size
+        self.schema = schema
 
     def _on_file_switch(self, original_name, old_filename, new_filename):
         """
@@ -70,7 +74,7 @@ class ParquetWriter(DiskWriter):
         if filename not in self._writers:
             self._writers[filename] = pq.ParquetWriter(
                 file_handler,
-                schema=pa.RecordBatch.from_pylist([document]).schema,
+                schema=self.schema if self.schema is not None else pa.RecordBatch.from_pylist([document]).schema,
                 compression=self.compression,
             )
         self._batches[filename].append(document)
