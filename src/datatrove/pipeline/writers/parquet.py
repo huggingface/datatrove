@@ -61,7 +61,7 @@ class ParquetWriter(DiskWriter):
         import pyarrow as pa
 
         # prepare batch
-        batch = pa.RecordBatch.from_pylist(self._batches.pop(filename))
+        batch = pa.RecordBatch.from_pylist(self._batches.pop(filename), schema=self.schema)
         # write batch
         self._writers[filename].write_batch(batch)
 
