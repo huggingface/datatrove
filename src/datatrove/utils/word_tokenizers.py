@@ -136,9 +136,9 @@ class SpaCyTokenizer(WordTokenizer):
         self.tokenizer.max_length = len(text)
         try:
             return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
-        except KeyError as e:
+        except Exception as e:
             # this dumb string breaks the tokenizer completely
-            if "IS_ALPHA" in str(e):
+            if "IS_ALPHA" in text:
                 return [self.tokenizer(t.replace("IS_ALPHA", ""), disable=["parser", "tagger", "ner"]) for t in texts]
             else:
                 raise e
