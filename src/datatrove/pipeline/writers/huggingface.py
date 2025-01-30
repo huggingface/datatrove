@@ -2,7 +2,7 @@ import os
 import random
 import tempfile
 import time
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -36,6 +36,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         cleanup: bool = True,
         expand_metadata: bool = True,
         max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
+        schema: Any = None,
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
@@ -73,6 +74,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             adapter=adapter,
             expand_metadata=expand_metadata,
             max_file_size=max_file_size,
+            schema=schema,
         )
         self.operations = []
         self._repo_init = False
