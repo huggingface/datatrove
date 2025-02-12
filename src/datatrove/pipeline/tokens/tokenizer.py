@@ -292,9 +292,6 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         upload_block_size: int | None = None,
         # you can set this if your s3 uploads are failing because of "Part
         # number must be an integer between 1 and 10000, inclusive". Example: 20 * 2**20 (20MB)
-        chunk_size: int | None = None,
-        # size to pre-chunk documents before shuffling, None = don't chunk
-        # note that the final shorter-than-chunk_size chunk will get dropped
     ):
         super().__init__(tokenizer_name_or_path, eos_token)
         self.output_folder = get_datafolder(output_folder)
@@ -313,7 +310,6 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
         self.max_tokens_per_file = max_tokens_per_file
-        self.chunk_size = chunk_size
 
     def get_loss_values(self, document: Document, encoded: "Encoding"):
         """Get the loss mask for the document, if needed.
@@ -390,13 +386,6 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         unshuf_filename = get_output_filename(self.save_filename, rank, "unshuffled")
         logger.info(f'Tokenizing in "{unshuf_filename}"...')
         outputfile: TokenizedFile = self.write_unshuffled(data, unshuf_filename)
-        if self.chunk_size:
-            # if the full file is shorter than chunk_size, don't include any chunks at all
-            if len(output_file) < chunk_size:
-                outputfile.doc_ends = []
-            else:
-                # add 1 to final doc_end so that the final chunk is included if it's of length chunk_size
-                outputfile.doc_ends = list(range(chunk_size, len(output_file) + 1, chunk_size))
         if len(outputfile) == 0:
             logger.warning("No data saved.")
             return
