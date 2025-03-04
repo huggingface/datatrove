@@ -500,9 +500,9 @@ class MinhashDedupCluster(PipelineStep):
                 # Union by size
                 size_a = set_size.get(root_a, 1)
                 size_b = set_size.get(root_b, 1)
-                if size_a < size_b:
+                if root_b == (SENTINEL, SENTINEL) or (root_a != (SENTINEL, SENTINEL) and size_a < size_b):
                     root_a, root_b = root_b, root_a
-                # #a >= #b
+                # a is SENTINEL or #a >= #b
                 union_set[root_b] = root_a  # make the smallest one join the biggest one to keep sets shallow
                 set_size[root_a] = size_a + size_b
                 set_size.pop(root_b, None)  # clear up space
