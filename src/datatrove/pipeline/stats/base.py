@@ -37,6 +37,7 @@ class BaseStats(PipelineStep):
         groups_to_compute: list[GROUP] | None = None,
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
+        use_chars_for_histogram: bool = False,
     ) -> None:
         from tldextract import TLDExtract
 
@@ -46,6 +47,7 @@ class BaseStats(PipelineStep):
         self.histogram_round_digits = histogram_round_digits
         self.top_k_cfg = top_k_config
         self.tld_extractor = TLDExtract()
+        self.use_chars_for_histogram = use_chars_for_histogram
 
     @abstractmethod
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
@@ -64,10 +66,10 @@ class BaseStats(PipelineStep):
     ) -> tuple[str, STAT_TYPE | dict[str, STAT_TYPE]]:
         if group_name == "histogram":
             # Use rounding to reduce then number of values for histogram
-            return str(round(value, self.histogram_round_digits)), {
+            kv = str(round(value, self.histogram_round_digits)), {
                 "": 1,
-                "chars": len(doc.text),
                 **({"tokens": doc.metadata["token_count"]} if "token_count" in doc.metadata else {}),
+                **({"chars": len(doc.text)} if self.use_chars_for_histogram else {}),
             }
         elif group_name == "summary":
             return "summary", value

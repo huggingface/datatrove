@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from datatrove.data import Document, DocumentsPipeline
+from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.io import DataFileLike, DataFolderLike, get_datafolder, get_shard_from_paths_file
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
@@ -36,6 +36,7 @@ class BaseReader(PipelineStep):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
+        save_media_bytes: bool = False,
     ):
         super().__init__()
         self.limit = limit
@@ -45,6 +46,7 @@ class BaseReader(PipelineStep):
         self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
+        self.save_media_bytes = save_media_bytes
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
         """
@@ -61,7 +63,7 @@ class BaseReader(PipelineStep):
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
-            "media": data.pop("media", []),
+            "media": [Media(**media) for media in data.pop("media", [])],
             "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
 
@@ -77,14 +79,14 @@ class BaseReader(PipelineStep):
 
         """
         parsed_data = self.adapter(data, source_file, id_in_file)
-        if not parsed_data.get("text", None):
-            if not self._empty_warning:
-                self._empty_warning = True
-                logger.warning(
-                    f"Found document without text, skipping. "
-                    f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
-                )
-            return None
+        # if not parsed_data.get("text", None):
+        #     if not self._empty_warning:
+        #         self._empty_warning = True
+        #         logger.warning(
+        #             f"Found document without text, skipping. "
+        #             f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
+        #         )
+        #     return document
         document = Document(**parsed_data)
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata
