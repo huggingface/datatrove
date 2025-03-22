@@ -50,6 +50,8 @@ Available flavours (combine them with `,` i.e. `[processing,s3]`):
 - `s3` s3 support: `pip install datatrove[s3]`
 - `cli` for command line tools: `pip install datatrove[cli]`
 
+Note that some users, particularly those using zsh may need to wrap the package name as a string in quotes: "" to install. Example `pip install "datatrove[all]"`. 
+
 ## Quickstart examples
 You can check the following [examples](examples):
 - [fineweb.py](examples/fineweb.py) full reproduction of the [FineWeb dataset](https://huggingface.co/datasets/HuggingFaceFW/fineweb)
