@@ -1,4 +1,5 @@
 from bisect import bisect
+from collections import deque
 
 import numpy as np
 import torch
@@ -14,6 +15,8 @@ if is_torch_available():
     class DatatroveFileDataset(Dataset):
         """Dataset for a single .ds file created by datatrove
         We loop on the dataset if asking for an index larger than the dataset size
+        NOTE that this is heavily optimized for sequential reads, and we actually pre-shuffled the data (assuming it was tokenized with datatrove)
+        random access WILL BE SLOW, but should still work
 
         Args:
             file_path (str): path to file on s3, locally, or some other fsspec supported path
@@ -28,10 +31,12 @@ if is_torch_available():
             seq_len: int,
             token_size: int = 2,
             max_tokens: int | None = None,
+            return_positions: bool = False,
         ):
             self.file_path: str = file_path
             self.seq_len = seq_len
             self.token_size = token_size
+            self.return_positions = return_positions
 
             self.fs: AbstractFileSystem
             self.fs, self.file_path = url_to_fs(file_path)
@@ -40,20 +45,78 @@ if is_torch_available():
             num_tokens = fsize // self.token_size
             self._len = (min(max_tokens, num_tokens) if max_tokens else num_tokens) // (seq_len + 1)
             self._f = None
+            self._f_pos = None
+            self._idx_buffer = None
+            self._last_item = None
 
-        def __getitem__(self, item):
+        def _get_pos(self, item):
+            """
+            Reads document ends from .index and returns positions for the entire window.
+            For example, if the documents in the window end at token positions [3, 5, 8], for seq_len+1=10,the positions will be [0, 1, 2, 0, 1, 0, 1, 2, 0, 1]
+            """
+            # Calculate token window range
+            window_start = item * (self.seq_len + 1)
+            window_end = window_start + self.seq_len  # exclusive, but .index is also exclusive
+
+            # Initialize file if first access
+            if self._last_item is None or item < self._last_item:
+                if self._f_pos is None:
+                    self._f_pos = self.fs.open(self.file_path + ".index", "rb")
+                self._idx_buffer = deque()
+                # we could binary search but we are assuming sequential reads (which is what we optimized for by pre-shuffling the data), so we always read from the start
+                self._f_pos.seek(0)
+
+            # 1. Drop positions before the window
+            while self._idx_buffer and self._idx_buffer[0] < window_start:
+                self._idx_buffer.popleft()
+
+            # 2. Read until we have at least one position beyond the window or EOF
+            while not self._idx_buffer or self._idx_buffer[-1] <= window_end:
+                buffer = self._f_pos.read(1024 * 8)  # uint64 = 8 bytes
+
+                if not buffer:
+                    break  # End of file
+
+                self._idx_buffer.extend(np.frombuffer(buffer, np.uint64))
+
+            # 3. Extract positions within the window and convert to local indices
+            doc_ends = torch.tensor(
+                [0] + [pos % (self.seq_len + 1) for pos in self._idx_buffer if window_start <= pos <= window_end],
+                dtype=torch.int,
+            )
+
+            # get actual positions
+            # example: doc_ends = [0, 3, 5, 8]. seq_len+1=10
+            # pos = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+            # prev_ends = [-1, 0, 3, 5]
+            # offsets = [0, -2, -1, -2]
+            # pos = [0, 1, 1, -2, 1, -1, 1, 1, -2, 1]
+            # cumsum = [0, 1, 2, 0, 1, 0, 1, 2, 0, 1]
+
+            pos = torch.ones(self.seq_len + 1, dtype=torch.int)
+            prev_ends = torch.cat([torch.tensor([-1], dtype=torch.int), doc_ends[:-1]])
+            offsets = prev_ends - doc_ends + 1
+            pos[doc_ends] = offsets
+            return torch.cumsum(pos, dim=0)
+
+        def _get_input_ids(self, item):
             if self._f is None:
                 self._f = self.fs.open(self.file_path, "rb")
             chunk_size = self.token_size * (self.seq_len + 1)
             self._f.seek(item * chunk_size)
-            return {
-                "input_ids": torch.as_tensor(
-                    np.frombuffer(self._f.read(chunk_size), np.uint16 if self.token_size == 2 else np.uint32).astype(
-                        np.int64
-                    ),
-                    dtype=torch.long,
-                )
-            }
+            return torch.as_tensor(
+                np.frombuffer(self._f.read(chunk_size), np.uint16 if self.token_size == 2 else np.uint32).astype(
+                    np.int64
+                ),
+                dtype=torch.long,
+            )
+
+        def __getitem__(self, item):
+            data = {"input_ids": self._get_input_ids(item)}
+            if self.return_positions:
+                data["positions"] = self._get_pos(item)
+            self._last_item = item
+            return data
 
         def __len__(self):
             return self._len
@@ -88,9 +151,11 @@ if is_torch_available():
             max_tokens: int | None = None,
             shuffle: bool = False,
             seed: int = 42,
+            return_positions: bool = False,
         ):
             self.folder_path = folder_path
             self.filename_pattern = filename_pattern
+            self.return_positions = return_positions
             fs, folder_path = url_to_fs(folder_path)
             matched_files = (
                 fs.find(folder_path, detail=False, maxdepth=1 if not recursive else None)
@@ -108,6 +173,7 @@ if is_torch_available():
                     seq_len,
                     token_size=token_size,
                     max_tokens=remaining_tokens,
+                    return_positions=return_positions,
                 )
                 self.files.append(file_data)
                 if remaining_tokens is not None:
