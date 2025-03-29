@@ -162,6 +162,7 @@ if is_torch_available():
                 if not filename_pattern
                 else fs.glob(filename_pattern, maxdepth=1 if not recursive else None)
             )
+            matched_files = sorted(matched_files)
             if not matched_files:
                 raise FileNotFoundError(f'No files matching "{filename_pattern}" found in {folder_path}')
 
