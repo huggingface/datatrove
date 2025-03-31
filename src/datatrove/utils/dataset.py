@@ -81,9 +81,9 @@ if is_torch_available():
 
             # 3. Extract positions within the window and convert to local indices
             doc_ends = torch.tensor(
-                [0] + [pos % (self.seq_len + 1) for pos in self._idx_buffer if window_start <= pos <= window_end],
+                [0] + [pos - window_start for pos in self._idx_buffer if window_start < pos <= window_end],
                 dtype=torch.int,
-            )
+            ) 
 
             # get actual positions
             # example: doc_ends = [0, 3, 5, 8]. seq_len+1=10
@@ -97,6 +97,7 @@ if is_torch_available():
             prev_ends = torch.cat([torch.tensor([-1], dtype=torch.int), doc_ends[:-1]])
             offsets = prev_ends - doc_ends + 1
             pos[doc_ends] = offsets
+            assert pos[0] == 0, "First position should be 0"
             return torch.cumsum(pos, dim=0)
 
         def _get_input_ids(self, item):
