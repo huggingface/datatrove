@@ -32,12 +32,13 @@ if is_torch_available():
             token_size: int = 2,
             max_tokens: int | None = None,
             return_positions: bool = False,
+            eos_token_id: int | None = None,
         ):
             self.file_path: str = file_path
             self.seq_len = seq_len
             self.token_size = token_size
             self.return_positions = return_positions
-
+            self.eos_token_id = eos_token_id
             self.fs: AbstractFileSystem
             self.fs, self.file_path = url_to_fs(file_path)
             fsize = self.fs.size(self.file_path)
@@ -83,7 +84,7 @@ if is_torch_available():
             doc_ends = torch.tensor(
                 [0] + [pos - window_start for pos in self._idx_buffer if window_start < pos <= window_end],
                 dtype=torch.int,
-            ) 
+            )
 
             # get actual positions
             # example: doc_ends = [0, 3, 5, 8]. seq_len+1=10
@@ -95,6 +96,17 @@ if is_torch_available():
 
             pos = torch.ones(self.seq_len + 1, dtype=torch.int)
             prev_ends = torch.cat([torch.tensor([-1], dtype=torch.int), doc_ends[:-1]])
+            offsets = prev_ends - doc_ends + 1
+            pos[doc_ends] = offsets
+            assert pos[0] == 0, "First position should be 0"
+            return torch.cumsum(pos, dim=0)
+
+        def _get_positions_from_tokens(self, tokens):
+            pos = torch.ones_like(tokens, dtype=torch.int64)
+            doc_ends = torch.cat(
+                [torch.tensor([0], dtype=torch.int64), torch.where(tokens[:-1] == self.eos_token_id)[0] + 1]
+            )
+            prev_ends = torch.cat([torch.tensor([-1], dtype=torch.int64), doc_ends[:-1]])
             offsets = prev_ends - doc_ends + 1
             pos[doc_ends] = offsets
             assert pos[0] == 0, "First position should be 0"
@@ -115,7 +127,11 @@ if is_torch_available():
         def __getitem__(self, item):
             data = {"input_ids": self._get_input_ids(item)}
             if self.return_positions:
-                data["positions"] = self._get_pos(item)
+                data["positions"] = (
+                    self._get_pos(item)
+                    if self.eos_token_id is None
+                    else self._get_positions_from_tokens(data["input_ids"])
+                )
             self._last_item = item
             return data
 
@@ -153,6 +169,7 @@ if is_torch_available():
             shuffle: bool = False,
             seed: int = 42,
             return_positions: bool = False,
+            eos_token_id: int | None = None,
         ):
             self.folder_path = folder_path
             self.filename_pattern = filename_pattern
@@ -176,6 +193,7 @@ if is_torch_available():
                     token_size=token_size,
                     max_tokens=remaining_tokens,
                     return_positions=return_positions,
+                    eos_token_id=eos_token_id,
                 )
                 self.files.append(file_data)
                 if remaining_tokens is not None:
