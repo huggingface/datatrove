@@ -11,7 +11,7 @@ from pyparsing import ABC, abstractmethod
 
 class BaseMediaWriter(PipelineStep, ABC):
     """
-        Base writer block to save data to disk.
+    Base writer block to save data to disk.
 
     Args:
         output_folder: a str, tuple or DataFolder where data should be saved
@@ -19,7 +19,7 @@ class BaseMediaWriter(PipelineStep, ABC):
     """
 
     default_output_filename: str = None
-    type = "💽 - WRITER"
+    type = "💽 - MEDIA WRITER"
 
     def __init__(
         self,
@@ -146,12 +146,12 @@ class BaseMediaWriter(PipelineStep, ABC):
 
         """
         with self:
-            with self.track_time():
                 for document in data:
-                    for media in document.media:
-                        filename, offset = self.write(media, rank)
-                        media.path = filename
-                        media.offset = offset
-                        self.stat_update(StatHints.total)
-                        self.update_media_stats(media)
-                        yield document
+                    with self.track_time():
+                        for media in document.media:
+                            if media.media_bytes is not None:
+                                filename, offset = self.write(media, rank)
+                                media.path = filename
+                                media.offset = offset
+                                self.stat_update(StatHints.total)
+                    yield document

@@ -1,23 +1,21 @@
-from collections import Counter, defaultdict
 import gzip
-from typing import IO, Any, Callable, Literal
+from typing import IO
 
 from datatrove.data import Media
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.media_writers.base_media_writer import BaseMediaWriter
-import struct
+from datatrove.pipeline.media.writers.base_media_writer import BaseMediaWriter
 
 
 class BinaryGzipWriter(BaseMediaWriter):
     default_output_filename: str = "${rank}.bin.gz"
-    name = "📒 Binary Gzip"
+    name = "️️🗜️ - Binary Gzip"
 
     def __init__(
         self,
         output_folder: DataFolderLike,
         output_filename: str = None,
         max_file_size: int = 5 * 2**30,  # 5GB
-        offset_byte_size: int = 4,
+        length_byte_size: int = 4,
     ):
         super().__init__(
             output_folder,
@@ -26,7 +24,7 @@ class BinaryGzipWriter(BaseMediaWriter):
             max_file_size=max_file_size,
         )
         self._writers = {}
-        self.offset_byte_size = offset_byte_size
+        self.offset_byte_size = length_byte_size
 
     def _on_file_switch(self, original_name, old_filename, new_filename):
         """
@@ -37,7 +35,7 @@ class BinaryGzipWriter(BaseMediaWriter):
             old_filename: old full filename
             new_filename: new full filename
         """
-        self._writers.pop(original_name).close()
+        self._writers.pop(old_filename).close()
         super()._on_file_switch(original_name, old_filename, new_filename)
 
     def _write(self, media: Media, file_handler: IO, filename: str):
@@ -50,7 +48,6 @@ class BinaryGzipWriter(BaseMediaWriter):
         writer.write(len(media.media_bytes).to_bytes(self.offset_byte_size, "big"))
         # write media bytes
         writer.write(media.media_bytes)
-        print(f"Wrote media {media.id} to {filename} at offset {offset} and length {len(media.media_bytes)}, writer type: {type(writer)}")
         return filename, offset
 
     def close(self):

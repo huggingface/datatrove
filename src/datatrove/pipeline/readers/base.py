@@ -142,9 +142,18 @@ class BaseDiskReader(BaseReader):
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
-        self.paths_file = paths_file
-        self.recursive = recursive
-        self.glob_pattern = glob_pattern
+        if not paths_file:
+            logger.info(f"Listing files on {self.data_folder.path}...")
+            self.paths = sorted(self.data_folder.list_files(recursive=recursive, glob_pattern=glob_pattern))
+            if len(self.paths) == 0:
+                raise RuntimeError(f"No files found on {self.data_folder.path}!")
+            logger.info(f"Found {len(self.paths)} files on {self.data_folder.path}!")
+
+            self.paths_file = None
+        else:
+            self.paths_file = paths_file
+            self.paths = None
+
         self.shuffle_files = shuffle_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
@@ -222,10 +231,13 @@ class BaseDiskReader(BaseReader):
         if data:
             yield from data
         files_shard = (
-            self.data_folder.get_shard(rank, world_size, recursive=self.recursive, glob_pattern=self.glob_pattern)
+            self.paths[rank::world_size]
             if not self.paths_file
             else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
         )
+        # Free up memory
+        self.paths = None
+
         if files_shard is None:
             raise RuntimeError(f"No files found on {self.data_folder.path}!")
         elif len(files_shard) == 0:

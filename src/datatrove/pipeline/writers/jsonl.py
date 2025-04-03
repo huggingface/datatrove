@@ -27,6 +27,7 @@ class JsonlWriter(DiskWriter):
         adapter: Callable = None,
         expand_metadata: bool = False,
         max_file_size: int = -1,  # in bytes. -1 for unlimited
+        max_records: int = -1,
     ):
         super().__init__(
             output_folder,
@@ -36,6 +37,7 @@ class JsonlWriter(DiskWriter):
             expand_metadata=expand_metadata,
             mode="wb",
             max_file_size=max_file_size,
+            max_records=max_records,
         )
 
     def _write(self, document: dict, file_handler: IO, _filename: str):

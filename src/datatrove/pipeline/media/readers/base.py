@@ -1,7 +1,7 @@
 import random
 from abc import abstractmethod
 from types import MethodType
-from typing import Callable
+from typing import IO, Callable
 
 from datatrove.utils.typeshelper import StatHints
 from pyparsing import ABC
@@ -75,14 +75,53 @@ class BaseMediaReader(PipelineStep, ABC):
         Returns:
 
         """
-        if not data:
-            return data
-
         with self:
-            with self.track_time():
-                for doc in data:
+            for doc in data:
+                with self.track_time():
                     for media in doc.media:
-                        media.media_bytes, media.metadata = self.read_media(media)
+                        media.media_bytes, metadata = self.read_media(media)
+                        if metadata is not None:
+                            media.metadata.update(metadata)
                         self.stat_update(StatHints.total)
                         self.update_media_stats(media)
-                    yield doc
+                yield doc
+
+
+class SeekableMediaReader(BaseMediaReader, ABC):
+    def __init__(self, data_folder: DataFolderLike):
+        super().__init__()
+        self.data_folder = get_datafolder(data_folder)
+        self.current_fp = None
+        self.current_path = None
+
+    @abstractmethod
+    def open_file(self, path: str) -> IO:
+        raise NotImplementedError
+
+    @abstractmethod
+    def close_file(self, fp: IO):
+        raise NotImplementedError
+
+    @abstractmethod
+    def read_from_fp(self, fp: IO, media: Media) -> tuple[bytes | None, dict | None]:
+        raise NotImplementedError
+
+    def read_media(self, media: Media) -> tuple[bytes | None, dict | None]:
+        if media.path is None:
+            logger.warning(f"Media {media.id} has no path, skipping")
+            return None, None
+
+        if self.current_fp is None or self.current_path != media.path:
+            if self.current_fp:
+                self.close_file(self.current_fp)
+
+            self.current_fp = self.open_file(media.path)
+            self.current_path = media.path
+
+        return self.read_from_fp(self.current_fp, media)
+
+    def close(self):
+        if self.current_fp:
+            self.close_file(self.current_fp)
+
+

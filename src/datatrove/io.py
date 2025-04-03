@@ -377,7 +377,7 @@ def get_shard_from_paths_file(paths_file: DataFileLike, rank: int, world_size):
     kwargs = {}
     if isinstance(paths_file, tuple):
         paths_file, kwargs = paths_file
-    with open_file(paths_file, mode="rt", **kwargs) as f:
+    with open_file(paths_file, mode="rt", **kwargs, compression="infer") as f:
         for pathi, path in enumerate(f):
             if (pathi - rank) % world_size == 0:
                 yield path.strip()
