@@ -1,0 +1,78 @@
+{
+    "pipeline": [
+        [
+            {
+                "text": "test",
+                "id": 0,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 1,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 2,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 3,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 4,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 5,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 6,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 7,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 8,
+                "media": [],
+                "metadata": {}
+            },
+            {
+                "text": "test",
+                "id": 9,
+                "media": [],
+                "metadata": {}
+            }
+        ],
+        {}
+    ],
+    "logging_dir": "DataFolder(path='/fsx/hynek_kydlicek/projects/pdf_project/libs/datatrove/logs', fs=<fsspec.implementations.local.LocalFileSystem object at 0x7f4bbe187d40>)",
+    "skip_completed": true,
+    "randomize_start_duration": 0,
+    "tasks": 1,
+    "workers": 1,
+    "start_method": "forkserver",
+    "local_tasks": 1,
+    "local_rank_offset": 0,
+    "depends": null,
+    "_launched": true,
+    "world_size": 1
+}
