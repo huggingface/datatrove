@@ -3,6 +3,7 @@ from time import sleep
 from concurrent.futures import CancelledError
 import time
 from loguru import logger
+import dns.rdatatype
 from datatrove.data import Document, DocumentsPipeline, Media, MediaType
 from dns.rdatatype import RdataType
 import socket
@@ -24,7 +25,7 @@ from datatrove.utils.stats import MetricStats
 class HTTPFetchReader(PipelineStep):
     type = "📖 - READER"
     name = "🌐 HTTP Fetch Reader"
-    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024):
+    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = 9998):
         self._retry_delay = retry_delay
         self._max_retries = max_retries
         self._retry_codes = retry_codes
@@ -39,6 +40,7 @@ class HTTPFetchReader(PipelineStep):
         self.download_timeout = download_timeout
         self.use_cloudscraper = use_cloudscraper
         self.max_size = max_size
+        self.dns_port = dns_port
         self.custom_agents = [
             # "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0",
             # "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
@@ -110,11 +112,14 @@ class HTTPFetchReader(PipelineStep):
                         metadata = dict(response.headers)
                         response_content = b""
                         download_start_time = time.time()
-                        # Read the response in chunks of 4KB
                         for chunk in response.iter_content(chunk_size=1024*1024):
                             if time.time() - download_start_time > self.download_timeout:
                                 raise TimeoutError(f"Timeout fetching media from {url}")
                             response_content += chunk
+
+                            # If we get anything over 100MB, we report every 10MB that we are still downloading
+                            if len(response_content) >= 100*1024*1024 and len(response_content) % (10*1024*1024) == 0:
+                                logger.warning(f"Downloading {len(response_content)} bytes from {url}")
 
                             if len(response_content) >= self.max_size:
                                 response_content = response_content[:self.max_size]
@@ -179,7 +184,7 @@ class HTTPFetchReader(PipelineStep):
                 # logger.error(f"Robots disallowed: {record.metadata['url']}, {record.id}")
             # else:
             self.stat_update("media_fetch_failed", value=1, unit="documents")
-            logger.error(f"Failed to fetch media from {record.metadata['url']}, {record.id}")
+            # logger.error(f"Failed to fetch media from {record.metadata['url']}, {record.id}")
         return record
 
     def log_info(self, queue_size: int):
@@ -208,6 +213,36 @@ class HTTPFetchReader(PipelineStep):
 
         if data is None:
             return
+
+
+        from dns.resolver import Resolver
+        resolver = Resolver()
+        resolver.nameservers = ['127.0.0.1']
+        resolver.port = self.dns_port
+        original_getaddrinfo = socket.getaddrinfo
+        def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
+            addresses = []
+            try:
+                addresses.extend([(socket.AF_INET, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.A)])
+            except dns.resolver.LifetimeTimeout:
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                pass
+
+            try:
+                addresses.extend([(socket.AF_INET6, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)])
+            except dns.resolver.LifetimeTimeout:
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                pass
+
+
+            if len(addresses) == 0:
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+
+            return addresses
+
+        socket.getaddrinfo = getaddrinfo_patched
 
         # disable warnings
         import warnings
