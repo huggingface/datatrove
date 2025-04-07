@@ -25,7 +25,7 @@ from datatrove.utils.stats import MetricStats
 class HTTPFetchReader(PipelineStep):
     type = "📖 - READER"
     name = "🌐 HTTP Fetch Reader"
-    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = 9998):
+    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = None):
         self._retry_delay = retry_delay
         self._max_retries = max_retries
         self._retry_codes = retry_codes
@@ -215,34 +215,35 @@ class HTTPFetchReader(PipelineStep):
             return
 
 
-        from dns.resolver import Resolver
-        resolver = Resolver()
-        resolver.nameservers = ['127.0.0.1']
-        resolver.port = self.dns_port
-        original_getaddrinfo = socket.getaddrinfo
-        def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
-            addresses = []
-            try:
-                addresses.extend([(socket.AF_INET, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.A)])
-            except dns.resolver.LifetimeTimeout:
-                return original_getaddrinfo(host, port, family, type, proto, flags)
-            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-                pass
+        if self.dns_port is not None:
+            from dns.resolver import Resolver
+            resolver = Resolver()
+            resolver.nameservers = ['127.0.0.1']
+            resolver.port = self.dns_port
+            original_getaddrinfo = socket.getaddrinfo
+            def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
+                addresses = []
+                try:
+                    addresses.extend([(socket.AF_INET, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.A)])
+                except dns.resolver.LifetimeTimeout:
+                    return original_getaddrinfo(host, port, family, type, proto, flags)
+                except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                    pass
 
-            try:
-                addresses.extend([(socket.AF_INET6, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)])
-            except dns.resolver.LifetimeTimeout:
-                return original_getaddrinfo(host, port, family, type, proto, flags)
-            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-                pass
+                try:
+                    addresses.extend([(socket.AF_INET6, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)])
+                except dns.resolver.LifetimeTimeout:
+                    return original_getaddrinfo(host, port, family, type, proto, flags)
+                except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                    pass
 
 
-            if len(addresses) == 0:
-                return original_getaddrinfo(host, port, family, type, proto, flags)
+                if len(addresses) == 0:
+                    return original_getaddrinfo(host, port, family, type, proto, flags)
 
-            return addresses
+                return addresses
 
-        socket.getaddrinfo = getaddrinfo_patched
+            socket.getaddrinfo = getaddrinfo_patched
 
         # disable warnings
         import warnings
