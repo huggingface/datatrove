@@ -63,7 +63,10 @@ class HTTPFetchReader(PipelineStep):
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)  # supports TLSv1.0 and above
             ssl_context.options &= ~ssl.OP_NO_TLSv1
             ssl_context.options &= ~ssl.OP_NO_TLSv1_1
-            ssl_context.options |= ssl.OP_LEGACY_SERVER_CONNECT  # Allows unsafe renegotiation
+            try:
+                ssl_context.options |= ssl.OP_LEGACY_SERVER_CONNECT  # Allows unsafe renegotiation
+            except AttributeError:
+                pass
             ssl_context.set_ciphers('ALL:@SECLEVEL=0')  # allows all cipher suites including weak ones
 
             ssl_context.check_hostname = False
