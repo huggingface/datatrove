@@ -87,8 +87,8 @@ class HTTPFetchReader(PipelineStep):
 
                 self._thread_local.scrapers = [requests.Session()]
                 for scraper in self._thread_local.scrapers:
-                    scraper.mount("https://", CustomHTTPAdapter(pool_maxsize=1, pool_connections=0, pool_block=True))
-                    scraper.mount("http://", CustomHTTPAdapter(pool_maxsize=1, pool_connections=0, pool_block=True))
+                    scraper.mount("https://", CustomHTTPAdapter(pool_maxsize=1, pool_connections=1, pool_block=True))
+                    scraper.mount("http://", CustomHTTPAdapter(pool_maxsize=1, pool_connections=1, pool_block=True))
 
         return random.choice(self._thread_local.scrapers)
 
