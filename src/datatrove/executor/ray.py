@@ -31,11 +31,16 @@ def run_for_rank(executor_ref: "RayPipelineExecutor", ranks: list[int]) -> Pipel
     from datatrove.utils.logging import logger
     import multiprocess.pool
 
+    # Sleep for the executor's timeout
+    def run_for_rank_wrapper_with_sleep(rank, rank_id):
+        time.sleep(random.randint(0, executor_ref.randomize_start_duration))
+        return executor_ref._run_for_rank(rank, rank_id)
+
     executor = executor_ref
     rank_ids = list(range(len(ranks))) if executor.log_first else list(range(1, len(ranks) + 1))
     stats = PipelineStats()
     with multiprocess.pool.Pool(processes=len(ranks)) as pool:
-        for task_result in pool.starmap(executor._run_for_rank, [(rank, rank_id) for rank_id, rank in zip(rank_ids, ranks)]):
+        for task_result in pool.starmap(run_for_rank_wrapper_with_sleep, [(rank, rank_id) for rank_id, rank in zip(rank_ids, ranks)]):
             stats += task_result
     return stats
 
