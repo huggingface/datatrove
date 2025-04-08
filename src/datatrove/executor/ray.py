@@ -210,7 +210,8 @@ class RayPipelineExecutor(PipelineExecutor):
             return PipelineStats()
         
         # We log only locally and upload logs to s3 after the pipeline is finished
-        logfile = add_task_logger(get_datafolder("/tmp/ray_logs"), rank, local_rank)
+        ray_logs_dir = get_datafolder("/tmp/ray_logs")
+        logfile = add_task_logger(ray_logs_dir, rank, local_rank)
         log_pipeline(self.pipeline)
 
         if self.randomize_start_duration > 0:
@@ -243,6 +244,6 @@ class RayPipelineExecutor(PipelineExecutor):
         finally:
             close_task_logger(logfile)
             # Upload logs to s3
-            with open(logfile, "rt") as f, self.logging_dir.open(f"logs/{rank:05d}.log", "wt") as f_out:
+            with ray_logs_dir.open(f"logs/task_{rank:05d}.log", "r") as f, self.logging_dir.open(f"logs/task_{rank:05d}.log", "w") as f_out:
                 f_out.write(f.read())
         return stats
