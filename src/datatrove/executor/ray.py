@@ -8,9 +8,9 @@ from typing import Callable, Optional, Sequence
 import ray
 
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import DataFolderLike
-from datatrove.pipeline.base import PipelineStep
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.utils.stats import PipelineStats
+from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipeline, logger
 
 
@@ -74,7 +74,7 @@ class RayPipelineExecutor(PipelineExecutor):
         logging_dir: DataFolderLike = None,
         randomize_start_duration: int = 0,
         cpus_per_task: int = 1,
-        mem_per_cpu_gb: int = 2,
+        mem_per_cpu_gb: float = 2,
         ray_remote_kwargs: dict = None,
         log_first: bool = False,
         tasks_per_job: int = 1,
@@ -124,7 +124,7 @@ class RayPipelineExecutor(PipelineExecutor):
         remote_options = {
             "num_cpus": self.cpus_per_task,
             "num_gpus": 0,
-            "memory": self.mem_per_cpu_gb * self.cpus_per_task * 1024 * 1024 * 1024,
+            "memory": int(self.mem_per_cpu_gb * self.cpus_per_task * 1024 * 1024 * 1024),
         }
         if self.ray_remote_kwargs:
             remote_options.update(self.ray_remote_kwargs)
@@ -167,7 +167,7 @@ class RayPipelineExecutor(PipelineExecutor):
             # number of concurrent tasks, add tasks to the unfinished queue.
             while ranks_per_jobs and len(unfinished) < MAX_CONCURRENT_TASKS:
                 ranks_to_submit = ranks_per_jobs.pop()
-                task = run_for_rank.options(**remote_options).remote(executor_pickled, ranks_to_submit)
+                task = ray_remote_func.remote(executor_ref, ranks_to_submit)
                 unfinished.append(task)
                 task_start_times[task] = time.time()
 
@@ -205,7 +205,7 @@ class RayPipelineExecutor(PipelineExecutor):
             return PipelineStats()
         
         # We log only locally and upload logs to s3 after the pipeline is finished
-        logfile = add_task_logger("/ray_logs", rank, local_rank)
+        logfile = add_task_logger(get_datafolder("/ray_logs"), rank, local_rank)
         log_pipeline(self.pipeline)
 
         if self.randomize_start_duration > 0:
