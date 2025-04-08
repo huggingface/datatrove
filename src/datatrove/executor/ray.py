@@ -74,22 +74,24 @@ class RayPipelineExecutor(PipelineExecutor):
         skip_completed: bool = True,
         logging_dir: DataFolderLike = None,
         randomize_start_duration: int = 0,
+        cpus_per_task: int = 1,
         mem_per_cpu_gb: int = 2,
         ray_remote_kwargs: dict = None,
         log_first: bool = False,
         tasks_per_job: int = 1,
-        timeout: Optional[int] = None,
+        time: Optional[int] = None,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.depends = depends
         # track whether run() has been called
+        self.cpus_per_task = cpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.ray_remote_kwargs = ray_remote_kwargs
         self.tasks_per_job = tasks_per_job
         self.log_first = log_first
-        self.timeout = timeout
+        self.time = time
 
     @property
     def world_size(self) -> int:
@@ -122,7 +124,7 @@ class RayPipelineExecutor(PipelineExecutor):
 
         # 5) Define resource requirements for this pipeline's tasks
         remote_options = {
-            "num_cpus": self.mem_per_cpu_gb,
+            "num_cpus": self.cpus_per_task,
             "num_gpus": 0,
             "memory": self.mem_per_cpu_gb * 1024 * 1024 * 1024,
         }
@@ -167,12 +169,12 @@ class RayPipelineExecutor(PipelineExecutor):
                 task_start_times[task] = time.time()
 
             # Finally remove tasks that run for more than self.timeout seconds
-            if self.timeout:
+            if self.time:
                 for task in unfinished:
-                    if time.time() - task_start_times[task] > self.timeout:
+                    if time.time() - task_start_times[task] > self.time:
                         del task_start_times[task]
                         unfinished.remove(task)
-                        logger.warning(f"Task {task} timed out after {self.timeout} seconds and was removed from the queue.")
+                        logger.warning(f"Task {task} timed out after {self.time} seconds and was removed from the queue.")
         logger.info("All Ray tasks have finished.")
 
         # 8) Save merged stats
