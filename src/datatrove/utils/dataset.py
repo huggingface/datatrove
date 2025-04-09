@@ -68,7 +68,7 @@ if is_torch_available():
             # Initialize file if first access
             if self._last_item is None or item < self._last_item:
                 if self._f_pos is None:
-                    self._f_pos = self.fs.open(self.read_path + ".index", "rb")
+                    self._f_pos = self.fs.open(self.file_path + ".index", "rb")
                 self._idx_buffer = deque()
                 # we could binary search but we are assuming sequential reads (which is what we optimized for by pre-shuffling the data), so we always read from the start
                 self._f_pos.seek(0)
