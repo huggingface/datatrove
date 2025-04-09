@@ -38,6 +38,7 @@ if is_torch_available():
             read_path: str | None = None,
         ):
             self.file_path: str = file_path
+            self.read_path = read_path
             self.seq_len = seq_len
             self.token_size = token_size
             self.return_positions = return_positions
@@ -51,6 +52,7 @@ if is_torch_available():
             # once we're done getting the metadata (length), we can now rely on read_path
             if read_path:
                 self.fs, self.file_path = url_to_fs(read_path)
+                
             self._f = None
             self._f_pos = None
             self._idx_buffer = None
@@ -231,6 +233,10 @@ if is_torch_available():
 
         def __len__(self):
             return self.lens[-1] if self.lens else 0
+        
+        @property
+        def current_file_path(self):
+            return self.files[self.current_file].read_path if self.files[self.current_file].read_path is not None else self.files[self.current_file].file_path
 else:
     DatatroveFileDataset = NotImplemented
     DatatroveFolderDataset = NotImplemented
