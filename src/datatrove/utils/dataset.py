@@ -1,3 +1,4 @@
+import os
 from bisect import bisect
 from collections import deque
 
@@ -23,6 +24,7 @@ if is_torch_available():
             seq_len (int): sequence length
             token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger
             max_tokens (int): only read at most this number of tokens
+            read_path (str): path to local file/copy to read from. If it exists, we read from this file instead of from file_path. Useful when we offload some data to remote and only keep the needed files on disk.
         """
 
         def __init__(
@@ -33,6 +35,7 @@ if is_torch_available():
             max_tokens: int | None = None,
             return_positions: bool = False,
             eos_token_id: int | None = None,
+            read_path: str | None = None,
         ):
             self.file_path: str = file_path
             self.seq_len = seq_len
@@ -45,6 +48,9 @@ if is_torch_available():
             # total number of full contexts in this file
             num_tokens = fsize // self.token_size
             self._len = (min(max_tokens, num_tokens) if max_tokens else num_tokens) // (seq_len + 1)
+            # once we're done getting the metadata (length), we can now rely on read_path
+            if read_path:
+                self.fs, self.file_path = url_to_fs(read_path)
             self._f = None
             self._f_pos = None
             self._idx_buffer = None
@@ -62,7 +68,7 @@ if is_torch_available():
             # Initialize file if first access
             if self._last_item is None or item < self._last_item:
                 if self._f_pos is None:
-                    self._f_pos = self.fs.open(self.file_path + ".index", "rb")
+                    self._f_pos = self.fs.open(self.read_path + ".index", "rb")
                 self._idx_buffer = deque()
                 # we could binary search but we are assuming sequential reads (which is what we optimized for by pre-shuffling the data), so we always read from the start
                 self._f_pos.seek(0)
@@ -141,6 +147,8 @@ if is_torch_available():
         def __del__(self):
             if self._f:
                 self._f.close()
+            if self._f_pos:
+                self._f_pos.close()
 
     class DatatroveFolderDataset(Dataset):
         """
@@ -150,19 +158,20 @@ if is_torch_available():
         Args:
             folder_path (str): path to folder on S3, locally, or some other fsspec supported path
             seq_len (int): sequence length
-            filename_pattern (Union[Pattern, str], optional): filename pattern. Defaults to None.
+            filename_pattern (Union[Pattern, str], optional): filename pattern. Defaults to **/*.ds.
             recursive (bool, optional): search recursively. Defaults to True.
             token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger
             max_tokens (int): only read at most this number of tokens
             shuffle (bool, optional): shuffle the files in the folder. Defaults to False.
             seed (int, optional): seed for shuffling. Defaults to 42.
+            folder_read_path (str): path to local file/copy to read from. If it exists, we read from this folder instead of from folder_path. Useful when we offload some data to remote and only keep the needed files on disk.
         """
 
         def __init__(
             self,
             folder_path: str,
             seq_len: int,
-            filename_pattern: str = None,
+            filename_pattern: str = "**/*.ds",
             recursive: bool = True,
             token_size: int = 2,
             max_tokens: int | None = None,
@@ -170,6 +179,7 @@ if is_torch_available():
             seed: int = 42,
             return_positions: bool = False,
             eos_token_id: int | None = None,
+            read_path: str | None = None,
         ):
             self.folder_path = folder_path
             self.filename_pattern = filename_pattern
@@ -178,7 +188,7 @@ if is_torch_available():
             matched_files = (
                 fs.find(folder_path, detail=False, maxdepth=1 if not recursive else None)
                 if not filename_pattern
-                else fs.glob(filename_pattern, maxdepth=1 if not recursive else None)
+                else fs.glob(os.path.join(folder_path, filename_pattern), maxdepth=1 if not recursive else None)
             )
             matched_files = sorted(matched_files)
             if not matched_files:
@@ -194,6 +204,7 @@ if is_torch_available():
                     max_tokens=remaining_tokens,
                     return_positions=return_positions,
                     eos_token_id=eos_token_id,
+                    read_path=os.path.join(read_path, os.path.relpath(path, folder_path)) if read_path else None,
                 )
                 self.files.append(file_data)
                 if remaining_tokens is not None:
