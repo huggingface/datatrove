@@ -1,6 +1,9 @@
 import os
 from bisect import bisect
 from collections import deque
+import random
+import fnmatch
+from time import sleep
 
 import numpy as np
 import torch
@@ -36,6 +39,7 @@ if is_torch_available():
             return_positions: bool = False,
             eos_token_id: int | None = None,
             read_path: str | None = None,
+            fsize: int | None = None,  # Add fsize parameter
         ):
             self.file_path: str = file_path
             self.read_path = read_path
@@ -45,7 +49,11 @@ if is_torch_available():
             self.eos_token_id = eos_token_id
             self.fs: AbstractFileSystem
             self.fs, self.file_path = url_to_fs(file_path)
-            fsize = self.fs.size(self.file_path)
+            
+            # Use provided fsize if available, otherwise fetch it
+            if fsize is None:
+                fsize = self.fs.size(self.file_path)
+                
             # total number of full contexts in this file
             num_tokens = fsize // self.token_size
             self._len = (min(max_tokens, num_tokens) if max_tokens else num_tokens) // (seq_len + 1)
@@ -182,17 +190,32 @@ if is_torch_available():
             return_positions: bool = False,
             eos_token_id: int | None = None,
             read_path: str | None = None,
+            matched_files: list | None = None,  # Add matched_files parameter
+            file_sizes: dict | None = None,  # Add file_sizes parameter
         ):
             self.folder_path = folder_path
             self.filename_pattern = filename_pattern
             self.return_positions = return_positions
             fs, folder_path = url_to_fs(folder_path)
-            matched_files = (
-                fs.find(folder_path, detail=False, maxdepth=1 if not recursive else None)
-                if not filename_pattern
-                else fs.glob(os.path.join(folder_path, filename_pattern), maxdepth=1 if not recursive else None)
-            )
-            matched_files = sorted(matched_files)
+
+            if matched_files is None:
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        matched_files = (
+                            fs.find(folder_path, detail=False, maxdepth=1 if not recursive else None)
+                            if not filename_pattern
+                            else fs.glob(os.path.join(folder_path, filename_pattern), maxdepth=1 if not recursive else None)
+                        )
+                        matched_files = sorted(matched_files)
+                        break
+                    except OSError as e:
+                        if "Please reduce your request rate" in str(e) and attempt < max_retries - 1:
+                            sleep_time = (2 ** attempt) + random.random()
+                            sleep(sleep_time)
+                            continue
+                        raise
+
             if not matched_files:
                 raise FileNotFoundError(f'No files matching "{filename_pattern}" found in {folder_path}')
 
@@ -207,6 +230,7 @@ if is_torch_available():
                     return_positions=return_positions,
                     eos_token_id=eos_token_id,
                     read_path=os.path.join(read_path, os.path.relpath(path, folder_path)) if read_path else None,
+                    fsize=file_sizes.get(path) if file_sizes else None,
                 )
                 self.files.append(file_data)
                 if remaining_tokens is not None:
