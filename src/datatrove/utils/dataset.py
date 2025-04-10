@@ -39,7 +39,7 @@ if is_torch_available():
             return_positions: bool = False,
             eos_token_id: int | None = None,
             read_path: str | None = None,
-            fsize: int | None = None,  # Add fsize parameter
+            fsize: int | None = None,
         ):
             self.file_path: str = file_path
             self.read_path = read_path
@@ -50,7 +50,6 @@ if is_torch_available():
             self.fs: AbstractFileSystem
             self.fs, self.file_path = url_to_fs(file_path)
             
-            # Use provided fsize if available, otherwise fetch it
             if fsize is None:
                 fsize = self.fs.size(self.file_path)
                 
@@ -190,8 +189,8 @@ if is_torch_available():
             return_positions: bool = False,
             eos_token_id: int | None = None,
             read_path: str | None = None,
-            matched_files: list | None = None,  # Add matched_files parameter
-            file_sizes: dict | None = None,  # Add file_sizes parameter
+            matched_files: list | None = None,
+            file_sizes: dict | None = None,
         ):
             self.folder_path = folder_path
             self.filename_pattern = filename_pattern
