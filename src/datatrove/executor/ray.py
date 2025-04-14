@@ -145,7 +145,7 @@ class RayPipelineExecutor(PipelineExecutor):
         # 7) Keep tasks start_time
         task_start_times = {}
         for _ in range(min(MAX_CONCURRENT_TASKS, len(ranks_per_jobs))):
-            ranks_to_submit = ranks_per_jobs.pop()
+            ranks_to_submit = ranks_per_jobs.pop(0)
             task = ray_remote_func.remote(executor_ref, ranks_to_submit)
             unfinished.append(task)
             task_start_times[task] = time.time()
@@ -171,7 +171,7 @@ class RayPipelineExecutor(PipelineExecutor):
             # If we have more shard paths left to process and we haven't hit the max
             # number of concurrent tasks, add tasks to the unfinished queue.
             while ranks_per_jobs and len(unfinished) < MAX_CONCURRENT_TASKS:
-                ranks_to_submit = ranks_per_jobs.pop()
+                ranks_to_submit = ranks_per_jobs.pop(0)
                 task = ray_remote_func.remote(executor_ref, ranks_to_submit)
                 unfinished.append(task)
                 task_start_times[task] = time.time()

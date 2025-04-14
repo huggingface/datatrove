@@ -86,12 +86,13 @@ class HTTPFetchReader(PipelineStep):
                 class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
                     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
                         pool_kwargs["ssl_context"] = ssl_context
+                        print(f"init_poolmanager: {pool_kwargs} with connections: {connections} and maxsize: {maxsize}")
                         super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
 
                 self._thread_local.scrapers = [requests.Session()]
                 for scraper in self._thread_local.scrapers:
-                    scraper.mount("https://", CustomHTTPAdapter(pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True))
-                    scraper.mount("http://", CustomHTTPAdapter(pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True))
+                    scraper.mount("https://", CustomHTTPAdapter(maxsize=self.pool_size, connections=self.pool_connections, block=True))
+                    scraper.mount("http://", CustomHTTPAdapter(maxsize=self.pool_size, connections=self.pool_connections, block=True))
 
         return random.choice(self._thread_local.scrapers)
 
