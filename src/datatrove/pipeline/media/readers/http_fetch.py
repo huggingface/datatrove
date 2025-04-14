@@ -42,6 +42,8 @@ class HTTPFetchReader(PipelineStep):
         self.use_cloudscraper = use_cloudscraper
         self.max_size = max_size
         self.dns_port = dns_port
+        self.pool_size = pool_size
+        self.pool_connections = pool_connections
         self.custom_agents = [
             # "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0",
             # "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
@@ -88,8 +90,8 @@ class HTTPFetchReader(PipelineStep):
 
                 self._thread_local.scrapers = [requests.Session()]
                 for scraper in self._thread_local.scrapers:
-                    scraper.mount("https://", CustomHTTPAdapter(pool_maxsize=1, pool_connections=1, pool_block=True))
-                    scraper.mount("http://", CustomHTTPAdapter(pool_maxsize=1, pool_connections=1, pool_block=True))
+                    scraper.mount("https://", CustomHTTPAdapter(pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True))
+                    scraper.mount("http://", CustomHTTPAdapter(pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True))
 
         return random.choice(self._thread_local.scrapers)
 
