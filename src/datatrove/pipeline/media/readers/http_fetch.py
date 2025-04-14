@@ -86,7 +86,7 @@ class HTTPFetchReader(PipelineStep):
                 class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
                     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
                         pool_kwargs["ssl_context"] = ssl_context
-                        print(f"init_poolmanager: {pool_kwargs} with connections: {connections} and maxsize: {maxsize}")
+                        logger.info(f"init_poolmanager: {pool_kwargs} with connections: {connections} and maxsize: {maxsize}")
                         super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
 
                 self._thread_local.scrapers = [requests.Session()]
