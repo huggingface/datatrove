@@ -79,11 +79,18 @@ class BaseMediaReader(PipelineStep, ABC):
             for doc in data:
                 with self.track_time():
                     for media in doc.media:
-                        media.media_bytes, metadata = self.read_media(media)
+                        try:
+                            media.media_bytes, metadata = self.read_media(media)
+                        except Exception as e:
+                            logger.error(f"Error reading media {media.id}: {e}")
+                            continue
                         if metadata is not None:
                             media.metadata.update(metadata)
                         self.stat_update(StatHints.total)
                         self.update_media_stats(media)
+                if not all(media.media_bytes is not None for media in doc.media):
+                    logger.warning(f"Document {doc.id} has no media bytes, skipping")
+                    continue
                 yield doc
 
 

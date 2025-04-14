@@ -10,6 +10,7 @@ class WarcReader(PipelineStep):
         self.data_folder = get_datafolder(data_folder)
         self.current_fp = None
         self.current_file = None
+        self.format = None
         super().__init__()
 
     def update_record(self, record: Document, warc_record):
@@ -47,6 +48,7 @@ class WarcReader(PipelineStep):
 
             if self.current_fp is None or self.current_file != warc_file:
                 if self.current_fp:
+                    self.format = None
                     self.current_fp.close()
 
                 self.current_fp = self.data_folder.open(warc_file)
@@ -57,6 +59,8 @@ class WarcReader(PipelineStep):
 
             # read the record
             ait = ArchiveIterator(self.current_fp)
+            ait.known_format = self.format
             warc_record = next(ait)
-
+            self.format = warc_record.format
             yield self.update_record(record, warc_record)
+            ait.close()

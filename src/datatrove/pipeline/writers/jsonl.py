@@ -1,5 +1,6 @@
 from typing import IO, Callable
 
+from loguru import logger
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
@@ -42,5 +43,4 @@ class JsonlWriter(DiskWriter):
 
     def _write(self, document: dict, file_handler: IO, _filename: str):
         import orjson
-
         file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))

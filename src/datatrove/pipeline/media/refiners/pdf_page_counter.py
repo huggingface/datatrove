@@ -20,3 +20,5 @@ class PdfPageCounter(PipelineStep):
                         except Exception as e:
                             pass
             yield record
+
+
