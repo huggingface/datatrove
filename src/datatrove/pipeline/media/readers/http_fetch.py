@@ -120,7 +120,7 @@ class HTTPFetchReader(PipelineStep):
                         metadata = dict(response.headers)
                         response_content = b""
                         download_start_time = time.time()
-                        for chunk in response.iter_content(chunk_size=64):
+                        for chunk in response.iter_content(chunk_size=1024*1024):
                             if time.time() - download_start_time > self.download_timeout:
                                 raise TimeoutError(f"Timeout fetching media from {url}")
                             response_content += chunk
