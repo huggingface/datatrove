@@ -281,7 +281,7 @@ class HTTPFetchReader(PipelineStep):
             # todo use self.track_time()
             # Waiting for all futures to complete
             logger.info("Waiting for all futures to complete")
-            while len(futures) > 0:
+            while len(futures) > 1:
                 done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=1)
                 self.log_info(queue_size=len(futures))
                 for future in done:
