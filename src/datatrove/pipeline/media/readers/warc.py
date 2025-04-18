@@ -43,24 +43,26 @@ class WarcReader(PipelineStep):
             return
 
         for record in data:
-            warc_file = record.metadata["warc_filename"]
-            warc_record_offset = record.metadata["warc_record_offset"]
+            with self.track_time():
+                warc_file = record.metadata["warc_filename"]
+                warc_record_offset = record.metadata["warc_record_offset"]
 
-            if self.current_fp is None or self.current_file != warc_file:
-                if self.current_fp:
-                    self.format = None
-                    self.current_fp.close()
+                if self.current_fp is None or self.current_file != warc_file:
+                    if self.current_fp:
+                        self.format = None
+                        self.current_fp.close()
 
-                self.current_fp = self.data_folder.open(warc_file)
-                self.current_file = warc_file
+                    self.current_fp = self.data_folder.open(warc_file)
+                    self.current_file = warc_file
 
-            # seek to the record offset
-            self.current_fp.seek(warc_record_offset)
+                # seek to the record offset
+                self.current_fp.seek(warc_record_offset)
 
-            # read the record
-            ait = ArchiveIterator(self.current_fp)
-            ait.known_format = self.format
-            warc_record = next(ait)
-            self.format = warc_record.format
-            yield self.update_record(record, warc_record)
-            ait.close()
+                # read the record
+                ait = ArchiveIterator(self.current_fp)
+                ait.known_format = self.format
+                warc_record = next(ait)
+                self.format = warc_record.format
+                record = self.update_record(record, warc_record)
+                ait.close()
+            yield record

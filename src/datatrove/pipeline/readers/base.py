@@ -139,6 +139,7 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        continuous: bool = False,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
@@ -157,6 +158,7 @@ class BaseDiskReader(BaseReader):
         self.shuffle_files = shuffle_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
+        self.continuous = continuous
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
@@ -230,11 +232,22 @@ class BaseDiskReader(BaseReader):
         """
         if data:
             yield from data
-        files_shard = (
-            self.paths[rank::world_size]
-            if not self.paths_file
-            else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
-        )
+        
+        if not self.paths_file:
+            if self.continuous:
+                num_files = len(self.paths)
+                shard_size = num_files // world_size
+                remainder = num_files % world_size
+                start_index = rank * shard_size + min(rank, remainder)
+                end_index = start_index + shard_size + (1 if rank < remainder else 0)
+                files_shard = self.paths[start_index:end_index]
+            else:
+                files_shard = self.paths[rank::world_size]
+        else:
+            if self.continuous:
+                raise NotImplementedError("Continuous reading from paths file is not implemented")
+            files_shard = list(get_shard_from_paths_file(self.paths_file, rank, world_size))
+
         # Free up memory
         self.paths = None
 

@@ -25,7 +25,7 @@ from datatrove.utils.stats import MetricStats
 class HTTPFetchReader(PipelineStep):
     type = "📖 - READER"
     name = "🌐 HTTP Fetch Reader"
-    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = None,
+    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 15, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = None,
                  pool_size: int = 5, pool_connections: int = 5):
         self._retry_delay = retry_delay
         self._max_retries = max_retries
