@@ -133,7 +133,7 @@ class ExtractorSandbox:
             while True:
                 # 5 seconds is small enough not to take cpu time too much but not big enough so that we return quikly
                 # on child process death, so that we indeed after the return (not sure if needed)
-                poll_timeout = min(5, deadline - time.time() + 0.1)
+                poll_timeout = max(0, min(5, deadline - time.time() + 0.1))
                 if self.parent_conn.poll(poll_timeout):
                     result = self.parent_conn.recv()
                     if isinstance(result, Exception):
