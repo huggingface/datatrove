@@ -1,3 +1,5 @@
+import platform
+import time
 from abc import abstractmethod
 from multiprocessing import Pipe, Process
 
@@ -99,7 +101,18 @@ class ExtractorSandbox:
             self.parent_conn = None
             self.child_conn = None
 
+    def _set_oom_score_adj(self, score):
+        # Only for linux
+        if platform.system() == "Linux":
+            if not -1000 <= score <= 1000:
+                raise ValueError("Score must be between -1000 and +1000")
+            with open("/proc/self/oom_score_adj", "w") as f:
+                f.write(f"{score}\n")
+
     def _worker(self, conn, extract_fn):
+        # Ensure that the child process is killed first on oom
+        self._set_oom_score_adj(1000)
+
         extract_fn("")  # "warmup"
         conn.send(None)  # ready
         while True:
@@ -114,13 +127,28 @@ class ExtractorSandbox:
         self._ensure_process(extract_fn)
         try:
             self.parent_conn.send(text)
-            if self.parent_conn.poll(timeout=self.timeout):
-                result = self.parent_conn.recv()
-                if isinstance(result, Exception):
-                    raise result
-                return result
-            else:
-                raise TimeoutError("Document extraction timed out")
+
+            deadline = time.time() + self.timeout
+            # loop with short sleeps instead of one big poll()
+            while True:
+                # 5 seconds is small enough not to take cpu time too much but not big enough so that we return quikly
+                # on child process death, so that we indeed after the return (not sure if needed)
+                poll_timeout = min(5, deadline - time.time() + 0.1)
+                if self.parent_conn.poll(poll_timeout):
+                    result = self.parent_conn.recv()
+                    if isinstance(result, Exception):
+                        raise result
+                    return result
+
+                # 2) Has the child died?
+                if not self.process.is_alive():
+                    self._cleanup_process()
+                    raise EOFError("Child process died (likely OOM-killed)")
+
+                # 3) Has our deadline passed?
+                if time.time() >= deadline:
+                    self._cleanup_process()
+                    raise TimeoutError("Document extraction timed out")
         except (TimeoutError, EOFError):
             self._cleanup_process()
             raise
