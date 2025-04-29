@@ -222,6 +222,6 @@ class NGramsDecontFilter(BaseFilter):
                 doc.metadata["contaminated_task"] = task
                 self.stat_update(f"contaminated_{task}")
                 if ":" in task:
-                    self.stat_update(f"contaminated_tg_{task[:task.index(':')]}")
+                    self.stat_update(f"contaminated_tg_{task[: task.index(':')]}")
                 return False, "contaminated"
         return True

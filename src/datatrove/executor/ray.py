@@ -253,8 +253,9 @@ class RayPipelineExecutor(PipelineExecutor):
         finally:
             close_task_logger(logfile)
             # Copy logs from local dir to logging_dir
-            with ray_logs_dir.open(f"logs/task_{rank:05d}.log", "r") as f, self.logging_dir.open(
-                f"logs/task_{rank:05d}.log", "w"
-            ) as f_out:
+            with (
+                ray_logs_dir.open(f"logs/task_{rank:05d}.log", "r") as f,
+                self.logging_dir.open(f"logs/task_{rank:05d}.log", "w") as f_out,
+            ):
                 f_out.write(f.read())
         return stats

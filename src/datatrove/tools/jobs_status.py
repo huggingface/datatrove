@@ -82,12 +82,12 @@ def main():
 
         if len(incomplete) > 0 or not args.hide_complete:
             console.log(
-                f"{emoji} {path + ':': <50}{len(completed)}/{world_size} ({len(completed)/(world_size):.0%}) completed tasks."
+                f"{emoji} {path + ':': <50}{len(completed)}/{world_size} ({len(completed) / (world_size):.0%}) completed tasks."
             )
 
     if complete_jobs + incomplete_jobs > 0:
         console.log(
-            f"Summary: {complete_jobs}/{complete_jobs+incomplete_jobs} ({complete_jobs/(complete_jobs+incomplete_jobs):.0%}) jobs completed, {complete_tasks}/{complete_tasks+incomplete_tasks} ({complete_tasks/(complete_tasks+incomplete_tasks):.0%}) tasks completed."
+            f"Summary: {complete_jobs}/{complete_jobs + incomplete_jobs} ({complete_jobs / (complete_jobs + incomplete_jobs):.0%}) jobs completed, {complete_tasks}/{complete_tasks + incomplete_tasks} ({complete_tasks / (complete_tasks + incomplete_tasks):.0%}) tasks completed."
         )
     else:
         console.log("No jobs found.")

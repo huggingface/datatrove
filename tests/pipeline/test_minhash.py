@@ -66,7 +66,7 @@ class TestMinhash(unittest.TestCase):
             assert dec - 0.21 < simil < dec + 0.21
 
         # check output file format and order
-        samples = [Document(f"sample {i}, {lorem_ipsum[i:: 10]}", id="test") for i in range(100)]
+        samples = [Document(f"sample {i}, {lorem_ipsum[i::10]}", id="test") for i in range(100)]
         minhash(samples)
         for bi in range(config.num_buckets):
             with minhash.output_folder.open(f"bucket_{bi:03d}/00000.minhash.sig", "rb") as f:

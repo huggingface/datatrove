@@ -10,7 +10,7 @@ from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 parser = argparse.ArgumentParser()
 parser.add_argument("dataset", type=str, help="huggingface dataset name. Example: stas/openwebtext-10k")
 parser.add_argument(
-    "output_path", type=str, help="Where to save individual tokenization files and the final merged " "files."
+    "output_path", type=str, help="Where to save individual tokenization files and the final merged files."
 )
 parser.add_argument("-l", "--logs", type=str, help="path to logs folder", default="tokenization_logs")
 parser.add_argument("-t", "--tokenizer", type=str, help="tokenizer to use", default="gpt2")
@@ -25,7 +25,7 @@ parser.add_argument(
     "-o",
     "--output_name",
     type=str,
-    help="filename for the final output files. By default this will " "be `dataset-tokenizer`",
+    help="filename for the final output files. By default this will be `dataset-tokenizer`",
     default=None,
 )
 parser.add_argument("-s", "--split", type=str, help="dataset split. `train` by default", default="train")
@@ -33,7 +33,7 @@ parser.add_argument(
     "-tk",
     "--text_key",
     type=str,
-    help="Column that actually contains the text to be " "tokenized. `text` by default.",
+    help="Column that actually contains the text to be tokenized. `text` by default.",
     default="text",
 )
 parser.add_argument(

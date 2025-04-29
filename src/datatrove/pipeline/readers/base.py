@@ -61,6 +61,7 @@ class BaseReader(PipelineStep):
         metadata = data.pop("metadata", {})
         if isinstance(metadata, str):
             import json
+
             try:
                 metadata = json.loads(metadata)
             except json.JSONDecodeError:
@@ -197,7 +198,7 @@ class BaseDiskReader(BaseReader):
         ):
             for i, filepath in enumerate(shard):
                 self.stat_update("input_files")
-                logger.info(f"Reading input file {filepath}, {i+1}/{len(shard)}")
+                logger.info(f"Reading input file {filepath}, {i + 1}/{len(shard)}")
                 di = 0
                 ndocs = 0
                 for di, document in enumerate(self.read_file(filepath)):

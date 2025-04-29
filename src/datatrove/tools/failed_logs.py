@@ -37,7 +37,7 @@ def main():
     logging_dir = get_datafolder(args.path)
     if not logging_dir.isfile("executor.json"):
         console.log(
-            'Could not find "executor.json" in the given directory. Are you sure it is a ' "logging folder?",
+            'Could not find "executor.json" in the given directory. Are you sure it is a logging folder?',
             style="red",
         )
         return
