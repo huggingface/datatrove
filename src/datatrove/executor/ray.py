@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import random
 import time
 from collections import deque
@@ -142,6 +143,7 @@ class RayPipelineExecutor(PipelineExecutor):
             incomplete_ranks[i : i + self.tasks_per_job] for i in range(0, len(incomplete_ranks), self.tasks_per_job)
         ]
         unfinished = []
+        total_tasks = len(ranks_per_jobs)
         completed = 0
 
         ray_remote_func = ray.remote(**remote_options)(run_for_rank)
@@ -190,16 +192,16 @@ class RayPipelineExecutor(PipelineExecutor):
         logger.info("All Ray tasks have finished.")
 
         # 8) Merge stats of all ranks
-        if completed == len(ranks_per_jobs):
+        if completed == total_tasks:
             total_stats = PipelineStats()
             for rank in range(self.world_size):
                 with self.logging_dir.open(f"stats/{rank:05d}.json", "r") as f:
-                    total_stats += PipelineStats.from_json(f)
+                    total_stats += PipelineStats.from_json(json.load(f))
             with self.logging_dir.open("stats.json", "wt") as statsfile:
                 total_stats.save_to_disk(statsfile)
-            logger.success(total_stats.get_repr(f"All {completed}/{self.world_size} tasks."))
+            logger.success(total_stats.get_repr(f"All {completed}/{total_tasks} tasks."))
         else:
-            logger.warning(f"Only {completed}/{self.world_size} tasks completed.")
+            logger.warning(f"Only {completed}/{total_tasks} tasks completed.")
 
     def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
         """
@@ -212,12 +214,14 @@ class RayPipelineExecutor(PipelineExecutor):
 
         Returns: the stats for this task
         """
+        import tempfile
+
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
 
         # We log only locally and upload logs to logging_dir after the pipeline is finished
-        ray_logs_dir = get_datafolder("/tmp/ray_logs")
+        ray_logs_dir = get_datafolder(f"{tempfile.gettempdir()}/ray_logs")
         logfile = add_task_logger(ray_logs_dir, rank, local_rank)
         log_pipeline(self.pipeline)
 
