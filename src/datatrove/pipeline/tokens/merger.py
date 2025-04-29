@@ -29,11 +29,13 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens_per_file (int): the maximum number of tokens per file. Default: 100GT
         max_tokens (int): the maximum number of tokens to process. Default: -1
         shuffle (bool): whether to shuffle the documents in the dataset. Default: True
+        shuffle_chunk_size (int): Size of chunks to shuffle together. Default: None (shuffle individual documents)
         upload_block_size (int): the upload block size to use when saving the tokenized files (used in fsspec with remote filesystems).
             Default: 20MB
         seed (int): the seed to use for the random number generator. Default: None
         save_loss_metadata (bool): whether to save the loss metadata. Default: False
         save_final_metadata (bool): whether to save the final metadata. Default: True
+        progress (bool): Show progress bar. Default: True
     """
 
     name = "🗃 Document Merger"
@@ -71,13 +73,14 @@ class DocumentTokenizerMerger(PipelineStep):
         self.shuffle_chunk_size = shuffle_chunk_size
 
     def get_ordering(self, all_doc_ends):
-        """
+        """Generate the ordering of documents/chunks based on the shuffle setting.
 
         Args:
-          all_doc_ends:
+            all_doc_ends: A list where each element represents a file and contains a list of document end boundaries
+                (or chunk end boundaries if `shuffle_chunk_size` is set).
 
         Returns:
-
+            An array of indices representing the order in which to process documents/chunks.
         """
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)

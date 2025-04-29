@@ -31,6 +31,8 @@ class TokenizedFile:
         save_index (bool): whether to save the index file (document boundaries)
         save_loss_metadata (bool): whether to save the loss metadata (to mask some tokens during training)
         upload_block_size (int): the fsspec size of the upload block for remote filesystems (S3)
+        tokenizer_name_or_path (str | None): Optional tokenizer name or path for metadata
+        save_final_metadata (bool): Whether to save a final metadata file with tokenizer info and total token count
         token_size (int): size of each token, in bytes
 
     """
@@ -64,6 +66,7 @@ class TokenizedFile:
             self.loss_file = self.output_folder.open(f"{self.filename}.loss", mode="wb", block_size=upload_block_size)
 
     def __len__(self):
+        """Return the total number of tokens written to the file."""
         return self.doc_ends[-1] if self.doc_ends else 0
 
     def close(self):
@@ -288,14 +291,17 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         save_filename (str): the filename to use for the final tokenized files (default: None – use the default filename)
         tokenizer_name_or_path (str): the name or path of the tokenizer to use, from the HuggingFace tokenizers library (default: "gpt2")
         eos_token (str): whether to add the EOS token after each document (default: "<|endoftext|>")
+        save_index (bool): Save the start/end token index for each document. Default: True
         save_loss_metadata (bool): save the loss information (default: False)
-        shuffle (bool): whether to shuffle documents in the dataset (default: True)
         batch_size (int): batch size for tokenization (default: 1000)
+        max_tokens_per_file (int | None): Split shuffled files further if they exceed this many tokens. Default: None
         seed (int): the seed to use for shuffling
         save_final_metadata (bool): whether to save the final metadata (default: True)
         upload_block_size (int | None): the fsspec size of the upload block for remote filesystems (S3)
             You can set this if your s3 uploads are failing because of "Part number must be an integer between 1 and 10000, inclusive".
             Example: 20 * 2**20 (20MB)
+        shuffle_documents (bool): Whether to shuffle documents within each output file. Default: True
+        shuffle_chunk_size (int | None): Size of chunks to load and shuffle before saving. Default: None (shuffle individual docs)
     """
 
     name = "✍️ Writer"

@@ -45,6 +45,13 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
         eos_token: str | None = None,
         post_processor: Optional[TemplateProcessing] = None,
     ):
+        """Initialize the PipelineStepWithTokenizer.
+
+        Args:
+            tokenizer_name_or_path: Path or name of the tokenizer to load.
+            eos_token: Optional EOS token to add via post-processing.
+            post_processor: Optional custom post-processor.
+        """
         super().__init__()
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.eos_token = eos_token
@@ -52,14 +59,32 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
 
     @cached_property
     def token_size(self) -> int:
+        """Determine the token size in bytes based on the tokenizer vocabulary size.
+
+        Returns:
+            int: 4 if vocab size exceeds uint16 max, otherwise 2.
+        """
         return 4 if self.tokenizer.get_vocab_size() > np.iinfo(np.uint16).max + 1 else 2
 
     @cached_property
     def token_format(self) -> str:
+        """Get the struct format string corresponding to the token size.
+
+        Returns:
+            str: "I" for 4 bytes (uint32), "H" for 2 bytes (uint16).
+        """
         return "I" if self.token_size == 4 else "H"
 
     @cached_property
     def tokenizer(self) -> "Tokenizer":
+        """Load and configure the tokenizer instance.
+
+        Raises:
+            ValueError: If `tokenizer_name_or_path` is not set.
+
+        Returns:
+            "Tokenizer": The loaded tokenizer instance with optional post-processing.
+        """
         if not self.tokenizer_name_or_path:
             raise ValueError("self.tokenizer_name_or_path needs to be set!")
         tokenizer = load_tokenizer(self.tokenizer_name_or_path)
