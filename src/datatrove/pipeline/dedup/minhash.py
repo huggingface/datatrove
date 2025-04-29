@@ -671,8 +671,9 @@ class MinhashBuildIndex(PipelineStep):
             for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
         ]
 
-        pq = [next(sig_reader) for sig_reader in sig_readers]
+        pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
         heapq.heapify(pq)
+        logger.info("Finished initializing signatures priority queue.")
 
         # writes all the sigs for the entire bucket, sequentially
         out_f = self.output_folder.open(f"bucket_{bucket:03d}/{self.index_name}.minhash.index", mode="wb")
