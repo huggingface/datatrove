@@ -60,6 +60,7 @@ class BaseReader(PipelineStep):
         """
         metadata = data.pop("metadata", {})
         if isinstance(metadata, str):
+            import json
             try:
                 metadata = json.loads(metadata)
             except json.JSONDecodeError:
