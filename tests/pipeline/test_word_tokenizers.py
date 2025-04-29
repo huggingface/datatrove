@@ -41,9 +41,9 @@ class TestWordTokenizers(unittest.TestCase):
             spans = tokenizer.span_tokenize(SAMPLE_TEXT)
             assert len(spans) >= 1, f"'{language}' tokenizer doesn't output spans"
             spans_match_sents = [sent in SAMPLE_TEXT[span[0] : span[1]] for sent, span in zip(sents, spans)]
-            assert (tokenizer.language == "ur" or isinstance(tokenizer, TibetanTokenizer)) or all(
-                spans_match_sents
-            ), f"'{language}' tokenizer spans don't match with sentences"
+            assert (tokenizer.language == "ur" or isinstance(tokenizer, TibetanTokenizer)) or all(spans_match_sents), (
+                f"'{language}' tokenizer spans don't match with sentences"
+            )
 
     def test_english_tokenizer(self):
         en_tokenizer = load_word_tokenizer("en")

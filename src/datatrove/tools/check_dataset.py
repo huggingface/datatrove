@@ -77,9 +77,9 @@ def check_dataset(
     datafiles_index = input_folder.list_files(glob_pattern="*.ds.index")
     datafiles_loss = input_folder.list_files(glob_pattern="*.ds.loss")
     check_loss = bool(datafiles_loss)
-    assert (
-        len(datafiles) == len(datafiles_index) and (not check_loss or len(datafiles) == len(datafiles_loss))
-    ), f"Mismatch between number of .ds, .ds.index and/or .ds.loss files: {datafiles}, {datafiles_index}, {datafiles_loss}"
+    assert len(datafiles) == len(datafiles_index) and (not check_loss or len(datafiles) == len(datafiles_loss)), (
+        f"Mismatch between number of .ds, .ds.index and/or .ds.loss files: {datafiles}, {datafiles_index}, {datafiles_loss}"
+    )
 
     doc_ends = [load_doc_ends(open_file(file)) for file in datafiles_index]
     token_inputs = [load_dataset_bytes(open_file(path), ends) for path, ends in zip(datafiles, doc_ends)]
@@ -95,9 +95,9 @@ def check_dataset(
         for doci, tokens in tqdm(enumerate(file_token_inputs), total=len(file_doc_ends)):
             read_count += len(tokens)
             last_token = struct.unpack("<H", tokens[-2:])[0]
-            assert last_token == eos_token or (
-                chunk_size and read_count % chunk_size == 0
-            ), f"no EOS at doc end of doc {doci}"
+            assert last_token == eos_token or (chunk_size and read_count % chunk_size == 0), (
+                f"no EOS at doc end of doc {doci}"
+            )
 
 
 if __name__ == "__main__":

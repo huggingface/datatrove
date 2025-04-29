@@ -236,9 +236,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         Returns:
 
         """
-        assert not self.depends or (
-            isinstance(self.depends, SlurmPipelineExecutor)
-        ), "depends= must be a SlurmPipelineExecutor"
+        assert not self.depends or (isinstance(self.depends, SlurmPipelineExecutor)), (
+            "depends= must be a SlurmPipelineExecutor"
+        )
         if self.depends:
             # take care of launching any unlaunched dependencies and getting their slurm job ids
             if not self.depends.job_id:

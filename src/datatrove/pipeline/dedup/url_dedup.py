@@ -101,9 +101,9 @@ class UrlDedupSignature(PipelineStep):
         priority_max = np.iinfo(sig_dtype["priority"]).max
 
         # 0 will stay as is, so we can't use 0 as a priority
-        assert all(
-            sig[1] >= 1 and sig[1] <= priority_max for sig in signatures
-        ), f"priority must be between 1 and {priority_max}"
+        assert all(sig[1] >= 1 and sig[1] <= priority_max for sig in signatures), (
+            f"priority must be between 1 and {priority_max}"
+        )
         signatures = np.array(signatures, dtype=sig_dtype)
 
         # Ensure that the highest priority is always first

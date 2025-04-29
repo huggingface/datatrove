@@ -107,9 +107,9 @@ def read_sigs(
         file_stem = Path(file.path).name.removesuffix(".minhash.sig")
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             sigdata = data if index_file else data[:-1]
-            assert sigdata[0] >= min_hash and (
-                ensure_order is False or last is None or sigdata >= last
-            ), f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
+            assert sigdata[0] >= min_hash and (ensure_order is False or last is None or sigdata >= last), (
+                f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
+            )
             if sigdata[0] >= max_hash:
                 break
             last = sigdata
@@ -477,9 +477,9 @@ class MinhashDedupCluster(PipelineStep):
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(glob_pattern="*.dups")
-        assert (
-            len(dup_files) % self.config.num_buckets
-        ) == 0, "Number of .dups files should be divisible by number of buckets"
+        assert (len(dup_files) % self.config.num_buckets) == 0, (
+            "Number of .dups files should be divisible by number of buckets"
+        )
         assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
         set_size = {}

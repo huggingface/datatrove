@@ -90,9 +90,9 @@ class LocalPipelineExecutor(PipelineExecutor):
         Returns:
 
         """
-        assert not self.depends or (
-            isinstance(self.depends, LocalPipelineExecutor)
-        ), "depends= must be a LocalPipelineExecutor"
+        assert not self.depends or (isinstance(self.depends, LocalPipelineExecutor)), (
+            "depends= must be a LocalPipelineExecutor"
+        )
         if self.depends:
             # take care of launching any unlaunched dependencies
             if not self.depends._launched:
