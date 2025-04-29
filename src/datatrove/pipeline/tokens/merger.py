@@ -9,6 +9,7 @@ from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.tokens.tokenizer import TokenizedFile
+from datatrove.utils.tokenization import chunk_doc_ends
 
 
 class DocumentTokenizerMerger(PipelineStep):
@@ -28,11 +29,13 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens_per_file (int): the maximum number of tokens per file. Default: 100GT
         max_tokens (int): the maximum number of tokens to process. Default: -1
         shuffle (bool): whether to shuffle the documents in the dataset. Default: True
+        shuffle_chunk_size (int): Size of chunks to shuffle together. Default: None (shuffle individual documents)
         upload_block_size (int): the upload block size to use when saving the tokenized files (used in fsspec with remote filesystems).
             Default: 20MB
         seed (int): the seed to use for the random number generator. Default: None
         save_loss_metadata (bool): whether to save the loss metadata. Default: False
         save_final_metadata (bool): whether to save the final metadata. Default: True
+        progress (bool): Show progress bar. Default: True
     """
 
     name = "🗃 Document Merger"
@@ -46,6 +49,7 @@ class DocumentTokenizerMerger(PipelineStep):
         max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
+        shuffle_chunk_size: int = None,  # if defined, shuffle chunks of this size instead of individual documents
         upload_block_size: int = 20 * 2**20,  # 20MB
         # upload_block_size * 10000 must be bigger than 2*max_tokens_per_file,
         # or s3 uploads will fail
@@ -66,15 +70,17 @@ class DocumentTokenizerMerger(PipelineStep):
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
         self.progress = progress
+        self.shuffle_chunk_size = shuffle_chunk_size
 
     def get_ordering(self, all_doc_ends):
-        """
+        """Generate the ordering of documents/chunks based on the shuffle setting.
 
         Args:
-          all_doc_ends:
+            all_doc_ends: A list where each element represents a file and contains a list of document end boundaries
+                (or chunk end boundaries if `shuffle_chunk_size` is set).
 
         Returns:
-
+            An array of indices representing the order in which to process documents/chunks.
         """
         doc_ids = np.concatenate([np.ones(len(doc_ends), dtype=int) * i for i, doc_ends in enumerate(all_doc_ends)])
         return doc_ids if not self.shuffle else self.rand.permutation(doc_ids)
@@ -114,17 +120,50 @@ class DocumentTokenizerMerger(PipelineStep):
                         tokenizer_name_or_path, token_size = tokenizer_name_or_path.split("|")
                         token_size = int(token_size)
 
+        # we handle doc ends differently if we are just shuffling documents or shuffling chunks with mixes of documents
         doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
+        boundaries_to_load = doc_ends
+        windows_with_doc_ends = doc_ends
+        doc_ends_to_write = [iter([]) for _ in range(len(doc_ends))]
+        if self.shuffle_chunk_size:
+            boundaries_to_load = [
+                [(i + 1) * self.shuffle_chunk_size for i in range(file_doc_ends[-1] // self.shuffle_chunk_size)]
+                if len(file_doc_ends) > 0
+                else []
+                for file_doc_ends in doc_ends
+            ]
+            windows_with_doc_ends = [
+                chunk_doc_ends(file_doc_ends, self.shuffle_chunk_size) for file_doc_ends in doc_ends
+            ]
+            doc_ends_to_write = [
+                (
+                    [b - windowi * self.shuffle_chunk_size for b in window]
+                    for windowi, window in enumerate(file_windows)
+                )
+                for file_windows in windows_with_doc_ends
+            ]
+
+        # dataloaders
         token_inputs = list(
-            map(partial(get_data_reader, nb_bytes=token_size), self.input_folder.open_files(datafiles), doc_ends)
+            map(
+                partial(get_data_reader, nb_bytes=token_size),
+                self.input_folder.open_files(datafiles),
+                boundaries_to_load,
+            )
         )
         loss_inputs = (
-            list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
+            list(
+                map(
+                    partial(get_data_reader, nb_bytes=1),
+                    self.input_folder.open_files(datafiles_loss),
+                    boundaries_to_load,
+                )
+            )
             if self.save_loss_metadata
             else None
         )
 
-        ordering = self.get_ordering(doc_ends)
+        ordering = self.get_ordering(windows_with_doc_ends)
 
         file_ct = 0
         output_file = TokenizedFile(
@@ -155,7 +194,7 @@ class DocumentTokenizerMerger(PipelineStep):
                 )
             # copy tokens and loss
             tokens = next(token_inputs[input_file_id])
-            output_file.write_bytes(tokens)
+            output_file.write_bytes(tokens, next(doc_ends_to_write[input_file_id], None))
             if loss_inputs:
                 output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
             self.stat_update("tokens", value=len(tokens) // token_size)

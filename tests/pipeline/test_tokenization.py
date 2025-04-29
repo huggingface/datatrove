@@ -120,6 +120,7 @@ class TestTokenization(unittest.TestCase):
         sub_test = "tokenizer_chunk_shuffling_only"
         TOKENS_DIR = os.path.join(self.tmp_dir, sub_test, "tokens")
         TOKENS_DIR_UNSHUF = os.path.join(self.tmp_dir, sub_test, "tokens_unshuff")
+        MERGED_DIR = os.path.join(self.tmp_dir, sub_test, "merged")
         eos_code = 50256
 
         document_tokenizer_unshuff = DocumentTokenizer(
@@ -127,6 +128,7 @@ class TestTokenization(unittest.TestCase):
             shuffle_documents=False,  # Explicitly disable document shuffling
             shuffle_chunk_size=None,
         )
+        # compute how many eos tokens per worker we expect to see at the end
         for worker, worker_data in enumerate(DATA):
             document_tokenizer_unshuff(worker_data, rank=worker, world_size=WORKERS)
         eos_tokens_per_worker = []
@@ -154,6 +156,7 @@ class TestTokenization(unittest.TestCase):
         # General consistency check
         check_dataset(tokenizer_output_folder, chunk_size=chunk_size)
 
+        token_windows = []
         for tokens_file, index_file, expected_eos_tokens in zip(
             tokenizer_output_folder.list_files(glob_pattern="*.ds"),
             tokenizer_output_folder.list_files(glob_pattern="*.ds.index"),
@@ -172,7 +175,9 @@ class TestTokenization(unittest.TestCase):
                         eos_token_count += 1
                     else:
                         self.assertEqual(doc_end % chunk_size, 0, "doc end marker is not eos nor chunk boundary")
-
+                f.seek(0)
+                for _ in range(doc_ends[-1] // chunk_size):
+                    token_windows.append(struct.unpack("<%sH" % chunk_size, f.read(chunk_size * 2)))
             self.assertEqual(eos_token_count, expected_eos_tokens)
 
         self.check_order_reconstruction(
@@ -225,3 +230,45 @@ class TestTokenization(unittest.TestCase):
             ],
             contains_check=True,
         )
+
+        # test the merger
+        merger = DocumentTokenizerMerger(
+            TOKENS_DIR,
+            MERGED_DIR,
+            save_filename="my_dataset",
+            shuffle=True,
+            shuffle_chunk_size=chunk_size,
+            seed=seed,
+        )
+        merger(None)
+
+        MERGED_DIR_DF = get_datafolder(MERGED_DIR)
+
+        merged_windows = []
+        merged_doc_ends = load_doc_ends(MERGED_DIR_DF.open("000_my_dataset.ds.index", "rb"))
+        eos_token_count = 0
+        with MERGED_DIR_DF.open("000_my_dataset.ds", "rb") as f:
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            f.seek(0)
+            for _ in range(file_size // (chunk_size * 2)):
+                merged_windows.append(struct.unpack("<%sH" % chunk_size, f.read(chunk_size * 2)))
+
+            # doc ends check
+            for i in range(chunk_size, merged_doc_ends[-1] + 1, chunk_size):
+                self.assertIn(i, merged_doc_ends)
+
+            for doc_end in merged_doc_ends:
+                f.seek((doc_end - 1) * 2)
+                token_at_doc_end = struct.unpack("<H", f.read(2))[0]
+                if token_at_doc_end == eos_code:
+                    eos_token_count += 1
+                else:
+                    self.assertEqual(doc_end % chunk_size, 0, "doc end marker is not eos nor chunk boundary")
+
+        self.assertEqual(eos_token_count, sum(eos_tokens_per_worker))
+
+        # check that there was actually some shuffling
+        self.assertNotEqual(merged_windows, token_windows)
+        # individual windows were not separated/broken
+        self.assertEqual(sorted(merged_windows), sorted(token_windows))
