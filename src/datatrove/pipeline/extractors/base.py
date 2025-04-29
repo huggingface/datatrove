@@ -128,12 +128,12 @@ class ExtractorSandbox:
         try:
             self.parent_conn.send(text)
 
-            deadline = time.time() + self.timeout
+            deadline = time.monotonic() + self.timeout
             # loop with short sleeps instead of one big poll()
             while True:
                 # 5 seconds is small enough not to take cpu time too much but not big enough so that we return quikly
                 # on child process death, so that we indeed after the return (not sure if needed)
-                poll_timeout = max(0, min(5, deadline - time.time() + 0.1))
+                poll_timeout = max(0, min(5, deadline - time.monotonic() + 0.1))
                 if self.parent_conn.poll(poll_timeout):
                     result = self.parent_conn.recv()
                     if isinstance(result, Exception):
@@ -146,7 +146,7 @@ class ExtractorSandbox:
                     raise EOFError("Child process died (likely OOM-killed)")
 
                 # 3) Has our deadline passed?
-                if time.time() >= deadline:
+                if time.monotonic() >= deadline:
                     self._cleanup_process()
                     raise TimeoutError("Document extraction timed out")
         except (TimeoutError, EOFError):
