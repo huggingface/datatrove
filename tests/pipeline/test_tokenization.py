@@ -18,7 +18,6 @@ from ..utils import require_tokenizers
 
 if is_tokenizers_available():
     from tokenizers import Tokenizer
-[[2, 1]]
 
 TEXTS = [
     "Life, although it may only be an accumulation of anguish, is dear to me, and I will defend it.",
