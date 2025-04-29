@@ -82,6 +82,10 @@ multilingual = [
     "botok", # tibetan languages,
     "pyidaungsu-numpy2", # burmese
 ]
+
+ray = [
+  "ray"
+]
 quality = [
   "ruff>=0.1.5"
 ]
