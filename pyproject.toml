@@ -1,6 +1,6 @@
 [project]
 name = "datatrove"
-version = "0.3.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+version = "0.4.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
@@ -28,7 +28,7 @@ dependencies = [
     "humanize",
     "loguru>=0.7.0",
     "multiprocess",
-    "numpy>=1.25.0,<2.0.0",
+    "numpy>=2.0.0",
     "tqdm",
 ]
 
@@ -49,7 +49,7 @@ s3 = [
   "s3fs>=2023.12.2",
 ]
 processing = [
-    "fasttext-wheel",
+    "fasttext-numpy2-wheel",
     "nltk",
     "inscriptis",
 #   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
@@ -58,6 +58,7 @@ processing = [
     "tokenizers",
     "ftfy",
     "fasteners",
+    "regex",
     "xxhash",
     "kenlm",
     "pyahocorasick"
@@ -66,13 +67,20 @@ decont = [
     "lighteval>=0.3.0"
 ]
 multilingual = [
-    "spacy",
+    "spacy[ja]>=3.8",
     "stanza",
-    "pyvi",
-    "pythainlp",
-    "jieba",
-    "indic-nlp-library",
-    "kiwipiepy",
+    "pyvi", # vietnamese
+    "pythainlp", # thai
+    "jieba", # chinese
+    "indic-nlp-library", # indic languages
+    "kiwipiepy", # korean
+    # urduhack has keras and tensorflow as dependencies and requires a specific version to work...
+    "urduhack",
+    "tensorflow>=2.16",
+    "khmer-nltk", # khmer
+    "laonlp", # lao
+    "botok", # tibetan languages,
+    "pyidaungsu-numpy2", # burmese
 ]
 quality = [
   "ruff>=0.1.5"
@@ -83,11 +91,15 @@ testing = [
   "datatrove[processing]",
   "datatrove[multilingual]",
   "datatrove[s3]",
-  "datatrove[decont]",
+  # Lighteval doesn't support numpy>=2.0.0
+#  "datatrove[decont]",
+# Flask doesn't have correct dependencies on werkzeux, causing issues, thus we pin flask 3.1 (which currently works) to avoid it
+  "flask>=3.1.0",
   "pytest",
   "pytest-timeout",
   "pytest-xdist",
   "moto[s3,server]",
+  "spacy[ja]"
 ]
 all = [
   "datatrove[quality]",
@@ -128,7 +140,8 @@ lint.select = [
   "E",
   "F",
   "I",
-  "W"
+  "W",
+  "NPY201", # numpy 2.0.0
 ]
 line-length = 119
 

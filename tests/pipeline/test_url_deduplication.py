@@ -5,6 +5,7 @@ import unittest
 
 from datatrove.data import Document
 from datatrove.pipeline.dedup.url_dedup import (
+    UrlDedupBuildIndex,
     UrlDedupConfig,
     UrlDedupFilter,
     UrlDedupSignature,
@@ -19,6 +20,11 @@ DOCS = [
     Document(text="", metadata={"url": "https://new-site.com"}, id="3"),
     Document(text="", metadata={"url": "https://example.com"}, id="4"),
     Document(text="", metadata={"url": "https://example2.com"}, id="5"),
+]
+
+INDEX = [
+    Document(text="", metadata={"url": "https://example.com"}, id="1"),
+    Document(text="", metadata={"url": "https://example2.com"}, id="2"),
 ]
 
 DOCS_1 = DOCS[:2]
@@ -107,6 +113,34 @@ class UrlDedup(unittest.TestCase):
         self.assertEqual(
             {doc.metadata["url"] for doc in docs},
             {"https://example.com", "https://new-site.com"},
+        )
+
+    def test_url_deduplication_with_index(self):
+        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs")
+        index_signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/index_sigs")
+        build_index = UrlDedupBuildIndex(
+            data_folder=self.tmp_dir + "/index_sigs",
+            output_folder=self.tmp_dir + "/index",
+            index_name="index",
+            lines_to_buffer=1000,
+        )
+        find_duplicates = UrlFindDedups(
+            data_folder=self.tmp_dir + "/sigs",
+            index_folder=self.tmp_dir + "/index",
+            output_folder=self.tmp_dir + "/dups",
+            lines_to_buffer=1000,
+        )
+        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups")
+
+        index_signature_creation(data=INDEX)
+        build_index()
+        signature_creation(data=DOCS)
+        find_duplicates()
+        docs = list(dedup_filter(data=copy.deepcopy(DOCS)))
+        self.assertEqual(len(docs), 1)
+        self.assertEqual(
+            {doc.metadata["url"] for doc in docs},
+            {doc.metadata["url"] for doc in DOCS} - {doc.metadata["url"] for doc in INDEX},
         )
 
     def test_sd_worker(self):

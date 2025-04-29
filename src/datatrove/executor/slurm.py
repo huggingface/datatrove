@@ -10,6 +10,7 @@ import tempfile
 import textwrap
 import time
 from copy import deepcopy
+from functools import partial
 from typing import Callable
 
 import dill
@@ -61,6 +62,11 @@ class SlurmPipelineExecutor(PipelineExecutor):
         depends: another SlurmPipelineExecutor that should run
             before this one
         depends_job_id: alternatively to the above, you can pass the job id of a dependency
+        job_id_position: position of job ID in custom Sbatch outputs.
+            default: -1
+        job_id_retriever: a callable that takes the output of the sbatch command (as written to terminal)
+            as input and returns the extracted job id to be used as 'self.job_id'. Defaults to take the
+            `job_id_position`-th element from the split output. default: default_job_id_retriever
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         skip_completed: whether to skip tasks that were completed in
             previous runs. default: True
@@ -99,6 +105,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         max_array_size: int = 1001,
         depends: SlurmPipelineExecutor | None = None,
         depends_job_id: str | None = None,
+        job_id_position: int = -1,
+        job_id_retriever: Callable = None,
         logging_dir: DataFolderLike = None,
         skip_completed: bool = True,
         slurm_logs_folder: str = None,
@@ -128,6 +136,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.venv_path = venv_path
         self.depends = depends
         self.depends_job_id = depends_job_id
+        self.job_id_position = job_id_position
+
+        if job_id_retriever is None:
+            job_id_retriever = partial(default_job_id_retriever, job_id_position=job_id_position)
+        self.job_id_retriever = job_id_retriever
+
         self._sbatch_args = sbatch_args if sbatch_args else {}
         self.max_array_size = max_array_size
         self.max_array_launch_parallel = max_array_launch_parallel
@@ -149,6 +163,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             )
         )
         self.requeue = requeue
+
 
     def run(self):
         """
@@ -198,7 +213,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 },
                 f'merge_stats {self.logging_dir.resolve_paths("stats")} '
                 f'-o {self.logging_dir.resolve_paths("stats.json")}',
-            )
+            ),
+            self.job_id_retriever,
         )
 
     @property
@@ -277,7 +293,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             args = [f"--export=ALL,RUN_OFFSET={launched_jobs}"]
             if self.dependency:
                 args.append(f"--dependency={self.dependency}")
-            self.job_id = launch_slurm_job(launch_file_contents, *args)
+            self.job_id = launch_slurm_job(launch_file_contents, self.job_id_retriever, *args)
             launched_jobs += 1
         logger.info(f"Slurm job launched successfully with (last) id={self.job_id}.")
         self.launch_merge_stats()
@@ -355,11 +371,12 @@ class SlurmPipelineExecutor(PipelineExecutor):
         return self.tasks
 
 
-def launch_slurm_job(launch_file_contents, *args):
+def launch_slurm_job(launch_file_contents, job_id_retriever: Callable, *args) -> str:
     """
         Small helper function to save a sbatch script and call it.
     Args:
         launch_file_contents: Contents of the sbatch script
+        job_id_position: Index of dependecy job ID.
         *args: any other arguments to pass to the sbatch command
 
     Returns: the id of the launched slurm job
@@ -368,4 +385,9 @@ def launch_slurm_job(launch_file_contents, *args):
     with tempfile.NamedTemporaryFile("w") as f:
         f.write(launch_file_contents)
         f.flush()
-        return subprocess.check_output(["sbatch", *args, f.name]).decode("utf-8").split()[-1]
+        process_output = subprocess.check_output(["sbatch", *args, f.name]).decode("utf-8")
+        return job_id_retriever(process_output)
+
+
+def default_job_id_retriever(process_output: str, job_id_position: int):
+    return process_output.split()[job_id_position]

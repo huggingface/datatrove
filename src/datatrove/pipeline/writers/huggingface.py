@@ -2,7 +2,7 @@ import os
 import random
 import tempfile
 import time
-from typing import Callable
+from typing import Any, Callable, Literal
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -31,11 +31,13 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         private: bool = True,
         local_working_dir: DataFolderLike | None = None,
         output_filename: str = None,
-        compression: str | None = None,
+        compression: Literal["snappy", "gzip", "brotli", "lz4", "zstd"] | None = "snappy",
         adapter: Callable = None,
         cleanup: bool = True,
         expand_metadata: bool = True,
         max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
+        schema: Any = None,
+        revision: str | None = None,
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
@@ -52,6 +54,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             expand_metadata: save each metadata entry in a different column instead of as a dictionary
             max_file_size: will create a new file when this size is exceeded (in bytes). -1 for no limit.
                 Filenames will have a number prepended (000_..., 001_..., etc)
+            revision: The git revision to commit from. Defaults to the head of the `"main"` branch
         """
         self.dataset = dataset
         self.private = private
@@ -73,9 +76,11 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             adapter=adapter,
             expand_metadata=expand_metadata,
             max_file_size=max_file_size,
+            schema=schema,
         )
         self.operations = []
         self._repo_init = False
+        self.revision = revision
 
     def upload_files(self, *filenames):
         if not self._repo_init:
@@ -86,7 +91,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             for filename in filenames
         ]
         logger.info(f"Uploading {','.join(filenames)} to the hub...")
-        preupload_lfs_files(self.dataset, repo_type="dataset", additions=additions)
+        preupload_lfs_files(self.dataset, repo_type="dataset", additions=additions, revision=self.revision)
         logger.info(f"Upload of {','.join(filenames)} to the hub complete!")
         if self.cleanup:
             for filename in filenames:
@@ -107,6 +112,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     repo_type="dataset",
                     operations=self.operations,
                     commit_message=f"DataTrove upload ({len(self.operations)} files)",
+                    revision=self.revision,
                 )
                 break
             except HfHubHTTPError as e:

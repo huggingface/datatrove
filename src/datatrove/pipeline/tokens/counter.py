@@ -24,8 +24,7 @@ class TokensCounter(PipelineStepWithTokenizer):
         count_eos_token: bool = False,  # whether to count the EOS token on each document
         batch_size: int = 10000,  # batch size for tokenization
     ):
-        super().__init__()
-        self.tokenizer_name_or_path = tokenizer_name_or_path
+        super().__init__(tokenizer_name_or_path)
         self.count_eos_token = count_eos_token
         self.batch_size = batch_size
 

@@ -26,7 +26,12 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
 from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
-from datatrove.utils.text import SPLIT_TEXT_SENTENCES, TextNormConfig, ngrams, simplify_text, split_into_parts
+from datatrove.utils.text import (
+    TextNormConfig,
+    ngrams,
+    simplify_text,
+    split_into_sentences,
+)
 from datatrove.utils.typeshelper import ExtensionHelperSD, Languages, StatHints
 
 from ...utils.word_tokenizers import load_word_tokenizer
@@ -241,7 +246,7 @@ class SentenceFindDedups(PipelineStep):
                             index_file=True,
                             lines_to_buffer=self.lines_to_buffer,
                         )
-                        for file_i, file in enumerate(self.data_folder.open_files(index_files))
+                        for file_i, file in enumerate(self.index_folder.open_files(index_files))
                     ]
                 )
 
@@ -275,7 +280,9 @@ class SentenceFindDedups(PipelineStep):
                     # OR we are also matching within the main dataset
                     if last.is_from_index() or not index_files or not self.config.only_dedup_in_index:
                         output_mg.write(out_filename, packer.pack(v.doc_id, v.sent_id))
-                last = v
+
+                if not last or last.hash_value != v.hash_value or not last.is_from_index():
+                    last = v
                 new_v = next(sig_readers[v.file_id], None)
 
                 if new_v:
@@ -427,7 +434,7 @@ class SentenceDedupFilter(PipelineStep):
                             and (
                                 # min num sentences
                                 self.config.min_num_sentences <= 0
-                                or len(split_into_parts(filtered_text, SPLIT_TEXT_SENTENCES, self.language))
+                                or len(split_into_sentences(filtered_text, self.language))
                                 >= self.config.min_num_sentences
                             )
                         )
@@ -474,7 +481,7 @@ class SentenceDedupBuildIndex(PipelineStep):
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "SentenceDedupBuildIndex can only run on a single worker."
         with self.stats.time_stats:
-            sig_files = self.data_folder.list_files(glob_pattern=ExtensionHelperSD.stage_1_signature)
+            sig_files = self.data_folder.list_files(glob_pattern="*/*" + ExtensionHelperSD.stage_1_signature)
             sig_readers = [
                 read_sigs(file, file_i, self.config, lines_to_buffer=self.lines_to_buffer)
                 for file_i, file in enumerate(self.data_folder.open_files(sig_files))

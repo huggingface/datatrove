@@ -56,10 +56,10 @@ class HuggingFaceDatasetReader(BaseReader):
         self.streaming = streaming
         self.shuffle_files = shuffle_files
 
-    def get_document_from_dict(self, data: dict, source: str, id_in_file: int | str):
-        document = super().get_document_from_dict(data, source, id_in_file)
+    def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
+        document = super().get_document_from_dict(data, source_file, id_in_file)
         if document:
-            document.metadata.setdefault("dataset", source)
+            document.metadata.setdefault("dataset", source_file)
         return document
 
     def _get_dataset_shard(self, dst, rank: int, world_size: int):
@@ -67,7 +67,7 @@ class HuggingFaceDatasetReader(BaseReader):
         from datasets.distributed import split_dataset_by_node
 
         if isinstance(dst, Dataset):
-            return dst.shard(world_size, rank, contiguous=True)
+            return dst.shard(world_size, rank, contiguous=False)
         elif isinstance(dst, IterableDataset) and dst.n_shards > 1:
             # In case we have more than 1 shard (file), we shard
             # on shards/file level.
@@ -76,20 +76,7 @@ class HuggingFaceDatasetReader(BaseReader):
                     f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
                 )
                 return None
-            
-            # https://github.com/huggingface/datatrove/issues/308
-            # huggingface/datasets@65f6eb5#diff-edc4da5f2179552e25f4f3dc9d6bf07265b68bbef048a8f712e798520a23d048L103
-            # Order of the arguments to shard_data_sources function in datasets lib changed. Make sure current version of the datasets is up-to-date.
-            import inspect
-            ex_iterable = dst._ex_iterable.shard_data_sources(world_size, rank)
-            arg_names = inspect.signature(dst._ex_iterable.shard_data_sources).parameters
-
-            # Assert that the first argument is not "worker_id"
-            assert list(arg_names.keys())[0]!= "worker_id", "The first argument to shard_data_sources cannot be named 'worker_id'. Make sure datasets version is up-to-date"
-            # Assert that the second argument is not "num_workers"
-            assert list(arg_names.keys())[1]!= "num_workers", "The second argument to shard_data_sources cannot be named 'num_workers'. Make sure datasets version is up-to-date"
-
-            ex_iterable = dst._ex_iterable.shard_data_sources(world_size, rank)
+            ex_iterable = dst._ex_iterable.shard_data_sources(index=rank, num_shards=world_size, contiguous=False)
             return IterableDataset(
                 ex_iterable=ex_iterable,
                 info=dst._info.copy(),
@@ -101,7 +88,7 @@ class HuggingFaceDatasetReader(BaseReader):
             )
         else:
             # If we have just a single shard/file, we shard inter-file
-            return split_dataset_by_node(dst, rank, world_size)
+            return split_dataset_by_node(dataset=dst, rank=rank, world_size=world_size)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         from datasets import load_dataset  # type: ignore
@@ -109,7 +96,7 @@ class HuggingFaceDatasetReader(BaseReader):
         if data:
             yield from data
         ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
-    
+
         if self.shuffle_files:
             if not self.streaming:
                 ds = ds.shuffle(seed=42)

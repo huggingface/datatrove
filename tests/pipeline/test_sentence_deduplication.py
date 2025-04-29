@@ -8,6 +8,7 @@ import unittest
 from datatrove.data import Document
 from datatrove.pipeline.dedup.sentence_dedup import (
     SentDedupConfig,
+    SentenceDedupBuildIndex,
     SentenceDedupFilter,
     SentenceDedupSignature,
     SentenceFindDedups,
@@ -17,7 +18,7 @@ from ..utils import require_nltk, require_xxhash, use_hash_configs
 
 
 def get_random_string(n: int = 20):
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "."
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n)) + "!"
 
 
 SENTENCE_ = "A SQUAT grey building of only thirty-four stories."
@@ -109,6 +110,11 @@ DOCS_2 = [
     Document(text=TEXT_1_1, id="6"),
 ]
 
+INDEX = [
+    Document(text=TEXT_0, id="0"),
+    Document(text=LOTR, id="1"),
+]
+
 TARGETS = [
     TEXT_0,
     EXPECTED_TEXT_1,
@@ -134,6 +140,13 @@ TARGETS_WS2_1 = [
     TEXT_3_1,
 ]
 
+TARGETS_WITH_INDEX = [
+    EXPECTED_TEXT_1,
+    rs_1,
+    " ".join([rs_1, rs_2]),
+    HPPS,
+]
+
 
 @require_nltk
 @require_xxhash
@@ -155,6 +168,30 @@ class SentenceDedup(unittest.TestCase):
         find_duplicates()
         for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS))):
             self.assertEqual(doc.text, TARGETS[i])
+
+    def test_sd_with_index(self):
+        config = SentDedupConfig(min_doc_words=0, min_num_sentences=0)
+        signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        index_signature_creation = SentenceDedupSignature(output_folder=self.tmp_dir + "/index_sigs", config=config)
+        build_index = SentenceDedupBuildIndex(
+            data_folder=self.tmp_dir + "/index_sigs",
+            output_folder=self.tmp_dir + "/index",
+            index_name="index",
+        )
+        find_duplicates = SentenceFindDedups(
+            data_folder=self.tmp_dir + "/sigs",
+            index_folder=self.tmp_dir + "/index",
+            output_folder=self.tmp_dir + "/dups",
+            config=config,
+        )
+        dedup_filter = SentenceDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+
+        index_signature_creation(data=INDEX)
+        build_index()
+        signature_creation(data=DOCS)
+        find_duplicates()
+        for i, doc in enumerate(dedup_filter(data=copy.deepcopy(DOCS))):
+            self.assertEqual(doc.text, TARGETS_WITH_INDEX[i])
 
     def test_sd_worker(self):
         config = SentDedupConfig(min_doc_words=0, min_num_sentences=0)

@@ -58,11 +58,20 @@ class BaseReader(PipelineStep):
         Returns: a dictionary with text, id, media and metadata fields
 
         """
+        metadata = data.pop("metadata", {})
+        if isinstance(metadata, str):
+            import json
+            try:
+                metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                pass
+        if not isinstance(metadata, dict):
+            metadata = {"metadata": metadata}
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
             "media": data.pop("media", []),
-            "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
+            "metadata": metadata | data,  # remaining data goes into metadata
         }
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
@@ -224,11 +233,12 @@ class BaseDiskReader(BaseReader):
             if not self.paths_file
             else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
         )
-        if len(files_shard) == 0:
-            if rank == 0:
-                raise RuntimeError(f"No files found on {self.data_folder.path}!")
+        if files_shard is None:
+            raise RuntimeError(f"No files found on {self.data_folder.path}!")
+        elif len(files_shard) == 0:
             # otherwise just a warning
             logger.warning(f"No files found on {self.data_folder.path} for {rank=}")
+
         if self.shuffle_files:
             random.shuffle(files_shard)
         for doc in self.read_files_shard(files_shard):

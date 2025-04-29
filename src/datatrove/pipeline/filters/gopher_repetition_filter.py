@@ -4,8 +4,8 @@ from collections import Counter
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.text import split_into_words
 from datatrove.utils.typeshelper import Languages
-from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 """
@@ -105,7 +105,7 @@ class GopherRepetitionFilter(BaseFilter):
         self.dup_n_grams = dup_n_grams
         self.paragraph_exp = re.compile(r"\n{2,}")
         self._line_splitter = re.compile("\n+")
-        self.tokenizer = load_word_tokenizer(language)
+        self.language = language
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         text = doc.text
@@ -124,7 +124,7 @@ class GopherRepetitionFilter(BaseFilter):
         if self.dup_line_char_frac and char_duplicates / len(text) > self.dup_line_char_frac:
             return False, "dup_line_char_frac"
 
-        words = self.tokenizer.word_tokenize(text)
+        words = split_into_words(text, self.language)
 
         for n, n_frac in self.top_n_grams:
             n_grams = get_n_grams(words, n)
