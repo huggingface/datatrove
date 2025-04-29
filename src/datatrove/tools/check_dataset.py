@@ -53,7 +53,9 @@ def load_dataset_bytes(file, doc_ends, bytes_per_value: int = 2):
         assert f.read(1) == b"", "Dataset should be exhausted but there is more data to read"
 
 
-def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>"):
+def check_dataset(
+    input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: str = "<|endoftext|>", chunk_size: int | None = None
+):
     """
     Reads a dataset and checks if loss tokens match up to the corresponding doc ends files
     Args:
@@ -75,9 +77,9 @@ def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: 
     datafiles_index = input_folder.list_files(glob_pattern="*.ds.index")
     datafiles_loss = input_folder.list_files(glob_pattern="*.ds.loss")
     check_loss = bool(datafiles_loss)
-    assert len(datafiles) == len(datafiles_index) and (not check_loss or len(datafiles) == len(datafiles_loss)), (
-        "Mismatch between number of .ds, " ".ds.index and/or .ds.loss files"
-    )
+    assert (
+        len(datafiles) == len(datafiles_index) and (not check_loss or len(datafiles) == len(datafiles_loss))
+    ), f"Mismatch between number of .ds, .ds.index and/or .ds.loss files: {datafiles}, {datafiles_index}, {datafiles_loss}"
 
     doc_ends = [load_doc_ends(open_file(file)) for file in datafiles_index]
     token_inputs = [load_dataset_bytes(open_file(path), ends) for path, ends in zip(datafiles, doc_ends)]
@@ -86,12 +88,16 @@ def check_dataset(input_folder: DataFolder, tokenizer: str = "gpt2", eos_token: 
         if check_loss
         else [None] * len(token_inputs)
     )
+    read_count = 0
     for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
         zip(doc_ends, token_inputs, loss_inputs)
     ):
         for doci, tokens in tqdm(enumerate(file_token_inputs), total=len(file_doc_ends)):
+            read_count += len(tokens)
             last_token = struct.unpack("<H", tokens[-2:])[0]
-            assert last_token == eos_token, f"no EOS at doc end of doc {doci}"
+            assert last_token == eos_token or (
+                chunk_size and read_count % chunk_size == 0
+            ), f"no EOS at doc end of doc {doci}"
 
 
 if __name__ == "__main__":
