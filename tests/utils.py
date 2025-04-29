@@ -141,3 +141,11 @@ def require_lighteval(test_case):
     except ImportError:
         test_case = unittest.skip("test requires lighteval")(test_case)
     return test_case
+
+
+def require_ray(test_case):
+    try:
+        import ray  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires ray")(test_case)
+    return test_case

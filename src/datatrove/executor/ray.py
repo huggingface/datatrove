@@ -4,16 +4,14 @@ import time
 from collections import deque
 from typing import Callable, Optional, Sequence
 
-import ray
-
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipeline, logger
 from datatrove.utils.stats import PipelineStats
 
 
-@ray.remote
 def run_for_rank(executor_ref: "RayPipelineExecutor", ranks: list[int]) -> PipelineStats:
     """
         Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
@@ -108,6 +106,9 @@ class RayPipelineExecutor(PipelineExecutor):
         Run the pipeline for each rank using Ray tasks.
         """
 
+        check_required_dependencies("ray", ["ray"])
+        import ray
+
         # 1) If there is a depends=, ensure it has run and is finished
         if self.depends:
             logger.info(f'Launching dependency job "{self.depends}"')
@@ -143,7 +144,7 @@ class RayPipelineExecutor(PipelineExecutor):
         unfinished = []
         completed = 0
 
-        ray_remote_func = run_for_rank.options(**remote_options)
+        ray_remote_func = ray.remote(**remote_options)(run_for_rank)
 
         # 7) Keep tasks start_time
         task_start_times = {}
