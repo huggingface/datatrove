@@ -21,7 +21,7 @@ byteorder = "1.5.0"
 indicatif = "0.17.7"
 
 # Async runtime and utilities
-tokio = { version = "1.33.0", features = ["full"] }
+tokio = { version = "1.43.1", features = ["full"] }
 
 # Retries
 tokio-retry = "0.3"
