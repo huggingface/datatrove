@@ -60,7 +60,12 @@ class BaseReader(PipelineStep):
         """
         metadata = data.pop("metadata", {})
         if isinstance(metadata, str):
-            metadata = json.loads(metadata)
+            try:
+                metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                pass
+        if not isinstance(metadata, dict):
+            metadata = {"metadata": metadata}
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
