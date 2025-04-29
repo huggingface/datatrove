@@ -48,7 +48,7 @@ class TestHuggingFaceReader(unittest.TestCase):
         self.assertEqual(len(data[1].text), 46)
 
     def test_sharding(self):
-        for shards in [3]:
+        for shards in [1, 3]:
             for streaming in [True, False]:
                 reader = HuggingFaceDatasetReader(
                     "huggingface/datatrove-tests",
@@ -56,8 +56,11 @@ class TestHuggingFaceReader(unittest.TestCase):
                     text_key="text",
                     streaming=streaming,
                 )
+                # For streaming == True and sharding-3, the data is not contiguous
+                # File1 -> ["hello", "world"], File2 -> ["how", "are"], File3 -> ["you"]
+                # Because the data are taken non-contignous first shard gets File1 + File3
+                # and second shard gets File2
                 data0 = list(reader(rank=0, world_size=2))
                 data1 = list(reader(rank=1, world_size=2))
-
                 self.assertEqual(len(data0), 3)
                 self.assertEqual(len(data1), 2)
