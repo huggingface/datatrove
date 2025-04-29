@@ -22,6 +22,20 @@ def load_tokenizer(name_or_path: str) -> "Tokenizer":
     return Tokenizer.from_pretrained(name_or_path)
 
 
+def chunk_doc_ends(doc_ends, shuffle_chunk_size):
+    all_chunks_doc_ends = []
+    doc_end_i = 0
+    for chunk_end in range(shuffle_chunk_size, doc_ends[-1] + 1, shuffle_chunk_size):
+        chunk_doc_ends = []
+        while doc_end_i < len(doc_ends) and doc_ends[doc_end_i] <= chunk_end:
+            if doc_ends[doc_end_i] < chunk_end:  # avoid adding it twice
+                chunk_doc_ends.append(doc_ends[doc_end_i])
+            doc_end_i += 1
+        chunk_doc_ends.append(chunk_end)
+        all_chunks_doc_ends.append(chunk_doc_ends)
+    return all_chunks_doc_ends
+
+
 class PipelineStepWithTokenizer(PipelineStep, ABC):
     _requires_dependencies = ["tokenizers"]
 

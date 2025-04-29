@@ -9,7 +9,7 @@ from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolder, DataFolderLike, get_datafolder
 from datatrove.utils.batching import batched
 from datatrove.utils.logging import logger
-from datatrove.utils.tokenization import PipelineStepWithTokenizer
+from datatrove.utils.tokenization import PipelineStepWithTokenizer, chunk_doc_ends
 
 
 SHUFFLING_READ_BLOCK_SIZE = 50000  # read 50kb at a time only (~mean + 2sigmas for final filtered common crawl docs)
@@ -451,16 +451,7 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
         if self.shuffle_chunk_size is not None:
             logger.info("Shuffling chunks...")
 
-            all_chunks_doc_ends = []
-            doc_end_i = 0
-            for chunk_end in range(self.shuffle_chunk_size, len(outputfile) + 1, self.shuffle_chunk_size):
-                chunk_doc_ends = []
-                while doc_end_i < len(outputfile.doc_ends) and outputfile.doc_ends[doc_end_i] <= chunk_end:
-                    if outputfile.doc_ends[doc_end_i] < chunk_end:  # avoid adding it twice
-                        chunk_doc_ends.append(outputfile.doc_ends[doc_end_i])
-                    doc_end_i += 1
-                chunk_doc_ends.append(chunk_end)
-                all_chunks_doc_ends.append(chunk_doc_ends)
+            all_chunks_doc_ends = chunk_doc_ends(outputfile.doc_ends, self.shuffle_chunk_size)
             # get new TokenizedFile, shuffling docs from original one
             new_file = outputfile.copy(
                 self.save_filename,
