@@ -1,4 +1,4 @@
-import os
+import json
 from bisect import bisect
 from collections import deque
 
@@ -7,6 +7,7 @@ import torch
 from fsspec import AbstractFileSystem
 from fsspec.core import url_to_fs
 
+from datatrove.io import file_exists, get_datafolder, open_file
 from datatrove.utils._import_utils import is_torch_available
 
 
@@ -15,16 +16,21 @@ if is_torch_available():
 
     class DatatroveFileDataset(Dataset):
         """Dataset for a single .ds file created by datatrove
-        We loop on the dataset if asking for an index larger than the dataset size
-        NOTE that this is heavily optimized for sequential reads, and we actually pre-shuffled the data (assuming it was tokenized with datatrove)
-        random access WILL BE SLOW, but should still work
 
         Args:
             file_path (str): path to file on s3, locally, or some other fsspec supported path
             seq_len (int): sequence length
             token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger
             max_tokens (int): only read at most this number of tokens
-            read_path (str): path to local file/copy to read from. If it exists, we read from this file instead of from file_path. Useful when we offload some data to remote and only keep the needed files on disk.
+            return_positions (bool): whether to return positions. Defaults to False.
+            positions_from_eos_token_id (int, optional): Token ID to use for calculating positions. If set,
+                positions are calculated based on this token ID marking the end of sequences. Defaults to None,
+                in which case positions are read from the .index file.
+            fsize (int, optional): The file size. If None, it will be fetched using fsspec. Defaults to None.
+
+        We loop on the dataset if asking for an index larger than the dataset size
+        NOTE that this is heavily optimized for sequential reads, and we actually pre-shuffled the data (assuming it was tokenized with datatrove)
+        random access WILL BE SLOW, but should still work
         """
 
         def __init__(
@@ -34,34 +40,41 @@ if is_torch_available():
             token_size: int = 2,
             max_tokens: int | None = None,
             return_positions: bool = False,
-            eos_token_id: int | None = None,
-            read_path: str | None = None,
+            positions_from_eos_token_id: int | None = None,
+            fsize: int | None = None,
         ):
             self.file_path: str = file_path
-            self.read_path = read_path
             self.seq_len = seq_len
             self.token_size = token_size
             self.return_positions = return_positions
-            self.eos_token_id = eos_token_id
+            self.positions_from_eos_token_id = positions_from_eos_token_id
             self.fs: AbstractFileSystem
             self.fs, self.file_path = url_to_fs(file_path)
-            fsize = self.fs.size(self.file_path)
+            self.fsize = fsize
+            if self.fsize is None:
+                self.fsize = self.fs.size(self.file_path)
             # total number of full contexts in this file
-            num_tokens = fsize // self.token_size
+            num_tokens = self.fsize // self.token_size
             self._len = (min(max_tokens, num_tokens) if max_tokens else num_tokens) // (seq_len + 1)
-            # once we're done getting the metadata (length), we can now rely on read_path
-            if read_path:
-                self.fs, self.file_path = url_to_fs(read_path)
-                
+
             self._f = None
             self._f_pos = None
             self._idx_buffer = None
             self._last_item = None
 
-        def _get_pos(self, item):
+        def _get_pos_from_index_file(self, item):
             """
-            Reads document ends from .index and returns positions for the entire window.
-            For example, if the documents in the window end at token positions [3, 5, 8], for seq_len+1=10,the positions will be [0, 1, 2, 0, 1, 0, 1, 2, 0, 1]
+            Reads document ends from .index file and returns positions for the requested window.
+
+            Positions represent the index of the token within its document.
+            For example, if the documents in the window end at token positions [3, 5, 8], for seq_len+1=10,
+            the positions will be [0, 1, 2, 0, 1, 0, 1, 2, 0, 1].
+
+            Args:
+                item (int): The index of the window to retrieve positions for.
+
+            Returns:
+                torch.Tensor: A tensor containing the positions for the tokens in the window.
             """
             # Calculate token window range
             window_start = item * (self.seq_len + 1)
@@ -106,21 +119,45 @@ if is_torch_available():
             prev_ends = torch.cat([torch.tensor([-1], dtype=torch.int), doc_ends[:-1]])
             offsets = prev_ends - doc_ends + 1
             pos[doc_ends] = offsets
-            assert pos[0] == 0, "First position should be 0"
             return torch.cumsum(pos, dim=0)
 
         def _get_positions_from_tokens(self, tokens):
+            """
+            Calculate token positions based on an end-of-sequence token ID.
+
+            Positions reset to 0 after each occurrence of `positions_from_eos_token_id`.
+
+            Args:
+                tokens (torch.Tensor): The input token IDs.
+
+            Returns:
+                torch.Tensor: A tensor containing the calculated positions.
+            """
             pos = torch.ones_like(tokens, dtype=torch.int64)
             doc_ends = torch.cat(
-                [torch.tensor([0], dtype=torch.int64), torch.where(tokens[:-1] == self.eos_token_id)[0] + 1]
+                [
+                    torch.tensor([0], dtype=torch.int64),
+                    torch.where(tokens[:-1] == self.positions_from_eos_token_id)[0] + 1,
+                ]
             )
             prev_ends = torch.cat([torch.tensor([-1], dtype=torch.int64), doc_ends[:-1]])
             offsets = prev_ends - doc_ends + 1
             pos[doc_ends] = offsets
-            assert pos[0] == 0, "First position should be 0"
             return torch.cumsum(pos, dim=0)
 
         def _get_input_ids(self, item):
+            """
+            Reads and returns the input IDs for the requested item (window).
+
+            Opens the main data file if not already open, seeks to the correct
+            position, reads the required chunk of data, and converts it to a tensor.
+
+            Args:
+                item (int): The index of the window to retrieve input IDs for.
+
+            Returns:
+                torch.Tensor: A tensor containing the input IDs for the window.
+            """
             if self._f is None:
                 self._f = self.fs.open(self.file_path, "rb")
             chunk_size = self.token_size * (self.seq_len + 1)
@@ -133,20 +170,36 @@ if is_torch_available():
             )
 
         def __getitem__(self, item):
+            """
+            Retrieves a data sample (input IDs and optionally positions) for the given index.
+
+            Args:
+                item (int): The index of the sample to retrieve.
+
+            Returns:
+                dict: A dictionary containing 'input_ids' and optionally 'positions'.
+            """
             data = {"input_ids": self._get_input_ids(item)}
             if self.return_positions:
                 data["positions"] = (
-                    self._get_pos(item)
-                    if self.eos_token_id is None
+                    self._get_pos_from_index_file(item)
+                    if self.positions_from_eos_token_id is None
                     else self._get_positions_from_tokens(data["input_ids"])
                 )
+                assert data["positions"][0] == 0, "First position should be 0"
             self._last_item = item
             return data
 
         def __len__(self):
+            """
+            Returns the total number of full sequences in the dataset.
+            """
             return self._len
 
         def __del__(self):
+            """
+            Closes the open file handles upon object deletion.
+            """
             if self._f:
                 self._f.close()
             if self._f_pos:
@@ -154,65 +207,83 @@ if is_torch_available():
 
     class DatatroveFolderDataset(Dataset):
         """
-        Dataset for a folder of .ds files
-        We loop on the dataset if asking for an index larger than the dataset size
+        Dataset for a folder of .ds files created by datatrove.
 
         Args:
             folder_path (str): path to folder on S3, locally, or some other fsspec supported path
             seq_len (int): sequence length
-            filename_pattern (Union[Pattern, str], optional): filename pattern. Defaults to **/*.ds.
-            recursive (bool, optional): search recursively. Defaults to True.
-            token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger
-            max_tokens (int): only read at most this number of tokens
-            shuffle (bool, optional): shuffle the files in the folder. Defaults to False.
-            seed (int, optional): seed for shuffling. Defaults to 42.
-            folder_read_path (str): path to local file/copy to read from. If it exists, we read from this folder instead of from folder_path. Useful when we offload some data to remote and only keep the needed files on disk.
+            filename_pattern (str, optional): Glob pattern to match files within the folder. Defaults to ".ds".
+            recursive (bool, optional): Search recursively within the folder. Defaults to True.
+            token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger.
+            max_tokens (int, optional): Only read at most this number of tokens across all files. Defaults to None.
+            shuffle (bool, optional): Shuffle the order of files found in the folder. Defaults to False.
+            seed (int, optional): Seed for shuffling. Defaults to 42.
+            return_positions (bool, optional): Whether to return positions. Defaults to False.
+            positions_from_eos_token_id (int, optional): Token ID to use for calculating positions. If set,
+                positions are calculated based on this token ID marking the end of sequences. Defaults to None,
+                in which case positions are read from the .index file.
+            paths_file (str, optional): Path to a JSON file containing a list of file paths and their sizes.
+                If provided and exists, it's used instead of listing files from the filesystem.
+                If provided but doesn't exist, it will be created after listing files. Defaults to None.
+
+        We loop on the dataset if asking for an index larger than the dataset size.
         """
 
         def __init__(
             self,
             folder_path: str,
             seq_len: int,
-            filename_pattern: str = "**/*.ds",
+            filename_pattern: str = ".ds",
             recursive: bool = True,
             token_size: int = 2,
             max_tokens: int | None = None,
             shuffle: bool = False,
             seed: int = 42,
             return_positions: bool = False,
-            eos_token_id: int | None = None,
-            read_path: str | None = None,
+            positions_from_eos_token_id: int | None = None,
+            paths_file: str | None = None,
         ):
             self.folder_path = folder_path
+            self.folder_df = get_datafolder(folder_path)
             self.filename_pattern = filename_pattern
             self.return_positions = return_positions
-            fs, folder_path = url_to_fs(folder_path)
-            matched_files = (
-                fs.find(folder_path, detail=False, maxdepth=1 if not recursive else None)
-                if not filename_pattern
-                else fs.glob(os.path.join(folder_path, filename_pattern), maxdepth=1 if not recursive else None)
-            )
-            matched_files = sorted(matched_files)
-            if not matched_files:
-                raise FileNotFoundError(f'No files matching "{filename_pattern}" found in {folder_path}')
+            # load list of paths from paths_file or from the fs
+            fsizes = {}
+            if not paths_file or not file_exists(paths_file):
+                matched_files = self.folder_df.list_files(glob_pattern=filename_pattern, recursive=recursive)
+                if not matched_files:
+                    raise FileNotFoundError(f'No files matching "{filename_pattern}" found in {folder_path}')
+            else:
+                with open_file(paths_file, "r") as f:
+                    file_data = json.load(f)
+                    matched_files = [f["path"] for f in file_data]
+                    fsizes = {f["path"]: f["size"] for f in file_data}
 
             self.files = []
             remaining_tokens = max_tokens
             for path in matched_files:
                 file_data = DatatroveFileDataset(
-                    fs.unstrip_protocol(path),
+                    self.folder_df.resolve_paths(path),
                     seq_len,
                     token_size=token_size,
                     max_tokens=remaining_tokens,
                     return_positions=return_positions,
-                    eos_token_id=eos_token_id,
-                    read_path=os.path.join(read_path, os.path.relpath(path, folder_path)) if read_path else None,
+                    positions_from_eos_token_id=positions_from_eos_token_id,
+                    fsize=fsizes.get(
+                        path, None
+                    ),  # potentially use a cached size to avoid excessive remote calls/possibly offloaded file
                 )
                 self.files.append(file_data)
                 if remaining_tokens is not None:
                     remaining_tokens -= len(file_data) * (seq_len + 1)
                     if remaining_tokens <= 0:
                         break
+
+            if paths_file and not file_exists(paths_file):
+                with open_file(paths_file, "wt") as f:
+                    json.dump(
+                        [{"path": rel_path, "size": f.fsize} for rel_path, f in zip(matched_files, self.files)], f
+                    )
 
             if shuffle:
                 rand = np.random.default_rng(seed)
@@ -224,6 +295,17 @@ if is_torch_available():
             self.current_file = 0
 
         def __getitem__(self, item):
+            """
+            Retrieves a data sample from the appropriate file based on the global index.
+
+            Finds the correct file containing the item and returns the sample from that file's dataset.
+
+            Args:
+                item (int): The global index of the sample to retrieve.
+
+            Returns:
+                dict: A dictionary containing 'input_ids' and optionally 'positions'.
+            """
             # check if we are in the same file as before
             if not (self.lens[self.current_file] <= item < self.lens[self.current_file + 1]):
                 # figure out current file
@@ -232,11 +314,11 @@ if is_torch_available():
             return self.files[self.current_file][item - self.lens[self.current_file]]
 
         def __len__(self):
+            """
+            Returns the total number of samples across all files in the dataset.
+            """
             return self.lens[-1] if self.lens else 0
-        
-        @property
-        def current_file_path(self):
-            return self.files[self.current_file].read_path if self.files[self.current_file].read_path is not None else self.files[self.current_file].file_path
+
 else:
     DatatroveFileDataset = NotImplemented
     DatatroveFolderDataset = NotImplemented
