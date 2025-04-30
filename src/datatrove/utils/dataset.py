@@ -339,6 +339,10 @@ if is_torch_available():
             """
             return self.lens[-1] if self.lens else 0
 
+        @property
+        def current_file_path(self):
+            return self.files[self.current_file].read_path
+
 else:
     DatatroveFileDataset = NotImplemented
     DatatroveFolderDataset = NotImplemented
