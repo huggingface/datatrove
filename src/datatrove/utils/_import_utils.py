@@ -81,6 +81,10 @@ def is_tokenizers_available():
     return _is_package_available("tokenizers")
 
 
+def is_fasteners_available():
+    return _is_package_available("fasteners")
+
+
 # Distribution Check
 @lru_cache
 def _is_distribution_available(distribution_name: str):

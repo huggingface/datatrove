@@ -4,11 +4,19 @@ from collections import deque
 
 import numpy as np
 import torch
-from fsspec import AbstractFileSystem
-from fsspec.core import url_to_fs
+from loguru import logger
 
-from datatrove.io import file_exists, get_datafolder, open_file
-from datatrove.utils._import_utils import is_torch_available
+from datatrove.io import (
+    DataFileLike,
+    DataFolderLike,
+    file_exists,
+    file_is_local,
+    get_datafolder,
+    get_fs_with_filepath,
+    open_file,
+    safely_create_file,
+)
+from datatrove.utils._import_utils import is_fasteners_available, is_torch_available
 
 
 if is_torch_available():
@@ -21,7 +29,6 @@ if is_torch_available():
             file_path (str): path to file on s3, locally, or some other fsspec supported path
             seq_len (int): sequence length
             token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger
-            max_tokens (int): only read at most this number of tokens
             return_positions (bool): whether to return positions. Defaults to False.
             positions_from_eos_token_id (int, optional): Token ID to use for calculating positions. If set,
                 positions are calculated based on this token ID marking the end of sequences. Defaults to None,
@@ -35,27 +42,25 @@ if is_torch_available():
 
         def __init__(
             self,
-            file_path: str,
+            file_path: DataFileLike,
             seq_len: int,
             token_size: int = 2,
-            max_tokens: int | None = None,
             return_positions: bool = False,
             positions_from_eos_token_id: int | None = None,
             fsize: int | None = None,
         ):
             self.file_path: str = file_path
-            self.seq_len = seq_len
             self.token_size = token_size
             self.return_positions = return_positions
             self.positions_from_eos_token_id = positions_from_eos_token_id
-            self.fs: AbstractFileSystem
-            self.fs, self.file_path = url_to_fs(file_path)
+            self.seq_len = seq_len
+            self.fs, self.file_path = get_fs_with_filepath(file_path)
             self.fsize = fsize
             if self.fsize is None:
                 self.fsize = self.fs.size(self.file_path)
             # total number of full contexts in this file
             num_tokens = self.fsize // self.token_size
-            self._len = (min(max_tokens, num_tokens) if max_tokens else num_tokens) // (seq_len + 1)
+            self._len = num_tokens // (self.seq_len + 1)
 
             self._f = None
             self._f_pos = None
@@ -215,7 +220,6 @@ if is_torch_available():
             filename_pattern (str, optional): Glob pattern to match files within the folder. Defaults to ".ds".
             recursive (bool, optional): Search recursively within the folder. Defaults to True.
             token_size (int): size of a single token, in bytes. Usually 2 for vocab sizes < 65k and 4 for larger.
-            max_tokens (int, optional): Only read at most this number of tokens across all files. Defaults to None.
             shuffle (bool, optional): Shuffle the order of files found in the folder. Defaults to False.
             seed (int, optional): Seed for shuffling. Defaults to 42.
             return_positions (bool, optional): Whether to return positions. Defaults to False.
@@ -231,59 +235,39 @@ if is_torch_available():
 
         def __init__(
             self,
-            folder_path: str,
+            folder_path: DataFolderLike,
             seq_len: int,
             filename_pattern: str = ".ds",
             recursive: bool = True,
             token_size: int = 2,
-            max_tokens: int | None = None,
             shuffle: bool = False,
             seed: int = 42,
             return_positions: bool = False,
             positions_from_eos_token_id: int | None = None,
             paths_file: str | None = None,
         ):
-            self.folder_path = folder_path
-            self.folder_df = get_datafolder(folder_path)
+            self.folder_path = get_datafolder(folder_path)
+            self.seq_len = seq_len
             self.filename_pattern = filename_pattern
             self.return_positions = return_positions
-            # load list of paths from paths_file or from the fs
-            fsizes = {}
-            if not paths_file or not file_exists(paths_file):
-                matched_files = self.folder_df.list_files(glob_pattern=filename_pattern, recursive=recursive)
-                if not matched_files:
-                    raise FileNotFoundError(f'No files matching "{filename_pattern}" found in {folder_path}')
-            else:
-                with open_file(paths_file, "r") as f:
-                    file_data = json.load(f)
-                    matched_files = [f["path"] for f in file_data]
-                    fsizes = {f["path"]: f["size"] for f in file_data}
-
-            self.files = []
-            remaining_tokens = max_tokens
-            for path in matched_files:
-                file_data = DatatroveFileDataset(
-                    self.folder_df.resolve_paths(path),
-                    seq_len,
-                    token_size=token_size,
-                    max_tokens=remaining_tokens,
-                    return_positions=return_positions,
-                    positions_from_eos_token_id=positions_from_eos_token_id,
-                    fsize=fsizes.get(
-                        path, None
-                    ),  # potentially use a cached size to avoid excessive remote calls/possibly offloaded file
-                )
-                self.files.append(file_data)
-                if remaining_tokens is not None:
-                    remaining_tokens -= len(file_data) * (seq_len + 1)
-                    if remaining_tokens <= 0:
-                        break
-
-            if paths_file and not file_exists(paths_file):
-                with open_file(paths_file, "wt") as f:
-                    json.dump(
-                        [{"path": rel_path, "size": f.fsize} for rel_path, f in zip(matched_files, self.files)], f
+            self.positions_from_eos_token_id = positions_from_eos_token_id
+            self.paths_file = paths_file
+            self.recursive = recursive
+            self.token_size = token_size
+            self.shuffle = shuffle
+            self.seed = seed
+            # fetch the file list
+            if self.paths_file and not file_exists(self.paths_file) and is_fasteners_available():
+                if file_is_local(self.paths_file):
+                    logger.info(f"Creating paths file {self.paths_file}")
+                    safely_create_file(self.paths_file, self._load_file_list, completed_file=False)
+                else:
+                    logger.warning(
+                        f"Paths file {self.paths_file} is not a local file, will not be able to lock paths file creation."
                     )
+                    self._load_file_list()
+            else:
+                self._load_file_list()
 
             if shuffle:
                 rand = np.random.default_rng(seed)
@@ -293,6 +277,42 @@ if is_torch_available():
             self.lens = np.cumsum([0] + [len(f) for f in self.files]).tolist()
 
             self.current_file = 0
+
+        def _load_file_list(self):
+            fsizes = {}
+
+            if not self.paths_file or not file_exists(self.paths_file):
+                matched_files = self.folder_path.list_files(
+                    glob_pattern=self.filename_pattern, recursive=self.recursive
+                )
+                if not matched_files:
+                    raise FileNotFoundError(f'No files matching "{self.filename_pattern}" found in {self.folder_path}')
+            else:
+                with open_file(self.paths_file, "r") as f:
+                    file_data = json.load(f)
+                    matched_files = [f["path"] for f in file_data]
+                    fsizes = {f["path"]: f["size"] for f in file_data}
+                    logger.info(f"Loaded {len(matched_files)} files from {self.paths_file}")
+
+            self.files = [
+                DatatroveFileDataset(
+                    (path, self.folder_path),
+                    self.seq_len,
+                    token_size=self.token_size,
+                    return_positions=self.return_positions,
+                    positions_from_eos_token_id=self.positions_from_eos_token_id,
+                    fsize=fsizes.get(
+                        path, None
+                    ),  # potentially use a cached size to avoid excessive remote calls/possibly offloaded file
+                )
+                for path in matched_files
+            ]
+
+            if self.paths_file and not file_exists(self.paths_file):
+                with open_file(self.paths_file, "wt") as f:
+                    json.dump(
+                        [{"path": rel_path, "size": f.fsize} for rel_path, f in zip(matched_files, self.files)], f
+                    )
 
         def __getitem__(self, item):
             """
