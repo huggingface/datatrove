@@ -310,16 +310,17 @@ class DocumentTokenizer(PipelineStepWithTokenizer):
     def __init__(
         self,
         output_folder: DataFolderLike,
+        tokenizer_name_or_path: str,  # tokenizer to use, from HF or a local path
         local_working_dir: DataFolderLike | None = None,
         save_filename: str | None = None,  # if defined, the final output filename will be this
-        tokenizer_name_or_path: str = "gpt2",  # tokenizer to use, from HF or a local
-        eos_token: str = "<|endoftext|>",  # whether to add the EOS token after each document
+        eos_token: str
+        | None = None,  # if not None, will override the postprocessor to add the EOS token after each document. This should be the text and not the id (<|endoftext|>)
         save_index: bool = True,  # save the beginning and end of each document in the index file
         save_loss_metadata: bool = False,  # save the loss information
+        save_final_metadata: bool = True,  # save a small .metadata file at the end with token count and the name of the tokenizer
         batch_size: int = 10000,  # batch size for tokenization
         max_tokens_per_file: int | None = None,  # max tokens per file to get more (smaller) shuffled output files
         seed: int | None = None,
-        save_final_metadata: bool = True,
         upload_block_size: int | None = None,
         # you can set this if your s3 uploads are failing because of "Part
         # number must be an integer between 1 and 10000, inclusive". Example: 20 * 2**20 (20MB)
