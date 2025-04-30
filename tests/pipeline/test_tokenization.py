@@ -81,6 +81,8 @@ class TestTokenization(unittest.TestCase):
 
                 document_tokenizer = DocumentTokenizer(
                     TOKENS_DIR,
+                    "gpt2",
+                    eos_token="<|endoftext|>",
                     local_working_dir=None,
                     shuffle_documents=seed is not None,
                     seed=seed,
@@ -125,6 +127,8 @@ class TestTokenization(unittest.TestCase):
 
         document_tokenizer_unshuff = DocumentTokenizer(
             TOKENS_DIR_UNSHUF,
+            "gpt2",
+            eos_token="<|endoftext|>",
             shuffle_documents=False,  # Explicitly disable document shuffling
             shuffle_chunk_size=None,
         )
@@ -140,6 +144,8 @@ class TestTokenization(unittest.TestCase):
 
         document_tokenizer = DocumentTokenizer(
             TOKENS_DIR,
+            "gpt2",
+            eos_token="<|endoftext|>",
             local_working_dir=self.tmp_dir,  # Use local temp dir for shuffling
             shuffle_documents=False,  # Explicitly disable document shuffling
             shuffle_chunk_size=chunk_size,
