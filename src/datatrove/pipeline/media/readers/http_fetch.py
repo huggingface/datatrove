@@ -25,7 +25,7 @@ from datatrove.utils.stats import MetricStats
 class HTTPFetchReader(PipelineStep):
     type = "📖 - READER"
     name = "🌐 HTTP Fetch Reader"
-    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 15, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 30, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = None,
+    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 10, use_cloudscraper: bool = True, max_size: int = 1024 * 1024 * 1024, dns_port: int = None,
                  pool_size: int = 5, pool_connections: int = 5):
         self._retry_delay = retry_delay
         self._max_retries = max_retries
@@ -86,6 +86,7 @@ class HTTPFetchReader(PipelineStep):
                 class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
                     def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
                         pool_kwargs["ssl_context"] = ssl_context
+                        logger.info(f"init_poolmanager: {pool_kwargs} with connections: {connections} and maxsize: {maxsize}")
                         super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
 
                 self._thread_local.scrapers = [requests.Session()]
@@ -280,7 +281,7 @@ class HTTPFetchReader(PipelineStep):
             # todo use self.track_time()
             # Waiting for all futures to complete
             logger.info("Waiting for all futures to complete")
-            while len(futures) > 0:
+            while len(futures) > 1:
                 done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=1)
                 self.log_info(queue_size=len(futures))
                 for future in done:
