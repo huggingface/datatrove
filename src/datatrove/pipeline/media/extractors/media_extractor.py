@@ -29,7 +29,7 @@ class BaseMediaExtractor(PipelineStep):
         self.exclude_failed = exclude_failed
 
     @abstractmethod
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
         """abstract method that actually implements the extraction, e.g. trafilatura.
 
         Args:

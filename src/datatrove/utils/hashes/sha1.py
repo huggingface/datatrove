@@ -24,3 +24,11 @@ def sha1_hash64(data: str):
         int: an integer hash value that can be encoded using 64 bits.
     """
     return struct.unpack("<Q", hashlib.sha1(data.encode("utf-8")).digest()[:8])[0]
+
+
+## Bytes hashing
+def sha1_hash32_from_bytes(data: bytes):
+    return struct.unpack("<I", hashlib.sha1(data).digest()[:4])[0]
+
+def sha1_hash64_from_bytes(data: bytes):
+    return struct.unpack("<Q", hashlib.sha1(data).digest()[:8])[0]

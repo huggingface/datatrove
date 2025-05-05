@@ -5,6 +5,7 @@ import contextlib
 from loguru import logger
 import numpy as np
 from docling.datamodel.settings import settings
+from pdfminer.pdftypes import PDFStream, PDFObject, PDFObjRef
 import warnings
 import logging
 import pdfplumber
@@ -60,21 +61,31 @@ class PyMuPDFExtractor(BaseMediaExtractor):
     def __init__(self, as_markdown: bool = False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.as_markdown = as_markdown
+        self.logger_stream = LoggerStream(logging.getLogger("pymupdf"))
 
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
+        if not media_bytes:
+            return "", {}
         try:
-            if media_bytes is None or len(media_bytes) == 0:
-                logger.warning(f"Media has no bytes")
-                return "", {}
             metadata = {}
             import pymupdf
-            parsed_file = pymupdf.open(None, io.BytesIO(media_bytes))
-            if self.as_markdown:
-                import pymupdf4llm
-                chunks = pymupdf4llm.to_markdown(parsed_file, page_chunks=True)
-                page_texts = [chunk["text"] for chunk in chunks]
-            else:
-                page_texts = [page.get_text() for page in parsed_file]
+            pymupdf.set_messages(pylogging=True)
+            with self.logger_stream as log_output:
+                parsed_file = pymupdf.open(None, io.BytesIO(media_bytes))
+
+                if self.as_markdown:
+                    import pymupdf4llm
+                    chunks = pymupdf4llm.to_markdown(parsed_file, page_chunks=True)
+                    page_texts = [chunk["text"] for chunk in chunks]
+                else:
+                    page_texts = [page.get_text() for page in parsed_file]
+
+                # Ensure it's valid utf-8
+                page_texts = [text.encode('utf-8', errors='replace').decode('utf-8', 'replace') for text in page_texts]
+
+                # logger_content = log_output.value()
+                # if logger_content:
+                #     metadata["extraction_warnings"] = [logger_content]
 
             length_cumsum = np.cumsum([len(page_text) for page_text in page_texts]).tolist()
             metadata["num_pages"] = len(page_texts)
@@ -106,6 +117,8 @@ def _clean_metadata_value(value):
     elif isinstance(value, tuple):
         # Recursively clean tuple elements
         return tuple(_clean_metadata_value(item) for item in value)
+    elif isinstance(value, PDFStream) or isinstance(value, PDFObjRef) or isinstance(value, PDFObject):
+        return None
     elif isinstance(value, dict):
         # Recursively clean dictionary keys and values
         # Ensure keys are strings and values are cleaned
@@ -130,10 +143,9 @@ class PyPdfExtractor(BaseMediaExtractor):
         super().__init__(remove_bytes=remove_bytes)
         self.logger_stream = LoggerStream(logging.getLogger("pypdf"))
 
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
         import pypdf
-        if media_bytes is None or len(media_bytes) == 0:
-            logger.warning(f"Media has no bytes")
+        if not media_bytes:
             return "", {}
 
         metadata = {}
@@ -171,8 +183,10 @@ class PdfPlumberExtractor(BaseMediaExtractor):
         self.use_simple_extraction = use_simple_extraction
         self.logger_stream = LoggerStream([logging.getLogger("pdfminer"), logging.getLogger("pdfplumber")])
 
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
-        from pdfminer.pdftypes import PDFStream
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
+        if not media_bytes:
+            return "", {}
+
         try:
             metadata = {}
             with self.logger_stream as log_output:
@@ -187,25 +201,15 @@ class PdfPlumberExtractor(BaseMediaExtractor):
                 page_texts = [page.extract_text(format="text") for page in parsed_file.pages]
             length_cumsum = np.cumsum([len(page_text) for page_text in page_texts]).tolist()
             metadata.update(parsed_file.metadata)
+            metadata = _clean_metadata_value(metadata)
             metadata["num_pages"] = len(page_texts)
             metadata["page_offsets"] = length_cumsum
-            # If any metadata is of Type PDFStream remove it
-            metadata = {k:v for k,v in metadata.items() if not isinstance(v, PDFStream)}
+
+            # Clean metadata
 
             return "".join(page_texts), metadata
         except Exception as e:
             return "", {"extraction_error": str(e)}
-
-# class Pypdfium2Extractor(BaseMediaExtractor):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#     def extract(self, media_bytes: bytes) -> tuple[str, list[int], dict]:
-#         import pypdfium2
-#         parsed_file = pypdfium2.PdfDocument(io.BytesIO(media_bytes))
-#         page_texts = [page.get_textpage().get_text_bounded() for page in parsed_file]
-#         length_cumsum = np.cumsum([len(page_text) for page_text in page_texts])
-#         return "".join(page_texts), list(length_cumsum), {}
 
 
 class ExtractousExtractor(BaseMediaExtractor):
@@ -220,10 +224,9 @@ class ExtractousExtractor(BaseMediaExtractor):
             self._extractor = Extractor().set_pdf_config(PdfParserConfig().set_ocr_strategy(PdfOcrStrategy.NO_OCR))
         return self._extractor
 
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
         # Convert bytes to bytearray
-        if len(media_bytes) == 0:
-            logger.warning(f"Media has no bytes")
+        if not media_bytes:
             return "", {}
 
         media_bytes = bytearray(media_bytes)
@@ -245,15 +248,6 @@ class ExtractousExtractor(BaseMediaExtractor):
                 "page_offsets": pages_cumsum,
             })
 
-            misc_metadata = keep_only_valid_metadata({
-                "contains_damanged_font": metadata.get("pdf:containsDamangedFont", [None])[0],
-                "has_xfa": metadata.get("pdf:hasXFA", [None])[0],
-                "has_xmp": metadata.get("pdf:hasXMP", [None])[0],
-                "annotation_types": metadata.get("pdf:annotationTypes", [None])[0],
-                "annotation_subtypes": metadata.get("pdf:annotationSubtypes", [None])[0],
-            })
-            metadata["misc"] = misc_metadata
-
             metadata.update({k:v for k,v in metadata.items() if k.startswith("pdf:docinfo:custom")})
             return joined_pages, metadata
         except Exception as e:
@@ -263,81 +257,79 @@ class PyPdfium2Extractor(BaseMediaExtractor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
+        if not media_bytes:
+            return "", {}
+
         import pypdfium2
         try:
             parsed_file = pypdfium2.PdfDocument(io.BytesIO(media_bytes))
             page_texts = [page.get_textpage().get_text_bounded() for page in parsed_file]
-            length_cumsum = np.cumsum([len(page_text) for page_text in page_texts])
+            length_cumsum = np.cumsum([len(page_text) for page_text in page_texts]).tolist()
+            metadata = {
+                "num_pages": len(page_texts),
+                "page_offsets": length_cumsum,
+            }
+            metadata.update(parsed_file.get_metadata_dict(skip_empty=True))
             parsed_file.close()
-            return "".join(page_texts), {}
+            return "".join(page_texts), metadata
         except Exception as e:
             return "", {"extraction_error": str(e)}
 
-# class PyPdfium2Extractor(PipelineStep):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#     def extract(self, media_bytes: bytes) -> tuple[str, dict]:
-#         import pypdfium2
-#         try:
-#             parsed_file = pypdfium2.PdfDocument(io.BytesIO(media_bytes))
-#             page_texts = [page.get_textpage().get_text_bounded() for page in parsed_file]
-#             length_cumsum = np.cumsum([len(page_text) for page_text in page_texts])
-#             parsed_file.close()
-#             return "".join(page_texts), {}
-#         except Exception as e:
-#             return "", {"extraction_error": str(e)}
-
-#     def run(self, data, rank: int = 0, world_size: int = 1):
-#         for record in data:
-#             for media in record.media:
-#                 media.text, media.metadata = self.extract(media.media_bytes)
-#                 yield record
-
-class Docling(PipelineStep):
-    def __init__(self, *args, **kwargs):
+class DoclingExtractor(BaseMediaExtractor):
+    def __init__(self, timeout: int = 5*60):
         from docling.datamodel.pipeline_options import PdfPipelineOptions
         from docling.datamodel.base_models import InputFormat
         from docling.document_converter import DocumentConverter, PdfFormatOption, DocumentStream
         from docling.datamodel.pipeline_options import AcceleratorOptions, AcceleratorDevice
-        # accelerator_options = AcceleratorOptions(
-        #     num_threads=1, device=AcceleratorDevice.CPU
-        # )
+        docling_timeout = timeout - 2 if timeout > 2 else None
         pipeline_options = PdfPipelineOptions(
             do_table_structure=False,
             do_ocr=False,
-            document_timeout=100
-            # accelerator_options=accelerator_options,
+            document_timeout=docling_timeout,
         )
+        self.logger_stream = LoggerStream(logging.getLogger("docling"))
         self.doc_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
             }
         )
-        super().__init__(*args, **kwargs)
+        super().__init__(timeout=timeout)
 
     def extract(self, media_bytes: bytes) -> tuple[str, dict]:
+        if len(media_bytes) == 0:
+            return "", {}
+
         from docling.datamodel.settings import settings
         from docling_core.types.io import DocumentStream
-        try:
-            doc_stream = DocumentStream(name="tmp.pdf", stream=io.BytesIO(media_bytes))
+        from docling.datamodel.base_models import ConversionStatus
+        with self.logger_stream as log_output:
+            doc_stream = DocumentStream(name="file.pdf", stream=io.BytesIO(media_bytes))
             converted = self.doc_converter.convert(doc_stream,raises_on_error=False)
-            pages = len(converted.document.pages)
-            return converted.document.export_to_markdown(), {"num_pages": pages}
-        except Exception as e:
-            print(e)
-            return "", {"extraction_error": str(e)}
+            logger_content = log_output.value()
+        page_break_placeholder = "<--- page break --->"
+        full_text = converted.document.export_to_markdown(page_break_placeholder=page_break_placeholder, image_placeholder="", escape_underscores=False)
+        page_list = full_text.split(page_break_placeholder)
+        # Remove empty strings
+        metadata = {
+            "num_pages": len(page_list),
+            "page_offsets": np.cumsum([len(t) for t in page_list]).tolist(),
+            "docling_doc_json": converted.document.model_dump(mode="json"),
+        }
+        if converted.status not in [ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS]:
+            errors = ", ".join([e.model_dump(mode="json") for e in converted.errors])
+            metadata["extraction_error"] = f"Conversion failed with status {converted.status} and errors {errors} and logger content: {logger_content}"
+        return "".join(page_list), metadata
 
-    def run(self, data, rank: int = 0, world_size: int = 1):
-        total_pages = 0
-        for record in data:
-            for media in record.media:
-                with self.track_time():
-                    media.text, media.metadata = self.extract(media.media_bytes)
-                    total_pages += media.metadata.get("num_pages", 0)
-            yield record
-            if self.stats.time_stats.total > 0:
-                print(f"Documents per second: {1/self.stats.time_stats.mean}")
-                print(f"Pages per second: {total_pages/self.stats.time_stats.total}")
 
+class OOMTestExtractor(BaseMediaExtractor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
+        if not media_bytes:
+            return "", {}
+        
+        # ALlocate huge amount of memory
+        huge_list = bytearray(10*1024*1024*1024)
+        return "".join([str(i) for i in range(1000000)]), {}
