@@ -215,7 +215,7 @@ if is_torch_available():
         Dataset for a folder of .ds files created by datatrove.
 
         Args:
-            folder_path (DataFolderLike): path to folder on S3, locally, or some other fsspec supported path
+            data_folder (DataFolderLike): path to folder on S3, locally, or some other fsspec supported path
             seq_len (int): sequence length
             filename_pattern (str, optional): Glob pattern to match files within the folder. Defaults to ".ds".
             recursive (bool, optional): Search recursively within the folder. Defaults to True.
@@ -235,7 +235,7 @@ if is_torch_available():
 
         def __init__(
             self,
-            folder_path: DataFolderLike,
+            data_folder: DataFolderLike,
             seq_len: int,
             filename_pattern: str = ".ds",
             recursive: bool = True,
@@ -246,7 +246,7 @@ if is_torch_available():
             positions_from_eos_token_id: int | None = None,
             paths_file: str | None = None,
         ):
-            self.data_folder = get_datafolder(folder_path)
+            self.data_folder = get_datafolder(data_folder)
             self.seq_len = seq_len
             self.filename_pattern = filename_pattern
             self.return_positions = return_positions
@@ -280,7 +280,7 @@ if is_torch_available():
 
         @property
         def folder_path(self):
-            return self.data_folder.path
+            return self.data_folder.resolve_paths("")
 
         def _load_file_list(self):
             fsizes = {}
