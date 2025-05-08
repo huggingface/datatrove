@@ -246,7 +246,8 @@ if is_torch_available():
             positions_from_eos_token_id: int | None = None,
             paths_file: str | None = None,
         ):
-            self.folder_path = get_datafolder(folder_path)
+            self.folder_path = folder_path
+            self.data_folder = get_datafolder(folder_path)
             self.seq_len = seq_len
             self.filename_pattern = filename_pattern
             self.return_positions = return_positions
@@ -282,11 +283,11 @@ if is_torch_available():
             fsizes = {}
 
             if not self.paths_file or not file_exists(self.paths_file):
-                matched_files = self.folder_path.list_files(
+                matched_files = self.data_folder.list_files(
                     glob_pattern=self.filename_pattern, recursive=self.recursive
                 )
                 if not matched_files:
-                    raise FileNotFoundError(f'No files matching "{self.filename_pattern}" found in {self.folder_path}')
+                    raise FileNotFoundError(f'No files matching "{self.filename_pattern}" found in {self.data_folder}')
             else:
                 with open_file(self.paths_file, "r") as f:
                     file_data = json.load(f)
@@ -296,7 +297,7 @@ if is_torch_available():
 
             self.files = [
                 DatatroveFileDataset(
-                    (path, self.folder_path),
+                    (path, self.data_folder),
                     self.seq_len,
                     token_size=self.token_size,
                     return_positions=self.return_positions,
