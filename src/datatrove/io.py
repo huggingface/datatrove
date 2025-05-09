@@ -3,6 +3,7 @@ from glob import has_magic
 from typing import IO, Callable, TypeAlias
 
 from fsspec import AbstractFileSystem
+from fsspec import open as fsspec_open
 from fsspec.callbacks import NoOpCallback, TqdmCallback
 from fsspec.core import get_fs_token_paths, strip_protocol, url_to_fs
 from fsspec.implementations.cached import CachingFileSystem
@@ -242,13 +243,7 @@ class DataFolder(DirFileSystem):
         return isinstance(self.fs, LocalFileSystem)
 
 
-DataFolderLike: TypeAlias = str | tuple[str, dict] | tuple[str, AbstractFileSystem] | DataFolder
-DataFileLike: TypeAlias = (
-    str | tuple[str, dict] | tuple[str, AbstractFileSystem]
-)  # either str, (str, kwargs) or (str, fs)
-
-
-def get_datafolder(data: DataFolderLike) -> DataFolder:
+def get_datafolder(data: DataFolder | str | tuple[str, dict] | tuple[str, AbstractFileSystem]) -> DataFolder:
     """
     `DataFolder` factory.
     Possible input combinations:
@@ -283,21 +278,6 @@ def get_datafolder(data: DataFolderLike) -> DataFolder:
     )
 
 
-def get_fs_with_filepath(data: DataFileLike) -> tuple[AbstractFileSystem, str]:
-    # simple string path
-    if isinstance(data, str):
-        return url_to_fs(data)
-    # (str path, fs init options dict)
-    if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], dict):
-        return url_to_fs(data[0], **data[1])
-    # (str path, initialized fs object)
-    if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], AbstractFileSystem):
-        return (data[1], data[0])  # yeah yeah this is a bit weird I agree
-    raise ValueError(
-        "You must pass a DataFileLike instance, a str path, a (str path, fs_init_kwargs) or (str path, fs object)"
-    )
-
-
 def open_file(file: IO | str, mode="rt", **kwargs):
     """Wrapper around fsspec.open to handle both file-like objects and string paths
 
@@ -308,23 +288,14 @@ def open_file(file: IO | str, mode="rt", **kwargs):
 
     Returns:
     """
-    try:
-        if kwargs:
-            file = (file, kwargs)
-        fs, path = get_fs_with_filepath(file)
-        return fs.open(path, mode)
-    except ValueError:
-        return file
+    if isinstance(file, str):
+        return fsspec_open(file, mode, **kwargs)
+    return file
 
 
 def file_exists(path: str):
-    fs, _, fpath = get_fs_token_paths(path)
+    fs, a, fpath = get_fs_token_paths(path)
     return fs.exists(fpath[0])
-
-
-def file_is_local(path: DataFileLike):
-    fs, _ = get_fs_with_filepath(path)
-    return isinstance(fs, LocalFileSystem)
 
 
 def download_file(remote_path: str, local_path: str, progress: bool = True):
@@ -346,7 +317,7 @@ def download_file(remote_path: str, local_path: str, progress: bool = True):
     )
 
 
-def safely_create_file(file_to_lock: str, do_processing: Callable, completed_file: bool = True):
+def safely_create_file(file_to_lock: str, do_processing: Callable):
     """
     Gets a lock to download/process and create some file(s). When processing is done a ".completed" file is created.
     If this file already exists, we skip the processing. Otherwise, we try to acquire a lock and when we get it if the
@@ -355,24 +326,21 @@ def safely_create_file(file_to_lock: str, do_processing: Callable, completed_fil
     Args:
         file_to_lock: str: lock will be "lock_path.lock" and completed file "lock_path.completed"
         do_processing: callback with the code to run to process/create the files
-        completed_file: bool: whether to create a completed file (Default value = True). Useful for long downloads where the intermediate file might exist before the download is finished
     """
     check_required_dependencies("io", ["fasteners"])
     from fasteners import InterProcessLock
 
-    if completed_file:
-        completed_file_path = f"{file_to_lock}.completed"
+    completed_file = f"{file_to_lock}.completed"
 
-        # if the completed file exists, we exit straight away
-        if os.path.exists(completed_file_path):
-            return
+    # if the completed file exists, we exit straight away
+    if os.path.exists(completed_file):
+        return
 
     # file is either being downloaded or needs to be downloaded
     with InterProcessLock(f"{file_to_lock}.lock"):
-        if not completed_file or not os.path.exists(completed_file_path):
+        if not os.path.exists(completed_file):
             do_processing()
-            if completed_file:
-                open(completed_file_path, "a").close()
+            open(completed_file, "a").close()
 
 
 def cached_asset_path_or_download(
@@ -401,8 +369,15 @@ def cached_asset_path_or_download(
     return local_path
 
 
+DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder
+DataFileLike: TypeAlias = str | tuple[str, dict]  # either str or (str, kwargs)
+
+
 def get_shard_from_paths_file(paths_file: DataFileLike, rank: int, world_size):
-    with open_file(paths_file, mode="rt") as f:
+    kwargs = {}
+    if isinstance(paths_file, tuple):
+        paths_file, kwargs = paths_file
+    with open_file(paths_file, mode="rt", **kwargs) as f:
         for pathi, path in enumerate(f):
             if (pathi - rank) % world_size == 0:
                 yield path.strip()

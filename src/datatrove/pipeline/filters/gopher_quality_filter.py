@@ -119,7 +119,7 @@ class GopherQualityFilter(BaseFilter):
             return False, "gopher_below_alpha_threshold"
 
         # stop word filter
-        if self.min_stop_words and len(self.stop_words.intersection(set(words))) < self.min_stop_words:
+        if self.min_stop_words and sum(w in self.stop_words for w in words) < self.min_stop_words:
             return False, "gopher_enough_stop_words"
 
         return True

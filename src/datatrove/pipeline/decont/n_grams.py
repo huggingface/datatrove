@@ -139,8 +139,8 @@ class NGramsDecontIndexer(PipelineStep):
         from lighteval.tasks.lighteval_task import LightevalTask
         from lighteval.tasks.registry import Registry
 
-        task_dict = Registry(cache_dir=os.getenv("HF_HOME"), custom_tasks=self.custom_lighteval_tasks).get_task_dict(
-            self.lighteval_tasks
+        task_dict = Registry(cache_dir=os.getenv("HF_HOME")).get_task_dict(
+            self.lighteval_tasks, custom_tasks=self.custom_lighteval_tasks
         )
         LightevalTask.load_datasets(task_dict.values())
 
@@ -200,7 +200,7 @@ class NGramsDecontFilter(BaseFilter):
                 ).tolist()
 
         with ThreadPoolExecutor() as pool:
-            hashes = pool.map(load_index_from_file, self.index_folder.list_files(glob_pattern="**/*.index.hashes"))
+            hashes = pool.map(load_index_from_file, self.index_folder.list_files())
 
         self._index_hashes = {}
         for filename, hashlist in hashes:
@@ -222,6 +222,6 @@ class NGramsDecontFilter(BaseFilter):
                 doc.metadata["contaminated_task"] = task
                 self.stat_update(f"contaminated_{task}")
                 if ":" in task:
-                    self.stat_update(f"contaminated_tg_{task[: task.index(':')]}")
+                    self.stat_update(f"contaminated_tg_{task[:task.index(':')]}")
                 return False, "contaminated"
         return True

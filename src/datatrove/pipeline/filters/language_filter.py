@@ -8,7 +8,7 @@ from datatrove.utils.lid import FT176LID, GlotLID
 
 class LanguageFilter(BaseFilter):
     name = "🌍 Language ID"
-    _requires_dependencies = [("fasttext", "fasttext-numpy2-wheel"), "fasteners"]
+    _requires_dependencies = [("fasttext", "fasttext-wheel"), "fasteners"]
 
     def __init__(
         self,

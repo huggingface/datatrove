@@ -58,21 +58,11 @@ class BaseReader(PipelineStep):
         Returns: a dictionary with text, id, media and metadata fields
 
         """
-        metadata = data.pop("metadata", {})
-        if isinstance(metadata, str):
-            import json
-
-            try:
-                metadata = json.loads(metadata)
-            except json.JSONDecodeError:
-                pass
-        if not isinstance(metadata, dict):
-            metadata = {"metadata": metadata}
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
             "media": data.pop("media", []),
-            "metadata": metadata | data,  # remaining data goes into metadata
+            "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
         }
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
@@ -98,6 +88,8 @@ class BaseReader(PipelineStep):
         document = Document(**parsed_data)
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata
+        doc_meta = {"_source_file": self.data_folder.resolve_paths(source_file), "_id_in_file": id_in_file}
+        document.metadata =  doc_meta | document.metadata
         return document
 
     @abstractmethod
@@ -198,7 +190,7 @@ class BaseDiskReader(BaseReader):
         ):
             for i, filepath in enumerate(shard):
                 self.stat_update("input_files")
-                logger.info(f"Reading input file {filepath}, {i + 1}/{len(shard)}")
+                logger.info(f"Reading input file {filepath}, {i+1}/{len(shard)}")
                 di = 0
                 ndocs = 0
                 for di, document in enumerate(self.read_file(filepath)):

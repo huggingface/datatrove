@@ -107,9 +107,9 @@ def read_sigs(
         file_stem = Path(file.path).name.removesuffix(".minhash.sig")
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             sigdata = data if index_file else data[:-1]
-            assert sigdata[0] >= min_hash and (ensure_order is False or last is None or sigdata >= last), (
-                f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
-            )
+            assert sigdata[0] >= min_hash and (
+                ensure_order is False or last is None or sigdata >= last
+            ), f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
             if sigdata[0] >= max_hash:
                 break
             last = sigdata
@@ -133,13 +133,7 @@ class MinhashDedupSignature(PipelineStep):
     type = "🫂 - DEDUP"
     name = "🎯 MinHash stage 1"
 
-    def __init__(
-        self,
-        output_folder: DataFolderLike,
-        config: MinhashConfig = None,
-        language: str = Languages.english,
-        skip_existing_sigs: bool = False,
-    ):
+    def __init__(self, output_folder: DataFolderLike, config: MinhashConfig = None, language: str = Languages.english, skip_existing_sigs: bool = False,):
         super().__init__()
         self.output_folder = get_datafolder(output_folder)
         self.config = config or MinhashConfig()
@@ -384,6 +378,7 @@ class MinhashDedupBuckets(PipelineStep):
                 if self.index_folder
                 else None
             )
+                        
             if index_files:
                 logger.info(f"Found {len(index_files)} index file(s): {', '.join(index_files)}")
                 sig_readers.extend(
@@ -477,9 +472,9 @@ class MinhashDedupCluster(PipelineStep):
 
     def run(self, data: DocumentsPipeline = None, _: int = 0, world_size: int = 1):
         dup_files = self.input_folder.list_files(glob_pattern="*.dups")
-        assert (len(dup_files) % self.config.num_buckets) == 0, (
-            "Number of .dups files should be divisible by number of buckets"
-        )
+        assert (
+            len(dup_files) % self.config.num_buckets
+        ) == 0, "Number of .dups files should be divisible by number of buckets"
         assert world_size == 1, "World size must be 1 for clustering"
         union_set = {}
         set_size = {}
@@ -500,9 +495,9 @@ class MinhashDedupCluster(PipelineStep):
                 # Union by size
                 size_a = set_size.get(root_a, 1)
                 size_b = set_size.get(root_b, 1)
-                if root_b == (SENTINEL, SENTINEL) or (root_a != (SENTINEL, SENTINEL) and size_a < size_b):
+                if size_a < size_b:
                     root_a, root_b = root_b, root_a
-                # a is SENTINEL or #a >= #b
+                # #a >= #b
                 union_set[root_b] = root_a  # make the smallest one join the biggest one to keep sets shallow
                 set_size[root_a] = size_a + size_b
                 set_size.pop(root_b, None)  # clear up space
@@ -671,9 +666,8 @@ class MinhashBuildIndex(PipelineStep):
             for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb"))
         ]
 
-        pq = [x for x in [next(sig_reader, None) for sig_reader in sig_readers] if x is not None]
+        pq = [next(sig_reader) for sig_reader in sig_readers]
         heapq.heapify(pq)
-        logger.info("Finished initializing signatures priority queue.")
 
         # writes all the sigs for the entire bucket, sequentially
         out_f = self.output_folder.open(f"bucket_{bucket:03d}/{self.index_name}.minhash.index", mode="wb")

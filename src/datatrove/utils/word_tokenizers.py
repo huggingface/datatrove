@@ -134,14 +134,7 @@ class SpaCyTokenizer(WordTokenizer):
         # japanese has a max byte length
         texts = [text] if self.language != "ja" else chunk_text_on_bytes(text, 40000)
         self.tokenizer.max_length = len(text)
-        try:
-            return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
-        except Exception as e:
-            # this dumb string breaks the tokenizer completely
-            if "IS_ALPHA" in text:
-                return [self.tokenizer(t.replace("IS_ALPHA", ""), disable=["parser", "tagger", "ner"]) for t in texts]
-            else:
-                raise e
+        return [self.tokenizer(t, disable=["parser", "tagger", "ner"]) for t in texts]
 
     def word_tokenize(self, text: str) -> list[str]:
         # Make sure to do all the token processing inside the memory zone, as after that memory address to tokens

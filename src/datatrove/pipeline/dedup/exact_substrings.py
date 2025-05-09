@@ -53,8 +53,9 @@ class ESDatasetToSequence(PipelineStepWithTokenizer):
     name = "🪞 - exact-substrings stage 1"
 
     def __init__(self, output_folder: DataFolderLike, tokenizer_name_or_path: str = "gpt2"):
-        super().__init__(tokenizer_name_or_path)
+        super().__init__()
         self.output_folder = get_datafolder(output_folder)
+        self.tokenizer_name_or_path = tokenizer_name_or_path
 
     def save_sizes(self, doc_lens: list[int], rank: int):
         """Saves the byte sizes of each doc in a file.
@@ -157,8 +158,9 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         min_doc_words: int = 50,
         language: str = Languages.english,
     ):
-        super().__init__(tokenizer_name_or_path)
+        super().__init__()
         self.sequence_folder = get_datafolder(sequence_folder)
+        self.tokenizer_name_or_path = tokenizer_name_or_path
         self.min_doc_words = min_doc_words
         self.sequence_bytes_offset = None
         self.dup_ranges = None
@@ -214,9 +216,9 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         docs_sizes_file = self.sequence_folder.get_shard(rank, world_size, glob_pattern=EH.stage_1_sequence_size)
         byte_range_file = self.sequence_folder.list_files(glob_pattern=EH.stage_3_bytes_ranges)
 
-        assert all([len(sequence_file) == 1, len(docs_sizes_file) == 1, len(byte_range_file) == 1]), (
-            f"Need to run with n_tasks = n_files. {len(sequence_file)=}, {len(sequence_file)=}, {len(byte_range_file)=}"
-        )
+        assert all(
+            [len(sequence_file) == 1, len(docs_sizes_file) == 1, len(byte_range_file) == 1]
+        ), f"Need to run with n_tasks = n_files. {len(sequence_file)=}, {len(sequence_file)=}, {len(byte_range_file)=}"
         sequence_file, docs_sizes_file, byte_range_file = sequence_file[0], docs_sizes_file[0], byte_range_file[0]
 
         self.get_bytearange(self.sequence_folder.open(byte_range_file, "rt"))
@@ -226,9 +228,9 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         a, b = a - self.bytes_counter, b - self.bytes_counter
         a = max(SEPARATOR_BYTES, a)
         b = min(bytes_len, b)
-        assert SEPARATOR_BYTES <= a < b <= bytes_len, (
-            f"{SEPARATOR_BYTES=} < {a=} < {b=} < {bytes_len=} is NOT satisfied"
-        )
+        assert (
+            SEPARATOR_BYTES <= a < b <= bytes_len
+        ), f"{SEPARATOR_BYTES=} < {a=} < {b=} < {bytes_len=} is NOT satisfied"
 
         if b % 2 == 1:
             b -= 1
@@ -327,9 +329,9 @@ class ESRangeRemover(PipelineStepWithTokenizer):
         ):
             with self.stats.time_stats:
                 # We check that the two generators are synced, meaning the docs sizes bytes are correct.
-                assert doc.text == self.tokenizer.decode(read_bytes(doc_content), skip_special_tokens=False), (
-                    f"{doc.text}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
-                )
+                assert doc.text == self.tokenizer.decode(
+                    read_bytes(doc_content), skip_special_tokens=False
+                ), f"{doc.text}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
                 to_yield = self.remove_duplicate(doc, doc_content)
             if to_yield:
                 self.update_doc_stats(doc)
