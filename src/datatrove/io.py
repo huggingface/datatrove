@@ -344,7 +344,8 @@ def safely_create_file(file_to_lock: str, do_processing: Callable):
 
 
 def cached_asset_path_or_download(
-    remote_path: str, progress: bool = True, namespace: str = "default", subfolder: str = "default", desc: str = "file"
+    remote_path: str, progress: bool = True, namespace: str = "default", subfolder: str = "default", desc: str = "file",
+    decompress: bool = False,
 ):
     """
     Download a file from a remote path to a local path.
@@ -359,14 +360,32 @@ def cached_asset_path_or_download(
 
     download_dir = cached_assets_path(library_name="datatrove", namespace=namespace, subfolder=subfolder)
     local_path = os.path.join(download_dir, strip_protocol(remote_path).replace("/", "_"))
+    decompressed_path = local_path
+    if decompress and local_path.endswith(".gz"):
+        decompressed_path = local_path[:-3]
 
     def do_download_file():
         logger.info(f'⬇️ Downloading {desc} from "{remote_path}"...')
         download_file(remote_path, local_path, progress)
         logger.info(f'⬇️ Downloaded {desc} to "{local_path}".')
 
-    safely_create_file(local_path, do_download_file)
-    return local_path
+        if decompress and local_path.endswith(".gz"):
+            logger.info(f'⬇️ Decompressing {desc} from "{local_path}" to "{decompressed_path}"...')
+            with open_file(local_path, mode="rb", compression="gzip") as f:
+                with open_file(decompressed_path, mode="wb") as f_out:
+                    while True:
+                        chunk = f.read(8192)  # Read 8KB chunks
+                        if not chunk:
+                            break
+                        f_out.write(chunk)
+            logger.info(f'⬇️ Decompressed {desc} from "{local_path}" to "{decompressed_path}".')
+            # Delete the compressed file
+            os.remove(local_path)
+    
+    safely_create_file(decompressed_path, do_download_file)
+    return decompressed_path
+
+
 
 
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder
@@ -377,7 +396,7 @@ def get_shard_from_paths_file(paths_file: DataFileLike, rank: int, world_size):
     kwargs = {}
     if isinstance(paths_file, tuple):
         paths_file, kwargs = paths_file
-    with open_file(paths_file, mode="rt", **kwargs) as f:
+    with open_file(paths_file, mode="rt", **kwargs, compression="infer") as f:
         for pathi, path in enumerate(f):
             if (pathi - rank) % world_size == 0:
                 yield path.strip()

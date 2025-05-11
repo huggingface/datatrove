@@ -1,24 +1,48 @@
 #!/usr/bin/env python3
+from collections import deque
+import multiprocessing
+import random
 import time
-from typing import Callable
+from typing import Callable, Optional, Sequence
+
 import ray
 
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import DataFolderLike
-from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import logger
+from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.utils.stats import PipelineStats
+from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipeline, logger
 
 
 @ray.remote
-def _launch_run_for_rank(executor_pik, rank: int) -> PipelineStats:
+def run_for_rank(executor_ref: "RayPipelineExecutor", ranks: list[int]) -> PipelineStats:
     """
-    A Ray remote function that invokes executor_pik._run_for_rank(rank).
-    We define it at the module level so Ray can easily serialize/deserialize it.
+        Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
+        and marks tasks as completed.
+    Args:
+        rank: the rank that we want to run the pipeline for
+        local_rank: at the moment this is only used for logging.
+        Any task with local_rank != 0 will not print logs to console.
+
+    Returns: the stats for this task
+
     """
-    # Note: 'executor_pik' is expected to be an actual executor instance if we pass 'self',
-    # or a copy (e.g., via deepcopy) that is Ray-picklable.
-    return executor_pik._run_for_rank(rank)
+    from datatrove.utils.stats import PipelineStats
+    from datatrove.utils.logging import logger
+    import multiprocess.pool
+
+    # Sleep for the executor's timeout
+    def run_for_rank_wrapper_with_sleep(rank, rank_id):
+        time.sleep(random.randint(0, executor_ref.randomize_start_duration))
+        return executor_ref._run_for_rank(rank, rank_id)
+
+    executor = executor_ref
+    rank_ids = list(range(len(ranks))) if executor.log_first else list(range(1, len(ranks) + 1))
+    stats = PipelineStats()
+    with multiprocess.pool.Pool(processes=len(ranks)) as pool:
+        for task_result in pool.starmap(run_for_rank_wrapper_with_sleep, [(rank, rank_id) for rank_id, rank in zip(rank_ids, ranks)]):
+            stats += task_result
+    return stats
 
 
 class RayPipelineExecutor(PipelineExecutor):
@@ -54,19 +78,24 @@ class RayPipelineExecutor(PipelineExecutor):
         skip_completed: bool = True,
         logging_dir: DataFolderLike = None,
         randomize_start_duration: int = 0,
-        num_cpus_per_task: float = 1,
-        memory_bytes_per_task: int = 2 * 1024 * 1024 * 1024,
-        num_gpus_per_task: float = 0,
+        cpus_per_task: int = 1,
+        mem_per_cpu_gb: float = 2,
+        ray_remote_kwargs: dict = None,
+        log_first: bool = False,
+        tasks_per_job: int = 1,
+        time: Optional[int] = None,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.depends = depends
         # track whether run() has been called
-        self._launched = False
-        self.num_cpus_per_task = num_cpus_per_task
-        self.memory_bytes_per_task = memory_bytes_per_task
-        self.num_gpus_per_task = num_gpus_per_task
+        self.cpus_per_task = cpus_per_task
+        self.mem_per_cpu_gb = mem_per_cpu_gb
+        self.ray_remote_kwargs = ray_remote_kwargs
+        self.tasks_per_job = tasks_per_job
+        self.log_first = log_first
+        self.time = time
 
     @property
     def world_size(self) -> int:
@@ -79,20 +108,9 @@ class RayPipelineExecutor(PipelineExecutor):
 
         # 1) If there is a depends=, ensure it has run and is finished
         if self.depends:
-            if not self.depends._launched:
-                logger.info(f'Launching dependency job "{self.depends}"')
-                self.depends.run()
+            logger.info(f'Launching dependency job "{self.depends}"')
+            self.depends.run()
 
-            # Wait until the dependency has no incomplete ranks
-            while True:
-                incomplete = len(self.depends.get_incomplete_ranks())
-                if incomplete == 0:
-                    break
-                logger.info(f"Dependency job still has {incomplete}/{self.depends.world_size} tasks. Waiting...")
-                time.sleep(2 * 60)
-
-        # 2) Mark this executor as launched
-        self._launched = True
 
         # 3) Check if all tasks are already completed
         incomplete_ranks = self.get_incomplete_ranks(range(self.world_size))
@@ -105,44 +123,127 @@ class RayPipelineExecutor(PipelineExecutor):
         # 4) Save executor JSON
         self.save_executor_as_json()
 
+        executor_ref = ray.put(self)
+
         # 5) Define resource requirements for this pipeline's tasks
         remote_options = {
-            "num_cpus": self.num_cpus_per_task,
-            "num_gpus": self.num_gpus_per_task,
-            "memory": self.memory_bytes_per_task,
+            "num_cpus": self.cpus_per_task,
+            "num_gpus": 0,
+            "memory": int(self.mem_per_cpu_gb * self.cpus_per_task * 1024 * 1024 * 1024),
         }
+        if self.ray_remote_kwargs:
+            remote_options.update(self.ray_remote_kwargs)
 
         # 6) Dispatch Ray tasks
         MAX_CONCURRENT_TASKS = self.workers
+        ranks_per_jobs = [incomplete_ranks[i:i+self.tasks_per_job] for i in range(0, len(incomplete_ranks), self.tasks_per_job)]
         unfinished = []
+        completed = 0
 
-        for _ in range(min(MAX_CONCURRENT_TASKS, len(incomplete_ranks))):
-            rank_to_submit = incomplete_ranks.pop()
-            unfinished.append(_launch_run_for_rank.options(**remote_options).remote(self, rank_to_submit))
+        ray_remote_func = run_for_rank.options(**remote_options)
+
+        # 7) Keep tasks start_time
+        task_start_times = {}
+        for _ in range(min(MAX_CONCURRENT_TASKS, len(ranks_per_jobs))):
+            ranks_to_submit = ranks_per_jobs.pop(0)
+            task = ray_remote_func.remote(executor_ref, ranks_to_submit)
+            unfinished.append(task)
+            task_start_times[task] = time.time()
 
         # 7) Wait for the tasks to finish, merging them as they complete.
         total_stats = PipelineStats()
         while unfinished:
-            finished, unfinished = ray.wait(unfinished, num_returns=len(unfinished), timeout=5)
+            finished, unfinished = ray.wait(unfinished, num_returns=len(unfinished), timeout=10)
+            for task in finished:
+                # Remove task from task_start_times
+                del task_start_times[task]
+                # Remove task itself
+                del task
+
             try:
                 results = ray.get(finished)
                 for task_result in results:
                     total_stats += task_result
+                    completed += 1
             except Exception as e:
                 logger.exception(f"Error processing shard: {e}")
-                raise
 
             # If we have more shard paths left to process and we haven't hit the max
             # number of concurrent tasks, add tasks to the unfinished queue.
-            while incomplete_ranks and len(unfinished) < MAX_CONCURRENT_TASKS:
-                rank_to_submit = incomplete_ranks.pop()
-                unfinished.append(_launch_run_for_rank.options(**remote_options).remote(self, rank_to_submit))
+            while ranks_per_jobs and len(unfinished) < MAX_CONCURRENT_TASKS:
+                ranks_to_submit = ranks_per_jobs.pop(0)
+                task = ray_remote_func.remote(executor_ref, ranks_to_submit)
+                unfinished.append(task)
+                task_start_times[task] = time.time()
 
+            # Finally remove tasks that run for more than self.timeout seconds
+            if self.time:
+                for task in unfinished:
+                    if time.time() - task_start_times[task] > self.time:
+                        del task_start_times[task]
+                        unfinished.remove(task)
+                        logger.warning(f"Task {task} timed out after {self.time} seconds and was removed from the queue.")
         logger.info("All Ray tasks have finished.")
 
         # 8) Save merged stats
         with self.logging_dir.open("stats.json", "wt") as statsfile:
             total_stats.save_to_disk(statsfile)
 
-        logger.success(total_stats.get_repr(f"All {len(incomplete_ranks)} tasks"))
+        if completed > 0:
+            logger.success(total_stats.get_repr(f"All {completed}/{self.world_size} tasks"))
         return total_stats
+
+    def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
+        """
+            Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
+            and marks tasks as completed.
+        Args:
+            rank: the rank that we want to run the pipeline for
+            local_rank: at the moment this is only used for logging.
+            Any task with local_rank != 0 will not print logs to console.
+
+        Returns: the stats for this task
+
+        """
+        if self.is_rank_completed(rank):
+            logger.info(f"Skipping {rank=} as it has already been completed.")
+            return PipelineStats()
+        
+        # We log only locally and upload logs to s3 after the pipeline is finished
+        ray_logs_dir = get_datafolder("/tmp/ray_logs")
+        logfile = add_task_logger(ray_logs_dir, rank, local_rank)
+        log_pipeline(self.pipeline)
+
+        if self.randomize_start_duration > 0:
+            time.sleep(random.randint(0, self.randomize_start_duration))
+        try:
+            # pipe data from one step to the next
+            pipelined_data = None
+            for pipeline_step in self.pipeline:
+                if callable(pipeline_step):
+                    pipelined_data = pipeline_step(pipelined_data, rank, self.world_size)
+                elif isinstance(pipeline_step, Sequence) and not isinstance(pipeline_step, str):
+                    pipelined_data = pipeline_step
+                else:
+                    raise ValueError
+            if pipelined_data:
+                deque(pipelined_data, maxlen=0)
+
+            logger.success(f"Processing done for {rank=}")
+
+            # stats
+            stats = PipelineStats(self.pipeline)
+            with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
+                stats.save_to_disk(f)
+            logger.info(stats.get_repr(f"Task {rank}"))
+            # completed
+            self.mark_rank_as_completed(rank)
+        except Exception as e:
+            logger.exception(e)
+            raise e
+        finally:
+            close_task_logger(logfile)
+            # Upload logs to s3
+            with ray_logs_dir.open(f"logs/task_{rank:05d}.log", "r") as f, self.logging_dir.open(f"logs/task_{rank:05d}.log", "w") as f_out:
+                f_out.write(f.read())
+        return stats

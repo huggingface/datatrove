@@ -81,10 +81,11 @@ class BaseExtractor(PipelineStep):
 
 
 class ExtractorSandbox:
-    def __init__(self, timeout):
+    def __init__(self, timeout, wamup_text):
         self.timeout = timeout
         self.process = None
         self.parent_conn = None
+        self.wamup_text = wamup_text
         self.child_conn = None
 
     def _cleanup_process(self):
@@ -100,7 +101,7 @@ class ExtractorSandbox:
             self.child_conn = None
 
     def _worker(self, conn, extract_fn):
-        extract_fn("")  # "warmup"
+        extract_fn(self.wamup_text)  # "warmup"
         conn.send(None)  # ready
         while True:
             try:
