@@ -1,10 +1,10 @@
 from abc import abstractmethod
 from multiprocessing import Pipe, Process
-
 from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import StatHints
+import time
 
 
 class BaseExtractor(PipelineStep):
@@ -46,7 +46,7 @@ class BaseExtractor(PipelineStep):
         Returns:
 
         """
-        with ExtractorSandbox(timeout=self.timeout) as extractor:
+        with ExtractorSandbox(timeout=self.timeout, wamup_text="") as extractor:
             for doc in data:
                 self.stat_update(StatHints.total)
                 with self.track_time():
@@ -88,6 +88,12 @@ class ExtractorSandbox:
         self.wamup_text = wamup_text
         self.child_conn = None
 
+    def set_oom_score_adj(self, score):
+        if not -1000 <= score <= 1000:
+            raise ValueError("Score must be between -1000 and +1000")
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write(f"{score}\n")
+
     def _cleanup_process(self):
         if self.process is not None:
             self.parent_conn.close()
@@ -101,6 +107,9 @@ class ExtractorSandbox:
             self.child_conn = None
 
     def _worker(self, conn, extract_fn):
+        # Ensure this process is killed first
+        self.set_oom_score_adj(1000)
+
         extract_fn(self.wamup_text)  # "warmup"
         conn.send(None)  # ready
         while True:
@@ -111,17 +120,29 @@ class ExtractorSandbox:
             except EOFError:
                 break
 
+
     def process_document(self, text, extract_fn):
         self._ensure_process(extract_fn)
         try:
             self.parent_conn.send(text)
-            if self.parent_conn.poll(timeout=self.timeout):
-                result = self.parent_conn.recv()
-                if isinstance(result, Exception):
-                    raise result
-                return result
-            else:
-                raise TimeoutError("Document extraction timed out")
+
+            deadline = time.time() + self.timeout
+            # loop with short sleeps instead of one big poll()
+            while True:
+                poll_timeout = max(0, min(5, deadline - time.time() + 0.1))
+                if self.parent_conn.poll(poll_timeout):
+                    result = self.parent_conn.recv()
+                    if isinstance(result, Exception):
+                        raise result
+                    return result
+
+                # 2) Has the child died?
+                if not self.process.is_alive():
+                    raise EOFError("Child process died (probably OOM-killed)")
+
+                # 3) Has our deadline passed?
+                if time.time() >= deadline:
+                    raise TimeoutError("Document extraction timed out")
         except (TimeoutError, EOFError):
             self._cleanup_process()
             raise

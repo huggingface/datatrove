@@ -391,7 +391,6 @@ def cached_asset_path_or_download(
 DataFolderLike: TypeAlias = str | tuple[str, dict] | DataFolder
 DataFileLike: TypeAlias = str | tuple[str, dict]  # either str or (str, kwargs)
 
-
 def get_shard_from_paths_file(paths_file: DataFileLike, rank: int, world_size):
     kwargs = {}
     if isinstance(paths_file, tuple):

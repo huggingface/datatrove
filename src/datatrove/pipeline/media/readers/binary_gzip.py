@@ -19,12 +19,16 @@ class BinaryGzipReader(SeekableMediaReader):
         self,
         data_folder: DataFolderLike,
         offset_byte_size: int = 4,
+        # 1MB
+        block_size: int = 20*1024*1024,
     ):
         super().__init__(data_folder)
         self.offset_byte_size = offset_byte_size
+        self.block_size = block_size
 
     def open_file(self, path: str) -> IO:
-        self._fp = self.data_folder.open(path, compression=None)
+        gzip.READ_BUFFER_SIZE = self.block_size
+        self._fp = self.data_folder.open(path, compression=None, block_size=self.block_size)
         return gzip.open(self._fp, "rb")
 
     def close_file(self, fp: IO):

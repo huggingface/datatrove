@@ -71,6 +71,7 @@ class BaseStats(PipelineStep):
                 **({"tokens": doc.metadata["token_count"]} if "token_count" in doc.metadata else {}),
                 **({"chars": len(doc.text)} if self.use_chars_for_histogram else {}),
             }
+            return kv
         elif group_name == "summary":
             return "summary", value
         elif group_name == "fqdn":
