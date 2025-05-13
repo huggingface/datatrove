@@ -84,9 +84,9 @@ def get_subfolders(parent_folder):
 
 
 if __name__ == '__main__':
-    input_folder_base = "/root/dataprocess/data/d1/"
-    output_folder_base = "/root/dataprocess/data/d1_output/"
-    base_job_name = "d1"
+    input_folder_base = "/root/dataprocess/data/exp/"
+    output_folder_base = "/root/dataprocess/data/exp_output/"
+    base_job_name = "exp"
 
     # 获取该文件夹下的所有子文件夹
     subfolders = get_subfolders(input_folder_base)
