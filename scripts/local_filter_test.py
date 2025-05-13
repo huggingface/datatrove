@@ -63,6 +63,7 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
     executor = LocalPipelineExecutor(
         pipeline=[
             INPUT_READER,
+            PreprocessBeta1Filter(),
             filter_task,
             JsonlWriter(f"{FILTERING_OUTPUT_PATH}/output/"),
         ],
@@ -83,16 +84,15 @@ def get_subfolders(parent_folder):
 
 
 if __name__ == '__main__':
-    input_folder_base = "/root/dataprocess/data/exp/"
-    output_folder_base = "/root/dataprocess/data/exp_output/"
-    base_job_name = "exp"
+    input_folder_base = "/root/dataprocess/data/d1/"
+    output_folder_base = "/root/dataprocess/data/d1_output/"
+    base_job_name = "d1"
 
     # 获取该文件夹下的所有子文件夹
     subfolders = get_subfolders(input_folder_base)
 
     # 定义过滤器类型列表
-    # filter_types = ["gopher_rep", "gopher_qual", "c4", "fineweb_qual"]
-    filter_types = ["gopher_qual", 'beta1']
+    filter_types = ["gopher_rep", "gopher_qual", "c4", "fineweb_qual"]
 
     for subfolder in subfolders:
         file_name = os.path.basename(subfolder)
