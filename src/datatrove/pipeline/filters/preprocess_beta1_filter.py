@@ -95,4 +95,6 @@ class PreprocessBeta1Filter(BaseFilter):
                                 whitelist_chars=self.whitelist_chars,
                                 use_whitelist=self.use_whitelist,
                                 min_word_num=self.min_word_num)
+        if len(doc.text) == 0:
+            return False
         return True

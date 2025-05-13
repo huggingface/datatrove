@@ -38,5 +38,5 @@ class RepeatingRowsFilter(BaseFilter):
                     unique_set.add(line)
                     result.append(line)
         
-        doc.text = '\n'.join(result)
+        doc.text = '\n'.join(result)        
         return True
