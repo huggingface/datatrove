@@ -68,6 +68,7 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
         ],
         workers=5,
         tasks=n_job,
+        skip_completed=False,
         logging_dir=f"{LOGGING_FOLDER}/{filter_type}/{file_name}",
         randomize_start_duration=180,  # 避免同时启动所有任务
     )
