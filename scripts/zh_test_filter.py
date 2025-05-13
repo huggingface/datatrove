@@ -32,11 +32,13 @@ class FineWebQualityFilter(BaseFilter):
 
     def filter(self, doc) -> bool | tuple[bool, str]:
         lines = doc.text.split("\n")
-        lines = [line for line in lines if line.strip() != ""]
+        lines = [line for line in lines if  line.strip()]
         if len(lines) == 0:
             return False, "empty"
+
         ratio = sum(1 for line in lines if line.endswith(self.stop_chars)) / len(lines)
         if ratio < self.line_punct_thr and not (ratio == 0 and self.line_punct_exclude_zero):
+            print(f"本文档行结束标点符号阈值{ratio}，标准阈值{self.line_punct_thr}")
             return False, "line_punct_ratio"
 
         ratio = sum(1 for line in lines if len(line) <= self.short_line_length) / len(lines)
@@ -44,7 +46,7 @@ class FineWebQualityFilter(BaseFilter):
             return False, "short_line_ratio"
 
         ratio = find_duplicates(lines)[1] / len(doc.text.replace("\n", ""))
-
+        print(f"重复率：{ratio*100}%，标准：1%")
         if ratio > self.char_duplicates_ratio:
             return False, "char_dup_ratio"
 
@@ -58,17 +60,54 @@ class FineWebQualityFilter(BaseFilter):
 
 if __name__ == '__main__':
     from datatrove.data import Document
+    from datatrove.pipeline.filters.preprocess_beta2_filter import RepeatingRowsFilter
+    rp_filter = RepeatingRowsFilter()
+    
     docx = Document
+    origin_text = """You are here: ALUMNI & COMMUNITY
+Saturday, 18. November 2017
 
-    docx.text = """• Chevy Chase
-  • Tysons Corner
+Notes & Dates
 
-Abstract
+International Planning Sessions Winter 2017/18
 
-Slipman CW, Jackson HB, Lipetz JS, Chan KT, Lenrow D, Vresilovic EJ. Sacroiliac joint pain referral zones. Arch Phys Med Rehabil 2000;81:334-8. Objective: To determine the patterns of pain referral from the sacroiliac joint. Study Design: Retrospective. Participants/Methods: Fifty consecutive patients who satisfied clinical criteria and demonstrated a positive diagnostic response to a fluoroscopically guided sacroiliac joint injection were included. Each patient’s preinjection pain description was used to determine areas of pain referral, and 18 potential pain-referral zones were established. Outcome Measures: Observed areas of pain referral. Results: Eighteen men (36.0%) and 32 women (64.0%) were included with a mean age of 42.5 years (range, 20 to 75 yrs) and a mean symptom duration of 18.2 months (range, 1 to 72 mo). Forty-seven patients (94.0%) described buttock pain, and 36 patients (72.0%) described lower lumbar pain. Groin pain was described in 7 patients (14.0%). Twenty-five patients (50.0%) described associated lower-extremity pain. Fourteen patients (28.0%) described leg pain distal to the knee, and 6 patients (14.0%) reported foot pain. Eighteen patterns of pain referral were observed. A statistically significant relationship was identified between pain location and age, with younger patients more likely to describe pain distal to the knee.Conclusions: Pain referral from the sacroiliac joint does not appear to be limited to the lumbar region and buttock. The variable patterns of pain referral observed may arise for several reasons, including the joint’s complex innervation, sclerotomal pain referral, irritation of adjacent structures, and varying locations of injury with the sacroiliac joint. © 2000 by the American Congress of Rehabilitation Medicine and the American Academy of Physical Medicine and Rehabilitation
+?
 
-Source: http://www.archives-pmr.org/article/S0003-9993(00)90080-7/fulltext"""
-    filters = FineWebQualityFilter()
-    print(filters.filter(docx))
+Upcoming Holiday at TU Dortmund University:
+25.12.2017-05.01.2018 - Christmas Break
+
+_______________________
+
+Master Programmes in Germany on Urban-, Regional-, and? Infrastructure Planning
+
+_______________________
+
+_______________________
+
+Alumni & Community
+
+SIADP - SPRING International Association of Development Planners
+
+SIADP - SPRING International Association for Development Planners
+
+Please also visit the SIADP-Website
+
+Since the first SPRING batch completed the course almost 700 educated planners from more than 70 countries returned to their home countries and most of them work in the field of development.
+
+To keep the ties to each other and to facilitate communication among all we founded SIADP in 1991. It provides the opportunity to discuss news and to spread developments which are interesting for third world planners.
+
+Alumni meetings have been organised in Indonesia, Philippines, Tanzania, Ghana, and Ethiopia. SIADP helps the members to look for jobs, keep contacts and with general information by distributing the Newsletter once a year.
+
+All requests about SIADP Organisation to:
+
+Dr. Anne Weber:
+
+?"""
+    docx.text = origin_text
+    flag, doc_text = rp_filter.filter(docx)
+    print(len(doc_text.split('\n')))
+    print(len(origin_text.split('\n')))
+    fb_filters = FineWebQualityFilter()
+    print(fb_filters.filter(docx))
 
 
