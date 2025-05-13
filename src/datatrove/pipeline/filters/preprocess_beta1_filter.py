@@ -58,7 +58,8 @@ def modify_doc_by_paragraph(
 
     new_text = '\n\n'.join(new_paras)
     doc.text = new_text
-    add_modifiers_to_meta(doc, 'preprocess_beta1_filter')
+    if text != new_text:
+        add_modifiers_to_meta(doc, 'preprocess_beta1_filter')
 
 
 class PreprocessBeta1Filter(BaseFilter):
