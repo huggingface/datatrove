@@ -34,7 +34,7 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
     INPUT_READER = JsonlReader(input_folder, glob_pattern="*.jsonl", text_key="text")
     FILTERING_OUTPUT_PATH = f"{output_folder}/{filter_type}"
 
-    LOGGING_FOLDER  = f"/public/home/xuruohao/home/xuruohao/data/logs/subject_exp/"
+    LOGGING_FOLDER  = f"/root/dataprocess/data/logs/subject_exp/"
 
     # 根据过滤器类型选择过滤器
     if filter_type == "gopher_rep":
@@ -80,8 +80,8 @@ def get_subfolders(parent_folder):
 
 
 if __name__ == '__main__':
-    input_folder_base = "/public/home/xuruohao/home/xuruohao/data/exp/"
-    output_folder_base = "/public/home/xuruohao/home/xuruohao/data/exp_output/"
+    input_folder_base = "/root/dataprocess/data/exp/"
+    output_folder_base = "/root/dataprocess/data/exp_output/"
     base_job_name = "exp"
 
     # 获取该文件夹下的所有子文件夹
