@@ -88,7 +88,8 @@ if __name__ == '__main__':
     subfolders = get_subfolders(input_folder_base)
 
     # 定义过滤器类型列表
-    filter_types = ["gopher_rep", "gopher_qual", "c4", "fineweb_qual"]
+    # filter_types = ["gopher_rep", "gopher_qual", "c4", "fineweb_qual"]
+    filter_types = ["gopher_qual"]
 
     for subfolder in subfolders:
         file_name = os.path.basename(subfolder)
