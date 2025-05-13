@@ -25,7 +25,7 @@ class RepeatingRowsFilter(BaseFilter):
         lines = doc.text.split("\n")
         # lines = [line for line in lines if line.strip() != ""]
         if len(lines) == 0:
-            return False, "empty"
+            return False, "repeating_row"
         unique_set = set()
         result = []
         for line in lines:  

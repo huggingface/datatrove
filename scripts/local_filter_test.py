@@ -40,23 +40,21 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
     # 根据过滤器类型选择过滤器
     if filter_type == "gopher_rep":
         filter_task = GopherRepetitionFilter(
-            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/")
+            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None)
         )
     elif filter_type == "gopher_qual":
         filter_task = GopherQualityFilter(
             use_whitelist=True,
-            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/")
+            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None)
         )
     elif filter_type == "c4":
         filter_task = C4QualityFilter(
-            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/")
+            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None)
         )
     elif filter_type == "fineweb_qual":
         filter_task = FineWebQualityFilter(
-            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/")
+            exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None)
         )
-    elif filter_type == 'beta1':
-        filter_task = PreprocessBeta1Filter()
     else:
         raise ValueError(f"Unknown filter type: {filter_type}")
 

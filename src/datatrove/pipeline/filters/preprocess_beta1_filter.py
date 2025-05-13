@@ -59,7 +59,7 @@ def modify_doc_by_paragraph(
     new_text = '\n\n'.join(new_paras)
     doc.text = new_text
     if text != new_text:
-        add_modifiers_to_meta(doc, 'preprocess_beta1_filter')
+        add_modifiers_to_meta(doc, 'preprocess_beta1')
 
 
 class PreprocessBeta1Filter(BaseFilter):
@@ -82,7 +82,7 @@ class PreprocessBeta1Filter(BaseFilter):
         self.use_whitelist = use_whitelist
         self.min_word_num = min_word_num
 
-    def filter(self, doc: Document) -> bool:
+    def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """Args:
             doc: document
 
@@ -96,5 +96,5 @@ class PreprocessBeta1Filter(BaseFilter):
                                 use_whitelist=self.use_whitelist,
                                 min_word_num=self.min_word_num)
         if len(doc.text) == 0:
-            return False
+            return False, 'preprocess_beta1_filter'
         return True
