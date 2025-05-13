@@ -2,6 +2,7 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.utils.text import split_into_words, check_non_alpha_ratio, add_modifiers_to_meta
 from datatrove.utils.typeshelper import Languages
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 def check_line_word_num(words, min_word_num: int = 3):
@@ -67,8 +68,10 @@ class PreprocessBeta1Filter(BaseFilter):
             max_non_alpha_words_ratio: float = 0.8,
             whitelist_chars=('(', ')', '%'),
             use_whitelist = True,
-            min_word_num = 3,            
+            min_word_num = 3,
+            exclusion_writer: DiskWriter = None,
     ):
+        super().__init__(exclusion_writer)
         self.valid_line_in_paragraph_ratio = valid_line_in_paragraph_ratio
         self.max_non_alpha_words_ratio = max_non_alpha_words_ratio
         self.whitelist_chars = whitelist_chars
