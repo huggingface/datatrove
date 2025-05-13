@@ -118,10 +118,10 @@ class GopherQualityFilter(BaseFilter):
         if (
             self.max_non_alpha_words_ratio
             # nb of words with at least 1 alpha char < 0.8
-            and check_non_alpha_ratio(words,
-                                      max_non_alpha_words_ratio=self.max_non_alpha_words_ratio,
-                                      whitelist_chars=self.whitelist_chars,
-                                      use_whitelist=self.use_whitelist)):
+            and not check_non_alpha_ratio(words,
+                                          max_non_alpha_words_ratio=self.max_non_alpha_words_ratio,
+                                          whitelist_chars=self.whitelist_chars,
+                                          use_whitelist=self.use_whitelist)):
             return False, "gopher_below_alpha_threshold"
 
         # stop word filter
