@@ -39,4 +39,4 @@ class RepeatingRowsFilter(BaseFilter):
                     result.append(line)
         
         doc.text = '\n'.join(result)
-        return True, doc.text
+        return True

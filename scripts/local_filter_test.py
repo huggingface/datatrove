@@ -1,6 +1,7 @@
 import os
 from glob import glob
 from datatrove.pipeline.filters.preprocess_beta1_filter import PreprocessBeta1Filter
+from datatrove.pipeline.filters.preprocess_beta2_filter import RepeatingRowsFilter
 from loguru import logger
 
 from datatrove.executor.local import LocalPipelineExecutor
@@ -64,8 +65,9 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
         pipeline=[
             INPUT_READER,
             PreprocessBeta1Filter(),
+            RepeatingRowsFilter(),
             filter_task,
-            JsonlWriter(f"{FILTERING_OUTPUT_PATH}/output/"),
+            JsonlWriter(f"{FILTERING_OUTPUT_PATH}/output/", compression=None),            
         ],
         workers=5,
         tasks=n_job,
