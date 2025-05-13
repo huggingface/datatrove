@@ -315,3 +315,20 @@ def split_into_sentences(text, language=Languages.english):
 
 def split_into_paragraphs(text, language=Languages.english):
     return split_into_parts(text, mode=SPLIT_TEXT_PARAGRAPHS, language=language)
+
+
+def in_non_alpha_whitelist(w, whitelist_chars = ()):
+    return w.isdigit() or w in whitelist_chars
+
+
+def check_non_alpha_ratio(words,
+                          max_non_alpha_words_ratio,
+                          whitelist_chars,
+                          use_whitelist):
+    n_words = len(words)
+
+    # that 80 % of words in a document contain at least one alphabetic character
+    if (sum([any((c.isalpha() for c in w)) or (use_whitelist and in_non_alpha_whitelist(w, whitelist_chars)) for w in words]) / n_words < max_non_alpha_words_ratio
+    ):
+        return False
+    return True

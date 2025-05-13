@@ -3,7 +3,7 @@ import numpy as np
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.utils.text import PUNCTUATION_SET, split_into_words
+from datatrove.utils.text import PUNCTUATION_SET, check_non_alpha_ratio, split_into_words
 from datatrove.utils.typeshelper import Languages
 
 
@@ -27,6 +27,8 @@ class GopherQualityFilter(BaseFilter):
         stop_words: list[str] | None = None,
         exclusion_writer: DiskWriter = None,
         language: str = Languages.english,
+        whitelist_chars=('(', ')', '%'),
+        use_whitelist = False,            
     ):
         """
         Filter to apply Gopher's quality heuristic rules.
@@ -57,6 +59,8 @@ class GopherQualityFilter(BaseFilter):
         self.min_stop_words = min_stop_words
         self.stop_words = set(STOP_WORDS if stop_words is None else stop_words)
         self.language = language
+        self.whitelist_chars = whitelist_chars
+        self.use_whitelist = use_whitelist        
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """
@@ -114,8 +118,10 @@ class GopherQualityFilter(BaseFilter):
         if (
             self.max_non_alpha_words_ratio
             # nb of words with at least 1 alpha char < 0.8
-            and sum([any((c.isalpha() for c in w)) for w in words]) / n_words < self.max_non_alpha_words_ratio
-        ):
+            and check_non_alpha_ratio(words,
+                                      max_non_alpha_words_ratio=self.max_non_alpha_words_ratio,
+                                      whitelist_chars=self.whitelist_chars,
+                                      use_whitelist=self.use_whitelist)):
             return False, "gopher_below_alpha_threshold"
 
         # stop word filter
