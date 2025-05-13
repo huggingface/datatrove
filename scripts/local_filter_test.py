@@ -43,6 +43,7 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
         )
     elif filter_type == "gopher_qual":
         filter_task = GopherQualityFilter(
+            use_whitelist=True,
             exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/")
         )
     elif filter_type == "c4":
@@ -89,7 +90,7 @@ if __name__ == '__main__':
 
     # 定义过滤器类型列表
     # filter_types = ["gopher_rep", "gopher_qual", "c4", "fineweb_qual"]
-    filter_types = ["gopher_qual"]
+    filter_types = ["gopher_qual", 'beta1']
 
     for subfolder in subfolders:
         file_name = os.path.basename(subfolder)
