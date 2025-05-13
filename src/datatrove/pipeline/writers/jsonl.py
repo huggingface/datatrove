@@ -2,6 +2,7 @@ from typing import IO, Callable
 
 from loguru import logger
 from datatrove.io import DataFolderLike
+import base64
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
@@ -29,6 +30,7 @@ class JsonlWriter(DiskWriter):
         expand_metadata: bool = False,
         max_file_size: int = -1,  # in bytes. -1 for unlimited
         max_records: int = -1,
+        save_media_bytes: bool = False,
     ):
         super().__init__(
             output_folder,
@@ -39,8 +41,12 @@ class JsonlWriter(DiskWriter):
             mode="wb",
             max_file_size=max_file_size,
             max_records=max_records,
+            save_media_bytes=save_media_bytes,
         )
 
     def _write(self, document: dict, file_handler: IO, _filename: str):
         import orjson
+        for media in document["media"]:
+            if media["media_bytes"]:
+                media["media_bytes"] = base64.b64encode(media["media_bytes"]).decode("ascii")
         file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))
