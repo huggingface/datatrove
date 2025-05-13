@@ -332,3 +332,10 @@ def check_non_alpha_ratio(words,
     ):
         return False
     return True
+
+
+def add_modifiers_to_meta(doc, modifier_str):
+    if not doc.metadata.get('modifiers'):
+        doc.metadata['modifiers'] = modifier_str
+    else:
+        doc.metadata['modifiers'] += ',' + modifier_str

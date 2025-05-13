@@ -1,6 +1,6 @@
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.text import split_into_words, check_non_alpha_ratio
+from datatrove.utils.text import split_into_words, check_non_alpha_ratio, add_modifiers_to_meta
 from datatrove.utils.typeshelper import Languages
 
 
@@ -57,6 +57,7 @@ def modify_doc_by_paragraph(
 
     new_text = '\n\n'.join(new_paras)
     doc.text = new_text
+    add_modifiers_to_meta(doc, 'preprocess_beta1_filter')
 
 
 class PreprocessBeta1Filter(BaseFilter):
