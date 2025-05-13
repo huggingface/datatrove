@@ -62,6 +62,9 @@ def modify_doc_by_paragraph(
 
 
 class PreprocessBeta1Filter(BaseFilter):
+    name = "🌍 Preprocess Beta1"
+    _requires_dependencies = []
+    
     def __init__(
             self,
             valid_line_in_paragraph_ratio: float = 0.5,
