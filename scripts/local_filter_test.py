@@ -66,6 +66,7 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
             filter_task,
             JsonlWriter(f"{FILTERING_OUTPUT_PATH}/output/"),
         ],
+        workers=5,
         tasks=n_job,
         logging_dir=f"{LOGGING_FOLDER}/{filter_type}/{file_name}",
         randomize_start_duration=180,  # 避免同时启动所有任务
