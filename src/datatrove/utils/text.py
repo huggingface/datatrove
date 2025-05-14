@@ -339,3 +339,26 @@ def add_modifiers_to_meta(doc, modifier_str):
         doc.metadata['modifiers'] = modifier_str
     else:
         doc.metadata['modifiers'] += ',' + modifier_str
+
+
+def check_line_word_num(words, min_word_num: int = 3):
+    return len(words) >= min_word_num
+
+
+def is_line_valid(
+        line: str,
+        max_non_alpha_words_ratio,
+        whitelist_chars,
+        use_whitelist,
+        min_word_num,
+) -> bool:
+    if line == '':
+        return True
+    words = split_into_words(line, Languages.english)
+    if len(words) == 0:
+        return False
+    return check_line_word_num(words, min_word_num=min_word_num) \
+        and check_non_alpha_ratio(words,
+                                  max_non_alpha_words_ratio=max_non_alpha_words_ratio,
+                                  whitelist_chars=whitelist_chars,
+                                  use_whitelist=use_whitelist)        

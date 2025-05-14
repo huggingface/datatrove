@@ -1,3 +1,4 @@
+from datatrove.pipeline.filters.preprocess_beta1_filter import PreprocessBeta1Filter
 import numpy as np
 
 from datatrove.data import Document
@@ -239,3 +240,34 @@ def print_ratios():
     print(get_non_alpha_words_ratio(new_text, False))
     print(get_non_alpha_words_ratio(new_text, True))
 
+
+
+def test():
+    doc = Document
+    doc.text = """
+User: Guest  Login
+Document type:
+Konferenzbeitrag 
+Contribution type:
+Vortrag / Präsentation 
+Author(s):
+Bao, Fengqing; Arend, L.; Bertl, S.; Detlefsen, J. 
+Title:
+Application of FMCW radar principle for fast inhomogeneity identification on transmission lines 
+Abstract:
+A measurement system based on FMCW radar principle for fast inhomogeneity identification of a transmission line in short range application is presented. In comparison with traditional TDR method where the analysis of reflected waveform is directly processed in time domain, FMCW radar principle converts the analysis work into frequency domain and greatly reduces the hardware requirements consequently. Experiments show up both accurate detection results and fast detection ability. 
+Book / Congress title:
+Proc. German Microwave Conf. (GeMIC) 
+Year:
+2011 
+Pages:
+1--4, __ 
+Reviewed:
+ja 
+Language:
+en 
+Publication format:
+Print     
+    """
+
+    PreprocessBeta1Filter().filter(doc)

@@ -1,32 +1,7 @@
 from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
-from datatrove.utils.text import split_into_words, check_non_alpha_ratio, add_modifiers_to_meta
-from datatrove.utils.typeshelper import Languages
+from datatrove.utils.text import add_modifiers_to_meta, is_line_valid
 from datatrove.pipeline.writers.disk_base import DiskWriter
-
-
-def check_line_word_num(words, min_word_num: int = 3):
-    return len(words) >= min_word_num
-
-
-def is_line_valid(
-        line: str,
-        max_non_alpha_words_ratio,
-        whitelist_chars,
-        use_whitelist,
-        min_word_num,
-) -> bool:
-    if line == '':
-        return True
-    words = split_into_words(line, Languages.english)
-    if len(words) == 0:
-        return False
-    return check_line_word_num(words, min_word_num=min_word_num) \
-        and check_non_alpha_ratio(words,
-                                  max_non_alpha_words_ratio=max_non_alpha_words_ratio,
-                                  whitelist_chars=whitelist_chars,
-                                  use_whitelist=use_whitelist)
-        # and check_pure_alpha_word_ratio(words)
 
 
 def modify_doc_by_paragraph(
