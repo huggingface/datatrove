@@ -51,6 +51,7 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
         filter_task = C4QualityFilter(
             exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None),
             filter_curly_bracket=False,
+            filter_no_terminal_punct=False,
         )
     elif filter_type == "fineweb_qual":
         filter_task = FineWebQualityFilter(
@@ -63,8 +64,8 @@ def process_filter(input_folder, output_folder, job_name, n_job, partition, file
     executor = LocalPipelineExecutor(
         pipeline=[
             INPUT_READER,
-            PreprocessBeta1Filter(),
-            RepeatingRowsFilter(),
+            PreprocessBeta1Filter(exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None),),
+            RepeatingRowsFilter(exclusion_writer=JsonlWriter(f"{FILTERING_OUTPUT_PATH}/removed/", compression=None),),
             filter_task,
             JsonlWriter(f"{FILTERING_OUTPUT_PATH}/output/", compression=None),            
         ],
