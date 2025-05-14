@@ -67,7 +67,7 @@ class HuggingFaceDatasetReader(BaseReader):
         from datasets.distributed import split_dataset_by_node
 
         if isinstance(dst, Dataset):
-            return dst.shard(world_size, rank, contiguous=False)
+            return dst.shard(world_size, rank, contiguous=True)
         elif isinstance(dst, IterableDataset) and dst.n_shards > 1:
             # In case we have more than 1 shard (file), we shard
             # on shards/file level.
@@ -88,7 +88,7 @@ class HuggingFaceDatasetReader(BaseReader):
             )
         else:
             # If we have just a single shard/file, we shard inter-file
-            return split_dataset_by_node(dataset=dst, rank=rank, world_size=world_size)
+            return split_dataset_by_node(dst, rank, world_size)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         from datasets import load_dataset  # type: ignore
