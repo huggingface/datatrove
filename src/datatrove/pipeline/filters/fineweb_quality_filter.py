@@ -10,10 +10,10 @@ class FineWebQualityFilter(BaseFilter):
 
     def __init__(
         self,
-        exclusion_writer: DiskWriter = None,
+        exclusion_writer: DiskWriter | None = None,
         line_punct_thr: float = 0.12,
         line_punct_exclude_zero: bool = False,
-        stop_chars: tuple[str] | None = None,
+        stop_chars: tuple[str, ...] | None = None,
         short_line_thr: float = 0.67,
         short_line_length: int = 30,
         char_duplicates_ratio: float = 0.01,
