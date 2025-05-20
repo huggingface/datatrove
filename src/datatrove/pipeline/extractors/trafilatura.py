@@ -22,6 +22,7 @@ class Trafilatura(BaseExtractor):
     def __init__(
         self,
         favour_precision: bool = True,
+        include_comments: bool = False,
         include_images: bool = False,
         timeout: float = 1,
         deduplicate: bool = True,
@@ -29,11 +30,28 @@ class Trafilatura(BaseExtractor):
     ):
         super().__init__(timeout)
         self.favour_precision = favour_precision
+        self.include_comments = include_comments
         self.include_images = include_images
         self.deduplicate = deduplicate
         self.kwargs = kwargs
         if self.include_images:
             raise NotImplementedError
+
+    def clean_html(self, html: str) -> str:
+        """
+
+        Args:
+          html: str: html content
+
+        Returns: cleaned HTML
+        """
+        from xml.etree import ElementTree
+
+        from trafilatura import bare_extraction
+
+        html_body = bare_extraction(html, favor_precision=self.favour_precision, **self.kwargs)["body"]
+        cleaned_html = ElementTree.tostring(html_body, encoding="unicode")
+        return cleaned_html
 
     def extract(self, text: str) -> str:
         """
@@ -49,7 +67,7 @@ class Trafilatura(BaseExtractor):
         return extract(
             text,
             favor_precision=self.favour_precision,
-            include_comments=False,
+            include_comments=self.include_comments,
             deduplicate=self.deduplicate,
             **self.kwargs,
         )
