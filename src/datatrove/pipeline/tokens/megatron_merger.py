@@ -4,14 +4,15 @@ from typing import BinaryIO, Generator
 import numpy as np
 from numpy.random import default_rng
 from tqdm import tqdm
+from loguru import logger
 
 from datatrove.data import DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.tokens.tokenizer import TokenizedFile
+from datatrove.pipeline.tokens.megatron_tokenizer import TokenizedFile, load_doc_ends_indices
 
 
-class DocumentTokenizerMerger(PipelineStep):
+class MegatronTokenizerMerger(PipelineStep):
     """Merge/shuffle a folder of tokenized files into a sequence of files with a maximum number of tokens per file.
         This pipeline step is used after the DocumentTokenizer step to merge the tokenized files into a sequence of files.
 
@@ -31,11 +32,10 @@ class DocumentTokenizerMerger(PipelineStep):
         upload_block_size (int): the upload block size to use when saving the tokenized files (used in fsspec with remote filesystems).
             Default: 20MB
         seed (int): the seed to use for the random number generator. Default: None
-        save_loss_metadata (bool): whether to save the loss metadata. Default: False
         save_final_metadata (bool): whether to save the final metadata. Default: True
     """
 
-    name = "🗃 Document Merger"
+    name = "🗃 Megatron Merger"
     type = "🔢 - TOKENIZER"
 
     def __init__(
@@ -43,16 +43,16 @@ class DocumentTokenizerMerger(PipelineStep):
         input_folder: DataFolderLike,
         output_folder: DataFolderLike,
         save_filename: str,  # if defined, the final output filename will be this
-        max_tokens_per_file: int = 100e9,  # max number of tokens per file. default: 100GT
+        max_tokens_per_file: int = 1024**3,  # max number of tokens per file. default: 1GT
         max_tokens: int = -1,  # max number of tokens to process
         shuffle: bool = True,  # whether to shuffle documents in the dataset
         upload_block_size: int = 20 * 2**20,  # 20MB
         # upload_block_size * 10000 must be bigger than 2*max_tokens_per_file,
         # or s3 uploads will fail
         seed: int = None,
-        save_loss_metadata: bool = False,
         save_final_metadata: bool = True,
         progress: bool = True,
+        suffix: str = ".npy",
     ):
         super().__init__()
         self.input_folder = get_datafolder(input_folder)
@@ -61,11 +61,11 @@ class DocumentTokenizerMerger(PipelineStep):
         self.max_tokens_per_file = max_tokens_per_file
         self.max_tokens = max_tokens
         self.shuffle = shuffle
-        self.save_loss_metadata = save_loss_metadata
         self.rand = default_rng(seed)
         self.save_final_metadata = save_final_metadata
         self.upload_block_size = upload_block_size
         self.progress = progress
+        self.suffix = suffix
 
     def get_ordering(self, all_doc_ends):
         """
@@ -92,17 +92,12 @@ class DocumentTokenizerMerger(PipelineStep):
                 The total number of processes
         """
         assert world_size == 1, "world_size must be 1 for DocumentTokenizerMerger"
-        datafiles = self.input_folder.list_files(glob_pattern="*.ds")
-        datafiles_index = self.input_folder.list_files(glob_pattern="*.ds.index")
-        datafiles_loss = (
-            self.input_folder.list_files(glob_pattern="*.ds.loss")
-            if self.save_loss_metadata
-            else ([None] * len(datafiles))
-        )
-        assert len(datafiles) == len(datafiles_index) == len(datafiles_loss), (
-            f"Mismatch between number of .ds, "
-            ".ds.index and/or .ds.loss files"
-            f"({len(datafiles)} vs {len(datafiles_index)} vs {len(datafiles_loss)})"
+        datafiles = self.input_folder.list_files(glob_pattern=f"*{self.suffix}")
+        datafiles_index = self.input_folder.list_files(glob_pattern="*.idx")
+        assert len(datafiles) == len(datafiles_index), (
+            f"Mismatch between number of {self.suffix}, "
+            "and .idxfiles"
+            f"({len(datafiles)} vs {len(datafiles_index)}"
         )
 
         tokenizer_name_or_path, token_size = None, 2
@@ -114,23 +109,23 @@ class DocumentTokenizerMerger(PipelineStep):
                         tokenizer_name_or_path, token_size = tokenizer_name_or_path.split("|")
                         token_size = int(token_size)
 
-        doc_ends = [load_doc_ends(self.input_folder.open(file, "rb")) for file in datafiles_index]
+        doc_ends, doc_indices = [], []
+        for file in datafiles:
+          doc_end, doc_index = load_doc_ends_indices(self.input_folder._join(file.replace(self.suffix, ".idx")))
+          doc_ends.append(doc_end)
+          doc_indices.append(doc_index.tolist())
+
         token_inputs = list(
             map(partial(get_data_reader, nb_bytes=token_size), self.input_folder.open_files(datafiles), doc_ends)
         )
-        loss_inputs = (
-            list(map(partial(get_data_reader, nb_bytes=1), self.input_folder.open_files(datafiles_loss), doc_ends))
-            if self.save_loss_metadata
-            else None
-        )
 
+        # Token source file ordering
         ordering = self.get_ordering(doc_ends)
 
         file_ct = 0
         output_file = TokenizedFile(
             output_folder=self.output_folder,
-            filename=f"{file_ct:03d}_{self.save_filename}.ds",
-            save_loss_metadata=self.save_loss_metadata,
+            filename=f"{file_ct:03d}_{self.save_filename}{self.suffix}",
             upload_block_size=self.upload_block_size,
             tokenizer_name_or_path=tokenizer_name_or_path,
             save_final_metadata=self.save_final_metadata,
@@ -146,40 +141,22 @@ class DocumentTokenizerMerger(PipelineStep):
                 file_ct += 1
                 output_file = TokenizedFile(
                     output_folder=self.output_folder,
-                    filename=f"{file_ct:03d}_{self.save_filename}.ds",
-                    save_loss_metadata=self.save_loss_metadata,
+                    filename=f"{file_ct:03d}_{self.save_filename}{self.suffix}",
                     upload_block_size=self.upload_block_size,
                     tokenizer_name_or_path=tokenizer_name_or_path,
                     save_final_metadata=self.save_final_metadata,
                     token_size=token_size,
                 )
-            # copy tokens and loss
+            # copy tokens
             tokens = next(token_inputs[input_file_id])
             output_file.write_bytes(tokens)
-            if loss_inputs:
-                output_file.write_loss_bytes(next(loss_inputs[input_file_id]))
+            output_file.doc_indices.append(doc_indices[input_file_id].pop(0)) 
             self.stat_update("tokens", value=len(tokens) // token_size)
         # cleanup
         output_file.close()
         if self.save_final_metadata:
             # save final total metadata file
-            output_file.write_final_metadata(self.stats["tokens"].total, filename=f"{self.save_filename}.ds")
-
-
-def load_doc_ends(file: BinaryIO) -> np.ndarray:
-    """Load the document ends from a file.
-
-    Args:
-        file: BinaryIO
-            The file to read from
-
-    Returns:
-        np.ndarray
-            The document ends: 1-D array of uint64 of length equal to the number of documents
-                Each element is the index of the end of a document in the file (in tokens)
-    """
-    with file as f:
-        return np.frombuffer(f.read(), dtype=np.uint64).astype(int)
+            output_file.write_final_metadata(self.stats["tokens"].total, filename=f"{self.save_filename}.metadata")
 
 
 def get_data_reader(

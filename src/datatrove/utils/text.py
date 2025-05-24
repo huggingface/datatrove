@@ -315,3 +315,50 @@ def split_into_sentences(text, language=Languages.english):
 
 def split_into_paragraphs(text, language=Languages.english):
     return split_into_parts(text, mode=SPLIT_TEXT_PARAGRAPHS, language=language)
+
+
+def in_non_alpha_whitelist(w, whitelist_chars = ()):
+    return w.isdigit() or w in whitelist_chars
+
+
+def check_non_alpha_ratio(words,
+                          max_non_alpha_words_ratio,
+                          whitelist_chars,
+                          use_whitelist):
+    n_words = len(words)
+
+    # that 80 % of words in a document contain at least one alphabetic character
+    if (sum([any((c.isalpha() for c in w)) or (use_whitelist and in_non_alpha_whitelist(w, whitelist_chars)) for w in words]) / n_words < max_non_alpha_words_ratio
+    ):
+        return False
+    return True
+
+
+def add_modifiers_to_meta(doc, modifier_str):
+    if not doc.metadata.get('modifiers'):
+        doc.metadata['modifiers'] = modifier_str
+    else:
+        doc.metadata['modifiers'] += ',' + modifier_str
+
+
+def check_line_word_num(words, min_word_num: int = 3):
+    return len(words) >= min_word_num
+
+
+def is_line_valid(
+        line: str,
+        max_non_alpha_words_ratio,
+        whitelist_chars,
+        use_whitelist,
+        min_word_num,
+) -> bool:
+    if line == '':
+        return True
+    words = split_into_words(line, Languages.english)
+    if len(words) == 0:
+        return False
+    return check_line_word_num(words, min_word_num=min_word_num) \
+        and check_non_alpha_ratio(words,
+                                  max_non_alpha_words_ratio=max_non_alpha_words_ratio,
+                                  whitelist_chars=whitelist_chars,
+                                  use_whitelist=use_whitelist)        

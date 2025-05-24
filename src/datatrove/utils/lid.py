@@ -38,7 +38,7 @@ class FastTextLID(LID):
     @property
     def model(self):
         if self._model is None:
-            check_required_dependencies("lid", [("fasttext", "fasttext-numpy2-wheel")])
+            check_required_dependencies("lid", [("fasttext", "fasttext-wheel")])
             from fasttext.FastText import _FastText
 
             model_file = cached_asset_path_or_download(
