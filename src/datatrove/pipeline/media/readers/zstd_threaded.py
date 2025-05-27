@@ -15,11 +15,13 @@ class ZstdThreadedReader(BinaryReaderThreaded):
     def __init__(
         self,
         data_folder: DataFolderLike,
+        block_size: int = 20*1024*1024,
         workers: int = 1,
         offset_byte_size: int = 4,
     ):
         super().__init__(data_folder, workers)
         self.offset_byte_size = offset_byte_size
+        self.block_size = block_size
 
     def _init_thread_local(self):
         """Initializes file pointer state for the current thread."""
@@ -57,8 +59,9 @@ class ZstdThreadedReader(BinaryReaderThreaded):
             or self.thread_local.current_fp.closed
         ):
             self._close_thread_local_fp()  # Close previous file if any
+            # ADD block size here
             self.thread_local.current_fp = self.data_folder.open(
-                file_path, "rb"
+                file_path, "rb", block_size=self.block_size
             )
             self.thread_local.current_filename = file_path
 
@@ -71,5 +74,6 @@ class ZstdThreadedReader(BinaryReaderThreaded):
         length = int.from_bytes(length_bytes, "big")
 
         # Read the length prefix
+        # Has read_size parameter (== block size)
         with self.thread_local.current_zstd_decompressor.stream_reader(fp, read_across_frames=False, closefd=False) as zstd_stream_reader:
             return zstd_stream_reader.read(length)

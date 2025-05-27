@@ -47,8 +47,9 @@ class JsonlReader(BaseDiskReader):
         default_metadata: dict = None,
         recursive: bool = True,
         glob_pattern: str | None = None,
-        continuous: bool = False,
         shuffle_files: bool = False,
+        shuffle_paths: bool = False,
+        continuous: bool = False,
     ):
         super().__init__(
             data_folder,
@@ -64,6 +65,7 @@ class JsonlReader(BaseDiskReader):
             recursive,
             glob_pattern,
             shuffle_files,
+            shuffle_paths,
             continuous,
         )
         self.compression = compression

@@ -55,8 +55,11 @@ class BaseMediaExtractor(PipelineStep):
                     texts = []
                     for media in doc.media:
                         try:
+                            if media.media_bytes is None:
+                                raise ValueError("Media bytes is None")
                             text, metadata = extractor.process_document(media.media_bytes, self.extract)
                             if metadata.get("extraction_error"):
+                                print(metadata["extraction_error"])
                                 media.metadata["extraction_failed"] = metadata["extraction_error"]
                                 continue
 
@@ -76,6 +79,7 @@ class BaseMediaExtractor(PipelineStep):
                             continue
                         except Exception as e:
                             self.stat_update("clean_error")
+                            print(e)
                             if not self._warned_error:
                                 logger.warning(
                                     f'❌ Error "{e}" while cleaning record text. Skipping record. '

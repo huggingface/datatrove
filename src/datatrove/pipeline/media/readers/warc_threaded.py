@@ -45,13 +45,18 @@ class WarcReaderFast(PipelineStep):
 
         
         content_bytes = warc_record.content_stream().read()
-        record.media.append(Media(
-            id=id_,
-            type=MediaType.DOCUMENT,
-            media_bytes=content_bytes,
-            url=url,
-            metadata=dict(warc_record.rec_headers.headers) | {"date": date},
-        ))
+        # If the media already exists update it
+        if len(record.media) > 0:
+            record.media[0].media_bytes = content_bytes
+            record.media[0].metadata.update(dict(warc_record.rec_headers.headers) | {"date": date})
+        else:
+            record.media.append(Media(
+                id=id_,
+                type=MediaType.DOCUMENT,
+                media_bytes=content_bytes,
+                url=url,
+                metadata=dict(warc_record.rec_headers.headers) | {"date": date},
+            ))
 
         self.stat_update("media_fetched", value=1, unit="documents")
         self.stat_update("media_fetched_bytes", value=len(content_bytes), unit="bytes")

@@ -18,7 +18,7 @@ class BinaryZstdWriter(BaseMediaWriter):
         output_filename: str = None,
         max_file_size: int = 5 * 2**30,  # 5GB
         compression_level: int = 3,
-        offset_byte_size: int = 4,
+        length_byte_size: int = 4,
 
     ):
         super().__init__(
@@ -27,10 +27,16 @@ class BinaryZstdWriter(BaseMediaWriter):
             mode="wb",
             max_file_size=max_file_size,
         )
-        self.offset_byte_size = offset_byte_size
+        self.length_byte_size = length_byte_size
         self.compression_level = compression_level
-        self.zstd_compressor = zstd.ZstdCompressor(compression_params=zstd.ZstdCompressionParameters.from_level(self.compression_level, format=zstd.FORMAT_ZSTD1_MAGICLESS,
+
+    @property
+    def compressor(self):
+        if not hasattr(self, "_compressor"):
+            self._compressor = zstd.ZstdCompressor(compression_params=zstd.ZstdCompressionParameters.from_level(self.compression_level, format=zstd.FORMAT_ZSTD1_MAGICLESS,
                     write_checksum=0, write_content_size=0))
+        return self._compressor
+
     def _write(self, media: Media, file_handler: IO, filename: str):
         if media.media_bytes is None:
             raise ValueError(f"Media {media.id} has no media bytes")
@@ -38,8 +44,8 @@ class BinaryZstdWriter(BaseMediaWriter):
         record_start_offset = file_handler.tell()
 
         # Write the uncompressed size
-        file_handler.write(len(media.media_bytes).to_bytes(self.offset_byte_size, "big"))
-        with self.zstd_compressor.stream_writer(file_handler, closefd=False, size=len(media.media_bytes)) as zstd_writer:
+        file_handler.write(len(media.media_bytes).to_bytes(self.length_byte_size, "big"))
+        with self.compressor.stream_writer(file_handler, closefd=False, size=len(media.media_bytes)) as zstd_writer:
             zstd_writer.write(media.media_bytes)
 
         return filename, record_start_offset # Return the offset to the start of the record

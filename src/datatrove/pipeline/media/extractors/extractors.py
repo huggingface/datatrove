@@ -59,6 +59,7 @@ class LoggerStream():
 
 
 class PyMuPDFExtractor(BaseMediaExtractor):
+    name = "PyMuPDF Extractor"
     def __init__(self, as_markdown: bool = False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.as_markdown = as_markdown
@@ -82,7 +83,7 @@ class PyMuPDFExtractor(BaseMediaExtractor):
                     page_texts = [page.get_text() for page in parsed_file]
 
                 # Ensure it's valid utf-8
-                page_texts = [text.encode('utf-8', errors='replace').decode('utf-8', 'replace') for text in page_texts]
+                page_texts = [text.encode('utf-8', errors='ignore').decode('utf-8', 'ignore') for text in page_texts]
 
                 # logger_content = log_output.value()
                 # if logger_content:
@@ -91,7 +92,7 @@ class PyMuPDFExtractor(BaseMediaExtractor):
             length_cumsum = np.cumsum([len(page_text) for page_text in page_texts]).tolist()
             metadata["num_pages"] = len(page_texts)
             metadata["page_offsets"] = length_cumsum
-            metadata.update(_clean_metadata_value(parsed_file.metadata or {}))
+            # metadata.update(_clean_metadata_value(parsed_file.metadata or {}))
             return "".join(page_texts), metadata
         except Exception as e:
             return "", {"extraction_error": str(e)}
@@ -364,24 +365,25 @@ class DoclingExtractor(BaseMediaExtractor):
         from docling.datamodel.base_models import InputFormat
         from docling.document_converter import DocumentConverter, PdfFormatOption
         from docling.datamodel.pipeline_options import AcceleratorOptions, AcceleratorDevice
+        from docling.backend.pymupdf_backend import PyMuPdfDocumentBackend
         docling_timeout = timeout - 2 if timeout > 2 else None
         pipeline_options = PdfPipelineOptions(
             do_table_structure=use_table_structure,
             do_ocr=False,
             document_timeout=docling_timeout,
             table_structure_options=TableStructureOptions(mode=TableFormerMode.FAST if not table_acc else TableFormerMode.ACCURATE),
-            accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CPU, num_threads=2)
+            accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CPU, num_threads=1)
         )
         self.logger_stream = LoggerStream(logging.getLogger("docling"))
         self.doc_converter = DocumentConverter(
             format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options, backend=PyMuPdfDocumentBackend)
             }
         )
         super().__init__(timeout=timeout)
 
     def extract(self, media_bytes: bytes) -> tuple[str, dict]:
-        if len(media_bytes) == 0:
+        if media_bytes is None or len(media_bytes) == 0:
             return "", {}
 
         from docling.datamodel.settings import settings
@@ -394,11 +396,13 @@ class DoclingExtractor(BaseMediaExtractor):
         page_break_placeholder = "<--- page break --->"
         full_text = converted.document.export_to_markdown(page_break_placeholder=page_break_placeholder, image_placeholder="", escape_underscores=False)
         page_list = full_text.split(page_break_placeholder)
+        # Ensure all page texts are valid utf-8
+        page_list = [text.encode('utf-8', errors='ignore').decode('utf-8', 'ignore') for text in page_list]
         # Remove empty strings
         metadata = {
             "num_pages": len(page_list),
             "page_offsets": np.cumsum([len(t) for t in page_list]).tolist(),
-            "docling_doc_json": converted.document.model_dump(mode="json"),
+            # "docling_doc_json": converted.document.model_dump(mode="json"),
         }
         if converted.status not in [ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS]:
             errors = ", ".join([e.model_dump(mode="json") for e in converted.errors])

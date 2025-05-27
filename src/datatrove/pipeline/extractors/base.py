@@ -126,10 +126,10 @@ class ExtractorSandbox:
         try:
             self.parent_conn.send(text)
 
-            deadline = time.time() + self.timeout
+            deadline = time.monotonic() + self.timeout
             # loop with short sleeps instead of one big poll()
             while True:
-                poll_timeout = max(0, min(5, deadline - time.time() + 0.1))
+                poll_timeout = max(0, min(5, deadline - time.monotonic() + 0.1))
                 if self.parent_conn.poll(poll_timeout):
                     result = self.parent_conn.recv()
                     if isinstance(result, Exception):
@@ -141,7 +141,7 @@ class ExtractorSandbox:
                     raise EOFError("Child process died (probably OOM-killed)")
 
                 # 3) Has our deadline passed?
-                if time.time() >= deadline:
+                if time.monotonic() >= deadline:
                     raise TimeoutError("Document extraction timed out")
         except (TimeoutError, EOFError):
             self._cleanup_process()
@@ -155,7 +155,15 @@ class ExtractorSandbox:
             self.parent_conn, self.child_conn = Pipe()
             self.process = Process(target=self._worker, args=(self.child_conn, extract_fn))
             self.process.start()
-            self.parent_conn.recv()
+            # Wait for the "ready" signal from the worker process with a timeout
+            if self.parent_conn.poll(self.timeout):
+                self.parent_conn.recv()  # Receive the None signal
+            else:
+                # Timeout occurred before the worker process signaled it's ready
+                self._cleanup_process()
+                raise TimeoutError(
+                    f"Worker process failed to initialize within {self.timeout} seconds (warmup timeout)."
+                )
 
     def __enter__(self):
         return self
