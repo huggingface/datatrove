@@ -58,7 +58,8 @@ class BinaryReaderThreaded(PipelineStep):
                         while len(futures) >= 2*self.workers:
                             done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=None)
                             for future in done:
-                                yield future.result()
+                                new_document = future.result()
+                                yield new_document
 
                         new_future = executor.submit(self._read_media_record_wrapper, document, media_item)
                         futures.add(new_future)

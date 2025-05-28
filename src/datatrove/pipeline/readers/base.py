@@ -139,6 +139,7 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        shuffle_paths: bool = False,
         continuous: bool = False,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
@@ -149,6 +150,10 @@ class BaseDiskReader(BaseReader):
             if len(self.paths) == 0:
                 raise RuntimeError(f"No files found on {self.data_folder.path}!")
             logger.info(f"Found {len(self.paths)} files on {self.data_folder.path}!")
+
+            if shuffle_paths:
+                rng = random.Random(42)
+                rng.shuffle(self.paths)
 
             self.paths_file = None
         else:
