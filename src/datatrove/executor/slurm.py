@@ -122,6 +122,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         requeue: bool = True,
         srun_args: dict = None,
         tasks_per_job: int = 1,
+        force_exit: bool = False,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -139,6 +140,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.depends = depends
         self.depends_job_id = depends_job_id
         self.job_id_position = job_id_position
+        self.force_exit = force_exit
 
         if job_id_retriever is None:
             job_id_retriever = partial(default_job_id_retriever, job_id_position=job_id_position)
@@ -202,6 +204,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 ctx = multiprocess.get_context(self.start_method)
                 with ctx.Pool(processes=len(ranks_to_run)) as pool:
                     list(pool.map(run_for_rank_wrapper, [(rank, local_rank) for rank, local_rank in zip(ranks_to_run, range(len(ranks_to_run)))]))
+            logger.info("Done Exiting")
+            if self.force_exit:
+                os._exit(0)
                 
         else:
             # we still have to launch the job
@@ -371,7 +376,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
         {env_command}
         set -xe
         export PYTHONUNBUFFERED=TRUE
+        echo 'Starting new processing job (Hynek test)'
         {run_script}
+        echo 'done'
         """
             )
         )

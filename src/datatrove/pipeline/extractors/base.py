@@ -87,6 +87,7 @@ class ExtractorSandbox:
         self.parent_conn = None
         self.wamup_text = wamup_text
         self.child_conn = None
+        self.all_processes = []
 
     def set_oom_score_adj(self, score):
         if not -1000 <= score <= 1000:
@@ -153,8 +154,9 @@ class ExtractorSandbox:
                 self._cleanup_process()
 
             self.parent_conn, self.child_conn = Pipe()
-            self.process = Process(target=self._worker, args=(self.child_conn, extract_fn))
+            self.process = Process(target=self._worker, args=(self.child_conn, extract_fn), daemon=True)
             self.process.start()
+            self.all_processes.append(self.process)
             # Wait for the "ready" signal from the worker process with a timeout
             if self.parent_conn.poll(self.timeout):
                 self.parent_conn.recv()  # Receive the None signal
@@ -169,5 +171,48 @@ class ExtractorSandbox:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # First, clean up the current process
         self._cleanup_process()
-        return False
+        # Now clean up ALL processes
+        alive_processes = [p for p in self.all_processes if p.is_alive()]
+        logger.info(f"Found {len(alive_processes)} alive processes to terminate")
+        
+        if alive_processes:
+            # Step 1: Terminate all processes
+            for i, process in enumerate(alive_processes):
+                try:
+                    logger.debug(f"Terminating process {i+1}/{len(alive_processes)}: {process.pid}")
+                    process.terminate()
+                except Exception as e:
+                    logger.warning(f"Error terminating process {process.pid}: {e}")
+            
+            # Step 2: Give them time to terminate gracefully (longer timeout)
+            logger.info("Waiting up to 5 seconds for processes to terminate gracefully...")
+            for process in alive_processes:
+                try:
+                    process.join(timeout=5.0)  # Much longer timeout
+                except Exception as e:
+                    logger.warning(f"Error joining process {process.pid}: {e}")
+            
+            # Step 3: Kill any remaining processes
+            still_alive_processes = [p for p in alive_processes if p.is_alive()]
+            if still_alive_processes:
+                logger.warning(f"Force killing {len(still_alive_processes)} stubborn processes...")
+                for process in still_alive_processes:
+                    try:
+                        logger.debug(f"Killing process {process.pid}")
+                        process.kill()
+                        process.join(timeout=2.0)  # Final join with timeout
+                    except Exception as e:
+                        logger.error(f"Error killing process {process.pid}: {e}")
+            
+            # Step 4: Final check
+            final_alive = [p for p in self.all_processes if p.is_alive()]
+            if final_alive:
+                logger.error(f"Failed to clean up {len(final_alive)} processes! PIDs: {[p.pid for p in final_alive]}")
+            else:
+                logger.info("Successfully cleaned up all processes")
+        
+        # Clear the list
+        self.all_processes.clear()
+    

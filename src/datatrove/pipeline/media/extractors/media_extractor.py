@@ -29,7 +29,7 @@ class BaseMediaExtractor(PipelineStep):
         self.exclude_failed = exclude_failed
 
     @abstractmethod
-    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
+    def extract(self, path: str | None) -> tuple[str, dict]:
         """abstract method that actually implements the extraction, e.g. trafilatura.
 
         Args:
@@ -48,16 +48,16 @@ class BaseMediaExtractor(PipelineStep):
           rank: int:  (Default value = 0)
           world_size: int:  (Default value = 1)
         """
-        with ExtractorSandbox(timeout=self.timeout, wamup_text=b"") as extractor:
+        with ExtractorSandbox(timeout=self.timeout, wamup_text=None) as extractor:
             for doc in data:
                 self.stat_update(StatHints.total)
                 with self.track_time():
                     texts = []
                     for media in doc.media:
                         try:
-                            if media.media_bytes is None:
-                                raise ValueError("Media bytes is None")
-                            text, metadata = extractor.process_document(media.media_bytes, self.extract)
+                            if media.metadata["local_path"] is None:
+                                raise ValueError("Local path is None")
+                            text, metadata = extractor.process_document(media.metadata["local_path"], self.extract)
                             if metadata.get("extraction_error"):
                                 print(metadata["extraction_error"])
                                 media.metadata["extraction_failed"] = metadata["extraction_error"]

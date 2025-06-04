@@ -1,3 +1,4 @@
+from pathlib import Path
 from datatrove.data import Document, Media
 from datatrove.pipeline.media.extractors.media_extractor import BaseMediaExtractor
 import io
@@ -7,6 +8,17 @@ import numpy as np
 import warnings
 import logging
 from datatrove.pipeline.base import PipelineStep
+
+from typing import Any, Optional, Union, override
+from docling_core.types.doc.document import DoclingDocument
+from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
+import textwrap
+from docling_core.transforms.serializer.common import create_ser_result
+from docling_core.transforms.serializer.markdown import (
+    MarkdownPictureSerializer,
+)
+from datatrove.pipeline.extractors.docling_serializer import ContentPictureSerializer, TextDocSerializer
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 def keep_only_valid_metadata(metadata: dict) -> dict:
     return {k:v for k,v in metadata.items() if v}
@@ -358,7 +370,7 @@ class MinerUExtractor(BaseMediaExtractor):
 
 
 class DoclingExtractor(BaseMediaExtractor):
-    def __init__(self, timeout: int = 10*60, use_table_structure: bool = False, table_acc: bool = False):
+    def __init__(self, timeout: int = 10*60, use_table_structure: bool = False, table_acc: bool = False, use_picture: bool = False, use_markdown: bool = True, exclusion_writer: Optional[DiskWriter] = None):
         from docling.datamodel.pipeline_options import PdfPipelineOptions
         from docling.datamodel.base_models import InputFormat
         from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -374,35 +386,57 @@ class DoclingExtractor(BaseMediaExtractor):
             table_structure_options=TableStructureOptions(mode=TableFormerMode.FAST if not table_acc else TableFormerMode.ACCURATE),
             accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CPU, num_threads=1)
         )
-        self.logger_stream = LoggerStream(logging.getLogger("docling"))
+        self.logger_stream = LoggerStream([logging.getLogger("docling"), logging.getLogger("pymupdf")])
         self.doc_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options, backend=PyMuPdfDocumentBackend)
             }
         )
-        super().__init__(timeout=timeout)
+        self.use_picture = use_picture
+        self.use_markdown = use_markdown
+        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer)
 
-    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
-        if media_bytes is None or len(media_bytes) == 0:
+
+    def extract(self, path: str | None) -> tuple[str, dict]:
+        if path is None:
             return "", {}
 
         from docling.datamodel.settings import settings
         from docling_core.types.io import DocumentStream
         from docling.datamodel.base_models import ConversionStatus
+        from docling_core.transforms.serializer.markdown import MarkdownParams
         with self.logger_stream as log_output:
-            doc_stream = DocumentStream(name="file.pdf", stream=io.BytesIO(media_bytes))
-            converted = self.doc_converter.convert(doc_stream,raises_on_error=False)
-            logger_content = log_output.value()
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                converted = self.doc_converter.convert(path, raises_on_error=False)
+                logger_content = log_output.value()
         page_break_placeholder = "<--- page break --->"
-        full_text = converted.document.export_to_markdown(page_break_placeholder=page_break_placeholder, image_placeholder="", escape_underscores=False)
+
+        if self.use_markdown:
+            serializer = MarkdownDocSerializer(doc=converted.document, picture_serializer=ContentPictureSerializer(filter_non_text_items_ratio=0.4) if self.use_picture else MarkdownPictureSerializer(),
+                params=MarkdownParams(
+                    page_break_placeholder=page_break_placeholder,
+                    image_placeholder="",
+                    escape_underscores=False,
+                ),
+            )
+        else:
+            serializer = TextDocSerializer(doc=converted.document, picture_serializer=ContentPictureSerializer(filter_non_text_items_ratio=0.4) if self.use_picture else MarkdownPictureSerializer(),
+                                           params=MarkdownParams(
+                                            page_break_placeholder=page_break_placeholder,
+                                            image_placeholder="",
+                                            escape_underscores=False,
+                            ))
+
+
+        full_text = serializer.serialize().text
         page_list = full_text.split(page_break_placeholder)
-        # Ensure all page texts are valid utf-8
-        page_list = [text.encode('utf-8', errors='ignore').decode('utf-8', 'ignore') for text in page_list]
         # Remove empty strings
         metadata = {
             "num_pages": len(page_list),
             "page_offsets": np.cumsum([len(t) for t in page_list]).tolist(),
-            # "docling_doc_json": converted.document.model_dump(mode="json"),
+            "docling_doc_dict": converted.document.export_to_dict(),
+            "logs": logger_content,
         }
         if converted.status not in [ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS]:
             errors = ", ".join([e.model_dump(mode="json") for e in converted.errors])

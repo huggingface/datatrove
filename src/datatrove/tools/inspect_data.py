@@ -5,7 +5,9 @@ import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
+import re
 
+from datatrove.pipeline.extractors.docling_serializer import BaseDoclingSerializer
 from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.filters import SamplerFilter
 from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
@@ -46,6 +48,11 @@ parser.add_argument(
 parser.add_argument(
     "-l", "--label", type=str, help="Label the examples as good/bad and store at this location", default=""
 )
+
+parser.add_argument(
+    "-f", "--filter", type=str, help="Filter the examples by a given expression", default=None
+)
+
 
 console = Console()
 
@@ -94,7 +101,7 @@ def reader_factory(data_folder: DataFolder, reader_type: str = None, **kwargs):
             case other:
                 console.log(f'[red]Could not find a matching reader for file extension "{other}"')
                 sys.exit(-1)
-    return reader_class_from_name(reader_type)(data_folder, **kwargs)
+    return reader_class_from_name(reader_type)(data_folder, glob_pattern="01012.jsonl.gz", **kwargs)
 
 
 def get_filter_expr(text=None):
@@ -126,15 +133,17 @@ def main():
         f"If you don't see any color you may run \"export PAGER='less -r'\"."
     )
 
-    filter_expr_text = None
-    if Confirm.ask(
-        "Would you like to add a filtering expression? (ex: x.metadata['token_count'] > 5000)", default=False
-    ):
-        filter_expr_text = Confirm.get_input(console, "Type your filtering expression: ", password=False)
+    filter_expr_text = args.filter
+    if filter_expr_text is None:
+        if Confirm.ask(
+            "Would you like to add a filtering expression? (ex: x.metadata['token_count'] > 5000)", default=False
+        ):
+            filter_expr_text = Confirm.get_input(console, "Type your filtering expression: ", password=False)
     filter_expr = get_filter_expr(filter_expr_text)
 
     good_samples = []
     bad_samples = []
+    # iterator = sampler(BaseDoclingSerializer(use_markdown=False, filter_non_text_items_ratio=0.5, use_picture=True)(reader()))
     iterator = sampler(reader())
     try:
         for sample in iterator:
