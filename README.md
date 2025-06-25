@@ -20,6 +20,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
 - [Executors](#executors)
   * [LocalPipelineExecutor](#localpipelineexecutor)
   * [SlurmPipelineExecutor](#slurmpipelineexecutor)
+  * [RayPipelineExecutor](#raypipelineexecutor)
 - [Logging](#logging)
 - [DataFolder / paths](#datafolder--paths)
 - [Practical guides](#practical-guides)
@@ -49,6 +50,7 @@ Available flavours (combine them with `,` i.e. `[processing,s3]`):
 - `processing` dependencies for text extraction, filtering and tokenization: `pip install datatrove[processing]`
 - `s3` s3 support: `pip install datatrove[s3]`
 - `cli` for command line tools: `pip install datatrove[cli]`
+- `ray` for distributed compute engine: `pip install datatrove[ray]`
 
 ## Quickstart examples
 You can check the following [examples](examples):
@@ -223,6 +225,38 @@ executor2 = SlurmPipelineExecutor(
 )
 # executor1.run()
 executor2.run() # this will actually launch executor1, as it is a dependency, so no need to launch it explicitly
+```
+</details>
+
+### RayPipelineExecutor
+This executor will launch a pipeline on a ray cluster, using ray tasks for parallel execution.
+Options:
+- `tasks` total number of tasks to run.
+- `workers` how many tasks to run simultaneously. If `-1`, no limit. Ray will run `workers` tasks at a time. (default: `-1`)
+- `depends` another RayPipelineExecutor instance, which will be a dependency of this pipeline (current pipeline will only start executing after the depended on pipeline successfully completes)
+<details>
+  <summary>Other options</summary>
+
+- `cpus_per_task` how many cpus to give each task (default: `1`)
+- `mem_per_cpu_gb` memory per cpu, in GB (default: 2)
+- `ray_remote_kwargs` Additional kwargs to pass to the ray.remote decorator
+</details>
+<details>
+  <summary>Example executor</summary>
+
+```python
+import ray
+from datatrove.executor import RayPipelineExecutor
+ray.init()
+executor = RayPipelineExecutor(
+    pipeline=[
+        ...
+    ],
+    logging_dir="logs/",
+    tasks=500,
+    workers=100,  # omit to run all at once
+)
+executor.run()
 ```
 </details>
 
