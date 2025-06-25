@@ -233,7 +233,7 @@ This executor will launch a pipeline on a ray cluster, using ray tasks for paral
 Options:
 - `tasks` total number of tasks to run.
 - `workers` how many tasks to run simultaneously. If `-1`, no limit. Ray will run `workers` tasks at a time. (default: `-1`)
-- `depends` another SlurmPipelineExecutor instance, which will be a dependency of this pipeline (current pipeline will only start executing after the depended on pipeline successfully completes)
+- `depends` another RayPipelineExecutor instance, which will be a dependency of this pipeline (current pipeline will only start executing after the depended on pipeline successfully completes)
 <details>
   <summary>Other options</summary>
 
@@ -245,7 +245,9 @@ Options:
   <summary>Example executor</summary>
 
 ```python
+import ray
 from datatrove.executor import RayPipelineExecutor
+ray.init()
 executor = RayPipelineExecutor(
     pipeline=[
         ...
