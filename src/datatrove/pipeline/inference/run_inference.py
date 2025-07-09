@@ -4,18 +4,19 @@ import atexit
 import base64
 import datetime
 import hashlib
-from importlib.readers import ZipReader
 import io
 from datatrove.pipeline.readers.base import BaseDiskReader
 from datatrove.pipeline.media.readers.base import BaseMediaReader
+from s3fs.core import S3File
 import json
 import logging
 import multiprocessing
 import os
+from string import Template
 from contextlib import nullcontext
 import random
 import re
-from datatrove.io import get_datafolder
+from datatrove.io import get_datafolder, DataFolderLike
 from botocore.config import Config
 import shutil
 import sys
@@ -37,8 +38,10 @@ from huggingface_hub import snapshot_download
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from datatrove.pipeline.inference.utils.metrics import MetricsKeeper
+from datatrove.pipeline.inference.utils.metrics import QueueSizesKeeper
 from datatrove.pipeline.inference.preprocessing.query_preparator import QueryPreparator
 from datatrove.pipeline.inference.utils.s3_processing import get_s3_bytes_with_backoff
+from datatrove.pipeline.inference.preprocessing.readers import read_warc_bytes, read_zstd_bytes
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.pipeline.inference.servers import SGLangServer
 from datatrove.pipeline.inference.servers import VLLMServer
@@ -128,6 +131,10 @@ class InferenceConfig:
     max_concurrent_requests: int = 500
     max_concurrent_tasks: int = 50
     resize_longest_side_pixels: Optional[int] = None
+    metric_interval: int = 120
+    kv_quantization: Optional[int] = None
+    records_per_chunk: Optional[int] = None
+    prompt: Optional[str] = None
 
 class InferenceRunner(PipelineStep):
     name = "OCR Extraction 📄"
@@ -138,6 +145,8 @@ class InferenceRunner(PipelineStep):
                  media_path: str,
                  config: InferenceConfig,
                  output_writer: JsonlWriter | None = None,
+                 media_reader: str = "warc",
+                 completions_dir: DataFolderLike | None = None,
                  ):
 
         super().__init__()
@@ -145,19 +154,23 @@ class InferenceRunner(PipelineStep):
         self.output_writer = output_writer
         self.config = config
         self.media_path = media_path
-        self.metrics = MetricsKeeper(window=120)
+        self.metrics = MetricsKeeper(window=60*5)
+        self.queue_sizes = QueueSizesKeeper()
         self.server: InferenceServer | None = None
+        self.media_reader = media_reader
+        self.completions_dir = get_datafolder(completions_dir) if completions_dir is not None else None
 
-    async def metrics_reporter(self):
+    async def metrics_reporter(self, interval: int = 600):
         while True:
             # Leading newlines preserve table formatting in logs
             logger.info("\n" + str(self.metrics))
+            logger.info("\n" + str(self.queue_sizes))
             logger.info(str(self.stats))
             # Log every 10 minutes
-            await asyncio.sleep(600)
+            await asyncio.sleep(interval)
 
 
-    def build_dolma_document(self, page_results: list[PageResult], num_pages: int, processing_error: str | None, document_id: str):
+    def build_dolma_document(self, page_results: list[PageResult], num_pages: int, processing_error: str | None, doc_language: str, document_id: str):
         # Build the document text and page spans
         document_text = ""
         pdf_offsets = []
@@ -188,6 +201,7 @@ class InferenceRunner(PipelineStep):
             "failed_pages": [page.page_num for page in page_results if page.failed or page.response.finish_reason in ["repetition_sentence", "repetition_line"]],
             "page_offsets": pdf_offsets,
             "extracted_pages": len(page_results),
+            "language": doc_language,
             "total_pages": num_pages,
             # "page-images": [page.image_base64 for page in page_results if page.image_base64 is not None],
         }
@@ -208,15 +222,18 @@ class InferenceRunner(PipelineStep):
             "messages": [
                 {"role": "user", "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{page_image_b64}"}, "max_pixels": self.config.max_image_tokens * 28 * 28, "min_pixels": 56 * 28 * 28},
-                    {"type": "text", "text": "Return the plain text representation of this document as if you were reading it naturally.\n"},
+                    {"type": "text", "text": self.config.prompt if self.config.prompt else "Return the plain text representation of this document as if you were reading it naturally.\n"},
                 ]},
             ],
-            "max_tokens": self.config.model_max_context - self.config.max_image_tokens,
+            "max_tokens": 4096,
             "temperature": self.config.temperature,
             "repetition_penalty": 1.05,
         }
 
+        self.queue_sizes.change_queues({"waiting_requests": 1})
         async with semaphore:
+            self.queue_sizes.change_queues({"waiting_requests": -1})
+            self.queue_sizes.change_queues({"running_requests": 1})
             while attempt < MAX_RETRIES:
                 # Update this as the server port could have changed
                 COMPLETION_URL = f"http://localhost:{self.server.port}/v1/chat/completions"
@@ -240,6 +257,7 @@ class InferenceRunner(PipelineStep):
                     finish_reason = base_response_data["choices"][0]["finish_reason"]
                     page_response = PageResponse(natural_text=model_response_json, finish_reason=finish_reason)
 
+                    self.queue_sizes.change_queues({"running_requests": -1})
                     return PageResult(
                         page_num=page_num,
                         response=page_response,
@@ -259,10 +277,12 @@ class InferenceRunner(PipelineStep):
                     attempt += 1
                 except asyncio.CancelledError:
                     logger.info(f"Process page {page_num} cancelled")
+                    self.queue_sizes.change_queues({"running_requests": -1})
                     raise
 
             logger.error(f"Failed to process {page_num} after {MAX_RETRIES} attempts.")
 
+            self.queue_sizes.change_queues({"running_requests": -1})
             return PageResult(
                 page_num=page_num,
                 response=PageResponse(
@@ -277,16 +297,17 @@ class InferenceRunner(PipelineStep):
 
 
     async def process_pdf(self, document: Document, s3_client, query_preparator: QueryPreparator, semaphore: asyncio.Semaphore):
-        # TODO implement this without opening a file every singl time
-        length_bytes = await asyncio.to_thread(get_s3_bytes_with_backoff, s3_client, f"{self.media_path}/{document.media[0].path}", document.media[0].offset, document.media[0].offset + 3)
-        # Ensure we got exactly 4 bytes 
-        assert len(length_bytes) == 4, f"Expected 4 bytes for length, got {len(length_bytes)}"
-        length = int.from_bytes(length_bytes, "big")
-        zstd_data = await asyncio.to_thread(get_s3_bytes_with_backoff, s3_client, f"{self.media_path}/{document.media[0].path}", document.media[0].offset + 4, document.media[0].offset + 3 + length)
-        assert len(zstd_data) == length, f"Expected {length} bytes for zstd data, got {len(zstd_data)}"
+        # TODO implement this without opening a file every single time
+
+        if self.media_reader == "warc":
+            pdf_data, length = await asyncio.to_thread(read_warc_bytes, s3_client, f"{self.media_path}/{document.metadata['warc_filename']}", document.metadata["warc_record_offset"])
+        elif self.media_reader == "zstd":
+            pdf_data, length = await asyncio.to_thread(read_zstd_bytes, s3_client, f"{self.media_path}/{document.media[0].path}", document.media[0].offset)
+        else:
+            raise ValueError(f"Unsupported media reader: {self.media_reader}")
 
         page_results = []
-        num_pages, pdf_query_iterator = await query_preparator.process(zstd_data, length, image_rotation=0, id=document.id)
+        num_pages, doc_language, pdf_query_iterator = await query_preparator.process(pdf_data, length, image_rotation=0, id=document.id)
         
         # Process all batches and collect results
         query_tasks = set()
@@ -299,7 +320,7 @@ class InferenceRunner(PipelineStep):
             processing_error = str(e)
 
         page_results = await asyncio.gather(*query_tasks, return_exceptions=False)
-        return self.build_dolma_document(page_results, num_pages, processing_error, document.id)
+        return self.build_dolma_document(page_results, num_pages, processing_error, doc_language, document.id)
 
     async def process_document(self, document: Document, s3_client, query_preparator: QueryPreparator, semaphore: asyncio.Semaphore):
         try:
@@ -312,9 +333,10 @@ class InferenceRunner(PipelineStep):
         return document
 
 
-    async def save_document(self, document: Document, rank: int):
+    async def save_document(self, document: Document, rank: int, chunk_index: int | None = None):
         if self.output_writer is not None:
-            await asyncio.to_thread(self.output_writer.write, document, rank=rank)
+            await asyncio.to_thread(self.output_writer.write, document, rank=rank, chunk_index=chunk_index)
+        
         failed_pages = len(document.media[0].metadata["pdf_metadata"].get("failed_pages", []))
         truncated_pages = len(document.media[0].metadata["pdf_metadata"].get("truncated_pages", []))
         success_pages = document.media[0].metadata["pdf_metadata"].get("extracted_pages", 0) - failed_pages
@@ -342,13 +364,41 @@ class InferenceRunner(PipelineStep):
                 "partially_failed_documents", value=1, unit="documents",
             )
 
+    async def _exhaust_task_pool(self, tasks_pool: set, rank: int, chunk_index: int | None = None):
+        """Exhaust all remaining tasks in the pool and return count of processed documents"""
+        documents_processed = 0
+        while tasks_pool:
+            results, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
+            for result in results:
+                result_document = result.result()
+                if result_document:
+                    await self.save_document(result_document, rank, chunk_index)
+                    documents_processed += 1
+                else:
+                    self.stat_update("failed_documents", value=1, unit="documents")
+        return documents_processed
 
+    def _read_checkpoint(self, rank: int) -> tuple[int, int]:
+        """Read the last completed chunk index from checkpoint file"""
+        if self.completions_dir is None or self.config.records_per_chunk is None:
+            return -1, 0
+
+        if self.completions_dir.exists(f"{rank}.txt"):
+            return tuple(map(int, self.completions_dir.read_text(f"{rank}.txt").split("\n")))
+        return -1, 0
+
+    def _write_checkpoint(self, rank: int, chunk_index: int, total_documents_processed: int):
+        """Write the completed chunk index to checkpoint file"""
+        if self.completions_dir is None:
+            return
+        
+        self.completions_dir.write_text(f"{rank}.txt", str(chunk_index) + "\n" + str(total_documents_processed))
 
     async def run_async(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        query_preparator = QueryPreparator(resize_longest_side_pixels=self.config.resize_longest_side_pixels, max_visual_tokens=self.config.max_image_tokens)
         client_config = Config(
             max_pool_connections=self.config.max_concurrent_tasks+10,
         )
+        logger.info(f"completions_dir: {self.completions_dir}, records_per_chunk: {self.config.records_per_chunk}")
         workspace_session = boto3.Session()
         workspace_s3 = workspace_session.client("s3", config=client_config)
         logger.info(f"Starting pipeline with PID {os.getpid()}")
@@ -359,7 +409,7 @@ class InferenceRunner(PipelineStep):
         elif self.config.server_type == "vllm":
             self.server = VLLMServer(self.config.model_name_or_path, self.config.model_chat_template, self.config.model_max_context)
         elif self.config.server_type == "lmdeploy":
-            self.server = LMDeployServer(self.config.model_name_or_path, self.config.model_chat_template, self.config.model_max_context)
+            self.server = LMDeployServer(self.config.model_name_or_path, self.config.model_chat_template, self.config.model_max_context, self.config.kv_quantization)
         elif self.config.server_type == "dummy":
             self.server = DummyServer(self.config.model_name_or_path, self.config.model_chat_template, self.config.model_max_context)
         else:
@@ -370,37 +420,67 @@ class InferenceRunner(PipelineStep):
         await self.server.wait_until_ready()
 
         logger.info(f"Server started on port {self.server.port}")
+        self.metrics.reset()
 
-        metrics_task = asyncio.create_task(self.metrics_reporter())
+        metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
         tasks_pool = set()
-        with self.output_writer if self.output_writer is not None else nullcontext(), self.track_time("total_time"):
-            async with QueryPreparator(resize_longest_side_pixels=self.config.resize_longest_side_pixels, max_visual_tokens=self.config.max_image_tokens) as query_preparator:
+
+        # Add chunk index to the output filename
+        if self.output_writer is not None and self.config.records_per_chunk is not None:
+            self.output_writer.output_filename = Template(self.output_writer.output_filename.template.replace("${rank}", "${rank}_chunk${chunk_index}"))
+
+        # Read checkpoint to determine starting point
+        last_completed_chunk, total_documents_processed = self._read_checkpoint(rank)
+        chunk_index = last_completed_chunk + 1
+        documents_to_skip = total_documents_processed
+        if documents_to_skip > 0:
+            logger.info(f"Resuming from chunk {chunk_index}, will skip {documents_to_skip} already processed documents")
+
+        total_documents_processed = 0
+
+        with self.track_time("total_time"), (self.output_writer if self.output_writer is not None else nullcontext()):
+            async with QueryPreparator(resize_longest_side_pixels=self.config.resize_longest_side_pixels, max_visual_tokens=self.config.max_image_tokens, is_zstd=self.media_reader == "zstd") as query_preparator:
+                chunk_documents_read = 0
+                documents_skipped = 0
+                
                 for record in self.records_readers.run(rank=rank, world_size=world_size):
+                    # Skip documents that were already processed in previous chunks
+                    if documents_skipped < documents_to_skip:
+                        documents_skipped += 1
+                        continue
+                    chunk_documents_read += 1
+                    total_documents_processed += 1
+                    
+                    
                     while len(tasks_pool) >= self.config.max_concurrent_tasks:
-                        # Tasks write themselves to the output file, so we need to wait for them to finish
                         results, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED, timeout=None)
                         for result in results:
                             result_document = result.result()
                             if result_document:
-                                await self.save_document(result_document, rank)
+                                await self.save_document(result_document, rank, chunk_index)
+                                
                             else:
-                                self.stat_update(
-                                    "failed_documents", value=1, unit="documents",
-                                )
-
+                                self.stat_update("failed_documents", value=1, unit="documents")
+                    
                     new_future = asyncio.create_task(self.process_document(record, workspace_s3, query_preparator, semaphore))
                     tasks_pool.add(new_future)
+                    
+                    # If records_per_chunk is set and we've processed enough, exhaust the pool
+                    if self.config.records_per_chunk is not None and chunk_documents_read >= self.config.records_per_chunk:
+                        # Exhaust all remaining tasks
+                        await self._exhaust_task_pool(tasks_pool, rank, chunk_index)
+                        tasks_pool = set()
+                        
+                        # Update checkpoint
+                        self._write_checkpoint(rank, chunk_index, total_documents_processed)
+                        
+                        logger.info(f"Completed chunk {chunk_index}, processed {self.config.records_per_chunk} documents")
+                        chunk_documents_read = 0  # Reset to skip count so next chunk starts correctly
+                        chunk_index += 1
         
-                while tasks_pool:  # Ensure there are tasks to wait for
-                    results, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
-                    for result in results:
-                        result_document = result.result()
-                        if result_document:
-                            await self.save_document(result_document, rank)
-                        else:
-                            self.stat_update(
-                                "failed_documents", value=1, unit="documents",
-                            )
+                # Process any remaining tasks
+                await self._exhaust_task_pool(tasks_pool, rank, chunk_index)
+                tasks_pool = set()
 
         self.server.cancel()
         metrics_task.cancel()

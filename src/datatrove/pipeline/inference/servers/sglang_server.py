@@ -18,12 +18,12 @@ sglang_logger = logging.getLogger("sglang")
 class SGLangServer(InferenceServer):
     """SGLang inference server implementation."""
     
-    async def start_server_task(self, semaphore: asyncio.Semaphore, port: int) -> None:
+    async def start_server_task(self, semaphore: asyncio.Semaphore, port: int, offset: int = 0) -> None:
         """Start the SGLang server process."""
         # Check GPU memory, lower mem devices need a bit less KV cache space because the VLM takes additional memory
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
-        self.port = self.find_available_port(port)
-        mem_fraction_arg = ["--mem-fraction-static", "0.80"] if gpu_memory < 60 else []
+        self.port = self.find_available_port(port, offset)
+        # mem_fraction_arg = ["--mem-fraction-static", "0.80"] if gpu_memory < 60 else []
 
         cmd = [
             "python3",
@@ -31,15 +31,21 @@ class SGLangServer(InferenceServer):
             "sglang.launch_server",
             "--model-path",
             self.model_name_or_path,
+            # "--mem-fraction-static", "0.82",
             "--chat-template",
-            self.chat_template,
+            "qwen2-vl",
+            "--allow-auto-truncate",
+            # "--schedule-conservativeness", "0.1",
+            # "--chunked-prefill-size", "8192",
+            # "--chat-template",
+            # self.chat_template,
             "--context-length", str(self.max_context),
             "--port",
             str(self.port),
             "--log-level-http",
             "warning",
         ]
-        cmd.extend(mem_fraction_arg)
+        # cmd.extend(mem_fraction_arg)
 
         self.process = await asyncio.create_subprocess_exec(
             *cmd,

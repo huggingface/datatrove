@@ -29,7 +29,7 @@ class BaseMediaExtractor(PipelineStep):
         self.exclude_failed = exclude_failed
 
     @abstractmethod
-    def extract(self, path: str | None) -> tuple[str, dict]:
+    def extract(self, media_bytes: bytes) -> tuple[str, dict]:
         """abstract method that actually implements the extraction, e.g. trafilatura.
 
         Args:
@@ -55,11 +55,9 @@ class BaseMediaExtractor(PipelineStep):
                     texts = []
                     for media in doc.media:
                         try:
-                            if media.metadata["local_path"] is None:
-                                raise ValueError("Local path is None")
-                            text, metadata = extractor.process_document(media.metadata["local_path"], self.extract)
+                            text, metadata = extractor.process_document(media.media_bytes, self.extract)
                             if metadata.get("extraction_error"):
-                                print(metadata["extraction_error"])
+                                logger.warning(f"❌ Error {metadata['extraction_error']} while cleaning record text. Skipping record.")
                                 media.metadata["extraction_failed"] = metadata["extraction_error"]
                                 continue
 
@@ -79,7 +77,6 @@ class BaseMediaExtractor(PipelineStep):
                             continue
                         except Exception as e:
                             self.stat_update("clean_error")
-                            print(e)
                             if not self._warned_error:
                                 logger.warning(
                                     f'❌ Error "{e}" while cleaning record text. Skipping record. '

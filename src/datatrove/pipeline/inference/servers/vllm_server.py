@@ -16,11 +16,11 @@ vllm_logger = logging.getLogger("vllm")
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
 
-    async def start_server_task(self, semaphore: asyncio.Semaphore, port: int) -> None:
+    async def start_server_task(self, semaphore: asyncio.Semaphore, port: int, offset: int = 0) -> None:
         """Start the VLLM server process."""
         # Check GPU memory for memory settings
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
-        self.port = self.find_available_port(port)
+        self.port = self.find_available_port(port, offset)
 
         cmd = [
             "python3",

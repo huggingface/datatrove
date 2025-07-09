@@ -15,7 +15,6 @@ from datatrove.pipeline.inference.servers import InferenceServer
 
 class LMDeployServer(InferenceServer):
     """LMDeploy inference server implementation."""
-    
     async def start_server_task(self, semaphore: asyncio.Semaphore, port: int, offset: int = 0) -> None:
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
@@ -36,6 +35,12 @@ class LMDeployServer(InferenceServer):
             "--log-level",
             "ERROR",
             "--disable-fastapi-docs",
+            "--cache-max-entry-count",
+            "0.9",
+            "--vision-max-batch-size",
+            "128",
+            # "--max-prefill-token-num",
+            # "32768",
             # "--cache-max-entry-count",
             # "0.8",  # Use 80% of GPU memory for KV cache
             # "--trust-remote-code",
@@ -49,6 +54,8 @@ class LMDeployServer(InferenceServer):
         if gpu_memory < 60:
             cmd.extend(["--cache-max-entry-count", "0.6"])
 
+        if self.kv_quantization:
+            cmd.extend(["--model_format", "fp8"])
 
         os.environ["UVICORN_LOG_LEVEL"] = "error"
         self.process = await asyncio.create_subprocess_exec(

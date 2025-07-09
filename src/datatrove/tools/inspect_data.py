@@ -7,7 +7,6 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 import re
 
-from datatrove.pipeline.extractors.docling_serializer import BaseDoclingSerializer
 from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.filters import SamplerFilter
 from datatrove.pipeline.readers import CSVReader, JsonlReader, ParquetReader, WarcReader
@@ -101,7 +100,7 @@ def reader_factory(data_folder: DataFolder, reader_type: str = None, **kwargs):
             case other:
                 console.log(f'[red]Could not find a matching reader for file extension "{other}"')
                 sys.exit(-1)
-    return reader_class_from_name(reader_type)(data_folder, glob_pattern="01012.jsonl.gz", **kwargs)
+    return reader_class_from_name(reader_type)(data_folder, **kwargs)
 
 
 def get_filter_expr(text=None):
@@ -143,7 +142,6 @@ def main():
 
     good_samples = []
     bad_samples = []
-    # iterator = sampler(BaseDoclingSerializer(use_markdown=False, filter_non_text_items_ratio=0.5, use_picture=True)(reader()))
     iterator = sampler(reader())
     try:
         for sample in iterator:

@@ -9,13 +9,14 @@ import random
 class InferenceServer(ABC):
     """Abstract base class for inference servers."""
     
-    def __init__(self, model_name_or_path: str, chat_template: str, max_context: int):
+    def __init__(self, model_name_or_path: str, chat_template: str, max_context: int, model_kwargs: Optional[dict] = None):
         self.model_name_or_path = model_name_or_path
         self.chat_template = chat_template
         self.max_context = max_context
         self.process: Optional[asyncio.subprocess.Process] = None
         self._server_task: Optional[asyncio.Task] = None
         self.port = None
+        self.model_kwargs = model_kwargs or {}
 
     def find_available_port(self, port: int, offset: int = 0) -> int:
         def _is_port_available(port: int, host: str = "127.0.0.1") -> bool:

@@ -18,8 +18,9 @@ class ZstdThreadedReader(BinaryReaderThreaded):
         block_size: int = 20*1024*1024,
         workers: int = 1,
         offset_byte_size: int = 4,
+        preserve_order: bool = False,
     ):
-        super().__init__(data_folder, workers)
+        super().__init__(data_folder, workers, preserve_order)
         self.offset_byte_size = offset_byte_size
         self.block_size = block_size
 

@@ -90,13 +90,14 @@ class DummyServer(InferenceServer):
         super().__init__(model_name_or_path, port, args)
         self.server: HTTPServer = None
         
-    async def start_server_task(self, semaphore: asyncio.Semaphore) -> None:
+    async def start_server_task(self, semaphore: asyncio.Semaphore, port, offset: int = 0) -> None:
         """Start the dummy HTTP server in a separate thread."""
         def run_server():
-            self.server = HTTPServer(('localhost', self.port), DummyHandler)
-            logger.info(f"Dummy server started on port {self.port}")
+            self.server = HTTPServer(('localhost', port), DummyHandler)
+            logger.info(f"Dummy server started on port {port}")
             self.server.serve_forever()
         
+        self.port = port
         # Run the server in a separate thread
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()

@@ -7,18 +7,25 @@ from loguru import logger
 import numpy as np
 import warnings
 import logging
+from docling_core.transforms.serializer.markdown import MarkdownParams
 from datatrove.pipeline.base import PipelineStep
-
+from dataclasses import dataclass
+import pymupdf
 from typing import Any, Optional, Union, override
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.transforms.serializer.markdown import MarkdownDocSerializer
 import textwrap
-from docling_core.transforms.serializer.common import create_ser_result
 from docling_core.transforms.serializer.markdown import (
     MarkdownPictureSerializer,
 )
 from datatrove.pipeline.extractors.docling_serializer import ContentPictureSerializer, TextDocSerializer
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from docling_ibm_models.text_fix.text_fix import TextFix
+from docling_ibm_models.reading_fixer.reading_fix import ReadingOrderFixer
+from docling_ibm_models.para_fix.para_fix import ParagraphFixer
+from docling_ibm_models.listitem_normalizer.list_marker_normalizer import ListItemMarkerProcessor
+from docling_ibm_models.page_num_remover.page_num_remover import PageNumberRemover
+from docling_ibm_models.pymupdf_table.table import Tables
 
 def keep_only_valid_metadata(metadata: dict) -> dict:
     return {k:v for k,v in metadata.items() if v}
@@ -80,7 +87,8 @@ class PyMuPDFExtractor(BaseMediaExtractor):
             import pymupdf
             pymupdf.set_messages(pylogging=True)
             with self.logger_stream as log_output:
-                parsed_file = pymupdf.open(None, io.BytesIO(media_bytes))
+                # parsed_file = pymupdf.open(None, io.BytesIO(media_bytes))
+                parsed_file = pymupdf.open(media_bytes)
 
                 if self.as_markdown:
                     import pymupdf4llm
@@ -369,8 +377,20 @@ class MinerUExtractor(BaseMediaExtractor):
             return "", {"extraction_error": f"MinerU processing failed: {e}"}
 
 
+@dataclass(frozen=True)
+class DoclingPostProcessingOptions:
+    use_markdown: bool = False
+    use_picture: bool = False
+    use_table_structure: bool = False
+    table_acc: bool = False
+    use_file_path: bool = False
+    fix_lists: bool = True
+    fix_paragraphs: bool = True
+    fix_reading_order: bool = True
+    fix_page_numbers: bool = True
+
 class DoclingExtractor(BaseMediaExtractor):
-    def __init__(self, timeout: int = 10*60, use_table_structure: bool = False, table_acc: bool = False, use_picture: bool = False, use_markdown: bool = True, exclusion_writer: Optional[DiskWriter] = None):
+    def __init__(self, timeout: int = 10*60, post_processing_options: DoclingPostProcessingOptions = DoclingPostProcessingOptions(), exclusion_writer: Optional[DiskWriter] = None, debug: bool = False):
         from docling.datamodel.pipeline_options import PdfPipelineOptions
         from docling.datamodel.base_models import InputFormat
         from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -380,10 +400,10 @@ class DoclingExtractor(BaseMediaExtractor):
         from docling.datamodel.pipeline_options import TableStructureOptions, TableFormerMode
         docling_timeout = timeout - 2 if timeout > 2 else None
         pipeline_options = PdfPipelineOptions(
-            do_table_structure=use_table_structure,
+            do_table_structure=post_processing_options.use_table_structure,
             do_ocr=False,
             document_timeout=docling_timeout,
-            table_structure_options=TableStructureOptions(mode=TableFormerMode.FAST if not table_acc else TableFormerMode.ACCURATE),
+            table_structure_options=TableStructureOptions(mode=TableFormerMode.FAST if not post_processing_options.table_acc else TableFormerMode.ACCURATE),
             accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CPU, num_threads=1)
         )
         self.logger_stream = LoggerStream([logging.getLogger("docling"), logging.getLogger("pymupdf")])
@@ -392,13 +412,20 @@ class DoclingExtractor(BaseMediaExtractor):
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options, backend=PyMuPdfDocumentBackend)
             }
         )
-        self.use_picture = use_picture
-        self.use_markdown = use_markdown
-        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer)
+        self.use_picture = post_processing_options.use_picture
+        self.use_markdown = post_processing_options.use_markdown
+        self.reading_order_fixer = ReadingOrderFixer()
+        self.paragraph_fixer = ParagraphFixer()
+        self.list_item_marker_processor = ListItemMarkerProcessor()
+        self.page_number_remover = PageNumberRemover()
+        # self.table_fixer = Tables()
+        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer, debug=debug, use_file_path=post_processing_options.use_file_path)
 
 
-    def extract(self, path: str | None) -> tuple[str, dict]:
-        if path is None:
+    # def extract(self, path: str | None) -> tuple[str, dict]:
+    def extract(self, path_metadata: tuple[bytes | str, dict | None]) -> tuple[str, dict]:
+        path, metadata = path_metadata
+        if path is None or metadata is None:
             return "", {}
 
         from docling.datamodel.settings import settings
@@ -408,25 +435,33 @@ class DoclingExtractor(BaseMediaExtractor):
         with self.logger_stream as log_output:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
-                converted = self.doc_converter.convert(path, raises_on_error=False)
+                if not self.use_file_path:
+                    try:
+                        document_stream = DocumentStream(name="test.pdf", stream=io.BytesIO(path))
+                        converted = self.doc_converter.convert(document_stream, raises_on_error=True)
+                    except Exception as e:
+                        logger.exception(e)
+                else:
+                    converted = self.doc_converter.convert(path, raises_on_error=True)
+
                 logger_content = log_output.value()
+
+
+
+        document_initial = converted.document.export_to_dict()
+        document_postprocessed = self.reading_order_fixer.process_document(converted.document, allow_multi_prov=True)
+        document_postprocessed = self.paragraph_fixer.process_document(document_postprocessed, allow_multi_prov=True)
+        document_postprocessed = self.list_item_marker_processor.process_document(document_postprocessed)
+        document_postprocessed = self.page_number_remover.process_document(document_postprocessed)
         page_break_placeholder = "<--- page break --->"
 
-        if self.use_markdown:
-            serializer = MarkdownDocSerializer(doc=converted.document, picture_serializer=ContentPictureSerializer(filter_non_text_items_ratio=0.4) if self.use_picture else MarkdownPictureSerializer(),
-                params=MarkdownParams(
-                    page_break_placeholder=page_break_placeholder,
-                    image_placeholder="",
-                    escape_underscores=False,
-                ),
-            )
-        else:
-            serializer = TextDocSerializer(doc=converted.document, picture_serializer=ContentPictureSerializer(filter_non_text_items_ratio=0.4) if self.use_picture else MarkdownPictureSerializer(),
-                                           params=MarkdownParams(
-                                            page_break_placeholder=page_break_placeholder,
-                                            image_placeholder="",
-                                            escape_underscores=False,
-                            ))
+        serializer = TextDocSerializer(doc=document_postprocessed,
+                                        params=MarkdownParams(
+                                        page_break_placeholder=page_break_placeholder,
+                                        image_placeholder="<docling_image></docling_image>",
+                                        escape_underscores=False,
+                                        escape_html=False,
+                        ))
 
 
         full_text = serializer.serialize().text
@@ -435,13 +470,69 @@ class DoclingExtractor(BaseMediaExtractor):
         metadata = {
             "num_pages": len(page_list),
             "page_offsets": np.cumsum([len(t) for t in page_list]).tolist(),
-            "docling_doc_dict": converted.document.export_to_dict(),
-            "logs": logger_content,
+            "docling_doc_dict": document_initial,
+            "logs": logger_content.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore"),
+            "version": "2.0",
+            "conversion_status": converted.status.value,
         }
         if converted.status not in [ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS]:
             errors = ", ".join([e.model_dump(mode="json") for e in converted.errors])
-            metadata["extraction_error"] = f"Conversion failed with status {converted.status} and errors {errors} and logger content: {logger_content}"
+            metadata["extraction_error"] = f"Conversion failed with status {converted.status} and errors {errors} and logger content: {logger_content}".encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
         return "".join(page_list), metadata
+
+class DoclingReprocessor(BaseMediaExtractor):
+    def __init__(self, timeout: int = 10*60, exclusion_writer: Optional[DiskWriter] = None, debug: bool = False, use_file_path: bool = False):
+        self.logger_stream = LoggerStream([logging.getLogger("docling"), logging.getLogger("pymupdf")])
+        self.text_fix = TextFix()
+        self.reading_order_fixer = ReadingOrderFixer()
+        self.paragraph_fixer = ParagraphFixer()
+        self.list_item_marker_processor = ListItemMarkerProcessor()
+        self.page_number_remover = PageNumberRemover()
+        self.table_fixer = Tables()
+        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer, debug=debug, use_file_path=use_file_path)
+
+
+    # def extract(self, path: str | None) -> tuple[str, dict]:
+    def extract(self, path_metadata: tuple[bytes | str, dict | None]) -> tuple[str, dict]:
+        path, metadata = path_metadata
+        if path is None or metadata is None:
+            return "", {}
+        
+        with self.logger_stream as log_output:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                docling_document_parsed = DoclingDocument.model_validate(metadata["docling_doc_dict"])
+                if not self.use_file_path:
+                    pymupdf_doc = pymupdf.open(stream=io.BytesIO(path))
+                else:
+                    pymupdf_doc = pymupdf.open(path)
+
+                docling_document_parsed = self.text_fix.process_document(docling_document_parsed, pymupdf_doc)
+                docling_document_parsed = self.reading_order_fixer.process_document(docling_document_parsed)
+                docling_document_parsed = self.paragraph_fixer.process_document(docling_document_parsed)
+                docling_document_parsed = self.list_item_marker_processor.process_document(docling_document_parsed)
+                docling_document_parsed = self.page_number_remover.process_document(docling_document_parsed)
+                docling_document_parsed = self.table_fixer.process_document(docling_document_parsed, pymupdf_doc)
+
+        page_break_placeholder = "<--- page break --->"
+        serializer = TextDocSerializer(doc=docling_document_parsed,
+                                        params=MarkdownParams(
+                                        page_break_placeholder=page_break_placeholder,
+                                        image_placeholder="<docling_image></docling_image>",
+                                        escape_underscores=False,
+                                        escape_html=False,
+                        ))
+        full_text = serializer.serialize().text
+        page_list = full_text.split(page_break_placeholder)
+        # Remove empty strings
+        metadata = {
+            "num_pages": len(page_list),
+            "page_offsets": np.cumsum([len(t) for t in page_list]).tolist(),
+            "docling_doc_dict": docling_document_parsed.export_to_dict(),
+        }
+        return "".join(page_list), metadata
+
+
 
 
 class OOMTestExtractor(BaseMediaExtractor):

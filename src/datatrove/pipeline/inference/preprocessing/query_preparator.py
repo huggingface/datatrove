@@ -12,12 +12,14 @@ from loguru import logger
 class QueryWorker:
     """Manages a single worker subprocess for PDF page processing using asyncio."""
     
-    def __init__(self, worker_id: int, resize_longest_side_pixels: Optional[int] = 1024, max_visual_tokens: int = 4096, timeout: float = 60.0):
+    def __init__(self, worker_id: int, resize_longest_side_pixels: Optional[int] = 1280, resize_longest_side_pixels_en: Optional[int] = 1024, max_visual_tokens: int = 4096, timeout: float = 60.0, is_zstd: bool = True):
         self.worker_id = worker_id
         self.timeout = timeout
         self.process: Optional[asyncio.subprocess.Process] = None
         self.resize_longest_side_pixels = resize_longest_side_pixels
+        self.resize_longest_side_pixels_en = resize_longest_side_pixels_en
         self.max_visual_tokens = max_visual_tokens
+        self.is_zstd = is_zstd
         
     async def _cleanup_process(self):
         """Clean up the worker process."""
@@ -61,12 +63,14 @@ class QueryWorker:
         try:
             # Prepare input data
             input_data = {
-                "zstd_data_b64": base64.b64encode(zstd_data).decode("utf-8"),
+                "data_b64": base64.b64encode(zstd_data).decode("utf-8"),
                 "length": length,
                 "resize_longest_side_pixels": self.resize_longest_side_pixels,
+                "resize_longest_side_pixels_en": self.resize_longest_side_pixels_en,
                 "max_visual_tokens": self.max_visual_tokens,
                 "image_rotation": image_rotation,
-                "id": id
+                "id": id,
+                "is_zstd_compressed": self.is_zstd
             }
             
             # Send input data to subprocess
@@ -129,14 +133,16 @@ class QueryWorker:
 class QueryPreparator:
     """Manages a pool of worker subprocesses for PDF page query preparation."""
     
-    def __init__(self, num_workers: Optional[int] = None, resize_longest_side_pixels: Optional[int] = 1024, max_visual_tokens: int = 4096, timeout: float = 60.0):
+    def __init__(self, num_workers: Optional[int] = None, resize_longest_side_pixels: Optional[int] = 1280, resize_longest_side_pixels_en: Optional[int] = 1024, max_visual_tokens: int = 4096, timeout: float = 60.0, is_zstd: bool = True):
         self.num_workers = num_workers or min(mp.cpu_count() // 2 + 1, 7)
         self.resize_longest_side_pixels = resize_longest_side_pixels
+        self.resize_longest_side_pixels_en = resize_longest_side_pixels_en
         self.max_visual_tokens = max_visual_tokens
         self.timeout = timeout
         self.workers = []
         self._started = False
         self._available_workers_queue = None  # Queue for available workers
+        self.is_zstd = is_zstd
         
     async def start(self):
         """Start the worker processes."""
@@ -150,7 +156,7 @@ class QueryPreparator:
         self._available_workers_queue = asyncio.Queue(maxsize=self.num_workers)
         
         for i in range(self.num_workers):
-            worker = QueryWorker(i, self.resize_longest_side_pixels, self.max_visual_tokens, self.timeout)
+            worker = QueryWorker(i, self.resize_longest_side_pixels, self.resize_longest_side_pixels_en, self.max_visual_tokens, self.timeout, is_zstd=self.is_zstd)
             self.workers.append(worker)
             # Add all workers to the available queue initially
             await self._available_workers_queue.put(worker)
@@ -175,7 +181,7 @@ class QueryPreparator:
         self._started = False
         self._available_workers_queue = None
         
-    async def process(self, zstd_data: bytes, length: int, image_rotation: int = 0, id: str = "None") -> Awaitable[Tuple[int, AsyncGenerator[Tuple[int, str], None]]]:
+    async def process(self, zstd_data: bytes, length: int, image_rotation: int = 0, id: str = "None", is_zstd: bool = True) -> Awaitable[Tuple[int, AsyncGenerator[Tuple[int, str], None]]]:
         """
         Process a PDF and yield page queries as they become available.
         
@@ -203,7 +209,7 @@ class QueryPreparator:
 
             if not msg_type == "num_pages":
                 raise ValueError(f"Expected first message to be num_pages, got {msg_type}, data: {data}")
-            num_pages: int = data
+            num_pages , doc_language = data["num_pages"], data["language"]
 
             async def pages_iterator():
                 try:
@@ -224,7 +230,7 @@ class QueryPreparator:
                     raise
                 finally:
                     self._available_workers_queue.put_nowait(worker)
-            return num_pages, pages_iterator()
+            return num_pages, doc_language, pages_iterator()
                     
         except Exception as e:
             logger.exception(f"Error processing PDF: {e}")

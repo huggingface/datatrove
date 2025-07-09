@@ -5,12 +5,23 @@ import io
 import zstandard as zstd
 import warnings
 from datatrove.pipeline.inference.utils.page_rendering import render_page_to_base64png_pymupdf
+from fasttext.FastText import _FastText
+from datatrove.io import cached_asset_path_or_download
 
 import pymupdf
 warnings.filterwarnings('ignore')
 # Mute pymupdf logs
 pymupdf.TOOLS.mupdf_display_errors(False)
 pymupdf.TOOLS.mupdf_display_warnings(False)
+
+# Path to your fastText language identification model
+FASTTEXT_MODEL_URL = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
+
+# Download/cached model path
+fasttext_model_path = cached_asset_path_or_download(
+    FASTTEXT_MODEL_URL, namespace="filters", subfolder="fasttext", desc="fast-text model"
+)
+fasttext_model = _FastText(fasttext_model_path)
 
 def set_oom_score_adj(score):
     """Set OOM score adjustment for the current process."""
@@ -20,38 +31,65 @@ def set_oom_score_adj(score):
     except (FileNotFoundError, PermissionError):
         pass
 
-def process_pdf_pages(zstd_data_b64, length, resize_longest_side_pixels, max_visual_tokens, image_rotation, id):
+zstd_decompressor = zstd.ZstdDecompressor(format=zstd.FORMAT_ZSTD1_MAGICLESS)
+
+def predict_language(text):
+    labels, scores = fasttext_model.predict(text.replace('\n', ' '), k=1)
+    if labels and scores and scores[0] >= 0.65:
+        return labels[0].replace('__label__', ''), scores[0]
+    return None, None
+
+def process_pdf_pages(data_b64, is_zstd_compressed, length, resize_longest_side_pixels, resize_longest_side_pixels_en, max_visual_tokens, image_rotation, id):
     """Process PDF pages and return results."""
     # Set OOM score
     
     # Decode base64 data
     pymupdf_doc = None
     try:
-        zstd_data = base64.b64decode(zstd_data_b64)
-        
-        # Decompress PDF data
-        zstd_decompressor = zstd.ZstdDecompressor(format=zstd.FORMAT_ZSTD1_MAGICLESS)
-        with zstd_decompressor.stream_reader(io.BytesIO(zstd_data), read_across_frames=False, closefd=False) as zstd_stream_reader:
-            file_bytes = zstd_stream_reader.read(length)
+        file_bytes = base64.b64decode(data_b64)
 
-        # Save to ./pdfs/
-        # os.makedirs(f"{OUTPUT_FOLDER}/{id}", exist_ok=True)
-        # with open(f"{OUTPUT_FOLDER}/{id}/document.pdf", "wb") as f:
-        #     f.write(file_bytes)
-        
+        # Decompress PDF data
+        if is_zstd_compressed:
+            with zstd_decompressor.stream_reader(io.BytesIO(file_bytes), read_across_frames=False, closefd=False) as zstd_stream_reader:
+                file_bytes = zstd_stream_reader.read(length)
+
         # Open PDF document
         pymupdf_doc = pymupdf.open("pdf", file_bytes)
         num_pages = len(pymupdf_doc)
-    
-        # Send number of pages first
-        print(json.dumps({"type": "num_pages", "data": num_pages}), flush=True)
+
+        # --- Language detection logic ---
+        all_text = ""
+        for page_num in range(num_pages):
+            try:
+                page = pymupdf_doc[page_num]
+                all_text += page.get_text()
+            except Exception:
+                continue
+        avg_chars_per_page = len(all_text) / num_pages if num_pages > 0 else 0
+        if avg_chars_per_page >= 50:
+            language, confidence = predict_language(all_text)
+        else:
+            language, confidence = None, None
+        # --- End language detection logic ---
+
+        # Send number of pages and language first
+        print(json.dumps({"type": "num_pages", "data": {"num_pages": num_pages, "language": language}}), flush=True)
         
+        # Use max_visual_tokens=1280 if language is "en"
+        # if language == "en":
+        #     resize_longest_side_pixels = resize_longest_side_pixels_en
+            # print(f"Language is {language}, using resize_longest_side_pixels = {resize_longest_side_pixels}", flush=True, file=sys.stderr)
+
         # Process each page
         for page_num in range(num_pages):
             try:
                 page = pymupdf_doc[page_num]
                 # Render page to base64 PNG
-                image_base64 = render_page_to_base64png_pymupdf(page, resize_longest_side_pixels=resize_longest_side_pixels, max_visual_tokens=max_visual_tokens)
+                image_base64 = render_page_to_base64png_pymupdf(
+                    page,
+                    resize_longest_side_pixels=resize_longest_side_pixels,
+                    max_visual_tokens=max_visual_tokens
+                )
                 
                 # Apply rotation if needed
                 # if image_rotation != 0:
@@ -98,9 +136,11 @@ if __name__ == "__main__":
     while True:
         input_data = json.loads(sys.stdin.readline())
         process_pdf_pages(
-            input_data["zstd_data_b64"],
+            input_data["data_b64"],
+            input_data["is_zstd_compressed"],
             input_data["length"],
             input_data["resize_longest_side_pixels"],
+            input_data["resize_longest_side_pixels_en"],
             input_data["max_visual_tokens"],
             input_data["image_rotation"],
             input_data["id"]

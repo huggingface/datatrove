@@ -69,6 +69,10 @@ parser.add_argument(
     "--skip-identical", action="store_true", help="Skip documents that are identical between datasets"
 )
 
+parser.add_argument(
+    "-f", "--filter", type=str, help="Filter the documents by a given expression (ex: len(x.text) > 1000)", default=None
+)
+
 console = Console()
 
 

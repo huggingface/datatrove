@@ -86,6 +86,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_user: email address to send notifications to
         requeue: requeue the job if it fails
         tasks_per_job: each slurm job in the job array will run these many datatrove tasks. This reduces the total nb of slurm jobs launched.
+        max_jobs_to_run: maximum number of slurm jobs to run. If set, the pipeline will exit after this many jobs are launched.
     """
 
     def __init__(
@@ -123,6 +124,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         srun_args: dict = None,
         tasks_per_job: int = 1,
         force_exit: bool = False,
+        max_jobs_to_run: int = None,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -141,6 +143,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.depends_job_id = depends_job_id
         self.job_id_position = job_id_position
         self.force_exit = force_exit
+        self.max_jobs_to_run = max_jobs_to_run
 
         if job_id_retriever is None:
             job_id_retriever = partial(default_job_id_retriever, job_id_position=job_id_position)
@@ -204,7 +207,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 ctx = multiprocess.get_context(self.start_method)
                 with ctx.Pool(processes=len(ranks_to_run)) as pool:
                     list(pool.map(run_for_rank_wrapper, [(rank, local_rank) for rank, local_rank in zip(ranks_to_run, range(len(ranks_to_run)))]))
-            logger.info("Done Exiting")
             if self.force_exit:
                 os._exit(0)
                 
@@ -303,6 +305,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         # launch (possibly multiple) jobs
         launched_jobs = 0
         while launched_jobs * max_array < nb_jobs_to_launch:
+            if self.max_jobs_to_run and launched_jobs >= self.max_jobs_to_run:
+                break
             if launched_jobs and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
                 time.sleep(self.stagger_max_array_jobs)
             args = [f"--export=ALL,RUN_OFFSET={launched_jobs}"]
@@ -376,9 +380,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         {env_command}
         set -xe
         export PYTHONUNBUFFERED=TRUE
-        echo 'Starting new processing job (Hynek test)'
         {run_script}
-        echo 'done'
         """
             )
         )

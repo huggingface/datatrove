@@ -5,6 +5,7 @@ import sys
 
 def render_page_to_base64png_pymupdf(page, resize_longest_side_pixels: Optional[int], max_visual_tokens: int) -> str:
     # Get page dimensions
+    page.remove_rotation()
     rect = page.rect
     page_width = rect.width
     page_height = rect.height
