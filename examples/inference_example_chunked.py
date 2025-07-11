@@ -79,7 +79,7 @@ config: InferenceConfig = InferenceConfig(
     max_concurrent_requests=500,
     max_concurrent_tasks=500,
     metric_interval=120,
-    records_per_chunk=1,  # Enable chunking with 1 document per chunk
+    records_per_chunk=500,  # Enable chunking with 500 documents per chunk
 )
 
 # Create the pipeline with chunking
