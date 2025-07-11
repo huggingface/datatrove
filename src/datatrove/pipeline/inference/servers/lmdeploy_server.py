@@ -15,10 +15,10 @@ from datatrove.pipeline.inference.servers import InferenceServer
 
 class LMDeployServer(InferenceServer):
     """LMDeploy inference server implementation."""
-    async def start_server_task(self, semaphore: asyncio.Semaphore, port: int, offset: int = 0) -> None:
+    async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
-        self.port = self.find_available_port(port, offset=offset)
+        self.port = self.find_available_port(offset=offset)
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
         
         cmd = [
@@ -53,9 +53,6 @@ class LMDeployServer(InferenceServer):
         # Adjust cache for smaller GPUs
         if gpu_memory < 60:
             cmd.extend(["--cache-max-entry-count", "0.6"])
-
-        if self.kv_quantization:
-            cmd.extend(["--model_format", "fp8"])
 
         os.environ["UVICORN_LOG_LEVEL"] = "error"
         self.process = await asyncio.create_subprocess_exec(
