@@ -25,21 +25,12 @@ class DummyHandler(BaseHTTPRequestHandler):
                 prompt_tokens = 50
                 completion_tokens = 100
             
-            # Create a consistent dummy response
-            dummy_page_response = {
-                "primary_language": "en",
-                "is_rotation_valid": True,
-                "rotation_correction": 0,
-                "is_table": False,
-                "is_diagram": False,
-                "natural_text": "This is dummy text content for debugging purposes. Page contains sample text to simulate OCR output."
-            }
-            
             response_data = {
                 "choices": [{
                     "message": {
-                        "content": json.dumps(dummy_page_response)
-                    }
+                        "content": "This is dummy text content for debugging purposes. Page contains sample text to simulate OCR output."
+                    },
+                    "finish_reason": "stop"
                 }],
                 "usage": {
                     "prompt_tokens": prompt_tokens,
@@ -86,18 +77,26 @@ class DummyHandler(BaseHTTPRequestHandler):
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
     
-    def __init__(self, model_name_or_path: str, port: int, args: Any):
-        super().__init__(model_name_or_path, port, args)
+    def __init__(self, model_name_or_path: str, model_kwargs: dict | None = None):
+        # DummyServer doesn't need chat_template or max_context for its simple functionality
+        super().__init__(
+            model_name_or_path=model_name_or_path,
+            chat_template="dummy",  # placeholder
+            max_context=8192,       # placeholder  
+            model_kwargs=model_kwargs
+        )
         self.server: HTTPServer = None
         
-    async def start_server_task(self, semaphore: asyncio.Semaphore, port, offset: int = 0) -> None:
+    async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
         """Start the dummy HTTP server in a separate thread."""
+        # Find available port for this instance
+        self.port = self.find_available_port(offset)
+        
         def run_server():
-            self.server = HTTPServer(('localhost', port), DummyHandler)
-            logger.info(f"Dummy server started on port {port}")
+            self.server = HTTPServer(('localhost', self.port), DummyHandler)
+            logger.info(f"Dummy server started on port {self.port}")
             self.server.serve_forever()
         
-        self.port = port
         # Run the server in a separate thread
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()

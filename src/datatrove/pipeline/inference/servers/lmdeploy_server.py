@@ -18,7 +18,7 @@ class LMDeployServer(InferenceServer):
     async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
-        self.port = self.find_available_port(offset=offset)
+        self.port = self.find_available_port(offset)
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
         
         cmd = [
@@ -55,7 +55,7 @@ class LMDeployServer(InferenceServer):
             cmd.extend(["--cache-max-entry-count", "0.6"])
 
         os.environ["UVICORN_LOG_LEVEL"] = "error"
-        self.process = await asyncio.create_subprocess_exec(
+        self.server_process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -63,8 +63,8 @@ class LMDeployServer(InferenceServer):
 
         # Ensure the subprocess is terminated on exit
         def _kill_proc():
-            if self.process:
-                self.process.terminate()
+            if self.server_process:
+                self.server_process.terminate()
 
         atexit.register(_kill_proc)
 
@@ -82,16 +82,16 @@ class LMDeployServer(InferenceServer):
             # Check for common LMDeploy errors
             if "CUDA out of memory" in line:
                 logger.error("CUDA out of memory error detected")
-                if self.process:
-                    self.process.terminate()
+                if self.server_process:
+                    self.server_process.terminate()
             elif "RuntimeError" in line and "CUDA" in line:
                 logger.error("CUDA runtime error detected")
-                if self.process:
-                    self.process.terminate()
+                if self.server_process:
+                    self.server_process.terminate()
             elif "Failed to load model" in line:
                 logger.error("Model loading failed")
-                if self.process:
-                    self.process.terminate()
+                if self.server_process:
+                    self.server_process.terminate()
 
         async def read_stream(stream):
             while True:
@@ -105,15 +105,15 @@ class LMDeployServer(InferenceServer):
                     logger.warning(f"Got {ex} when reading log line from inference server, skipping")
 
         # Start tasks to read stdout and stderr
-        stdout_task = asyncio.create_task(read_stream(self.process.stdout))
-        stderr_task = asyncio.create_task(read_stream(self.process.stderr))
+        stdout_task = asyncio.create_task(read_stream(self.server_process.stdout))
+        stderr_task = asyncio.create_task(read_stream(self.server_process.stderr))
 
         try:
-            await self.process.wait()
+            await self.server_process.wait()
         except asyncio.CancelledError:
             logger.info("Got cancellation request for LMDeploy server")
-            if self.process:
-                self.process.terminate()
+            if self.server_process:
+                self.server_process.terminate()
             raise
 
         await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)

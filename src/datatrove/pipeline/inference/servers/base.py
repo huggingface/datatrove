@@ -5,15 +5,15 @@ import socket
 from typing import Any, Optional
 from loguru import logger
 import random
+import httpx
 
 class InferenceServer(ABC):
     """Abstract base class for inference servers."""
+    _requires_dependencies = ["httpx"]
     
-    def __init__(self, model_name_or_path: str, chat_template: str, max_context: int, model_kwargs: Optional[dict] = None):
+    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Optional[dict] = None):
         self.model_name_or_path = model_name_or_path
-        self.chat_template = chat_template
         self.max_context = max_context
-        self.process: Optional[asyncio.subprocess.Process] = None
         self._server_task: Optional[asyncio.Task] = None
         self.port = None
         self.model_kwargs = model_kwargs or {}
@@ -67,41 +67,42 @@ class InferenceServer(ABC):
 
         
     @abstractmethod
-    async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
+    async def start_server_task(self) -> None:
         """Start the server process."""
         pass
     
-    @abstractmethod
     async def is_ready(self) -> bool:
         """Check if the server is ready to accept requests."""
-        pass
+        url = f"http://localhost:{self.port}/v1/models"
+        try:
+            async with httpx.AsyncClient() as session:
+                response = await session.get(url, timeout=5.0)
+                return response.status_code == 200
+        except Exception:
+            return False 
     
-    async def host_server(self, semaphore: asyncio.Semaphore, offset: int = 0, max_retries: int = 5) -> None:
+    async def host_server(self, offset: int = 0, max_retries: int = 5) -> None:
         """Host the server with retry logic."""
         retry = 0
-        
+
+
         while retry < max_retries:
             try:
                 # Find available port for this attempt
-                if not self.port:
-                    self.port = self.find_available_port(offset)
-                
-                await self.start_server_task(semaphore, self.port, offset)
+                port = self.find_available_port(offset)
+                self.port = port
+                self._server_task = asyncio.create_task(self.start_server_task())
+                await self._server_task
                 logger.warning(f"{self.__class__.__name__} server task ended")
                 retry += 1
-                # Reset port for next retry attempt
-                self.port = None
             except asyncio.CancelledError:
                 logger.info(f"Got cancellation request for {self.__class__.__name__} server")
-                if self.process:
-                    self.process.terminate()
                 raise
         
         if retry >= max_retries:
-            logger.error(f"Ended up starting the {self.__class__.__name__} server more than {retry} times, cancelling pipeline")
             raise RuntimeError(f"Failed to start {self.__class__.__name__} server after {max_retries} retries")
     
-    async def wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 1.0) -> None:
+    async def wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 5.0) -> None:
         """Wait until the server is ready."""
         for attempt in range(1, max_attempts + 1):
             try:
