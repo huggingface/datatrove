@@ -60,8 +60,13 @@ processing = [
     "fasteners",
     "regex",
     "xxhash",
-    "kenlm",
     "pyahocorasick"
+]
+vllm = [
+    "vllm", "httpx"
+]
+sglang = [
+    "sglang[all]"
 ]
 decont = [
     "lighteval>=0.3.0"
