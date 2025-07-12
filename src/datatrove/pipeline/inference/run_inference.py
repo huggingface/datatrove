@@ -168,13 +168,16 @@ class InferenceRunner(PipelineStep):
     This runner pulls documents from readers, converts them to LLM requests via a query builder,
     sends requests to a locally spawned inference server, and processes the responses through
     post-processing steps.
+
+    Inference results are saved in document metadata as "inference_results" list.
+    Each inference result is either InferenceSuccess or InferenceError.
     """
     name = "Inference 🔍"
     type = "Model call"
 
     def __init__(
         self,
-        query_builder: Callable[[Document], AsyncGenerator[dict, None] | dict],
+        query_builder: Callable[[InferenceRunner, Document], AsyncGenerator[dict, None] | dict],
         config: InferenceConfig,
         post_process_steps: PipelineStep | Sequence[PipelineStep],
         completions_dir: DataFolderLike | None = None,
@@ -435,9 +438,19 @@ class InferenceRunner(PipelineStep):
             successful_requests = sum(1 for result in inference_results if isinstance(result, InferenceSuccess))  # type: ignore
             failed_requests = len(inference_results) - successful_requests  # type: ignore
 
-            # Track finished tokens
-            total_input_tokens = sum(result.usage.get("prompt_tokens", 0) for result in inference_results if isinstance(result, InferenceSuccess))  # type: ignore
-            total_output_tokens = sum(result.usage.get("completion_tokens", 0) for result in inference_results if isinstance(result, InferenceSuccess))  # type: ignore
+            # Track tokens for each inference result
+            total_input_tokens = 0
+            total_output_tokens = 0
+            for result in inference_results:
+                if isinstance(result, InferenceSuccess):
+                    prompt_tokens = result.usage.get("prompt_tokens", 0)  # type: ignore
+                    completion_tokens = result.usage.get("completion_tokens", 0)  # type: ignore
+                    total_input_tokens += prompt_tokens
+                    total_output_tokens += completion_tokens
+                    
+                    # Update stats for each individual request
+                    self.stat_update("prompt_tokens", value=prompt_tokens, unit="request")
+                    self.stat_update("completion_tokens", value=completion_tokens, unit="request")
 
             self.metrics.add_metrics(
                 tokens_finished_input=total_input_tokens,
@@ -445,13 +458,13 @@ class InferenceRunner(PipelineStep):
                 requests=len(inference_results)  # type: ignore
             )
 
-            self.stat_update("successful_requests", value=successful_requests, unit="requests")
-            self.stat_update("failed_requests", value=failed_requests, unit="requests")
-            self.stat_update("successful_documents", value=1, unit="documents")
+            self.stat_update("successful_requests", value=successful_requests, unit="document")
+            self.stat_update("failed_requests", value=failed_requests, unit="document")
+            self.stat_update("successful_documents", value=1)
 
         except Exception as e:
             logger.warning(f"Failed to process inference results for metrics: {e}")
-            self.stat_update("failed_documents", value=1, unit="documents")
+            self.stat_update("failed_documents", value=1)
 
         # Run through post-processing pipeline
         tmp_gen = (d for d in [document])
@@ -543,7 +556,7 @@ class InferenceRunner(PipelineStep):
             """
             try:
                 # Get payloads from query_builder
-                payloads_result = self.query_builder(doc)
+                payloads_result = self.query_builder(self, doc)
 
                 # Handle different return types
                 request_tasks = []
@@ -654,4 +667,5 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier for distributed processing
             world_size: Total number of processes in distributed setup
         """
-        asyncio.run(self.run_async(data, rank, world_size))
+        with self.track_time():
+            asyncio.run(self.run_async(data, rank, world_size))

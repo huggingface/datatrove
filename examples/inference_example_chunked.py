@@ -18,29 +18,7 @@ from typing import Any
 You can use either an async query builder yielding queries or siple sync query builder, which just yields a single query.
 """
 
-# def query_builder(document: Document) -> dict[str, Any]:
-#     """
-#     Query builder for Language Model.
-    
-#     Args:
-#         document: Input document with image URL or content
-        
-#     Returns:
-#         Query payload dictionary for the inference server containing messages and max_tokens
-#     """
-#     return {
-#         "messages": [
-#             {
-#                 "role": "user", 
-#                 "content": [
-#                     {"type": "text", "text": document.text},
-#                 ]
-#             }
-#         ],
-#         "max_tokens": 4096,
-#     }
-
-async def query_builder_async(document: Document) -> AsyncGenerator[dict[str, Any], None]:
+def query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
     """
     Query builder for Language Model.
     
@@ -50,7 +28,7 @@ async def query_builder_async(document: Document) -> AsyncGenerator[dict[str, An
     Returns:
         Query payload dictionary for the inference server containing messages and max_tokens
     """
-    yield {
+    return {
         "messages": [
             {
                 "role": "user", 
@@ -88,7 +66,7 @@ pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
         # Read input documents
         documents,
         InferenceRunner(
-            query_builder=query_builder_async,
+            query_builder=query_builder,
             config=config,
             completions_dir=CHECKPOINTS_PATH,  # Enable checkpointing
             post_process_steps=[
