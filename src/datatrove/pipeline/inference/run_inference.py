@@ -539,7 +539,6 @@ class InferenceRunner(PipelineStep):
         tasks_pool: set[asyncio.Task] = set()
         documents_skipped = 0
         chunk_documents_read = 0
-        total_docs_processed = 0
 
         async def _handle_record(doc: Document) -> Document:
             """
@@ -628,7 +627,7 @@ class InferenceRunner(PipelineStep):
                 # Update counters
                 if self.config.records_per_chunk is not None:
                     chunk_documents_read += 1
-                    total_docs_processed += 1
+                    total_documents_processed += 1
 
                     # Check if chunk is complete
                     if chunk_documents_read >= self.config.records_per_chunk:
@@ -637,7 +636,7 @@ class InferenceRunner(PipelineStep):
                         tasks_pool = set()
 
                         # Update checkpoint and prepare for next chunk
-                        self._write_checkpoint(rank, chunk_index, total_docs_processed + documents_to_skip)
+                        self._write_checkpoint(rank, chunk_index, total_documents_processed)
                         logger.info(f"Completed chunk {chunk_index}, processed {self.config.records_per_chunk} documents")
 
                         chunk_documents_read = 0
