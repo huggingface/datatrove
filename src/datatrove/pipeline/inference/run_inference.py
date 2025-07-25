@@ -31,7 +31,7 @@ from datatrove.pipeline.inference.servers import (
 )
 from datatrove.pipeline.inference.utils.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from pipeline.readers.jsonl import JsonlReader
+from datatrove.pipeline.readers.jsonl import JsonlReader
 
 
 @dataclass
@@ -558,16 +558,18 @@ class InferenceRunner(PipelineStep):
         self.metrics.reset()
         metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
 
-        async def _handle_record(doc: Document, chunk_index: int) -> tuple[Document, int]:
+        async def _handle_record(doc: Document, rank: int, chunk_index: int, exclusion_writer_context: DiskWriter | None = None) -> tuple[Document, int]:
             """
             Handle inference requests for a single document.
             
             Args:
                 doc: Document to process
-                chunk_index: Chunk index to save the document to
+                rank: Process rank identifier
+                chunk_index: Chunk index of the document
+                exclusion_writer_context: Context manager for the exclusion writer
             Returns:
                 Document with inference results in metadata
-                chunk_index: Chunk index to save the document to
+                chunk_index: Chunk index of the document
                 
             Raises:
                 InferenceProcessingError: If document processing fails
@@ -604,14 +606,20 @@ class InferenceRunner(PipelineStep):
                         raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
 
                     # Wait for all requests to complete and collect results in order
-                    results = await asyncio.gather(*request_tasks)
+                    results = await asyncio.gather(*request_tasks, return_exceptions=True)
+
+                    inference_errors = []
+                    for resi, res in enumerate(results):
+                        if isinstance(res, Exception):
+                            inference_errors.append(str(res))
+                            results[resi] = None
 
                     # Store results directly in document metadata
-                    doc.metadata["inference_results"] = results  # type: ignore
+                    doc.metadata["inference_results"] = results
+                    if inference_errors:
+                        doc.metadata["inference_errors"] = inference_errors
 
-                return doc, chunk_index
-            except InferenceProcessingError:
-                # Re-raise InferenceProcessingError as-is
+            except InferenceProcessingError as e:
                 logger.warning(f"Document processing failed: {e}")
                 self.stat_update("failed_documents", value=1, unit="documents")
                 if exclusion_writer_context:
@@ -619,6 +627,7 @@ class InferenceRunner(PipelineStep):
             except Exception as e:
                 logger.exception(f"Unexpected error processing document: {e}")
                 self.stat_update("failed_documents", value=1, unit="documents")
+            return doc, chunk_index
 
         # 2. Main processing loop - unified for both chunked and non-chunked, now async
         tasks_pool: set[asyncio.Task] = set()        
@@ -657,18 +666,18 @@ class InferenceRunner(PipelineStep):
                             self.stat_update("failed_documents", value=1, unit="documents")
 
                 # Add task for current record
-                task = asyncio.create_task(_handle_record(record, chunk_index))
+                task = asyncio.create_task(_handle_record(record, rank, chunk_index, exclusion_writer_context))
                 tasks_pool.add(task)
                 task.add_done_callback(tasks_pool.discard)
 
             # 3. Process any remaining tasks
             if tasks_pool:
-                for task in (await asyncio.gather(*tasks_pool, return_exceptions=True)):
-                    if isinstance(task, Exception):
-                        logger.exception(f"Unexpected error processing document: {task}")
+                for result in (await asyncio.gather(*tasks_pool, return_exceptions=True)):
+                    if isinstance(result, Exception):
+                        logger.exception(f"Unexpected error processing document: {result}")
                         self.stat_update("failed_documents", value=1, unit="documents")
                     else:
-                        result_document, completed_doc_chunk_index = task.result()
+                        result_document, completed_doc_chunk_index = result
                         await self._save_document(result_document, output_writer_context, rank, completed_doc_chunk_index)
 
         # 4. shutdown inference server and metrics
