@@ -41,8 +41,8 @@ def query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]
     }
 
 # Configuration
-OUTPUT_PATH: str = "./output_tmp"
-CHECKPOINTS_PATH: str = "./checkpoints_tmp"  # Path for checkpoint files
+OUTPUT_PATH: str = "s3://.../final_output_data"
+CHECKPOINTS_PATH: str = "/fsx/.../finetranslations/translate-checkpoints"  # Path for checkpoint files
 
 # 1000 documents
 documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(1000)]
@@ -57,7 +57,6 @@ config: InferenceConfig = InferenceConfig(
     max_concurrent_requests=500,
     max_concurrent_tasks=500,
     metric_interval=120,
-    records_per_chunk=500,  # Enable chunking with 500 documents per chunk
 )
 
 # Create the pipeline with chunking
@@ -68,14 +67,9 @@ pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
         InferenceRunner(
             query_builder=query_builder,
             config=config,
-            completions_dir=CHECKPOINTS_PATH,  # Enable checkpointing
-            post_process_steps=[
-                # Output writer with chunked filename pattern
-                JsonlWriter(
-                    OUTPUT_PATH,
-                    output_filename="${rank}_chunk_${chunk_index}.jsonl",  # Chunked filename pattern
-                )
-            ]
+            records_per_chunk=500,  # Enable chunking with 500 documents per chunk
+            checkpoints_local_dir=CHECKPOINTS_PATH,
+            output_writer=JsonlWriter(OUTPUT_PATH, output_filename="${rank}_chunk_${chunk_index}.jsonl"),
         ),
     ],
     logging_dir=None,
