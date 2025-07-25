@@ -81,13 +81,12 @@ class DummyServer(InferenceServer):
         # DummyServer doesn't need chat_template or max_context for its simple functionality
         super().__init__(
             model_name_or_path=model_name_or_path,
-            chat_template="dummy",  # placeholder
             max_context=8192,       # placeholder  
             model_kwargs=model_kwargs
         )
         self.server: HTTPServer = None
         
-    async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
+    async def start_server_task(self, offset: int = 0) -> None:
         """Start the dummy HTTP server in a separate thread."""
         # Find available port for this instance
         self.port = self.find_available_port(offset)
