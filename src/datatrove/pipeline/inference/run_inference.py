@@ -297,7 +297,6 @@ class InferenceRunner(PipelineStep):
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
-        exclusion_writer: DiskWriter | None = None,
     ):
         """
         Initialize the inference runner.
@@ -311,7 +310,6 @@ class InferenceRunner(PipelineStep):
             output_writer: Writer for saving inference results
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
-            exclusion_writer: Optional writer for saving failed documents
         """
         super().__init__()
 
@@ -319,7 +317,6 @@ class InferenceRunner(PipelineStep):
         self.config = config
 
         self.output_writer = output_writer
-        self.exclusion_writer = exclusion_writer
 
         self.checkpoint_manager = CheckpointManager(checkpoints_local_dir, records_per_chunk)
 
@@ -558,7 +555,7 @@ class InferenceRunner(PipelineStep):
         self.metrics.reset()
         metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
 
-        async def _handle_record(doc: Document, rank: int, chunk_index: int, exclusion_writer_context: DiskWriter | None = None) -> tuple[Document, int]:
+        async def _handle_record(doc: Document, rank: int, chunk_index: int) -> tuple[Document, int]:
             """
             Handle inference requests for a single document.
             
@@ -566,7 +563,6 @@ class InferenceRunner(PipelineStep):
                 doc: Document to process
                 rank: Process rank identifier
                 chunk_index: Chunk index of the document
-                exclusion_writer_context: Context manager for the exclusion writer
             Returns:
                 Document with inference results in metadata
                 chunk_index: Chunk index of the document
@@ -622,8 +618,7 @@ class InferenceRunner(PipelineStep):
             except InferenceProcessingError as e:
                 logger.warning(f"Document processing failed: {e}")
                 self.stat_update("failed_documents", value=1, unit="documents")
-                if exclusion_writer_context:
-                    exclusion_writer_context.write(e.document, rank)
+                doc.metadata["inference_errors"] = [str(e)]
             except Exception as e:
                 logger.exception(f"Unexpected error processing document: {e}")
                 self.stat_update("failed_documents", value=1, unit="documents")
@@ -631,10 +626,7 @@ class InferenceRunner(PipelineStep):
 
         # 2. Main processing loop - unified for both chunked and non-chunked, now async
         tasks_pool: set[asyncio.Task] = set()        
-        with (
-            self.output_writer as output_writer_context,  # final output
-            (self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext()) as exclusion_writer_context  # failed documents
-        ):
+        with self.output_writer as output_writer_context:
             # this will also upload locally cached documents to the output writer
             documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(rank, output_writer_context)
 
@@ -666,7 +658,7 @@ class InferenceRunner(PipelineStep):
                             self.stat_update("failed_documents", value=1, unit="documents")
 
                 # Add task for current record
-                task = asyncio.create_task(_handle_record(record, rank, chunk_index, exclusion_writer_context))
+                task = asyncio.create_task(_handle_record(record, rank, chunk_index))
                 tasks_pool.add(task)
                 task.add_done_callback(tasks_pool.discard)
 
