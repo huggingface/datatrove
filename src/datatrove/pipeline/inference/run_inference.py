@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 import asyncio
-import contextlib
+import dataclasses
 import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -181,16 +181,14 @@ class CheckpointManager:
         self.new_completed_chunks = set()
         self.last_chunk_index = -1
 
-    @property
-    def documents_to_skip(self) -> int:
-        return self.last_chunk_index * self.records_per_chunk
-
     async def write_document(self, document: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter):
         """
         Write a document to the checkpoint and main output writer. Potentially closes the main file if the chunk is complete.
         """
         import aiofiles
         import orjson
+
+        should_update_last_chunk_index = False
         async with self.file_locks[chunk_index]:
             # write to main output writer
             output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
@@ -198,26 +196,34 @@ class CheckpointManager:
 
             if self.checkpoints_local_dir is not None:
                 # save to checkpoint/chunk
-                async with aiofiles.open(os.path.join(self.checkpoints_local_dir, f"{rank:05d}/chunk_{chunk_index:05d}.jsonl"), "ab") as f:
-                    await f.write(orjson.dumps(document.to_dict(), option=orjson.OPT_APPEND_NEWLINE))
+                save_path = os.path.join(self.checkpoints_local_dir, f"{rank:05d}/chunk_{chunk_index:05d}.jsonl")
+                save_dir = os.path.dirname(save_path)
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir, exist_ok=True)
+                if not os.path.exists(save_path):
+                    logger.info(f"Creating checkpoint file {save_path}")
+                async with aiofiles.open(save_path, "ab") as f:
+                    await f.write(orjson.dumps(dataclasses.asdict(document), option=orjson.OPT_APPEND_NEWLINE))
                 # see if we have to close the file
                 if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
                     # we gotta close the main file
-                    output_writer_context.output_mg.pop(output_writer_context._get_output_filename(document, rank, chunk_index)).close()
+                    output_writer_context.output_mg.pop(output_writer_context._get_output_filename(document, rank, chunk_index=chunk_index)).close()
                     self.new_completed_chunks.add(chunk_index)
-                    # update the last chunk index/delete local file etc
-                    await self.update_last_chunk_index(rank)
+                    should_update_last_chunk_index = True
+        # can not be within the chunk lock
+        if should_update_last_chunk_index:
+            await self.update_last_chunk_index(rank)
 
     async def parse_existing_checkpoints(self, rank: int, output_writer_context: DiskWriter) -> tuple[int, set[str]]:
         """
         Load all checkpoints for a given rank and write them to the output writer.
         Returns: 
-        - last_chunk_index: index of the last completed chunk.
-        - set of ids of documents that were already processed in the unfinished chunks, 
+        - documents to skip: number of documents from completed chunks that were already finished
+        - set of ids of documents that were already processed in the unfinished chunks
         """
         all_ids = set()
         if not self.checkpoints_local_dir:
-            return -1, all_ids
+            return 0, all_ids
         
         async with self.checkpoint_file_lock:
             if self.checkpoints_local_dir_df.exists(f"last_chunk/{rank:05d}.txt"):
@@ -225,44 +231,58 @@ class CheckpointManager:
                     self.last_chunk_index = int(f.read().strip())
 
             reader = JsonlReader(self.checkpoints_local_dir, compression=None)
+            should_update_last_chunk_index = False
             # find existing chunk files and read from them
             for filename in self.checkpoints_local_dir_df.glob(f"{rank:05d}/*.jsonl"):
                 chunk_index = int(filename.removeprefix(f"{rank:05d}/chunk_").removesuffix(".jsonl"))
-                for document in reader.read_file(filename):
-                    output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
-                    all_ids.add(document.id)
-                    self.per_chunk_counts[chunk_index] += 1
-                    if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
-                        # close the file
-                        output_writer_context.output_mg.pop(output_writer_context._get_output_filename(document, rank, chunk_index)).close()
-                        self.new_completed_chunks.add(chunk_index)
-                        # update the last chunk index/delete local file etc
-                        await self.update_last_chunk_index(rank)
-            return self.last_chunk_index * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
+                # not strictly needed but just to be safe for the future
+                async with self.file_locks[chunk_index]:
+                    for document in reader.read_file(filename):
+                        output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
+                        all_ids.add(document.id)
+                        self.per_chunk_counts[chunk_index] += 1
+                        if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
+                            # close the file
+                            output_writer_context.output_mg.pop(output_writer_context._get_output_filename(document, rank, chunk_index=chunk_index)).close()
+                            self.new_completed_chunks.add(chunk_index)
+                            # update the last chunk index/delete local file etc
+                            should_update_last_chunk_index = True
+            # can not be within the chunk lock
+            if should_update_last_chunk_index:
+                await self.update_last_chunk_index(rank)
+            return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
+
+    async def cleanup_last_chunk(self, rank: int, chunk_index: int):
+        import shutil
+        if self.checkpoints_local_dir is not None:
+            self.new_completed_chunks.add(chunk_index)
+            await self.update_last_chunk_index(rank)
+            rank_dir = os.path.join(self.checkpoints_local_dir, f"{rank:05d}")
+            # second part should be redundant as we technically only call this after everything completes but seems buggy for now
+            if os.path.exists(rank_dir) and self.last_chunk_index == chunk_index:
+                shutil.rmtree(rank_dir)
 
     async def update_last_chunk_index(self, rank: int):
         """
         Update the last chunk index and delete the local file if it's complete.
         """
-        import aiofiles.os
-
+        import os
         async with self.checkpoint_file_lock:
-            if not self.new_completed_chunks:
-                return
-        
             # possibly multiple ones, in case file +2 finished before +1
             while self.last_chunk_index + 1 in self.new_completed_chunks:
                 self.last_chunk_index += 1
                 async with self.file_locks[self.last_chunk_index]:
                     chunk_file = os.path.join(self.checkpoints_local_dir, f"{rank:05d}/chunk_{self.last_chunk_index:05d}.jsonl")
-                    if await aiofiles.os.path.exists(chunk_file):
-                        await aiofiles.os.remove(chunk_file)
+                    if os.path.exists(chunk_file):
+                        os.remove(chunk_file)
+                logger.info(f"Finished chunk {self.last_chunk_index}")
                 # clean up
                 self.file_locks.pop(self.last_chunk_index)
                 self.per_chunk_counts.pop(self.last_chunk_index)
                 self.new_completed_chunks.remove(self.last_chunk_index)
-            with self.checkpoints_local_dir_df.open(f"last_chunk/{rank:05d}.txt", "wt") as f:
-                f.write(str(self.last_chunk_index))
+                # save new last chunk index
+                with self.checkpoints_local_dir_df.open(f"last_chunk/{rank:05d}.txt", "wt") as f:
+                    f.write(str(self.last_chunk_index))
 
     def chunk_index_gen(self):
         ci = 0
@@ -297,6 +317,7 @@ class InferenceRunner(PipelineStep):
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
+        skip_bad_requests: bool = False,
     ):
         """
         Initialize the inference runner.
@@ -310,11 +331,13 @@ class InferenceRunner(PipelineStep):
             output_writer: Writer for saving inference results
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
+            skip_bad_requests: If True, will skip documents that cause BadRequestError from the server. Default: False.
         """
         super().__init__()
 
         self.query_builder = query_builder
         self.config = config
+        self.skip_bad_requests = skip_bad_requests
 
         self.output_writer = output_writer
 
@@ -413,10 +436,10 @@ class InferenceRunner(PipelineStep):
                     status, body = await _raw_post(url, json_data=payload)
                     if status == 400:
                         self.queue_sizes.change_queues({"running_requests": -1})
-                        return InferenceError(error=f"Got BadRequestError from server: {body.decode()}, skipping this response")
+                        return InferenceError(error=f"Got BadRequestError from server: {body.decode()}")
                     elif status == 500:
                         self.queue_sizes.change_queues({"running_requests": -1})
-                        return InferenceError(error=f"Got InternalServerError from server: {body.decode()}, skipping this response")
+                        return InferenceError(error=f"Got InternalServerError from server: {body.decode()}")
                     elif status != 200:
                         self.queue_sizes.change_queues({"running_requests": -1})
                         return InferenceError(error=f"Error http status {status}")
@@ -466,6 +489,7 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier
             chunk_index: Chunk index to save the document to
         """
+        logger.info(f"Saving document {document.id} in chunk {chunk_index}")
         # Track document metrics
         try:
             inference_results = document.metadata.get("inference_results", [])  # type: ignore
@@ -555,90 +579,81 @@ class InferenceRunner(PipelineStep):
         self.metrics.reset()
         metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
 
-        async def _handle_record(doc: Document, rank: int, chunk_index: int) -> tuple[Document, int]:
+        async def _handle_record(doc: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter) -> None:
             """
-            Handle inference requests for a single document.
+            Process a single document through the inference pipeline.
             
             Args:
                 doc: Document to process
                 rank: Process rank identifier
-                chunk_index: Chunk index of the document
-            Returns:
-                Document with inference results in metadata
-                chunk_index: Chunk index of the document
+                chunk_index: Chunk index for the document
+                output_writer_context: Output writer context for saving documents
                 
             Raises:
                 InferenceProcessingError: If document processing fails
             """
-            try:
-                with self.track_time(unit="request"):
-                    # Get payloads from query_builder
-                    payloads_result = self.query_builder(self, doc)
+            with self.track_time(unit="request"):
+                # Get payloads from query_builder
+                payloads_result = self.query_builder(self, doc)
 
-                    # Handle different return types
-                    request_tasks = []
+                # Handle different return types
+                request_tasks = []
 
-                    # Check if it's an async generator
-                    if isinstance(payloads_result, AsyncGenerator):
-                        # It's an async generator - process each payload as soon as it's yielded
-                        async for payload in payloads_result:
-                            # Set default values for payload
-                            payload.setdefault("model", self.config.model_name_or_path)
-                            payload.setdefault("temperature", self.config.temperature)
-
-                            # Start request immediately
-                            task = asyncio.create_task(self._send_request(payload, semaphore))
-                            request_tasks.append(task)
-
-                    elif isinstance(payloads_result, dict):
-                        # Single dict
-                        payload = payloads_result
+                # Check if it's an async generator
+                if isinstance(payloads_result, AsyncGenerator):
+                    # It's an async generator - process each payload as soon as it's yielded
+                    async for payload in payloads_result:
+                        # Set default values for payload
                         payload.setdefault("model", self.config.model_name_or_path)
                         payload.setdefault("temperature", self.config.temperature)
+
+                        # Start request immediately
                         task = asyncio.create_task(self._send_request(payload, semaphore))
                         request_tasks.append(task)
 
-                    if not request_tasks:
-                        raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
+                elif isinstance(payloads_result, dict):
+                    # Single dict
+                    payload = payloads_result
+                    payload.setdefault("model", self.config.model_name_or_path)
+                    payload.setdefault("temperature", self.config.temperature)
+                    task = asyncio.create_task(self._send_request(payload, semaphore))
+                    request_tasks.append(task)
 
-                    # Wait for all requests to complete and collect results in order
-                    results = await asyncio.gather(*request_tasks, return_exceptions=True)
+                if not request_tasks:
+                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
 
-                    inference_errors = []
-                    for resi, res in enumerate(results):
-                        if isinstance(res, Exception):
-                            inference_errors.append(str(res))
-                            results[resi] = None
+                # Wait for all requests to complete and collect results in order
+                results = await asyncio.gather(*request_tasks)
+                
+                for result in results:
+                    if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
+                        # re-raise any non-skippable errors
+                        raise InferenceProcessingError(doc, result.error)
 
-                    # Store results directly in document metadata
-                    doc.metadata["inference_results"] = results
-                    if inference_errors:
-                        doc.metadata["inference_errors"] = inference_errors
+                # Store results directly in document metadata
+                doc.metadata["inference_results"] = results
+            
+            # Save the document immediately after processing
+            await self._save_document(doc, output_writer_context, rank, chunk_index)
 
-            except InferenceProcessingError as e:
-                logger.warning(f"Document processing failed: {e}")
-                self.stat_update("failed_documents", value=1, unit="documents")
-                doc.metadata["inference_errors"] = [str(e)]
-            except Exception as e:
-                logger.exception(f"Unexpected error processing document: {e}")
-                self.stat_update("failed_documents", value=1, unit="documents")
-            return doc, chunk_index
-
-        # 2. Main processing loop - unified for both chunked and non-chunked, now async
-        tasks_pool: set[asyncio.Task] = set()        
+        # 2. Main processing loop
+        tasks_pool: set[asyncio.Task] = set()
         with self.output_writer as output_writer_context:
             # this will also upload locally cached documents to the output writer
             documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(rank, output_writer_context)
-
             if documents_to_skip > 0:
-                logger.info(f"Resuming from previous checkpoint. Will skip {documents_to_skip} already processed documents")
+                logger.info(f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents")
 
             # process remaining documents
-            async for record_idx, (record, chunk_index) in enumerate(zip(self._async_data_gen(data_gen), self.checkpoint_manager.chunk_index_gen())):
+            record_idx = -1
+            chunk_index_gen = self.checkpoint_manager.chunk_index_gen()
+            async for record in self._async_data_gen(data_gen):
+                record_idx += 1
+                chunk_index = next(chunk_index_gen)
                 # Skip documents if resuming from checkpoint
                 if record_idx < documents_to_skip:
                     continue
-                elif record_idx == documents_to_skip:
+                elif record_idx == documents_to_skip and documents_to_skip > 0:
                     logger.info(f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}")
 
                 # skip already processed documents from chunks in progress
@@ -650,27 +665,18 @@ class InferenceRunner(PipelineStep):
                 while len(tasks_pool) >= self.config.max_concurrent_tasks:
                     done, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
                     for task in done:
-                        try:
-                            result_document, completed_doc_chunk_index = task.result()
-                            await self._save_document(result_document, output_writer_context, rank, completed_doc_chunk_index)
-                        except Exception as e:
-                            logger.exception(f"Unexpected error processing document: {e}")
-                            self.stat_update("failed_documents", value=1, unit="documents")
+                        await task  # Re-raises any unhandled exception
 
                 # Add task for current record
-                task = asyncio.create_task(_handle_record(record, rank, chunk_index))
+                task = asyncio.create_task(_handle_record(record, rank, chunk_index, output_writer_context))
                 tasks_pool.add(task)
+                # not strictly needed but helps with mem usage
                 task.add_done_callback(tasks_pool.discard)
-
-            # 3. Process any remaining tasks
+                
+            # 3. Wait for all remaining tasks to complete
             if tasks_pool:
-                for result in (await asyncio.gather(*tasks_pool, return_exceptions=True)):
-                    if isinstance(result, Exception):
-                        logger.exception(f"Unexpected error processing document: {result}")
-                        self.stat_update("failed_documents", value=1, unit="documents")
-                    else:
-                        result_document, completed_doc_chunk_index = result
-                        await self._save_document(result_document, output_writer_context, rank, completed_doc_chunk_index)
+                await asyncio.gather(*tasks_pool)
+                await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
 
         # 4. shutdown inference server and metrics
         server_task.cancel()

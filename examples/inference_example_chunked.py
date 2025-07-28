@@ -6,7 +6,6 @@ with chunking enabled. Documents are processed in chunks with checkpoint support
 for resuming from failures. Each chunk is saved to a separate output file.
 """
 
-from collections.abc import AsyncGenerator
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
@@ -42,10 +41,11 @@ def query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]
 
 # Configuration
 OUTPUT_PATH: str = "s3://.../final_output_data"
+LOGS_PATH: str = "/fsx/.../finetranslations/inference_logs"
 CHECKPOINTS_PATH: str = "/fsx/.../finetranslations/translate-checkpoints"  # Path for checkpoint files
 
 # 1000 documents
-documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(1000)]
+documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(1005)]
 
 
 # Configure the inference settings with chunking
@@ -72,7 +72,7 @@ pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
             output_writer=JsonlWriter(OUTPUT_PATH, output_filename="${rank}_chunk_${chunk_index}.jsonl"),
         ),
     ],
-    logging_dir=None,
+    logging_dir=LOGS_PATH,
     tasks=1,  # Number of parallel tasks
 )
 
