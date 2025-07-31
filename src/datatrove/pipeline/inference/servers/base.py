@@ -11,14 +11,15 @@ class InferenceServer(ABC):
     """Abstract base class for inference servers."""
     _requires_dependencies = ["httpx"]
     
-    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Optional[dict] = None):
+    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Optional[dict] = None, server_log_folder: Optional[str] = None):
         self.model_name_or_path = model_name_or_path
         self.max_context = max_context
         self._server_task: Optional[asyncio.Task] = None
         self.port = None
         self.model_kwargs = model_kwargs or {}
+        self.server_log_folder = server_log_folder
 
-    def find_available_port(self, offset: int = 0) -> int:
+    def find_available_port(self, rank: int = 0) -> int:
         def _is_port_available(port: int, host: str = "127.0.0.1") -> bool:
             """Check if a port is available on the given host."""
             try:
@@ -28,9 +29,9 @@ class InferenceServer(ABC):
             except OSError:  # Catches errors like "address already in use"
                 return False
 
-        # Generate a random base port first, then add offset
+        # Generate a random base port first, then add rank
         base_port = random.randint(3000, 50000)
-        initial_port = base_port + offset
+        initial_port = base_port + rank
         
         # Ensure the port stays within reasonable bounds
         if initial_port > 65535:
@@ -65,6 +66,46 @@ class InferenceServer(ABC):
         
         return port
 
+    def _get_log_file_path(self, rank: int) -> str | None:
+        """Get the log file path for a given rank, or None if logging is disabled."""
+        if self.server_log_folder is None:
+            return None
+        return f"{self.server_log_folder}/server_rank_{rank}.log"
+
+    def _should_log_to_file(self) -> bool:
+        """Check if server output should be logged to file."""
+        return self.server_log_folder is not None
+        
+    def _create_server_logger(self, rank: int):
+        """Create a dedicated logger for server output that writes to file."""
+        if not self._should_log_to_file():
+            return None
+            
+        import logging
+        import os
+        
+        log_file_path = self._get_log_file_path(rank)
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+        
+        # Create a dedicated logger for this server instance
+        server_logger = logging.getLogger(f"{self.__class__.__name__}_rank_{rank:05d}")
+        server_logger.setLevel(logging.INFO)
+        
+        # Remove any existing handlers to avoid duplicates
+        server_logger.handlers.clear()
+        
+        # Create file handler
+        file_handler = logging.FileHandler(log_file_path, mode='w')
+        file_handler.setLevel(logging.INFO)
+        
+        # Create a simple formatter (just the message, no timestamp since server provides its own)
+        formatter = logging.Formatter('%(message)s')
+        file_handler.setFormatter(formatter)
+        
+        server_logger.addHandler(file_handler)
+        server_logger.propagate = False  # Don't propagate to root logger
+        
+        return server_logger
         
     @abstractmethod
     async def start_server_task(self) -> None:
@@ -81,15 +122,15 @@ class InferenceServer(ABC):
         except Exception:
             return False 
     
-    async def host_server(self, offset: int = 0, max_retries: int = 5) -> None:
+    async def host_server(self, rank: int = 0, max_retries: int = 5) -> None:
         """Host the server with retry logic."""
         retry = 0
-
+        self.rank = rank  # Store rank for log file naming
 
         while retry < max_retries:
             try:
                 # Find available port for this attempt
-                port = self.find_available_port(offset)
+                port = self.find_available_port(rank)
                 self.port = port
                 self._server_task = asyncio.create_task(self.start_server_task())
                 await self._server_task

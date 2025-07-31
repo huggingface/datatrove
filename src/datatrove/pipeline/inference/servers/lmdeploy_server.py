@@ -15,10 +15,11 @@ from datatrove.pipeline.inference.servers import InferenceServer
 
 class LMDeployServer(InferenceServer):
     """LMDeploy inference server implementation."""
-    async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
+    
+    async def start_server_task(self) -> None:
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
-        self.port = self.find_available_port(offset)
+        self.port = self.find_available_port(getattr(self, 'rank', 0))
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
         
         cmd = [
@@ -69,8 +70,17 @@ class LMDeployServer(InferenceServer):
         atexit.register(_kill_proc)
 
         server_printed_ready_message = False
+        
+        # Create dedicated logger for server output
+        server_logger = self._create_server_logger(getattr(self, 'rank', 0))
+        
         def process_line(line):
             nonlocal server_printed_ready_message
+            
+            # Always log to file if server logger is available
+            if server_logger:
+                server_logger.info(line)
+            
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
                 logger.info(line)

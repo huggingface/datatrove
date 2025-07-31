@@ -14,7 +14,7 @@ from loguru import logger
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
 
-    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: dict | None = None):
+    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: dict | None = None, server_log_folder: str | None = None):
         """
         Initialize VLLM server.
         
@@ -22,10 +22,11 @@ class VLLMServer(InferenceServer):
             model_name_or_path: Path or name of the model to load
             max_context: Maximum context length for the model
             model_kwargs: Additional keyword arguments for model initialization
+            server_log_folder: Optional directory path where server logs will be stored
         """
         # Check required dependencies for VLLM server
         check_required_dependencies("VLLM server", ["vllm"])
-        super().__init__(model_name_or_path, max_context, model_kwargs)
+        super().__init__(model_name_or_path, max_context, model_kwargs, server_log_folder)
 
     async def start_server_task(self) -> None:
         """Start the VLLM server process."""
@@ -60,9 +61,16 @@ class VLLMServer(InferenceServer):
         atexit.register(_kill_proc)
 
         server_printed_ready_message = False
+        
+        # Create dedicated logger for server output
+        server_logger = self._create_server_logger(getattr(self, 'rank', 0))
 
         async def process_line(line):
             nonlocal server_printed_ready_message
+
+            # Always log to file if server logger is available
+            if server_logger:
+                server_logger.info(line)
 
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:

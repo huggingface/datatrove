@@ -38,15 +38,23 @@ class SGLangServer(InferenceServer):
 
         # Ensure the subprocess is terminated on exit
         def _kill_proc():
-            if self.server_process:
+            if self.server_process and self.server_process.returncode is None:
                 self.server_process.terminate()
 
         atexit.register(_kill_proc)
 
         server_printed_ready_message = False
         
+        # Create dedicated logger for server output
+        server_logger = self._create_server_logger(getattr(self, 'rank', 0))
+        
         def process_line(line):
             nonlocal server_printed_ready_message
+            
+            # Always log to file if server logger is available
+            if server_logger:
+                server_logger.info(line)
+            
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
                 logger.info(line)

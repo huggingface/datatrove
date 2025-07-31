@@ -77,19 +77,18 @@ class DummyHandler(BaseHTTPRequestHandler):
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
     
-    def __init__(self, model_name_or_path: str, model_kwargs: dict | None = None):
+    def __init__(self, model_name_or_path: str, model_kwargs: dict | None = None, server_log_folder: str | None = None):
         # DummyServer doesn't need chat_template or max_context for its simple functionality
         super().__init__(
             model_name_or_path=model_name_or_path,
             max_context=8192,       # placeholder  
-            model_kwargs=model_kwargs
+            model_kwargs=model_kwargs,
+            server_log_folder=server_log_folder
         )
         self.server: HTTPServer = None
         
-    async def start_server_task(self, offset: int = 0) -> None:
+    async def start_server_task(self) -> None:
         """Start the dummy HTTP server in a separate thread."""
-        # Find available port for this instance
-        self.port = self.find_available_port(offset)
         
         def run_server():
             self.server = HTTPServer(('localhost', self.port), DummyHandler)

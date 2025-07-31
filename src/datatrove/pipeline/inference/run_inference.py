@@ -146,7 +146,14 @@ class InferenceConfig:
             If your query_builder is slow, it's better to provide higher value than concurrent requests
             to ensure that there are always enough requests to keep the server busy
         metric_interval: Interval for metrics reporting in seconds
+        tp: Tensor parallelism size (number of GPUs to use). Automatically converted to 
+            --tensor-parallel-size for VLLM or --tp-size for SGLang. Default is 1 (no parallelism)
+        use_chat: Whether to use chat format (/v1/chat/completions) or completion format (/v1/completions).
+            Set to False for models without chat templates. Default is True.
         model_kwargs: Additional keyword arguments for model initialization (Will be provided as --key=value to the model)
+        server_log_folder: Optional directory path where server logs will be stored. 
+            If provided, creates one log file per rank (e.g., server_rank_0.log). If None, server output
+            is muted after startup completion.
     """
     server_type: Literal["sglang", "vllm", "dummy"]
     model_name_or_path: str
@@ -155,7 +162,10 @@ class InferenceConfig:
     max_concurrent_requests: int = 500
     max_concurrent_tasks: int = 500
     metric_interval: int = 120
+    tp: int = 1
+    use_chat: bool = True
     model_kwargs: dict | None = None
+    server_log_folder: str | None = None
 
 # --------------------------------------------------------------------------- #
 # Manages output saving, checkpointing, and chunking
@@ -390,23 +400,41 @@ class InferenceRunner(PipelineStep):
         """
         stype = self.config.server_type
         
+        # Prepare model_kwargs with tensor parallelism configuration
+        model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
+        
+        # Add tensor parallelism parameter if tp > 1 and not already specified
+        if self.config.tp > 1:
+            if stype == "sglang":
+                # SGLang uses --tp-size for tensor parallelism
+                if "tp-size" not in model_kwargs:
+                    model_kwargs["tp-size"] = self.config.tp
+            elif stype == "vllm":
+                # VLLM uses --tensor-parallel-size for tensor parallelism
+                if "tensor-parallel-size" not in model_kwargs:
+                    model_kwargs["tensor-parallel-size"] = self.config.tp
+            # dummy server doesn't support tensor parallelism, so we ignore tp for it
+        
         if stype == "sglang":
             return SGLangServer(
                 self.config.model_name_or_path,
                 self.config.model_max_context,
-                self.config.model_kwargs,
+                model_kwargs,
+                self.config.server_log_folder,
             )
         elif stype == "vllm":
             return VLLMServer(
                 self.config.model_name_or_path,
                 self.config.model_max_context,
-                self.config.model_kwargs,
+                model_kwargs,
+                self.config.server_log_folder,
             )
         elif stype == "dummy":
             # Dummy server only uses standard library modules
             return DummyServer(
                 self.config.model_name_or_path,
-                self.config.model_kwargs,
+                model_kwargs,
+                self.config.server_log_folder,
             )
         else:
             raise ValueError(f"Unsupported server type: {stype}")
@@ -422,7 +450,13 @@ class InferenceRunner(PipelineStep):
         Returns:
             InferenceSuccess with response data or InferenceError with error message
         """
-        url = f"http://localhost:{self.server.port}/v1/chat/completions"
+        # Choose endpoint based on use_chat setting
+        if self.config.use_chat:
+            endpoint = "/v1/chat/completions"
+        else:
+            endpoint = "/v1/completions"
+        
+        url = f"http://localhost:{self.server.port}{endpoint}"
         max_retries = 6
         attempt = 0
 
@@ -454,9 +488,15 @@ class InferenceRunner(PipelineStep):
                         tokens_output=usage.get("completion_tokens", 0),
                     )
 
+                    # Parse response based on endpoint type
+                    if self.config.use_chat:
+                        text = choice["message"]["content"]
+                    else:
+                        text = choice["text"]
+
                     self.queue_sizes.change_queues({"running_requests": -1})
                     return InferenceSuccess(
-                        text=choice["message"]["content"],
+                        text=text,
                         finish_reason=choice["finish_reason"],
                         usage=usage
                     )
@@ -489,7 +529,6 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier
             chunk_index: Chunk index to save the document to
         """
-        logger.info(f"Saving document {document.id} in chunk {chunk_index}")
         # Track document metrics
         try:
             inference_results = document.metadata.get("inference_results", [])  # type: ignore
@@ -570,7 +609,7 @@ class InferenceRunner(PipelineStep):
         self._init_server()
         semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
         server_task = asyncio.create_task(
-            self.server.host_server(offset=rank)
+            self.server.host_server(rank=rank)
         )
         await self.server.wait_until_ready()
         logger.info(f"Inference server up on port {self.server.port}")
@@ -592,49 +631,55 @@ class InferenceRunner(PipelineStep):
             Raises:
                 InferenceProcessingError: If document processing fails
             """
-            with self.track_time(unit="request"):
-                # Get payloads from query_builder
-                payloads_result = self.query_builder(self, doc)
+            try:
+                with self.track_time(unit="request"):
+                    # Get payloads from query_builder
+                    payloads_result = self.query_builder(self, doc)
 
-                # Handle different return types
-                request_tasks = []
+                    # Handle different return types
+                    request_tasks = []
 
-                # Check if it's an async generator
-                if isinstance(payloads_result, AsyncGenerator):
-                    # It's an async generator - process each payload as soon as it's yielded
-                    async for payload in payloads_result:
-                        # Set default values for payload
+                    # Check if it's an async generator
+                    if isinstance(payloads_result, AsyncGenerator):
+                        # It's an async generator - process each payload as soon as it's yielded
+                        async for payload in payloads_result:
+                            # Set default values for payload
+                            payload.setdefault("model", self.config.model_name_or_path)
+                            payload.setdefault("temperature", self.config.temperature)
+
+                            # Start request immediately
+                            task = asyncio.create_task(self._send_request(payload, semaphore))
+                            request_tasks.append(task)
+
+                    elif isinstance(payloads_result, dict):
+                        # Single dict
+                        payload = payloads_result
                         payload.setdefault("model", self.config.model_name_or_path)
                         payload.setdefault("temperature", self.config.temperature)
-
-                        # Start request immediately
                         task = asyncio.create_task(self._send_request(payload, semaphore))
                         request_tasks.append(task)
 
-                elif isinstance(payloads_result, dict):
-                    # Single dict
-                    payload = payloads_result
-                    payload.setdefault("model", self.config.model_name_or_path)
-                    payload.setdefault("temperature", self.config.temperature)
-                    task = asyncio.create_task(self._send_request(payload, semaphore))
-                    request_tasks.append(task)
+                    if not request_tasks:
+                        raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
 
-                if not request_tasks:
-                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
+                    # Wait for all requests to complete and collect results in order
+                    results = await asyncio.gather(*request_tasks)
+                    
+                    for result in results:
+                        if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
+                            # re-raise any non-skippable errors
+                            raise InferenceProcessingError(doc, result.error)
 
-                # Wait for all requests to complete and collect results in order
-                results = await asyncio.gather(*request_tasks)
+                    # Store results directly in document metadata
+                    doc.metadata["inference_results"] = results
                 
-                for result in results:
-                    if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
-                        # re-raise any non-skippable errors
-                        raise InferenceProcessingError(doc, result.error)
-
-                # Store results directly in document metadata
-                doc.metadata["inference_results"] = results
-            
-            # Save the document immediately after processing
-            await self._save_document(doc, output_writer_context, rank, chunk_index)
+                # Save the document immediately after processing
+                await self._save_document(doc, output_writer_context, rank, chunk_index)
+            except InferenceProcessingError as e:
+                raise e
+            except Exception as e:
+                # let's propagate it
+                raise InferenceProcessingError(doc, e)
 
         # 2. Main processing loop
         tasks_pool: set[asyncio.Task] = set()
@@ -670,8 +715,6 @@ class InferenceRunner(PipelineStep):
                 # Add task for current record
                 task = asyncio.create_task(_handle_record(record, rank, chunk_index, output_writer_context))
                 tasks_pool.add(task)
-                # not strictly needed but helps with mem usage
-                task.add_done_callback(tasks_pool.discard)
                 
             # 3. Wait for all remaining tasks to complete
             if tasks_pool:
