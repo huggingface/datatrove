@@ -148,6 +148,12 @@ class InferenceConfig:
         metric_interval: Interval for metrics reporting in seconds
         tp: Tensor parallelism size (number of GPUs to use). Automatically converted to 
             --tensor-parallel-size for VLLM or --tp-size for SGLang. Default is 1 (no parallelism)
+        dp: Data parallelism size (number of full model replicas). Each replica can span multiple GPUs 
+            if tensor parallelism is also used. Automatically converted to --data-parallel-size for VLLM 
+            or --dp-size for SGLang. Default is 1 (no parallelism)
+        pp: Pipeline parallelism size (number of pipeline stages). Model layers are distributed across 
+            pipeline stages for processing in sequence. Automatically converted to --pipeline-parallel-size 
+            for VLLM or --pp-size for SGLang. Default is 1 (no parallelism)
         use_chat: Whether to use chat format (/v1/chat/completions) or completion format (/v1/completions).
             Set to False for models without chat templates. Default is True.
         model_kwargs: Additional keyword arguments for model initialization (Will be provided as --key=value to the model)
@@ -163,6 +169,8 @@ class InferenceConfig:
     max_concurrent_tasks: int = 500
     metric_interval: int = 120
     tp: int = 1
+    dp: int = 1
+    pp: int = 1
     use_chat: bool = True
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
@@ -400,7 +408,7 @@ class InferenceRunner(PipelineStep):
         """
         stype = self.config.server_type
         
-        # Prepare model_kwargs with tensor parallelism configuration
+        # Prepare model_kwargs with parallelism configuration
         model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
         
         # Add tensor parallelism parameter if tp > 1 and not already specified
@@ -414,6 +422,30 @@ class InferenceRunner(PipelineStep):
                 if "tensor-parallel-size" not in model_kwargs:
                     model_kwargs["tensor-parallel-size"] = self.config.tp
             # dummy server doesn't support tensor parallelism, so we ignore tp for it
+        
+        # Add data parallelism parameter if dp > 1 and not already specified
+        if self.config.dp > 1:
+            if stype == "sglang":
+                # SGLang uses --dp-size for data parallelism
+                if "dp-size" not in model_kwargs:
+                    model_kwargs["dp-size"] = self.config.dp
+            elif stype == "vllm":
+                # VLLM uses --data-parallel-size for data parallelism
+                if "data-parallel-size" not in model_kwargs:
+                    model_kwargs["data-parallel-size"] = self.config.dp
+            # dummy server doesn't support data parallelism, so we ignore dp for it
+        
+        # Add pipeline parallelism parameter if pp > 1 and not already specified
+        if self.config.pp > 1:
+            if stype == "sglang":
+                # SGLang uses --pp-size for pipeline parallelism
+                if "pp-size" not in model_kwargs:
+                    model_kwargs["pp-size"] = self.config.pp
+            elif stype == "vllm":
+                # VLLM uses --pipeline-parallel-size for pipeline parallelism
+                if "pipeline-parallel-size" not in model_kwargs:
+                    model_kwargs["pipeline-parallel-size"] = self.config.pp
+            # dummy server doesn't support pipeline parallelism, so we ignore pp for it
         
         if stype == "sglang":
             return SGLangServer(
