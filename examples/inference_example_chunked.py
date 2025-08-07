@@ -6,11 +6,12 @@ with chunking enabled. Documents are processed in chunks with checkpoint support
 for resuming from failures. Each chunk is saved to a separate output file.
 """
 
+from typing import Any
+
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.writers import JsonlWriter
-from typing import Any
 
 
 """
@@ -20,17 +21,17 @@ You can use either an async query builder yielding queries or siple sync query b
 def query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
     """
     Query builder for Language Model.
-    
+
     Args:
         document: Input document with image URL or content
-        
+
     Returns:
         Query payload dictionary for the inference server containing messages and max_tokens
     """
     return {
         "messages": [
             {
-                "role": "user", 
+                "role": "user",
                 "content": [
                     {"type": "text", "text": document.text},
                 ]
@@ -78,4 +79,4 @@ pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
 
 if __name__ == "__main__":
     # Run the pipeline
-    pipeline_executor.run() 
+    pipeline_executor.run()
