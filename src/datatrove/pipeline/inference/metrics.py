@@ -85,6 +85,7 @@ class QueueSizesKeeper:
     """
     A class to keep track of current queue sizes.
     """
+
     def __init__(self):
         """
         Initializes the QueueSizesKeeper with an empty dictionary for queue sizes.

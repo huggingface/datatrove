@@ -12,12 +12,12 @@ class DummyHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/v1/chat/completions":
             # Read the request body
-            content_length = int(self.headers['Content-Length'])
+            content_length = int(self.headers["Content-Length"])
             request_body = self.rfile.read(content_length)
 
             # Parse the request to get basic info
             try:
-                request_data = json.loads(request_body.decode('utf-8'))
+                request_data = json.loads(request_body.decode("utf-8"))
                 # Estimate tokens based on content length (rough approximation)
                 prompt_tokens = len(str(request_data)) // 4  # Rough token estimate
                 completion_tokens = 100  # Fixed completion tokens for consistency
@@ -26,25 +26,27 @@ class DummyHandler(BaseHTTPRequestHandler):
                 completion_tokens = 100
 
             response_data = {
-                "choices": [{
-                    "message": {
-                        "content": "This is dummy text content for debugging purposes. Page contains sample text to simulate OCR output."
-                    },
-                    "finish_reason": "stop"
-                }],
+                "choices": [
+                    {
+                        "message": {
+                            "content": "This is dummy text content for debugging purposes. Page contains sample text to simulate OCR output."
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
                 "usage": {
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens
-                }
+                    "total_tokens": prompt_tokens + completion_tokens,
+                },
             }
 
             # Send response
-            response_body = json.dumps(response_data).encode('utf-8')
+            response_body = json.dumps(response_data).encode("utf-8")
 
             self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(response_body)))
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response_body)))
             self.end_headers()
             self.wfile.write(response_body)
         else:
@@ -54,15 +56,12 @@ class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/v1/models":
             # Simple models endpoint for readiness check
-            response_data = {
-                "object": "list",
-                "data": [{"id": "dummy-model", "object": "model"}]
-            }
-            response_body = json.dumps(response_data).encode('utf-8')
+            response_data = {"object": "list", "data": [{"id": "dummy-model", "object": "model"}]}
+            response_body = json.dumps(response_data).encode("utf-8")
 
             self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(response_body)))
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response_body)))
             self.end_headers()
             self.wfile.write(response_body)
         else:
@@ -77,13 +76,15 @@ class DummyHandler(BaseHTTPRequestHandler):
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
 
-    def __init__(self, model_name_or_path: str, model_kwargs: dict | None = None, server_log_folder: str | None = None):
+    def __init__(
+        self, model_name_or_path: str, model_kwargs: dict | None = None, server_log_folder: str | None = None
+    ):
         # DummyServer doesn't need chat_template or max_context for its simple functionality
         super().__init__(
             model_name_or_path=model_name_or_path,
-            max_context=8192,       # placeholder
+            max_context=8192,  # placeholder
             model_kwargs=model_kwargs,
-            server_log_folder=server_log_folder
+            server_log_folder=server_log_folder,
         )
         self.server: HTTPServer = None
 
@@ -91,7 +92,7 @@ class DummyServer(InferenceServer):
         """Start the dummy HTTP server in a separate thread."""
 
         def run_server():
-            self.server = HTTPServer(('localhost', self.port), DummyHandler)
+            self.server = HTTPServer(("localhost", self.port), DummyHandler)
             logger.info(f"Dummy server started on port {self.port}")
             self.server.serve_forever()
 
@@ -115,6 +116,7 @@ class DummyServer(InferenceServer):
     async def is_ready(self) -> bool:
         """Check if dummy server is ready (simpler than sglang check)."""
         import httpx
+
         url = f"http://localhost:{self.port}/v1/models"
         try:
             async with httpx.AsyncClient() as session:

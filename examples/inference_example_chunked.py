@@ -18,6 +18,7 @@ from datatrove.pipeline.writers import JsonlWriter
 You can use either an async query builder yielding queries or siple sync query builder, which just yields a single query.
 """
 
+
 def query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
     """
     Query builder for Language Model.
@@ -34,11 +35,12 @@ def query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]
                 "role": "user",
                 "content": [
                     {"type": "text", "text": document.text},
-                ]
+                ],
             }
         ],
         "max_tokens": 4096,
     }
+
 
 # Configuration
 OUTPUT_PATH: str = "s3://.../final_output_data"

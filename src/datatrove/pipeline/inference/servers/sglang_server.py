@@ -19,7 +19,8 @@ class SGLangServer(InferenceServer):
             "--model-path",
             self.model_name_or_path,
             "--allow-auto-truncate",
-            "--context-length", str(self.max_context),
+            "--context-length",
+            str(self.max_context),
             "--port",
             str(self.port),
             "--log-level-http",
@@ -44,7 +45,7 @@ class SGLangServer(InferenceServer):
         server_printed_ready_message = False
 
         # Create dedicated logger for server output
-        server_logger = self._create_server_logger(getattr(self, 'rank', 0))
+        server_logger = self._create_server_logger(getattr(self, "rank", 0))
 
         def process_line(line):
             nonlocal server_printed_ready_message

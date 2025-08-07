@@ -33,7 +33,7 @@ class ControlledQueryBuilder:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": document.text},
-                    ]
+                    ],
                 }
             ],
             "max_tokens": 100,
@@ -48,7 +48,7 @@ def read_output_files(output_path):
     all_docs = []
 
     for output_file in output_files:
-        with open(output_file, 'r') as f:
+        with open(output_file, "r") as f:
             for line in f:
                 if line.strip():
                     doc_data = json.loads(line.strip())
@@ -98,7 +98,9 @@ def test_checkpoint_recovery_and_completeness():
                     config=config,
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
-                    output_writer=JsonlWriter(str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None),
+                    output_writer=JsonlWriter(
+                        str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+                    ),
                 ),
             ],
             logging_dir=str(logs_path / "checkpoint_test_run1"),
@@ -123,7 +125,7 @@ def test_checkpoint_recovery_and_completeness():
         # Check last_chunk tracking file
         last_chunk_file = checkpoint_path / "last_chunk" / "00000.txt"
         if last_chunk_file.exists():
-            with open(last_chunk_file, 'r') as f:
+            with open(last_chunk_file, "r") as f:
                 last_completed_chunk = int(f.read().strip())
                 assert last_completed_chunk >= 0, "Should have completed at least one chunk"
 
@@ -133,7 +135,7 @@ def test_checkpoint_recovery_and_completeness():
         assert len(partial_docs) <= fail_after_docs, f"Should not have more than {fail_after_docs} docs from first run"
 
         # Track which documents were processed in first run
-        {doc['id'] for doc in partial_docs}
+        {doc["id"] for doc in partial_docs}
 
         # === SECOND RUN: Should resume from checkpoint ===
         success_query_builder = ControlledQueryBuilder()  # No failures this time
@@ -146,7 +148,9 @@ def test_checkpoint_recovery_and_completeness():
                     config=config,
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
-                    output_writer=JsonlWriter(str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None),
+                    output_writer=JsonlWriter(
+                        str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+                    ),
                 ),
             ],
             logging_dir=str(logs_path / "checkpoint_test_run2"),
@@ -163,12 +167,14 @@ def test_checkpoint_recovery_and_completeness():
         assert len(final_docs) == num_docs, f"Expected {num_docs} documents, got {len(final_docs)}"
 
         # Check all document IDs are present and unique
-        final_ids = {doc['id'] for doc in final_docs}
+        final_ids = {doc["id"] for doc in final_docs}
         expected_ids = {str(i) for i in range(num_docs)}
-        assert final_ids == expected_ids, f"Missing IDs: {expected_ids - final_ids}, Extra IDs: {final_ids - expected_ids}"
+        assert final_ids == expected_ids, (
+            f"Missing IDs: {expected_ids - final_ids}, Extra IDs: {final_ids - expected_ids}"
+        )
 
         # Verify no duplicates (each document processed exactly once)
-        final_ids_list = [doc['id'] for doc in final_docs]
+        final_ids_list = [doc["id"] for doc in final_docs]
         assert len(final_ids_list) == len(set(final_ids_list)), "Found duplicate documents in output"
 
         # === VERIFY CHUNKING ===
@@ -177,28 +183,32 @@ def test_checkpoint_recovery_and_completeness():
 
         # Verify chunk sizes
         for i, output_file in enumerate(final_files):
-            with open(output_file, 'r') as f:
+            with open(output_file, "r") as f:
                 chunk_docs = [json.loads(line.strip()) for line in f if line.strip()]
 
             if i < expected_chunks - 1:  # All chunks except last should be full
-                assert len(chunk_docs) == records_per_chunk, f"Chunk {i} should have {records_per_chunk} docs, got {len(chunk_docs)}"
+                assert len(chunk_docs) == records_per_chunk, (
+                    f"Chunk {i} should have {records_per_chunk} docs, got {len(chunk_docs)}"
+                )
             else:  # Last chunk may be partial
                 expected_last_chunk_size = num_docs - (expected_chunks - 1) * records_per_chunk
-                assert len(chunk_docs) == expected_last_chunk_size, f"Last chunk should have {expected_last_chunk_size} docs, got {len(chunk_docs)}"
+                assert len(chunk_docs) == expected_last_chunk_size, (
+                    f"Last chunk should have {expected_last_chunk_size} docs, got {len(chunk_docs)}"
+                )
 
         # === VERIFY INFERENCE RESULTS ===
         for doc in final_docs:
-            assert 'metadata' in doc, f"Document {doc['id']} missing metadata"
-            assert 'inference_results' in doc['metadata'], f"Document {doc['id']} missing inference_results"
+            assert "metadata" in doc, f"Document {doc['id']} missing metadata"
+            assert "inference_results" in doc["metadata"], f"Document {doc['id']} missing inference_results"
 
-            inference_results = doc['metadata']['inference_results']
+            inference_results = doc["metadata"]["inference_results"]
             assert len(inference_results) > 0, f"Document {doc['id']} has no inference results"
 
             # Verify inference result structure (dummy server should return success)
             for result in inference_results:
-                assert 'text' in result, f"Inference result missing 'text' field for doc {doc['id']}"
-                assert 'finish_reason' in result, f"Inference result missing 'finish_reason' field for doc {doc['id']}"
-                assert 'usage' in result, f"Inference result missing 'usage' field for doc {doc['id']}"
+                assert "text" in result, f"Inference result missing 'text' field for doc {doc['id']}"
+                assert "finish_reason" in result, f"Inference result missing 'finish_reason' field for doc {doc['id']}"
+                assert "usage" in result, f"Inference result missing 'usage' field for doc {doc['id']}"
 
 
 def test_complete_pipeline_with_various_scenarios():
@@ -228,7 +238,7 @@ def test_complete_pipeline_with_various_scenarios():
                         "role": "user",
                         "content": [
                             {"type": "text", "text": document.text},
-                        ]
+                        ],
                     }
                 ],
                 "max_tokens": 4096,
@@ -252,7 +262,9 @@ def test_complete_pipeline_with_various_scenarios():
                     config=config,
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
-                    output_writer=JsonlWriter(str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None),
+                    output_writer=JsonlWriter(
+                        str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+                    ),
                 ),
             ],
             logging_dir=str(logs_path / "complete_test_run"),
@@ -269,21 +281,21 @@ def test_complete_pipeline_with_various_scenarios():
         assert len(final_docs) == num_docs, f"Expected {num_docs} documents, got {len(final_docs)}"
 
         # Verify all document IDs present
-        processed_ids = {doc['id'] for doc in final_docs}
+        processed_ids = {doc["id"] for doc in final_docs}
         expected_ids = {str(i) for i in range(num_docs)}
         assert processed_ids == expected_ids, "Not all documents were processed"
 
         # === VERIFY SUCCESSFUL RESULTS ===
         for doc in final_docs:
-            inference_results = doc['metadata']['inference_results']
+            inference_results = doc["metadata"]["inference_results"]
             assert len(inference_results) > 0, f"Document {doc['id']} has no inference results"
 
             # All results should be successful (dummy server always succeeds)
             for result in inference_results:
-                assert 'text' in result, "Success result should have text"
-                assert 'finish_reason' in result, "Success result should have finish_reason"
-                assert 'usage' in result, "Success result should have usage stats"
-                assert 'error' not in result, "Should not have error in successful result"
+                assert "text" in result, "Success result should have text"
+                assert "finish_reason" in result, "Success result should have finish_reason"
+                assert "usage" in result, "Success result should have usage stats"
+                assert "error" not in result, "Should not have error in successful result"
 
         # === VERIFY CHUNKING CORRECTNESS ===
         expected_chunks = (num_docs + records_per_chunk - 1) // records_per_chunk  # Should be 3 chunks
@@ -292,7 +304,7 @@ def test_complete_pipeline_with_various_scenarios():
         # Verify chunk contents
         chunk_doc_counts = []
         for output_file in final_files:
-            with open(output_file, 'r') as f:
+            with open(output_file, "r") as f:
                 chunk_docs = [json.loads(line.strip()) for line in f if line.strip()]
                 chunk_doc_counts.append(len(chunk_docs))
 
@@ -302,7 +314,9 @@ def test_complete_pipeline_with_various_scenarios():
 
         # Last chunk should have remaining 5 documents (1000-1004)
         expected_last_count = num_docs - (expected_chunks - 1) * records_per_chunk  # Should be 5
-        assert chunk_doc_counts[-1] == expected_last_count, f"Last chunk should have {expected_last_count} docs, got {chunk_doc_counts[-1]}"
+        assert chunk_doc_counts[-1] == expected_last_count, (
+            f"Last chunk should have {expected_last_count} docs, got {chunk_doc_counts[-1]}"
+        )
 
 
 if __name__ == "__main__":

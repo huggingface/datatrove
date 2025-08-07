@@ -11,9 +11,16 @@ from loguru import logger
 
 class InferenceServer(ABC):
     """Abstract base class for inference servers."""
+
     _requires_dependencies = ["httpx"]
 
-    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Optional[dict] = None, server_log_folder: Optional[str] = None):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        max_context: int,
+        model_kwargs: Optional[dict] = None,
+        server_log_folder: Optional[str] = None,
+    ):
         self.model_name_or_path = model_name_or_path
         self.max_context = max_context
         self._server_task: Optional[asyncio.Task] = None
@@ -96,11 +103,11 @@ class InferenceServer(ABC):
         server_logger.handlers.clear()
 
         # Create file handler
-        file_handler = logging.FileHandler(log_file_path, mode='w')
+        file_handler = logging.FileHandler(log_file_path, mode="w")
         file_handler.setLevel(logging.INFO)
 
         # Create a simple formatter (just the message, no timestamp since server provides its own)
-        formatter = logging.Formatter('%(message)s')
+        formatter = logging.Formatter("%(message)s")
         file_handler.setFormatter(formatter)
 
         server_logger.addHandler(file_handler)

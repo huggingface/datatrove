@@ -19,18 +19,14 @@ if not is_rich_available():
 
 parser = argparse.ArgumentParser("Track job progress with optional continuous monitoring.")
 
-parser.add_argument(
-    "path", type=str, help="Path to the logging folder(s). May contain glob patterns like '*'."
-)
+parser.add_argument("path", type=str, help="Path to the logging folder(s). May contain glob patterns like '*'.")
 
-parser.add_argument(
-    "-i", "--interval", type=int, help="Refresh interval in seconds for continuous monitoring."
-)
+parser.add_argument("-i", "--interval", type=int, help="Refresh interval in seconds for continuous monitoring.")
 
 
 def expand_path_pattern(path_pattern):
     """Expand glob pattern or return original path if no magic characters."""
-    if any(char in path_pattern for char in ['*', '?', '[']):
+    if any(char in path_pattern for char in ["*", "?", "["]):
         return glob.glob(path_pattern)
     else:
         return [path_pattern]
@@ -76,11 +72,7 @@ def get_job_status(job_path, completed_jobs_cache):
         completed_count = len(completed)
 
         is_complete = completed_count == world_size
-        status = {
-            'completed_tasks': completed_count,
-            'total_tasks': world_size,
-            'is_complete': is_complete
-        }
+        status = {"completed_tasks": completed_count, "total_tasks": world_size, "is_complete": is_complete}
 
         # Cache completed jobs to avoid re-checking
         if is_complete:
@@ -96,18 +88,18 @@ def create_display(job_statuses, console, previous_state=None):
     """Create the display panel with progress information."""
     # Calculate job progress
     total_jobs = len(job_statuses)
-    completed_jobs = sum(1 for status in job_statuses.values() if status and status['is_complete'])
+    completed_jobs = sum(1 for status in job_statuses.values() if status and status["is_complete"])
 
     # Calculate task progress
-    total_tasks = sum(status['total_tasks'] for status in job_statuses.values() if status)
-    completed_tasks = sum(status['completed_tasks'] for status in job_statuses.values() if status)
+    total_tasks = sum(status["total_tasks"] for status in job_statuses.values() if status)
+    completed_tasks = sum(status["completed_tasks"] for status in job_statuses.values() if status)
 
     # Calculate deltas from previous state
     job_delta = ""
     task_delta = ""
     if previous_state:
-        job_diff = completed_jobs - previous_state.get('completed_jobs', 0)
-        task_diff = completed_tasks - previous_state.get('completed_tasks', 0)
+        job_diff = completed_jobs - previous_state.get("completed_jobs", 0)
+        task_diff = completed_tasks - previous_state.get("completed_tasks", 0)
         if job_diff > 0:
             job_delta = f" [bright_green](+{job_diff} completed)[/bright_green]"
         if task_diff > 0:
@@ -127,7 +119,9 @@ def create_display(job_statuses, console, previous_state=None):
     available_width = max(console.size.width - 35, 20)  # More conservative margin
     bar_width = available_width
 
-    def create_progress_bar(current_percentage, previous_percentage=0, filled_char="█", new_char="▓", empty_char="░", cursor_char="▶"):
+    def create_progress_bar(
+        current_percentage, previous_percentage=0, filled_char="█", new_char="▓", empty_char="░", cursor_char="▶"
+    ):
         current_filled = int(current_percentage / 100 * bar_width)
         previous_filled = int(previous_percentage / 100 * bar_width)
 
@@ -161,8 +155,16 @@ def create_display(job_statuses, console, previous_state=None):
     prev_job_percentage = 0
     prev_task_percentage = 0
     if previous_state:
-        prev_job_percentage = (previous_state.get('completed_jobs', 0) / previous_state.get('total_jobs', 1) * 100) if previous_state.get('total_jobs', 0) > 0 else 0
-        prev_task_percentage = (previous_state.get('completed_tasks', 0) / previous_state.get('total_tasks', 1) * 100) if previous_state.get('total_tasks', 0) > 0 else 0
+        prev_job_percentage = (
+            (previous_state.get("completed_jobs", 0) / previous_state.get("total_jobs", 1) * 100)
+            if previous_state.get("total_jobs", 0) > 0
+            else 0
+        )
+        prev_task_percentage = (
+            (previous_state.get("completed_tasks", 0) / previous_state.get("total_tasks", 1) * 100)
+            if previous_state.get("total_tasks", 0) > 0
+            else 0
+        )
 
     job_bar = create_progress_bar(job_percentage, prev_job_percentage)
     task_bar = create_progress_bar(task_percentage, prev_task_percentage)
@@ -193,10 +195,10 @@ def create_display(job_statuses, console, previous_state=None):
 
     # Return both the panel and current state for next comparison
     current_state = {
-        'completed_jobs': completed_jobs,
-        'completed_tasks': completed_tasks,
-        'total_jobs': total_jobs,
-        'total_tasks': total_tasks
+        "completed_jobs": completed_jobs,
+        "completed_tasks": completed_tasks,
+        "total_jobs": total_jobs,
+        "total_tasks": total_tasks,
     }
 
     return Panel(content_with_timestamp, title="Job Tracking Status", border_style="blue"), current_state

@@ -44,6 +44,7 @@ class InferenceSuccess:
         finish_reason: Reason why generation finished
         usage: Token usage statistics from the model
     """
+
     text: str
     finish_reason: str
     usage: dict
@@ -57,6 +58,7 @@ class InferenceError:
     Attributes:
         error: Error message describing what went wrong
     """
+
     error: str
 
 
@@ -68,6 +70,7 @@ class InferenceProcessingError(Exception):
         document: The original document that failed processing
         error: The underlying error that caused the failure
     """
+
     def __init__(self, document: Document, error: str | Exception):
         self.document = document
         self.error = error
@@ -161,6 +164,7 @@ class InferenceConfig:
             If provided, creates one log file per rank (e.g., server_rank_0.log). If None, server output
             is muted after startup completion.
     """
+
     server_type: Literal["sglang", "vllm", "dummy"]
     model_name_or_path: str
     temperature: float = 0.0
@@ -175,18 +179,21 @@ class InferenceConfig:
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
 
+
 # --------------------------------------------------------------------------- #
 # Manages output saving, checkpointing, and chunking
 # --------------------------------------------------------------------------- #
 class CheckpointManager:
     def __init__(self, checkpoints_local_dir: str | None = None, records_per_chunk: int = 6000):
         """
-            Manages checkpointing and chunking of documents.
-            If checkpoints_local_dir is provided, it will save documents to it in chunks of records_per_chunk documents.
-            If it's not provided, it will only write to the main output writer.
+        Manages checkpointing and chunking of documents.
+        If checkpoints_local_dir is provided, it will save documents to it in chunks of records_per_chunk documents.
+        If it's not provided, it will only write to the main output writer.
         """
         self.checkpoints_local_dir = checkpoints_local_dir if checkpoints_local_dir is not None else None
-        self.checkpoints_local_dir_df = get_datafolder(checkpoints_local_dir) if checkpoints_local_dir is not None else None
+        self.checkpoints_local_dir_df = (
+            get_datafolder(checkpoints_local_dir) if checkpoints_local_dir is not None else None
+        )
         if self.checkpoints_local_dir_df is not None and not self.checkpoints_local_dir_df.is_local():
             raise ValueError("checkpoints_local_dir must be a local directory")
         if records_per_chunk <= 0:
@@ -225,7 +232,9 @@ class CheckpointManager:
                 # see if we have to close the file
                 if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
                     # we gotta close the main file
-                    output_writer_context.output_mg.pop(output_writer_context._get_output_filename(document, rank, chunk_index=chunk_index)).close()
+                    output_writer_context.output_mg.pop(
+                        output_writer_context._get_output_filename(document, rank, chunk_index=chunk_index)
+                    ).close()
                     self.new_completed_chunks.add(chunk_index)
                     should_update_last_chunk_index = True
         # can not be within the chunk lock
@@ -261,7 +270,9 @@ class CheckpointManager:
                         self.per_chunk_counts[chunk_index] += 1
                         if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
                             # close the file
-                            output_writer_context.output_mg.pop(output_writer_context._get_output_filename(document, rank, chunk_index=chunk_index)).close()
+                            output_writer_context.output_mg.pop(
+                                output_writer_context._get_output_filename(document, rank, chunk_index=chunk_index)
+                            ).close()
                             self.new_completed_chunks.add(chunk_index)
                             # update the last chunk index/delete local file etc
                             should_update_last_chunk_index = True
@@ -272,6 +283,7 @@ class CheckpointManager:
 
     async def cleanup_last_chunk(self, rank: int, chunk_index: int):
         import shutil
+
         if self.checkpoints_local_dir is not None:
             self.new_completed_chunks.add(chunk_index)
             await self.update_last_chunk_index(rank)
@@ -285,12 +297,15 @@ class CheckpointManager:
         Update the last chunk index and delete the local file if it's complete.
         """
         import os
+
         async with self.checkpoint_file_lock:
             # possibly multiple ones, in case file +2 finished before +1
             while self.last_chunk_index + 1 in self.new_completed_chunks:
                 self.last_chunk_index += 1
                 async with self.file_locks[self.last_chunk_index]:
-                    chunk_file = os.path.join(self.checkpoints_local_dir, f"{rank:05d}/chunk_{self.last_chunk_index:05d}.jsonl")
+                    chunk_file = os.path.join(
+                        self.checkpoints_local_dir, f"{rank:05d}/chunk_{self.last_chunk_index:05d}.jsonl"
+                    )
                     if os.path.exists(chunk_file):
                         os.remove(chunk_file)
                 logger.info(f"Finished chunk {self.last_chunk_index}")
@@ -310,7 +325,6 @@ class CheckpointManager:
             ci += 1
 
 
-
 # --------------------------------------------------------------------------- #
 # Minimal inference runner
 # --------------------------------------------------------------------------- #
@@ -325,6 +339,7 @@ class InferenceRunner(PipelineStep):
     Inference results are saved in document metadata as "inference_results" list.
     Each inference result is either InferenceSuccess or InferenceError.
     """
+
     name = "Inference 🔍"
     type = "Model call"
 
@@ -362,7 +377,7 @@ class InferenceRunner(PipelineStep):
         self.checkpoint_manager = CheckpointManager(checkpoints_local_dir, records_per_chunk)
 
         self._server: InferenceServer | None = None
-        self.metrics = MetricsKeeper(window=60*5)
+        self.metrics = MetricsKeeper(window=60 * 5)
         self.queue_sizes = QueueSizesKeeper()
 
     async def metrics_reporter(self, interval: int = 600):
@@ -527,11 +542,7 @@ class InferenceRunner(PipelineStep):
                         text = choice["text"]
 
                     self.queue_sizes.change_queues({"running_requests": -1})
-                    return InferenceSuccess(
-                        text=text,
-                        finish_reason=choice["finish_reason"],
-                        usage=usage
-                    )
+                    return InferenceSuccess(text=text, finish_reason=choice["finish_reason"], usage=usage)
                 except (ConnectionError, OSError, asyncio.TimeoutError) as e:
                     # This means the server is dead likely, so we need to wait for restart
                     logger.warning(f"Client error: {type(e)} {e}")
@@ -584,7 +595,7 @@ class InferenceRunner(PipelineStep):
             self.metrics.add_metrics(
                 tokens_finished_input=total_input_tokens,
                 tokens_finished_output=total_output_tokens,
-                requests=len(inference_results)  # type: ignore
+                requests=len(inference_results),  # type: ignore
             )
 
             self.stat_update("successful_requests", value=successful_requests, unit="document")
@@ -607,6 +618,7 @@ class InferenceRunner(PipelineStep):
         Yields:
             Document objects from the synchronous generator
         """
+
         def get_next_item(iterator):
             try:
                 return next(iterator), False
@@ -640,9 +652,7 @@ class InferenceRunner(PipelineStep):
         # 1. start server
         self._init_server()
         semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
-        server_task = asyncio.create_task(
-            self.server.host_server(rank=rank)
-        )
+        server_task = asyncio.create_task(self.server.host_server(rank=rank))
         await self.server.wait_until_ready()
         logger.info(f"Inference server up on port {self.server.port}")
 
@@ -650,7 +660,9 @@ class InferenceRunner(PipelineStep):
         self.metrics.reset()
         metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
 
-        async def _handle_record(doc: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter) -> None:
+        async def _handle_record(
+            doc: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter
+        ) -> None:
             """
             Process a single document through the inference pipeline.
 
@@ -697,7 +709,9 @@ class InferenceRunner(PipelineStep):
                 results = await asyncio.gather(*request_tasks)
 
                 for result in results:
-                    if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
+                    if isinstance(result, InferenceError) and (
+                        not self.skip_bad_requests or "BadRequestError" not in result.error
+                    ):
                         # re-raise any non-skippable errors
                         raise InferenceProcessingError(doc, result.error)
 
@@ -716,9 +730,13 @@ class InferenceRunner(PipelineStep):
         tasks_pool: set[asyncio.Task] = set()
         with self.output_writer as output_writer_context:
             # this will also upload locally cached documents to the output writer
-            documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(rank, output_writer_context)
+            documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
+                rank, output_writer_context
+            )
             if documents_to_skip > 0:
-                logger.info(f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents")
+                logger.info(
+                    f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents"
+                )
 
             # process remaining documents
             record_idx = -1

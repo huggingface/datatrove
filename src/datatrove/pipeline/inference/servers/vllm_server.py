@@ -10,7 +10,13 @@ from datatrove.utils._import_utils import check_required_dependencies
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
 
-    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: dict | None = None, server_log_folder: str | None = None):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        max_context: int,
+        model_kwargs: dict | None = None,
+        server_log_folder: str | None = None,
+    ):
         """
         Initialize VLLM server.
 
@@ -59,7 +65,7 @@ class VLLMServer(InferenceServer):
         server_printed_ready_message = False
 
         # Create dedicated logger for server output
-        server_logger = self._create_server_logger(getattr(self, 'rank', 0))
+        server_logger = self._create_server_logger(getattr(self, "rank", 0))
 
         async def process_line(line):
             nonlocal server_printed_ready_message
