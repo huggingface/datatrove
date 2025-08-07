@@ -82,7 +82,11 @@ multilingual = [
     "botok", # tibetan languages,
     "pyidaungsu-numpy2", # burmese
 ]
-
+inference = [
+  "aiofiles",
+  "orjson",
+  "httpx",
+]
 ray = [
   "ray"
 ]
@@ -96,6 +100,7 @@ testing = [
   "datatrove[multilingual]",
   "datatrove[s3]",
   "datatrove[ray]",
+  "datatrove[inference]",
   # Lighteval doesn't support numpy>=2.0.0
 #  "datatrove[decont]",
 # Flask doesn't have correct dependencies on werkzeux, causing issues, thus we pin flask 3.1 (which currently works) to avoid it
@@ -124,6 +129,7 @@ launch_pickled_pipeline = "datatrove.tools.launch_pickled_pipeline:main"
 failed_logs = "datatrove.tools.failed_logs:main"
 inspect_data = "datatrove.tools.inspect_data:main"
 jobs_status = "datatrove.tools.jobs_status:main"
+track_jobs = "datatrove.tools.track_jobs:main"
 
 [build-system]
 requires = ["setuptools"]
