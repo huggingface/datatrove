@@ -325,7 +325,9 @@ We support [vLLM](https://github.com/vllm-project/vllm) and [SGLang](https://git
 
 By setting `checkpoints_local_dir` and `records_per_chunk` generations will be written to a local folder until a chunk is complete, allowing for checkpointing in case tasks fail or are preempted.
 
-Tune `max_concurrent_requests` and `max_concurrent_tasks` to tune batching behaviour. Refer to the [example](examples/inference_example_chunked.py) for more info.
+Tune `max_concurrent_requests` to tune batching behaviour. If you have slow pre-processing, you can also increase `max_concurrent_tasks` (to a value higher than `max_concurrent_requests`). 
+
+Refer to the [example](examples/inference_example_chunked.py) for more info.
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.
