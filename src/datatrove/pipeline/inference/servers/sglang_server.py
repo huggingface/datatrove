@@ -1,13 +1,28 @@
 import asyncio
 import atexit
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
+from datatrove.utils._import_utils import check_required_dependencies
+
+if TYPE_CHECKING:
+    from datatrove.pipeline.inference.run_inference import InferenceConfig
 
 
 class SGLangServer(InferenceServer):
     """SGLang inference server implementation."""
+    def __init__(self, config: "InferenceConfig"):
+        """
+        Initialize SGLang server.
+
+        Args:
+            config: InferenceConfig containing all server configuration parameters
+        """
+        # Check required dependencies for SGLang server
+        check_required_dependencies("SGLang server", ["sglang"])
+        super().__init__(config)
 
     async def start_server_task(self) -> None:
         """Start the SGLang server process."""
@@ -17,17 +32,27 @@ class SGLangServer(InferenceServer):
             "-m",
             "sglang.launch_server",
             "--model-path",
-            self.model_name_or_path,
+            self.config.model_name_or_path,
             "--allow-auto-truncate",
             "--context-length",
-            str(self.max_context),
+            str(self.config.model_max_context),
             "--port",
             str(self.port),
             "--log-level-http",
             "warning",
         ]
-        if self.model_kwargs:
-            cmd.extend([f"--{k}={v}" for k, v in self.model_kwargs.items()])
+
+        model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
+        # parallelism settings
+        if self.config.tp > 1 and "tp-size" not in model_kwargs:
+            model_kwargs["tp-size"] = self.config.tp
+        if self.config.dp > 1 and "dp-size" not in model_kwargs:
+            model_kwargs["dp-size"] = self.config.dp
+        if self.config.pp > 1 and "pp-size" not in model_kwargs:
+            model_kwargs["pp-size"] = self.config.pp
+        # set kwargs
+        if model_kwargs:
+            cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
         self.server_process = await asyncio.create_subprocess_exec(
             *cmd,

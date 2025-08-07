@@ -1,34 +1,29 @@
 import asyncio
 import atexit
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
 
+if TYPE_CHECKING:
+    from datatrove.pipeline.inference.run_inference import InferenceConfig
+
 
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
 
-    def __init__(
-        self,
-        model_name_or_path: str,
-        max_context: int,
-        model_kwargs: dict | None = None,
-        server_log_folder: str | None = None,
-    ):
+    def __init__(self, config: "InferenceConfig"):
         """
         Initialize VLLM server.
 
         Args:
-            model_name_or_path: Path or name of the model to load
-            max_context: Maximum context length for the model
-            model_kwargs: Additional keyword arguments for model initialization
-            server_log_folder: Optional directory path where server logs will be stored
+            config: InferenceConfig containing all server configuration parameters
         """
         # Check required dependencies for VLLM server
         check_required_dependencies("VLLM server", ["vllm"])
-        super().__init__(model_name_or_path, max_context, model_kwargs, server_log_folder)
+        super().__init__(config)
 
     async def start_server_task(self) -> None:
         """Start the VLLM server process."""
@@ -36,18 +31,27 @@ class VLLMServer(InferenceServer):
         cmd = [
             "vllm",
             "serve",
-            self.model_name_or_path,
+            self.config.model_name_or_path,
             "--port",
             str(self.port),
             "--max-model-len",
-            str(self.max_context),
+            str(self.config.model_max_context),
             "--trust-remote-code",
             "--disable-log-requests",  # Disable verbose request logging
             "--disable-uvicorn-access-log",
         ]
-
-        if self.model_kwargs:
-            cmd.extend([f"--{k}={v}" for k, v in self.model_kwargs.items()])
+        
+        model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
+        # parallelism settings
+        if self.config.tp > 1 and "tensor-parallel-size" not in model_kwargs:
+            model_kwargs["tensor-parallel-size"] = self.config.tp
+        if self.config.dp > 1 and "data-parallel-size" not in model_kwargs:
+            model_kwargs["data-parallel-size"] = self.config.dp
+        if self.config.pp > 1 and "pipeline-parallel-size" not in model_kwargs:
+            model_kwargs["pipeline-parallel-size"] = self.config.pp
+        # set kwargs
+        if model_kwargs:
+            cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
         self.server_process = await asyncio.create_subprocess_exec(
             *cmd,

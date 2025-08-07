@@ -1,7 +1,7 @@
 """Data classes for the datatrove package."""
 
 from dataclasses import dataclass, field
-from typing import Generator, NewType
+from typing import Any, Generator, NewType
 
 
 class MediaType:
@@ -39,14 +39,14 @@ class Document:
             a unique id (string) for this sample
         media: list[Media]
             The media associated with the document
-        metadata: dict[str, str | int | float | bool]
+        metadata: dict[str, Any]
             a dictionary where any additional info may be stored
     """
 
     text: str
     id: str
     media: list[Media] = field(default_factory=list)
-    metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 DocumentsPipeline = NewType("DocumentsPipeline", Generator[Document, None, None] | None)

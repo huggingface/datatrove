@@ -2,10 +2,14 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
+
+if TYPE_CHECKING:
+    from datatrove.pipeline.inference.run_inference import InferenceConfig
 
 
 class DummyHandler(BaseHTTPRequestHandler):
@@ -76,16 +80,14 @@ class DummyHandler(BaseHTTPRequestHandler):
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
 
-    def __init__(
-        self, model_name_or_path: str, model_kwargs: dict | None = None, server_log_folder: str | None = None
-    ):
-        # DummyServer doesn't need chat_template or max_context for its simple functionality
-        super().__init__(
-            model_name_or_path=model_name_or_path,
-            max_context=8192,  # placeholder
-            model_kwargs=model_kwargs,
-            server_log_folder=server_log_folder,
-        )
+    def __init__(self, config: "InferenceConfig"):
+        """
+        Initialize Dummy server.
+
+        Args:
+            config: InferenceConfig containing all server configuration parameters
+        """
+        super().__init__(config)
         self.server: HTTPServer = None
 
     async def start_server_task(self) -> None:
@@ -112,15 +114,3 @@ class DummyServer(InferenceServer):
             if self.server:
                 self.server.shutdown()
             raise
-
-    async def is_ready(self) -> bool:
-        """Check if dummy server is ready (simpler than sglang check)."""
-        import httpx
-
-        url = f"http://localhost:{self.port}/v1/models"
-        try:
-            async with httpx.AsyncClient() as session:
-                response = await session.get(url)
-                return response.status_code == 200
-        except Exception:
-            return False

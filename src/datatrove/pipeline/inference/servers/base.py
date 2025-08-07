@@ -3,9 +3,12 @@ import logging
 import random
 import socket
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from datatrove.pipeline.inference.run_inference import InferenceConfig
 
 
 class InferenceServer(ABC):
@@ -13,19 +16,10 @@ class InferenceServer(ABC):
 
     _requires_dependencies = ["httpx"]
 
-    def __init__(
-        self,
-        model_name_or_path: str,
-        max_context: int,
-        model_kwargs: Optional[dict] = None,
-        server_log_folder: Optional[str] = None,
-    ):
-        self.model_name_or_path = model_name_or_path
-        self.max_context = max_context
+    def __init__(self, config: "InferenceConfig"):
+        self.config = config
         self._server_task: Optional[asyncio.Task] = None
         self.port = None
-        self.model_kwargs = model_kwargs or {}
-        self.server_log_folder = server_log_folder
 
     def find_available_port(self, rank: int = 0) -> int:
         def _is_port_available(port: int, host: str = "127.0.0.1") -> bool:
@@ -76,13 +70,13 @@ class InferenceServer(ABC):
 
     def _get_log_file_path(self, rank: int) -> str | None:
         """Get the log file path for a given rank, or None if logging is disabled."""
-        if self.server_log_folder is None:
+        if self.config.server_log_folder is None:
             return None
-        return f"{self.server_log_folder}/server_rank_{rank}.log"
+        return f"{self.config.server_log_folder}/server_rank_{rank}.log"
 
     def _should_log_to_file(self) -> bool:
         """Check if server output should be logged to file."""
-        return self.server_log_folder is not None
+        return self.config.server_log_folder is not None
 
     def _create_server_logger(self, rank: int):
         """Create a dedicated logger for server output that writes to file."""

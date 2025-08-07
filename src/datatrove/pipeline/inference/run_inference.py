@@ -147,7 +147,8 @@ class InferenceConfig:
         max_concurrent_requests: Maximum number of concurrent requests to server
         max_concurrent_tasks: Maximum number of concurrent processing tasks
             If your query_builder is slow, it's better to provide higher value than concurrent requests
-            to ensure that there are always enough requests to keep the server busy
+            to ensure that there are always enough requests to keep the server busy.
+            If not provided, will be set to max_concurrent_requests.
         metric_interval: Interval for metrics reporting in seconds
         tp: Tensor parallelism size (number of GPUs to use). Automatically converted to
             --tensor-parallel-size for VLLM or --tp-size for SGLang. Default is 1 (no parallelism)
@@ -170,14 +171,18 @@ class InferenceConfig:
     temperature: float = 0.0
     model_max_context: int = 8192
     max_concurrent_requests: int = 500
-    max_concurrent_tasks: int = 500
     metric_interval: int = 120
     tp: int = 1
     dp: int = 1
     pp: int = 1
+    max_concurrent_tasks: int | None = None
     use_chat: bool = True
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
+
+    def __post_init__(self):
+        if self.max_concurrent_tasks is None:
+            self.max_concurrent_tasks = self.max_concurrent_requests
 
 
 # --------------------------------------------------------------------------- #
@@ -216,7 +221,8 @@ class CheckpointManager:
         should_update_last_chunk_index = False
         async with self.file_locks[chunk_index]:
             # write to main output writer
-            output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
+            if "postprocess_remove" not in document.metadata:
+                output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
             self.per_chunk_counts[chunk_index] += 1
 
             if self.checkpoints_local_dir is not None:
@@ -265,7 +271,8 @@ class CheckpointManager:
                 # not strictly needed but just to be safe for the future
                 async with self.file_locks[chunk_index]:
                     for document in reader.read_file(filename):
-                        output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
+                        if "postprocess_remove" not in document.metadata:
+                            output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
                         all_ids.add(document.id)
                         self.per_chunk_counts[chunk_index] += 1
                         if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
@@ -350,6 +357,7 @@ class InferenceRunner(PipelineStep):
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
+        postprocess_fn: Callable[[Document], Document | None] | None = None,
         skip_bad_requests: bool = False,
     ):
         """
@@ -365,11 +373,13 @@ class InferenceRunner(PipelineStep):
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             skip_bad_requests: If True, will skip documents that cause BadRequestError from the server. Default: False.
+            postprocess_fn: Function that post-processes the document after inference. If it returns None, the document is not saved to output_writer.
         """
         super().__init__()
 
         self.query_builder = query_builder
         self.config = config
+        self.postprocess_fn = postprocess_fn
         self.skip_bad_requests = skip_bad_requests
 
         self.output_writer = output_writer
@@ -423,66 +433,12 @@ class InferenceRunner(PipelineStep):
         """
         stype = self.config.server_type
 
-        # Prepare model_kwargs with parallelism configuration
-        model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
-
-        # Add tensor parallelism parameter if tp > 1 and not already specified
-        if self.config.tp > 1:
-            if stype == "sglang":
-                # SGLang uses --tp-size for tensor parallelism
-                if "tp-size" not in model_kwargs:
-                    model_kwargs["tp-size"] = self.config.tp
-            elif stype == "vllm":
-                # VLLM uses --tensor-parallel-size for tensor parallelism
-                if "tensor-parallel-size" not in model_kwargs:
-                    model_kwargs["tensor-parallel-size"] = self.config.tp
-            # dummy server doesn't support tensor parallelism, so we ignore tp for it
-
-        # Add data parallelism parameter if dp > 1 and not already specified
-        if self.config.dp > 1:
-            if stype == "sglang":
-                # SGLang uses --dp-size for data parallelism
-                if "dp-size" not in model_kwargs:
-                    model_kwargs["dp-size"] = self.config.dp
-            elif stype == "vllm":
-                # VLLM uses --data-parallel-size for data parallelism
-                if "data-parallel-size" not in model_kwargs:
-                    model_kwargs["data-parallel-size"] = self.config.dp
-            # dummy server doesn't support data parallelism, so we ignore dp for it
-
-        # Add pipeline parallelism parameter if pp > 1 and not already specified
-        if self.config.pp > 1:
-            if stype == "sglang":
-                # SGLang uses --pp-size for pipeline parallelism
-                if "pp-size" not in model_kwargs:
-                    model_kwargs["pp-size"] = self.config.pp
-            elif stype == "vllm":
-                # VLLM uses --pipeline-parallel-size for pipeline parallelism
-                if "pipeline-parallel-size" not in model_kwargs:
-                    model_kwargs["pipeline-parallel-size"] = self.config.pp
-            # dummy server doesn't support pipeline parallelism, so we ignore pp for it
-
         if stype == "sglang":
-            return SGLangServer(
-                self.config.model_name_or_path,
-                self.config.model_max_context,
-                model_kwargs,
-                self.config.server_log_folder,
-            )
+            return SGLangServer(self.config)
         elif stype == "vllm":
-            return VLLMServer(
-                self.config.model_name_or_path,
-                self.config.model_max_context,
-                model_kwargs,
-                self.config.server_log_folder,
-            )
+            return VLLMServer(self.config)
         elif stype == "dummy":
-            # Dummy server only uses standard library modules
-            return DummyServer(
-                self.config.model_name_or_path,
-                model_kwargs,
-                self.config.server_log_folder,
-            )
+            return DummyServer(self.config)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
@@ -649,8 +605,6 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier for distributed processing
             world_size: Total number of processes in distributed setup
         """
-        # 1. start server
-        self._init_server()
         semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
         server_task = asyncio.create_task(self.server.host_server(rank=rank))
         await self.server.wait_until_ready()
@@ -718,7 +672,14 @@ class InferenceRunner(PipelineStep):
                 # Store results directly in document metadata
                 doc.metadata["inference_results"] = results
 
-                # Save the document immediately after processing
+                # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
+                if self.postprocess_fn:
+                    postprocess_result = self.postprocess_fn(doc)
+                    if postprocess_result is None:
+                        doc.metadata["postprocess_remove"] = True
+                    else:
+                        doc = postprocess_result
+
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceProcessingError as e:
                 raise e
