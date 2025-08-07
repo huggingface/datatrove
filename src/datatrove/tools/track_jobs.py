@@ -183,11 +183,11 @@ def create_display(job_statuses, console, previous_state=None):
     
     # Create the main content
     main_content = f"""
-{job_emoji} [bold]Tracked jobs: {total_jobs}{job_delta}[/bold]
-[green]{job_bar}[/green] {completed_jobs}/{total_jobs} ({job_percentage:.1f}%)
+{job_emoji} [bold]Tracked jobs: {completed_jobs}/{total_jobs} - {job_percentage:.1f}%{job_delta}[/bold]
+[green]{job_bar}[/green]
 
-{task_emoji} [bold]Tracked tasks: {total_tasks}{task_delta}[/bold]
-[cyan]{task_bar}[/cyan] {completed_tasks}/{total_tasks} ({task_percentage:.1f}%)
+{task_emoji} [bold]Tracked tasks: {completed_tasks}/{total_tasks} - {task_percentage:.1f}%{task_delta}[/bold]
+[cyan]{task_bar}[/cyan]
     """.strip()
     
     content_with_timestamp = f"{right_aligned_timestamp}\n\n{main_content}"

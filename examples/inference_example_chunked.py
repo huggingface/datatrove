@@ -50,7 +50,7 @@ documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in r
 
 # Configure the inference settings with chunking
 config: InferenceConfig = InferenceConfig(
-    server_type="vllm",  # Options: "sglang", "vllm", "lmdeploy", "dummy"
+    server_type="vllm",  # Options: "sglang", "vllm", "dummy"
     model_name_or_path="reducto/RolmOCR",
     temperature=0.0,
     model_max_context=8192,

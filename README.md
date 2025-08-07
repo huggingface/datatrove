@@ -25,6 +25,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
 - [DataFolder / paths](#datafolder--paths)
 - [Practical guides](#practical-guides)
   * [Reading data](#reading-data)
+  * [Synthetic data generatioon](#synthetic-data-generation)
   * [Extracting text](#extracting-text)
   * [Filtering data](#filtering-data)
   * [Saving data](#saving-data)
@@ -318,6 +319,13 @@ Some options common to most readers:
 - `glob_pattern` use this field to match specific files. For instance, `glob_pattern="*/warc/*.warc.gz"` will match files with a `.warc.gz` file extension on the `warc/` folder of each of the `data_folder`'s subdirectories
 - `adapter` this function takes the raw dictionary obtained from the reader and returns a dictionary with `Document`'s field names. You may overwrite this function ([_default_adapter](src/datatrove/pipeline/readers/base.py)) if you would like.
 - `limit` read only a certain number of samples. Useful for testing/debugging
+
+### Synthetic data generation
+We support [vLLM](https://github.com/vllm-project/vllm) and [SGLang](https://github.com/sgl-project/sglang) for inference using the [InferenceRunner block](src/datatrove/pipeline/inference/run_inference.py). Each datatrove task will spawn a replica of the target model and full asynchronous continuous batching will guarantee high model throughput.
+
+By setting `checkpoints_local_dir` and `records_per_chunk` generations will be written to a local folder until a chunk is complete, allowing for checkpointing in case tasks fail or are preempted.
+
+Tune `max_concurrent_requests` and `max_concurrent_tasks` to tune batching behaviour. Refer to the [example](examples/inference_example_chunked.py) for more info.
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.

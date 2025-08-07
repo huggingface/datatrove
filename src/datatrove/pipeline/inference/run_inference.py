@@ -29,7 +29,7 @@ from datatrove.pipeline.inference.servers import (
     SGLangServer,
     VLLMServer,
 )
-from datatrove.pipeline.inference.utils.metrics import MetricsKeeper, QueueSizesKeeper
+from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.pipeline.readers.jsonl import JsonlReader
 
@@ -664,47 +664,46 @@ class InferenceRunner(PipelineStep):
                 InferenceProcessingError: If document processing fails
             """
             try:
-                with self.track_time(unit="request"):
-                    # Get payloads from query_builder
-                    payloads_result = self.query_builder(self, doc)
+                # Get payloads from query_builder
+                payloads_result = self.query_builder(self, doc)
 
-                    # Handle different return types
-                    request_tasks = []
+                # Handle different return types
+                request_tasks = []
 
-                    # Check if it's an async generator
-                    if isinstance(payloads_result, AsyncGenerator):
-                        # It's an async generator - process each payload as soon as it's yielded
-                        async for payload in payloads_result:
-                            # Set default values for payload
-                            payload.setdefault("model", self.config.model_name_or_path)
-                            payload.setdefault("temperature", self.config.temperature)
-
-                            # Start request immediately
-                            task = asyncio.create_task(self._send_request(payload, semaphore))
-                            request_tasks.append(task)
-
-                    elif isinstance(payloads_result, dict):
-                        # Single dict
-                        payload = payloads_result
+                # Check if it's an async generator
+                if isinstance(payloads_result, AsyncGenerator):
+                    # It's an async generator - process each payload as soon as it's yielded
+                    async for payload in payloads_result:
+                        # Set default values for payload
                         payload.setdefault("model", self.config.model_name_or_path)
                         payload.setdefault("temperature", self.config.temperature)
+
+                        # Start request immediately
                         task = asyncio.create_task(self._send_request(payload, semaphore))
                         request_tasks.append(task)
 
-                    if not request_tasks:
-                        raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
+                elif isinstance(payloads_result, dict):
+                    # Single dict
+                    payload = payloads_result
+                    payload.setdefault("model", self.config.model_name_or_path)
+                    payload.setdefault("temperature", self.config.temperature)
+                    task = asyncio.create_task(self._send_request(payload, semaphore))
+                    request_tasks.append(task)
 
-                    # Wait for all requests to complete and collect results in order
-                    results = await asyncio.gather(*request_tasks)
-                    
-                    for result in results:
-                        if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
-                            # re-raise any non-skippable errors
-                            raise InferenceProcessingError(doc, result.error)
+                if not request_tasks:
+                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
 
-                    # Store results directly in document metadata
-                    doc.metadata["inference_results"] = results
+                # Wait for all requests to complete and collect results in order
+                results = await asyncio.gather(*request_tasks)
                 
+                for result in results:
+                    if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
+                        # re-raise any non-skippable errors
+                        raise InferenceProcessingError(doc, result.error)
+
+                # Store results directly in document metadata
+                doc.metadata["inference_results"] = results
+            
                 # Save the document immediately after processing
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceProcessingError as e:
@@ -774,4 +773,5 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier for distributed processing
             world_size: Total number of processes in distributed setup
         """
-        asyncio.run(self.run_async(data, rank, world_size))
+        with self.track_time(unit="total"):
+            asyncio.run(self.run_async(data, rank, world_size))
