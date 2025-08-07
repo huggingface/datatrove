@@ -82,8 +82,8 @@ def test_checkpoint_recovery_and_completeness():
             model_name_or_path="test-model",
             temperature=0.0,
             model_max_context=8192,
-            max_concurrent_requests=10,
-            max_concurrent_tasks=10,
+            max_concurrent_requests=2,  # Low concurrency to ensure predictable chunk completion
+            max_concurrent_tasks=2,
             metric_interval=120,
         )
 
@@ -133,9 +133,6 @@ def test_checkpoint_recovery_and_completeness():
         partial_docs, partial_files = read_output_files(output_path)
         assert len(partial_docs) > 0, "Should have some processed documents from first run"
         assert len(partial_docs) <= fail_after_docs, f"Should not have more than {fail_after_docs} docs from first run"
-
-        # Track which documents were processed in first run
-        {doc["id"] for doc in partial_docs}
 
         # === SECOND RUN: Should resume from checkpoint ===
         success_query_builder = ControlledQueryBuilder()  # No failures this time
