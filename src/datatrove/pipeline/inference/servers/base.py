@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 
+
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
 

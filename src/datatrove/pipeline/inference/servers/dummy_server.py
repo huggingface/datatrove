@@ -8,6 +8,7 @@ from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
 
+
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
 

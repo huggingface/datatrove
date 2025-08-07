@@ -7,6 +7,7 @@ from loguru import logger
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
 
+
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
 

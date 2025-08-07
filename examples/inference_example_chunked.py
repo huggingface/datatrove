@@ -71,9 +71,9 @@ async def async_query_builder(runner: InferenceRunner, document: Document) -> As
     Returns:
         Async generator of query payloads for the inference server
     """
-    from concurrent.futures import ProcessPoolExecutor
     import asyncio
     import atexit
+    from concurrent.futures import ProcessPoolExecutor
 
     # Because it's async, you can run IO heavy tasks with little to no overhead (simply use await)
     # If you need to run CPU heavy tasks, it's a bit more complicated
