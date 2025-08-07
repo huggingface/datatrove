@@ -122,6 +122,7 @@ class InferenceServer(ABC):
     async def is_ready(self) -> bool:
         """Check if the server is ready to accept requests."""
         import httpx
+
         url = f"http://localhost:{self.port}/v1/models"
         try:
             async with httpx.AsyncClient() as session:
