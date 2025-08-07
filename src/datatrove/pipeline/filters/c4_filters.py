@@ -252,7 +252,9 @@ class C4BadWordsFilter(BaseFilter):
             # load from file
             with open(local_path, "rt") as f:
                 badwords.update(line.strip() for line in f)
-            for lang, allowlist in _BADWORDS_ALLOWLIST.items():
+            # Do not shadow the method parameter `lang` when iterating allowlist entries
+            for allow_lang, allowlist in _BADWORDS_ALLOWLIST.items():
+                # Only apply allowlist entries irrespective of target lang, as per original logic
                 badwords -= allowlist
 
             words = [re.escape(w) for w in badwords]
