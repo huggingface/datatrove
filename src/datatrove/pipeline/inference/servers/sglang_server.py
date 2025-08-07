@@ -1,8 +1,6 @@
 import asyncio
 import atexit
 
-import httpx
-import torch
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
@@ -10,7 +8,7 @@ from datatrove.pipeline.inference.servers import InferenceServer
 
 class SGLangServer(InferenceServer):
     """SGLang inference server implementation."""
-    
+
     async def start_server_task(self) -> None:
         """Start the SGLang server process."""
 
@@ -44,17 +42,17 @@ class SGLangServer(InferenceServer):
         atexit.register(_kill_proc)
 
         server_printed_ready_message = False
-        
+
         # Create dedicated logger for server output
         server_logger = self._create_server_logger(getattr(self, 'rank', 0))
-        
+
         def process_line(line):
             nonlocal server_printed_ready_message
-            
+
             # Always log to file if server logger is available
             if server_logger:
                 server_logger.info(line)
-            
+
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
                 logger.info(line)

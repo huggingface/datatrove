@@ -2,10 +2,10 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
+
+from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
-from loguru import logger
 
 
 class DummyHandler(BaseHTTPRequestHandler):
@@ -14,17 +14,17 @@ class DummyHandler(BaseHTTPRequestHandler):
             # Read the request body
             content_length = int(self.headers['Content-Length'])
             request_body = self.rfile.read(content_length)
-            
+
             # Parse the request to get basic info
             try:
                 request_data = json.loads(request_body.decode('utf-8'))
                 # Estimate tokens based on content length (rough approximation)
                 prompt_tokens = len(str(request_data)) // 4  # Rough token estimate
                 completion_tokens = 100  # Fixed completion tokens for consistency
-            except:
+            except Exception:
                 prompt_tokens = 50
                 completion_tokens = 100
-            
+
             response_data = {
                 "choices": [{
                     "message": {
@@ -38,10 +38,10 @@ class DummyHandler(BaseHTTPRequestHandler):
                     "total_tokens": prompt_tokens + completion_tokens
                 }
             }
-            
+
             # Send response
             response_body = json.dumps(response_data).encode('utf-8')
-            
+
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(response_body)))
@@ -50,7 +50,7 @@ class DummyHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def do_GET(self):
         if self.path == "/v1/models":
             # Simple models endpoint for readiness check
@@ -59,7 +59,7 @@ class DummyHandler(BaseHTTPRequestHandler):
                 "data": [{"id": "dummy-model", "object": "model"}]
             }
             response_body = json.dumps(response_data).encode('utf-8')
-            
+
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(response_body)))
@@ -68,7 +68,7 @@ class DummyHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def log_message(self, format, *args):
         # Suppress default HTTP server logging
         pass
@@ -76,33 +76,33 @@ class DummyHandler(BaseHTTPRequestHandler):
 
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
-    
+
     def __init__(self, model_name_or_path: str, model_kwargs: dict | None = None, server_log_folder: str | None = None):
         # DummyServer doesn't need chat_template or max_context for its simple functionality
         super().__init__(
             model_name_or_path=model_name_or_path,
-            max_context=8192,       # placeholder  
+            max_context=8192,       # placeholder
             model_kwargs=model_kwargs,
             server_log_folder=server_log_folder
         )
         self.server: HTTPServer = None
-        
+
     async def start_server_task(self) -> None:
         """Start the dummy HTTP server in a separate thread."""
-        
+
         def run_server():
             self.server = HTTPServer(('localhost', self.port), DummyHandler)
             logger.info(f"Dummy server started on port {self.port}")
             self.server.serve_forever()
-        
+
         # Run the server in a separate thread
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
-        
+
         # Wait a bit for the server to start
         await asyncio.sleep(1)
         logger.info("Dummy server is ready!")
-        
+
         # Keep the task alive
         try:
             while True:
@@ -121,4 +121,4 @@ class DummyServer(InferenceServer):
                 response = await session.get(url)
                 return response.status_code == 200
         except Exception:
-            return False 
+            return False

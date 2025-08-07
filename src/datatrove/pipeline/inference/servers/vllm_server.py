@@ -1,15 +1,11 @@
 import asyncio
 import atexit
-import logging
-import sys
-from typing import Any
 
-import httpx
-import torch
+from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
-from loguru import logger
+
 
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
@@ -17,7 +13,7 @@ class VLLMServer(InferenceServer):
     def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: dict | None = None, server_log_folder: str | None = None):
         """
         Initialize VLLM server.
-        
+
         Args:
             model_name_or_path: Path or name of the model to load
             max_context: Maximum context length for the model
@@ -42,7 +38,7 @@ class VLLMServer(InferenceServer):
             "--trust-remote-code",
             "--disable-log-requests",  # Disable verbose request logging
             "--disable-uvicorn-access-log",
-        ]   
+        ]
 
         if self.model_kwargs:
             cmd.extend([f"--{k}={v}" for k, v in self.model_kwargs.items()])
@@ -61,7 +57,7 @@ class VLLMServer(InferenceServer):
         atexit.register(_kill_proc)
 
         server_printed_ready_message = False
-        
+
         # Create dedicated logger for server output
         server_logger = self._create_server_logger(getattr(self, 'rank', 0))
 

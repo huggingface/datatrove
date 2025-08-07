@@ -10,10 +10,10 @@ Parts of this implementation are adapted from https://github.com/allenai/olmocr
 
 from __future__ import annotations
 
-import os
 import asyncio
 import dataclasses
 import json
+import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import AsyncGenerator, Callable, Iterable, Literal
@@ -23,22 +23,22 @@ from loguru import logger
 from datatrove.data import Document
 from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
     InferenceServer,
     SGLangServer,
     VLLMServer,
 )
-from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
-from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.pipeline.readers.jsonl import JsonlReader
+from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 @dataclass
 class InferenceSuccess:
     """
     Successful inference result.
-    
+
     Attributes:
         text: Generated text from the model
         finish_reason: Reason why generation finished
@@ -53,7 +53,7 @@ class InferenceSuccess:
 class InferenceError:
     """
     Failed inference result.
-    
+
     Attributes:
         error: Error message describing what went wrong
     """
@@ -63,7 +63,7 @@ class InferenceError:
 class InferenceProcessingError(Exception):
     """
     Exception raised when document inference processing fails.
-    
+
     Attributes:
         document: The original document that failed processing
         error: The underlying error that caused the failure
@@ -80,11 +80,11 @@ class InferenceProcessingError(Exception):
 async def _raw_post(url: str, json_data: dict) -> tuple[int, bytes]:
     """
     Very small HTTP/1.1 POST helper using the std-lib socket machinery.
-    
+
     Args:
         url: The target URL for the POST request
         json_data: Dictionary to be sent as JSON payload
-        
+
     Returns:
         Tuple of (status_code, response_body)
     """
@@ -135,29 +135,29 @@ async def _raw_post(url: str, json_data: dict) -> tuple[int, bytes]:
 class InferenceConfig:
     """
     Configuration for inference server and processing parameters.
-    
+
     Attributes:
         server_type: Type of inference server to use
         model_name_or_path: Path or name of the model to load
         temperature: Sampling temperature for generation
         model_max_context: Maximum context length for the model
         max_concurrent_requests: Maximum number of concurrent requests to server
-        max_concurrent_tasks: Maximum number of concurrent processing tasks 
+        max_concurrent_tasks: Maximum number of concurrent processing tasks
             If your query_builder is slow, it's better to provide higher value than concurrent requests
             to ensure that there are always enough requests to keep the server busy
         metric_interval: Interval for metrics reporting in seconds
-        tp: Tensor parallelism size (number of GPUs to use). Automatically converted to 
+        tp: Tensor parallelism size (number of GPUs to use). Automatically converted to
             --tensor-parallel-size for VLLM or --tp-size for SGLang. Default is 1 (no parallelism)
-        dp: Data parallelism size (number of full model replicas). Each replica can span multiple GPUs 
-            if tensor parallelism is also used. Automatically converted to --data-parallel-size for VLLM 
+        dp: Data parallelism size (number of full model replicas). Each replica can span multiple GPUs
+            if tensor parallelism is also used. Automatically converted to --data-parallel-size for VLLM
             or --dp-size for SGLang. Default is 1 (no parallelism)
-        pp: Pipeline parallelism size (number of pipeline stages). Model layers are distributed across 
-            pipeline stages for processing in sequence. Automatically converted to --pipeline-parallel-size 
+        pp: Pipeline parallelism size (number of pipeline stages). Model layers are distributed across
+            pipeline stages for processing in sequence. Automatically converted to --pipeline-parallel-size
             for VLLM or --pp-size for SGLang. Default is 1 (no parallelism)
         use_chat: Whether to use chat format (/v1/chat/completions) or completion format (/v1/completions).
             Set to False for models without chat templates. Default is True.
         model_kwargs: Additional keyword arguments for model initialization (Will be provided as --key=value to the model)
-        server_log_folder: Optional directory path where server logs will be stored. 
+        server_log_folder: Optional directory path where server logs will be stored.
             If provided, creates one log file per rank (e.g., server_rank_0.log). If None, server output
             is muted after startup completion.
     """
@@ -235,14 +235,14 @@ class CheckpointManager:
     async def parse_existing_checkpoints(self, rank: int, output_writer_context: DiskWriter) -> tuple[int, set[str]]:
         """
         Load all checkpoints for a given rank and write them to the output writer.
-        Returns: 
+        Returns:
         - documents to skip: number of documents from completed chunks that were already finished
         - set of ids of documents that were already processed in the unfinished chunks
         """
         all_ids = set()
         if not self.checkpoints_local_dir:
             return 0, all_ids
-        
+
         async with self.checkpoint_file_lock:
             if self.checkpoints_local_dir_df.exists(f"last_chunk/{rank:05d}.txt"):
                 with self.checkpoints_local_dir_df.open(f"last_chunk/{rank:05d}.txt", "r") as f:
@@ -317,7 +317,7 @@ class CheckpointManager:
 class InferenceRunner(PipelineStep):
     """
     Pipeline step for running inference on documents using various inference servers.
-    
+
     This runner pulls documents from readers, converts them to LLM requests via a query builder,
     sends requests to a locally spawned inference server, and processes the responses through
     post-processing steps.
@@ -339,7 +339,7 @@ class InferenceRunner(PipelineStep):
     ):
         """
         Initialize the inference runner.
-        
+
         Args:
             query_builder: Function that returns inference request payload(s) for a document.
                           Can return either:
@@ -368,7 +368,7 @@ class InferenceRunner(PipelineStep):
     async def metrics_reporter(self, interval: int = 600):
         """
         Periodically report metrics and queue sizes.
-        
+
         Args:
             interval: Reporting interval in seconds
         """
@@ -383,7 +383,7 @@ class InferenceRunner(PipelineStep):
     def server(self) -> InferenceServer:
         """
         Lazy initialization of the inference server.
-        
+
         Returns:
             The initialized inference server instance
         """
@@ -399,18 +399,18 @@ class InferenceRunner(PipelineStep):
     def _init_server(self) -> InferenceServer:
         """
         Spawn the requested inference server (non-blocking).
-        
+
         Returns:
             The initialized inference server instance
-            
+
         Raises:
             ValueError: If unsupported server type is specified
         """
         stype = self.config.server_type
-        
+
         # Prepare model_kwargs with parallelism configuration
         model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
-        
+
         # Add tensor parallelism parameter if tp > 1 and not already specified
         if self.config.tp > 1:
             if stype == "sglang":
@@ -422,7 +422,7 @@ class InferenceRunner(PipelineStep):
                 if "tensor-parallel-size" not in model_kwargs:
                     model_kwargs["tensor-parallel-size"] = self.config.tp
             # dummy server doesn't support tensor parallelism, so we ignore tp for it
-        
+
         # Add data parallelism parameter if dp > 1 and not already specified
         if self.config.dp > 1:
             if stype == "sglang":
@@ -434,7 +434,7 @@ class InferenceRunner(PipelineStep):
                 if "data-parallel-size" not in model_kwargs:
                     model_kwargs["data-parallel-size"] = self.config.dp
             # dummy server doesn't support data parallelism, so we ignore dp for it
-        
+
         # Add pipeline parallelism parameter if pp > 1 and not already specified
         if self.config.pp > 1:
             if stype == "sglang":
@@ -446,7 +446,7 @@ class InferenceRunner(PipelineStep):
                 if "pipeline-parallel-size" not in model_kwargs:
                     model_kwargs["pipeline-parallel-size"] = self.config.pp
             # dummy server doesn't support pipeline parallelism, so we ignore pp for it
-        
+
         if stype == "sglang":
             return SGLangServer(
                 self.config.model_name_or_path,
@@ -474,11 +474,11 @@ class InferenceRunner(PipelineStep):
     async def _send_request(self, payload: dict, semaphore: asyncio.Semaphore) -> InferenceSuccess | InferenceError:
         """
         POST payload to the local server and return the parsed result.
-        
+
         Args:
             payload: The request payload to send
             semaphore: Semaphore for controlling concurrent requests
-            
+
         Returns:
             InferenceSuccess with response data or InferenceError with error message
         """
@@ -487,7 +487,7 @@ class InferenceRunner(PipelineStep):
             endpoint = "/v1/chat/completions"
         else:
             endpoint = "/v1/completions"
-        
+
         url = f"http://localhost:{self.server.port}{endpoint}"
         max_retries = 6
         attempt = 0
@@ -540,7 +540,7 @@ class InferenceRunner(PipelineStep):
                     await asyncio.sleep(sleep_delay)
                     attempt += 1
                 except asyncio.CancelledError:
-                    logger.info(f"Request cancelled")
+                    logger.info("Request cancelled")
                     self.queue_sizes.change_queues({"running_requests": -1})
                     raise
                 except Exception as e:
@@ -576,7 +576,7 @@ class InferenceRunner(PipelineStep):
                     completion_tokens = result.usage.get("completion_tokens", 0)  # type: ignore
                     total_input_tokens += prompt_tokens
                     total_output_tokens += completion_tokens
-                    
+
                     # Update stats for each individual request
                     self.stat_update("prompt_tokens", value=prompt_tokens, unit="request")
                     self.stat_update("completion_tokens", value=completion_tokens, unit="request")
@@ -600,10 +600,10 @@ class InferenceRunner(PipelineStep):
     async def _async_data_gen(self, sync_gen: Iterable[Document]):
         """
         Convert synchronous generator to async generator using asyncio.to_thread.
-        
+
         Args:
             sync_gen: Synchronous iterable of documents
-            
+
         Yields:
             Document objects from the synchronous generator
         """
@@ -631,7 +631,7 @@ class InferenceRunner(PipelineStep):
     ) -> None:
         """
         Run asynchronous inference processing on the provided data.
-        
+
         Args:
             data_gen: Iterable of Document objects to process
             rank: Process rank identifier for distributed processing
@@ -653,13 +653,13 @@ class InferenceRunner(PipelineStep):
         async def _handle_record(doc: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter) -> None:
             """
             Process a single document through the inference pipeline.
-            
+
             Args:
                 doc: Document to process
                 rank: Process rank identifier
                 chunk_index: Chunk index for the document
                 output_writer_context: Output writer context for saving documents
-                
+
             Raises:
                 InferenceProcessingError: If document processing fails
             """
@@ -695,7 +695,7 @@ class InferenceRunner(PipelineStep):
 
                 # Wait for all requests to complete and collect results in order
                 results = await asyncio.gather(*request_tasks)
-                
+
                 for result in results:
                     if isinstance(result, InferenceError) and (not self.skip_bad_requests or "BadRequestError" not in result.error):
                         # re-raise any non-skippable errors
@@ -703,7 +703,7 @@ class InferenceRunner(PipelineStep):
 
                 # Store results directly in document metadata
                 doc.metadata["inference_results"] = results
-            
+
                 # Save the document immediately after processing
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceProcessingError as e:
@@ -746,7 +746,7 @@ class InferenceRunner(PipelineStep):
                 # Add task for current record
                 task = asyncio.create_task(_handle_record(record, rank, chunk_index, output_writer_context))
                 tasks_pool.add(task)
-                
+
             # 3. Wait for all remaining tasks to complete
             if tasks_pool:
                 await asyncio.gather(*tasks_pool)
@@ -767,7 +767,7 @@ class InferenceRunner(PipelineStep):
     ) -> None:
         """
         Consume `data`, run inference and post-processing, do not yield further documents.
-        
+
         Args:
             data: Iterable of Document objects to process
             rank: Process rank identifier for distributed processing

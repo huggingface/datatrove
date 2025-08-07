@@ -7,7 +7,6 @@ from datetime import datetime
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.align import Align
 
 from datatrove.io import get_datafolder
 from datatrove.utils._import_utils import is_rich_available
@@ -44,7 +43,7 @@ def find_valid_directories(paths, invalid_dirs_cache):
         # Skip paths we've already determined are invalid
         if path in invalid_dirs_cache:
             continue
-            
+
         try:
             datafolder = get_datafolder(path)
             if datafolder.isfile("executor.json"):
@@ -63,32 +62,32 @@ def get_job_status(job_path, completed_jobs_cache):
     # If already marked as complete, skip re-checking
     if job_path in completed_jobs_cache:
         return completed_jobs_cache[job_path]
-    
+
     try:
         logging_dir = get_datafolder(job_path)
-        
+
         with logging_dir.open("executor.json", "rt") as f:
             world_size = json.load(f).get("world_size", None)
-            
+
         if not world_size:
             return None
-            
+
         completed = set(logging_dir.list_files("completions"))
         completed_count = len(completed)
-        
+
         is_complete = completed_count == world_size
         status = {
             'completed_tasks': completed_count,
             'total_tasks': world_size,
             'is_complete': is_complete
         }
-        
+
         # Cache completed jobs to avoid re-checking
         if is_complete:
             completed_jobs_cache[job_path] = status
-            
+
         return status
-        
+
     except Exception:
         return None
 
@@ -98,11 +97,11 @@ def create_display(job_statuses, console, previous_state=None):
     # Calculate job progress
     total_jobs = len(job_statuses)
     completed_jobs = sum(1 for status in job_statuses.values() if status and status['is_complete'])
-    
+
     # Calculate task progress
     total_tasks = sum(status['total_tasks'] for status in job_statuses.values() if status)
     completed_tasks = sum(status['completed_tasks'] for status in job_statuses.values() if status)
-    
+
     # Calculate deltas from previous state
     job_delta = ""
     task_delta = ""
@@ -113,35 +112,35 @@ def create_display(job_statuses, console, previous_state=None):
             job_delta = f" [bright_green](+{job_diff} completed)[/bright_green]"
         if task_diff > 0:
             task_delta = f" [bright_green](+{task_diff} completed)[/bright_green]"
-    
+
     # Choose emoji based on completion
     job_emoji = "✅" if completed_jobs == total_jobs else "🔄"
     task_emoji = "✅" if completed_tasks == total_tasks else "🔄"
-    
+
     # Calculate percentages
     job_percentage = (completed_jobs / total_jobs * 100) if total_jobs > 0 else 0
     task_percentage = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-    
+
     # Create progress bar visualization using available terminal width
     # Account for padding, borders, and the text that follows the progress bar
     # Format: " completed/total (percentage%)" - roughly 20 characters max
     available_width = max(console.size.width - 35, 20)  # More conservative margin
     bar_width = available_width
-    
+
     def create_progress_bar(current_percentage, previous_percentage=0, filled_char="█", new_char="▓", empty_char="░", cursor_char="▶"):
         current_filled = int(current_percentage / 100 * bar_width)
         previous_filled = int(previous_percentage / 100 * bar_width)
-        
+
         # Calculate different sections
         old_progress = min(previous_filled, current_filled)
         new_progress = max(0, current_filled - previous_filled)
-        
+
         # Build the progress bar
         bar = ""
-        
+
         # Add old progress
         bar += filled_char * old_progress
-        
+
         # Add new progress (if any)
         if new_progress > 0:
             if current_filled < bar_width and current_percentage < 100:
@@ -152,25 +151,25 @@ def create_display(job_statuses, console, previous_state=None):
         elif current_filled < bar_width and current_percentage < 100 and old_progress > 0:
             # No new progress, but add cursor if not complete
             bar = bar[:-1] + cursor_char
-        
+
         # Fill remaining with empty characters
         bar += empty_char * (bar_width - len(bar))
-        
+
         return bar
-    
+
     # Calculate previous percentages for progress bar visualization
     prev_job_percentage = 0
     prev_task_percentage = 0
     if previous_state:
         prev_job_percentage = (previous_state.get('completed_jobs', 0) / previous_state.get('total_jobs', 1) * 100) if previous_state.get('total_jobs', 0) > 0 else 0
         prev_task_percentage = (previous_state.get('completed_tasks', 0) / previous_state.get('total_tasks', 1) * 100) if previous_state.get('total_tasks', 0) > 0 else 0
-    
+
     job_bar = create_progress_bar(job_percentage, prev_job_percentage)
     task_bar = create_progress_bar(task_percentage, prev_task_percentage)
-    
+
     # Get current timestamp
     timestamp = datetime.now().strftime("%H:%M:%S")
-    
+
     # Create timestamp line at top right
     timestamp_line = f"[dim]Last update: {timestamp}[/dim]"
     # Calculate spacing to right-align the timestamp more accurately
@@ -180,7 +179,7 @@ def create_display(job_statuses, console, previous_state=None):
     timestamp_text_len = len(f"Last update: {timestamp}")  # Without markup
     spaces_needed = max(0, available_width - timestamp_text_len)
     right_aligned_timestamp = f"{' ' * spaces_needed}{timestamp_line}"
-    
+
     # Create the main content
     main_content = f"""
 {job_emoji} [bold]Tracked jobs: {completed_jobs}/{total_jobs} - {job_percentage:.1f}%{job_delta}[/bold]
@@ -189,9 +188,9 @@ def create_display(job_statuses, console, previous_state=None):
 {task_emoji} [bold]Tracked tasks: {completed_tasks}/{total_tasks} - {task_percentage:.1f}%{task_delta}[/bold]
 [cyan]{task_bar}[/cyan]
     """.strip()
-    
+
     content_with_timestamp = f"{right_aligned_timestamp}\n\n{main_content}"
-    
+
     # Return both the panel and current state for next comparison
     current_state = {
         'completed_jobs': completed_jobs,
@@ -199,7 +198,7 @@ def create_display(job_statuses, console, previous_state=None):
         'total_jobs': total_jobs,
         'total_tasks': total_tasks
     }
-    
+
     return Panel(content_with_timestamp, title="Job Tracking Status", border_style="blue"), current_state
 
 
@@ -210,21 +209,21 @@ def main():
     args = parser.parse_args()
     console = Console()
     logger.remove()
-    
+
     # Expand glob pattern
     expanded_paths = expand_path_pattern(args.path)
-    
+
     # Find valid directories
     invalid_dirs_cache = set()
     valid_dirs = find_valid_directories(expanded_paths, invalid_dirs_cache)
-    
+
     if not valid_dirs:
         console.print("[red]Error: No valid job directories found (directories must contain executor.json)[/red]")
         return
-    
+
     completed_jobs_cache = {}
     previous_state = None
-    
+
     def update_display():
         """Update and return the current display."""
         nonlocal valid_dirs, previous_state
@@ -239,11 +238,11 @@ def main():
         job_statuses = {}
         for job_path in valid_dirs:
             job_statuses[job_path] = get_job_status(job_path, completed_jobs_cache)
-        
+
         panel, current_state = create_display(job_statuses, console, previous_state)
         previous_state = current_state
         return panel
-    
+
     if args.interval:
         # Continuous monitoring mode
         console.clear()  # Clear terminal at start
