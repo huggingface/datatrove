@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 class SGLangServer(InferenceServer):
     """SGLang inference server implementation."""
+
     def __init__(self, config: "InferenceConfig"):
         """
         Initialize SGLang server.

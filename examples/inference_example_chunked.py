@@ -19,51 +19,55 @@ from datatrove.pipeline.writers import JsonlWriter
 def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
     """
     Simple query builder that extracts text from document for OCR processing.
-    
+
     Args:
         runner: Inference runner instance
         document: Input document with text content
-        
+
     Returns:
         Query payload for the inference server
     """
     return {
         "messages": [
             {
-                "role": "user", 
+                "role": "user",
                 "content": [
                     {"type": "text", "text": document.text},
-                ]
+                ],
             }
         ],
         "max_tokens": 2048,
     }
 
+
 # 2. Create an async query builder that returns an async generator of dicts. Use this option if you need
 # a) Create multiple requests per document
 # b) Your query function is IO/CPU heavy
 
+
 def heavy_cpu_task(document: Document, page: int):
     # block sleep
     import time
+
     time.sleep(10)
     return {
         "messages": [
             {
-                "role": "user", 
+                "role": "user",
                 "content": [{"type": "text", "text": document.text}],
             }
         ],
         "max_tokens": 4096,
     }
 
+
 async def async_query_builder(runner: InferenceRunner, document: Document) -> AsyncGenerator[dict[str, Any], None]:
     """
     Query builder for Language Model.
-    
+
     Args:
         document: Input document with image URL or content
-        
+
     Returns:
         Async generator of query payloads for the inference server
     """
@@ -83,8 +87,7 @@ async def async_query_builder(runner: InferenceRunner, document: Document) -> As
         # Register cleanup
         atexit.register(runner.process_pool.__exit__, None, None, None)
 
-
-    for page in [1,2]:
+    for page in [1, 2]:
         yield await asyncio.get_running_loop().run_in_executor(runner.process_pool, heavy_cpu_task, document, page)
 
 

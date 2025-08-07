@@ -40,7 +40,7 @@ class VLLMServer(InferenceServer):
             "--disable-log-requests",  # Disable verbose request logging
             "--disable-uvicorn-access-log",
         ]
-        
+
         model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
         # parallelism settings
         if self.config.tp > 1 and "tensor-parallel-size" not in model_kwargs:
