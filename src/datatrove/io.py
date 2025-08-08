@@ -87,7 +87,7 @@ class OutputFileManager:
 
 
 class DataFolder(DirFileSystem):
-    """A simple wrapper around fsspec's DirFileSystem to handle file listing and sharding files accross multiple workers/process.
+    """A simple wrapper around fsspec's DirFileSystem to handle file listing and sharding files across multiple workers/process.
         Also handles the creation of output files.
         All file operations will be relative to `path`.
 

@@ -65,7 +65,7 @@ class GopherQualityFilter(BaseFilter):
             doc: Applies the heuristics rules to decide if a document should be REMOVED
 
 
-        Returns: False if sample.text does not pass any of the the heuristic tests
+        Returns: False if sample.text does not pass any of the heuristic tests
 
         """
         text = doc.text
