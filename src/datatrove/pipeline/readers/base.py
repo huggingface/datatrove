@@ -6,7 +6,7 @@ from typing import Callable
 from tqdm import tqdm
 
 from datatrove.data import Document, DocumentsPipeline
-from datatrove.io import DataFileLike, DataFolderLike, get_datafolder, get_shard_from_paths_file
+from datatrove.io import DataFileLike, DataFolderLike, file_exists, get_datafolder, get_shard_from_paths_file, open_file
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
 
@@ -156,6 +156,12 @@ class BaseDiskReader(BaseReader):
         self.shuffle_files = shuffle_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
+        if self.paths_file and not file_exists(self.paths_file):
+            logger.warning(f"Paths file {self.paths_file} does not exist. Creating it...")
+            with open_file(self.paths_file, mode="wt") as f:
+                for path in sorted(self.data_folder.list_files(recursive=self.recursive, glob_pattern=self.glob_pattern)):
+                    f.write(path + "\n")
+
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
