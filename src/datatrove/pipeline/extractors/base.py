@@ -37,6 +37,20 @@ class BaseExtractor(PipelineStep):
         """
         pass
 
+    def clean_html(self, html: str) -> str:
+        """Default implementation of `clean_html` for extractors that don't return a cleaned version of the HTML
+
+        Since not all extractors produce a cleaned version of the HTML as a part of the extraction process,
+        this default implementation throws a warning and simply returns the original HTML string.
+
+        Args:
+            html: str: the HTML content to clean
+
+        Returns:
+            str: the cleaned HTML
+        """
+        return html
+
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """Iterates through each document in data and calls `timeout_extract` on it.
 
