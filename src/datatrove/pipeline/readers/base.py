@@ -147,6 +147,7 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        cache_filelist: bool = False,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
@@ -156,11 +157,10 @@ class BaseDiskReader(BaseReader):
         self.shuffle_files = shuffle_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
-        if self.paths_file and not file_exists(self.paths_file):
-            logger.warning(f"Paths file {self.paths_file} does not exist. Creating it...")
-            with open_file(self.paths_file, mode="wt") as f:
-                for path in sorted(self.data_folder.list_files(recursive=self.recursive, glob_pattern=self.glob_pattern)):
-                    f.write(path + "\n")
+        self.cache_filelist = cache_filelist
+        self._paths = None
+        if self.cache_filelist:
+            self._paths = self.data_folder.list_files(recursive=self.recursive, glob_pattern=self.glob_pattern)
 
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
@@ -237,8 +237,12 @@ class BaseDiskReader(BaseReader):
             yield from data
         files_shard = (
             self.data_folder.get_shard(rank, world_size, recursive=self.recursive, glob_pattern=self.glob_pattern)
-            if not self.paths_file
-            else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
+            if not self.paths_file and not self.cache_filelist
+            else (
+                list(get_shard_from_paths_file(self.paths_file, rank, world_size))
+                if self.paths_file
+                else self._paths[rank::world_size]  # load cached/pickled
+            )
         )
         if files_shard is None:
             raise RuntimeError(f"No files found on {self.data_folder.path}!")
