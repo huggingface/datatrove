@@ -358,7 +358,7 @@ For deduplication check the examples [minhash_deduplication.py](examples/minhash
 For summary statistics on your data you can use the [Stats](src/datatrove/pipeline/stats/summary_stats/) blocks. These blocks provide an easy way to collect data-profiles on your dataset in a distributed manner. It's a two step process in which you first:
 1) For each shard iterate over documents and collect stats into of the following groupings `summary` (all docs counted to "summary" key), `fqdn` (fully qualified domain name grouping), `suffix` (the last part of the url path grouping) or `histogram` (value based grouping).
 2) Merge the stats from different shards into a single file.
-See the [summary_stats.py](examples/summarty_stats.py) for more details.
+See the [summary_stats.py](examples/summary_stats.py) for more details.
 
 Each resulting stat is saved in a separate file with following structure: `output_folder/{fqdn,suffix,summary,histogram}/{stat_name}/metric.json`
 
