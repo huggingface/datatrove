@@ -1,5 +1,6 @@
 import argparse
-import os.path
+import os
+from pathlib import Path
 
 from datatrove.executor import SlurmPipelineExecutor
 from datatrove.pipeline.readers import HuggingFaceDatasetReader
@@ -41,24 +42,21 @@ parser.add_argument(
 )
 parser.add_argument("-ts", "--tasks", type=int, help="Number of tasks to run. 1000 by default", default=1000)
 
-# this pipeline will pull the openwebtext dataset from the HF hub, locally tokenize it in parallel
-# and then merge-shuffle everything into a final tokenized binary file
-# you could also run this on slurm by using a SlurmPipelineExecutor
-
 args = parser.parse_args()
 DATASET_NAME = args.output_name  # name for the final dataset files
 if not DATASET_NAME:
     DATASET_NAME = f"{args.dataset}-{args.tokenizer}".replace("/", "_")
 
 LOGS_FOLDER = args.logs
-WORKING_DIR = os.path.join(args.output_path, "tokenized-tasks")  # where to save the tokenized individual files
+WORKING_DIR = Path(args.output_path) / "tokenized-tasks"  # where to save the tokenized individual files
+WORKING_DIR.mkdir(parents=True, exist_ok=True)
 LOCAL_WORKING_DIR = args.local  # if your WORKING_DIR is a local path, you won't need this one
 # and can set it to `None`
 if LOCAL_WORKING_DIR:
-    LOCAL_WORKING_DIR = os.path.join(LOCAL_WORKING_DIR, DATASET_NAME)
-FINAL_OUTPUT_DIR = os.path.join(
-    args.output_path, "merged-dataset"
-)  # where to save the final merged tokenized dataset.
+    LOCAL_WORKING_DIR = Path(LOCAL_WORKING_DIR) / DATASET_NAME
+    LOCAL_WORKING_DIR.mkdir(parents=True, exist_ok=True)
+FINAL_OUTPUT_DIR = Path(args.output_path) / "merged-dataset"  # where to save the final merged tokenized dataset.
+FINAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # This is the path you will pass to your training library so that it can read the tokenized data.
 
 
@@ -75,8 +73,8 @@ if __name__ == "__main__":
                 text_key=args.text_key,  # the column that actually contains the text to be tokenized
             ),
             DocumentTokenizer(
-                output_folder=WORKING_DIR,
-                local_working_dir=LOCAL_WORKING_DIR,
+                output_folder=str(WORKING_DIR),
+                local_working_dir=str(LOCAL_WORKING_DIR) if LOCAL_WORKING_DIR else None,
                 save_filename=f"{DATASET_NAME}_tokenized",
                 tokenizer_name_or_path=args.tokenizer,
             ),
@@ -93,8 +91,8 @@ if __name__ == "__main__":
         job_name=f"{DATASET_NAME}-tok2",
         pipeline=[
             DocumentTokenizerMerger(
-                input_folder=WORKING_DIR,
-                output_folder=FINAL_OUTPUT_DIR,
+                input_folder=str(WORKING_DIR),
+                output_folder=str(FINAL_OUTPUT_DIR),
                 save_filename=f"{DATASET_NAME}",
             ),
         ],
