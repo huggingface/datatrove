@@ -6,7 +6,6 @@ from datatrove.pipeline.extractors import Trafilatura
 from datatrove.pipeline.filters import GopherQualityFilter, LanguageFilter
 from datatrove.pipeline.readers import JsonlReader, WarcReader
 from datatrove.pipeline.writers.jsonl import JsonlWriter
-from datatrove.utils.typeshelper import Languages
 
 
 """
@@ -41,7 +40,7 @@ def run_example():
         WarcReader(data_folder="warc/", limit=1000),
         Trafilatura(),
         GopherQualityFilter(min_stop_words=0),
-        LanguageFilter(language_threshold=0.5, languages=[Languages.english]),
+        LanguageFilter(language_threshold=0.5, languages=["en"]),
         JsonlWriter("intermediate/"),
         SentenceDedupSignature(output_folder="c4/sigs", config=sent_dedup_config, finder_workers=FINDER_WORKERS),
     ]
