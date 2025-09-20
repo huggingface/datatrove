@@ -54,19 +54,17 @@ class RayPipelineExecutor(PipelineExecutor):
             with arguments (data: DocumentsPipeline, rank: int,
             world_size: int)
         tasks: total number of tasks to run the pipeline on (default: 1)
-        workers: how many tasks to run simultaneously. (default is -1 for no limit aka tasks)
         depends: another PipelineExecutor that should run before this one
         skip_completed: whether to skip tasks that were completed in
             previous runs. default: True
         logging_dir: where to save logs, stats, etc. Should be parsable into a datatrove.io.DataFolder
         randomize_start_duration: the maximum number of seconds to delay the start of each task.
-        cpus_per_task: The number of CPUs to reserve per task
-            in the Ray cluster. Defaults to 1.
-        mem_per_cpu_gb: Amount of memory (in GB) to reserve per CPU
-            in the Ray cluster. Defaults to 2 GB.
+        max_concurrent_tasks: how many ray tasks to run simultaneously. (default is -1 for no limit aka tasks)
+        cpus_per_task: The number of CPUs to reserve per task in the Ray cluster. Defaults to 1.
+        mem_per_cpu_gb: Amount of memory (in GB) to reserve per CPU in the Ray cluster. Defaults to 2 GB.
         ray_remote_kwargs: Additional kwargs to pass to the ray.remote decorator
         log_first: Whether to the first task in ray job should log to console. Default: False
-        tasks_per_job: Number of tasks to run in each Ray job. Default: 1
+        workers_per_task: Number of workers to run within each ray task. Default: 1
         time: Optional time limit in seconds for each task
     """
 
@@ -74,27 +72,27 @@ class RayPipelineExecutor(PipelineExecutor):
         self,
         pipeline: list[PipelineStep | Callable],
         tasks: int = 1,
-        workers: int = -1,
         depends: "RayPipelineExecutor" = None,
         skip_completed: bool = True,
         logging_dir: DataFolderLike = None,
         randomize_start_duration: int = 0,
+        max_concurrent_tasks: int = -1,
         cpus_per_task: int = 1,
         mem_per_cpu_gb: float = 2,
+        workers_per_task: int = 1,
         ray_remote_kwargs: dict = None,
         log_first: bool = False,
-        tasks_per_job: int = 1,
         time: Optional[int] = None,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
-        self.workers = workers if workers != -1 else tasks
         self.depends = depends
         # track whether run() has been called
+        self.max_concurrent_tasks = max_concurrent_tasks if max_concurrent_tasks != -1 else tasks
         self.cpus_per_task = cpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
+        self.workers_per_task = workers_per_task
         self.ray_remote_kwargs = ray_remote_kwargs
-        self.tasks_per_job = tasks_per_job
         self.log_first = log_first
         self.time = time
 
@@ -138,9 +136,8 @@ class RayPipelineExecutor(PipelineExecutor):
             remote_options.update(self.ray_remote_kwargs)
 
         # 6) Dispatch Ray tasks
-        MAX_CONCURRENT_TASKS = self.workers
         ranks_per_jobs = [
-            incomplete_ranks[i : i + self.tasks_per_job] for i in range(0, len(incomplete_ranks), self.tasks_per_job)
+            incomplete_ranks[i : i + self.workers_per_task] for i in range(0, len(incomplete_ranks), self.workers_per_task)
         ]
         unfinished = []
         total_tasks = len(ranks_per_jobs)
@@ -150,7 +147,7 @@ class RayPipelineExecutor(PipelineExecutor):
 
         # 7) Keep tasks start_time
         task_start_times = {}
-        for _ in range(min(MAX_CONCURRENT_TASKS, len(ranks_per_jobs))):
+        for _ in range(min(self.max_concurrent_tasks, len(ranks_per_jobs))):
             ranks_to_submit = ranks_per_jobs.pop(0)
             task = ray_remote_func.remote(executor_ref, ranks_to_submit)
             unfinished.append(task)
@@ -174,7 +171,7 @@ class RayPipelineExecutor(PipelineExecutor):
 
             # If we have more ranks left to process and we haven't hit the max
             # number of concurrent tasks, add tasks to the unfinished queue.
-            while ranks_per_jobs and len(unfinished) < MAX_CONCURRENT_TASKS:
+            while ranks_per_jobs and len(unfinished) < self.max_concurrent_tasks:
                 ranks_to_submit = ranks_per_jobs.pop(0)
                 task = ray_remote_func.remote(executor_ref, ranks_to_submit)
                 unfinished.append(task)

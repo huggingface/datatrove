@@ -233,14 +233,15 @@ executor2.run() # this will actually launch executor1, as it is a dependency, so
 This executor will launch a pipeline on a ray cluster, using ray tasks for parallel execution.
 Options:
 - `tasks` total number of tasks to run.
-- `workers` how many tasks to run simultaneously. If `-1`, no limit. Ray will run `workers` tasks at a time. (default: `-1`)
 - `depends` another RayPipelineExecutor instance, which will be a dependency of this pipeline (current pipeline will only start executing after the depended on pipeline successfully completes)
 <details>
   <summary>Other options</summary>
 
 - `cpus_per_task` how many cpus to give each task (default: `1`)
 - `mem_per_cpu_gb` memory per cpu, in GB (default: 2)
-- `ray_remote_kwargs` Additional kwargs to pass to the ray.remote decorator
+- `max_concurrent_tasks` how many ray tasks to run simultaneously. If `-1`, no limit. Ray will run `max_concurrent_tasks` tasks at a time. (default: `-1`)
+- `workers_per_task` number of workers to run within each ray task. (default: `1`)
+- `ray_remote_kwargs` additional kwargs to pass to the ray.remote decorator
 </details>
 <details>
   <summary>Example executor</summary>
@@ -255,7 +256,7 @@ executor = RayPipelineExecutor(
     ],
     logging_dir="logs/",
     tasks=500,
-    workers=100,  # omit to run all at once
+    max_concurrent_tasks=100,  # omit to run all at once
 )
 executor.run()
 ```
