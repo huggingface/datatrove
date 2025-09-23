@@ -159,8 +159,8 @@ datatrove/
 | Example | Status | Implementation | Notes |
 |---------|--------|---------------|-------|
 | 1. Basic Filtering | ✅ Complete | `examples_local/01_basic_filtering.py` | Successfully processes C4 data: 1000→77 docs |
-| 2. Text Extraction | 🔄 In Progress | - | Next: Download WARC sample, implement Trafilatura |
-| 3. Tokenization | ⏳ Not Started | - | - |
+| 2. Text Extraction | ✅ Complete | `examples_local/02_text_extraction.py` | WARC processing with quality filters: 200→8 docs |
+| 3. Tokenization | ✅ Complete | `examples_local/03_tokenization.py` | Token counting, filtering by token count |
 | 4. Statistics | ⏳ Not Started | - | - |
 | 5. Deduplication | ⏳ Not Started | - | - |
 
