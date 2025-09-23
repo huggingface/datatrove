@@ -146,3 +146,32 @@ datatrove/
 - Focus on understanding concepts over processing large datasets
 - Document any issues or learnings in each spec file
 - Keep examples self-contained and reproducible
+
+## Current Progress
+
+### Environment Setup
+- **Conda Environment:** `datatrove-learn` (Python 3.10)
+- **Installation:** `pip install -e ".[processing,io]"`
+- **Current Branch:** `learning/phase1-local-examples`
+
+### Phase 1: Local Examples Status
+
+| Example | Status | Implementation | Notes |
+|---------|--------|---------------|-------|
+| 1. Basic Filtering | ✅ Complete | `examples_local/01_basic_filtering.py` | Successfully processes C4 data: 1000→77 docs |
+| 2. Text Extraction | 🔄 In Progress | - | Next: Download WARC sample, implement Trafilatura |
+| 3. Tokenization | ⏳ Not Started | - | - |
+| 4. Statistics | ⏳ Not Started | - | - |
+| 5. Deduplication | ⏳ Not Started | - | - |
+
+### Quick Start for Next Session
+```bash
+# Activate environment
+conda activate datatrove-learn
+
+# Run Example 1
+python examples_local/01_basic_filtering.py
+
+# Continue with Example 2
+# (See spec/02_extraction_filtering.md)
+```
