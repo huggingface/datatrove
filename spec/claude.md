@@ -162,7 +162,7 @@ datatrove/
 | 2. Text Extraction | ✅ Complete | `examples_local/02_text_extraction.py` | WARC processing with quality filters: 200→8 docs |
 | 3. Tokenization | ✅ Complete | `examples_local/03_tokenization.py` | Token counting with GPT-2: 1000→922 docs, ~380K tokens |
 | 4. Statistics | ✅ Complete | `examples_local/04_statistics.py` | Collects doc/word/line/language stats: 922 docs analyzed |
-| 5. Deduplication | ⏳ Not Started | - | - |
+| 5. Deduplication | ✅ Complete | `examples_local/05_deduplication.py` | Hash-based dedup: 14→10 docs (28.6% removed), C4: no duplicates in 5000 |
 
 ### Quick Start for Next Session
 ```bash
