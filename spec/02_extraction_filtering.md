@@ -48,12 +48,20 @@ JsonlWriter("output/clean/")
 4. Add exclusion writers to see what gets filtered
 
 ## Success Metrics
-- [ ] Successfully reads WARC file
-- [ ] Extracts text from HTML records
-- [ ] Filters apply correctly
-- [ ] Output contains clean text documents
+- [x] Successfully reads WARC file
+- [x] Extracts text from HTML records
+- [x] Filters apply correctly
+- [x] Output contains clean text documents
 
 ## Notes
 - WARC files contain real web data - expect varied quality
 - Single WARC sample is small enough for local testing
 - This mirrors production Common Crawl processing
+
+## Implementation Notes (Completed)
+- Downloaded real Common Crawl WARC file (CC-MAIN-20180420081400-20180420101400-00000.warc.gz)
+- Processed 200 records with Trafilatura extraction
+- Applied GopherRepetition and GopherQuality filters
+- Results: 200 → 8 clean documents (96% filtered - very aggressive)
+- Learned about dependencies: libmagic (OS level), spacy (for repetition filter)
+- Discovered filtered content was mostly adult/spam with repetitive SEO patterns

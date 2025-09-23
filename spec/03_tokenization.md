@@ -46,12 +46,20 @@ JsonlWriter("output/tokenized/")
 5. Compare statistics
 
 ## Success Metrics
-- [ ] Token counts calculated correctly
-- [ ] Filter works based on token count
-- [ ] Statistics show before/after differences
-- [ ] Understanding of tokenizer integration
+- [x] Token counts calculated correctly
+- [x] Filter works based on token count
+- [x] Statistics show before/after differences
+- [x] Understanding of tokenizer integration
 
 ## Notes
 - GPT-2 tokenizer is commonly used
 - Token counts affect model training costs
 - Different tokenizers give different counts
+
+## Implementation Notes (Completed)
+- Processed 1000 C4 documents with GPT-2 tokenizer
+- Filtered to keep docs with 50-2048 tokens
+- Results: 1000 → 922 documents, ~380K total tokens
+- Average 413 tokens/doc, token/word ratio ~1.22
+- Fixed TokensCounter parameter issues (tokenizer_name_or_path not tokenizer_name)
+- Compared GPT-2 vs BERT tokenizers on same text

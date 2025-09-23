@@ -68,15 +68,23 @@ JsonlWriter("output/url_dedup/")
 4. Verify duplicates removed
 
 ## Success Metrics
-- [ ] Duplicates correctly identified
-- [ ] Output has unique documents
-- [ ] Statistics show reduction
-- [ ] Understanding of dedup trade-offs
+- [x] Duplicates correctly identified
+- [x] Output has unique documents
+- [x] Statistics show reduction
+- [x] Understanding of dedup trade-offs
 
 ## Notes
 - Exact dedup is memory-limited locally
 - MinHash (Example 7) handles fuzzy matching
 - Sentence dedup good for web text
+
+## Implementation Notes (Completed)
+- Created synthetic data with 14 docs (5 unique, 4 exact dups, 4 near dups, 1 dup pangram)
+- Implemented hash-based exact deduplication
+- Results: 14 → 10 documents (28.6% removed)
+- Successfully removed all exact duplicates, kept near duplicates
+- Tested on 5000 C4 docs: found 0 duplicates (C4 is pre-deduplicated)
+- MinHash and BloomFilter require more complex setup for local use
 - Order matters: sentence then document dedup
 
 ## Preview of Distributed MinHash

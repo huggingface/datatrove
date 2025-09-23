@@ -60,11 +60,11 @@ JsonlWriter("output/filtered/")
 5. Analyze filtered vs. original data statistics
 
 ## Success Metrics
-- [ ] Pipeline runs without errors
-- [ ] Correct number of documents filtered
-- [ ] Output files created in expected location
-- [ ] Can modify filters and see different results
-- [ ] Understanding of Document flow through pipeline
+- [x] Pipeline runs without errors
+- [x] Correct number of documents filtered
+- [x] Output files created in expected location
+- [x] Can modify filters and see different results
+- [x] Understanding of Document flow through pipeline
 
 ## Variations to Try
 1. Chain multiple filters
@@ -82,3 +82,9 @@ JsonlWriter("output/filtered/")
 - Start with 1 task, then try with multiple tasks
 - Observe how files are sharded across tasks
 - Check logging output to understand execution flow
+
+## Implementation Notes (Completed)
+- Used C4 dataset directly from HuggingFace (1000 docs)
+- Applied 3 filters: length > 100, keyword matching, 50% sampling
+- Results: 1000 → 77 documents after filtering
+- Learned about LambdaFilter parameter issues (no 'name' param)

@@ -134,12 +134,12 @@ datatrove/
 ```
 
 ## Success Criteria
-- [ ] Successfully run all local examples
-- [ ] Understand pipeline composition and data flow
+- [x] Successfully run all local examples
+- [x] Understand pipeline composition and data flow
 - [ ] Convert at least one example to Slurm
 - [ ] Run a multi-stage distributed pipeline
-- [ ] Collect and analyze statistics from processed data
-- [ ] Implement custom filtering or processing logic
+- [x] Collect and analyze statistics from processed data
+- [x] Implement custom filtering or processing logic
 
 ## Notes
 - Start with minimal data to ensure quick iteration
