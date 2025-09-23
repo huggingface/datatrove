@@ -160,6 +160,9 @@ cython_debug/
 
 .vscode/
 
+# macOS
+.DS_Store
+
 playground/
 
 # DataTrove learning examples - outputs and logs
