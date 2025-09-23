@@ -161,3 +161,9 @@ cython_debug/
 .vscode/
 
 playground/
+
+# DataTrove learning examples - outputs and logs
+examples_local/output/
+examples_local/logs/
+examples_local/data/*.warc.gz
+examples_local/data/*.jsonl
