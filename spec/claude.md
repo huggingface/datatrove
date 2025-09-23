@@ -152,7 +152,8 @@ datatrove/
 ### Environment Setup
 - **Conda Environment:** `datatrove-learn` (Python 3.10)
 - **Installation:** `pip install -e ".[processing,io]"`
-- **Current Branch:** `learning/phase1-local-examples`
+- **Current Branch:** `learning/phase2-slurm-distributed`
+- **Phase 2 Start Date:** 2025-09-23
 
 ### Phase 1: Local Examples Status
 
@@ -163,6 +164,15 @@ datatrove/
 | 3. Tokenization | ✅ Complete | `examples_local/03_tokenization.py` | Token counting with GPT-2: 1000→922 docs, ~380K tokens |
 | 4. Statistics | ✅ Complete | `examples_local/04_statistics.py` | Collects doc/word/line/language stats: 922 docs analyzed |
 | 5. Deduplication | ✅ Complete | `examples_local/05_deduplication.py` | Hash-based dedup: 14→10 docs (28.6% removed), C4: no duplicates in 5000 |
+
+### Phase 2: Slurm/Distributed Status
+
+| Example | Status | Implementation | Notes |
+|---------|--------|---------------|-------|
+| 6. RunPod Slurm Setup | ⏳ Starting | `spec/06_runpod_slurm.md` | Docker-based quick setup |
+| 7. Lambda Slurm Setup | ⏳ Not Started | `spec/07_lambda_slurm.md` | Manual setup with more control |
+| 8. Local to Slurm Conversion | ⏳ Not Started | - | Convert Example 1 to distributed |
+| 9. Multi-Stage MinHash | ⏳ Not Started | - | 4-stage deduplication pipeline |
 
 ### Quick Start for Next Session
 ```bash
