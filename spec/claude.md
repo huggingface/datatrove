@@ -160,8 +160,8 @@ datatrove/
 |---------|--------|---------------|-------|
 | 1. Basic Filtering | ✅ Complete | `examples_local/01_basic_filtering.py` | Successfully processes C4 data: 1000→77 docs |
 | 2. Text Extraction | ✅ Complete | `examples_local/02_text_extraction.py` | WARC processing with quality filters: 200→8 docs |
-| 3. Tokenization | ✅ Complete | `examples_local/03_tokenization.py` | Token counting, filtering by token count |
-| 4. Statistics | ⏳ Not Started | - | - |
+| 3. Tokenization | ✅ Complete | `examples_local/03_tokenization.py` | Token counting with GPT-2: 1000→922 docs, ~380K tokens |
+| 4. Statistics | ✅ Complete | `examples_local/04_statistics.py` | Collects doc/word/line/language stats: 922 docs analyzed |
 | 5. Deduplication | ⏳ Not Started | - | - |
 
 ### Quick Start for Next Session
