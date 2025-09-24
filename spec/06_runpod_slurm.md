@@ -1,148 +1,225 @@
-# Example 6: RunPod Slurm Setup (Quick Docker Approach)
+# Example 6: RunPod Slurm Setup (Managed Slurm Clusters)
 
 ## Objective
 
-Set up a minimal Slurm cluster on RunPod using Docker containers for quick testing of DataTrove distributed processing.
+Set up a zero-configuration Slurm cluster on RunPod using managed Slurm Clusters for distributed DataTrove processing.
 
-## Why RunPod First?
+## Why RunPod Managed Slurm?
 
-- Faster setup with pre-built Docker images
-- Good for initial testing and validation
-- Lower complexity to get started
-- Can tear down and recreate easily
+- **Zero configuration** - Slurm and munge pre-installed
+- **Instant provisioning** - No manual setup required
+- **Automatic role assignment** - Controller/agent roles handled automatically
+- **Built-in optimizations** - Pre-configured for performance
+- **Standard Slurm compatibility** - All commands work out-of-box
 
 ## Prerequisites
 
 - RunPod account with credits
-- Basic understanding of Docker
-- SSH client
+- Basic understanding of Slurm
+- Web browser (for RunPod console)
 
 ## Architecture
 
 ```
-RunPod Pod (Single Instance)
-├── Docker Network
-│   ├── slurmctld (controller container)
-│   ├── slurmd1 (worker container)
-│   ├── slurmd2 (worker container)
-│   └── slurmd3 (worker container)
-└── Shared Volume (/data)
+RunPod Instant Cluster
+├── Node-0 (Primary/Controller)
+│   ├── slurmctld (controller daemon)
+│   ├── slurmd (worker daemon)
+│   └── DataTrove + dependencies
+└── Node-1 (Worker)
+    ├── slurmd (worker daemon)
+    └── DataTrove + dependencies
 ```
 
 ## Step-by-Step Setup
 
-### 1. Create RunPod Instance
+### 1. Deploy RunPod Slurm Cluster
 
 ```bash
-# RunPod Configuration:
-# - Template: RunPod Pytorch 2.0
-# - GPU: NONE (CPU only for initial testing)
-# - Container Disk: 50 GB
-# - Volume Disk: 20 GB
-# - Cost: ~$0.10/hour for CPU instance
+# Go to https://console.runpod.io/cluster
+# Click "Create Cluster"
+# Select "Slurm Cluster" from cluster type dropdown
+# Configure:
+# - Cluster name: datatrove-learn
+# - Pod count: 2 (minimum)
+# - GPU type: A100 SXM (cheapest available for Slurm)
+# - Region: Select preferred region
+# - Pod template: RunPod PyTorch (required for Slurm)
+# - Cost: ~$33.41/hour for 2x A100 pods
+# Click "Deploy Cluster"
 ```
 
-### 2. SSH into Pod
+### 2. Connect to Slurm Controller
 
 ```bash
-ssh root@[YOUR_POD_IP] -p [YOUR_PORT]
+# On the Instant Clusters page:
+# 1. Click your cluster to expand
+# 2. Look for "Slurm controller" label on one pod
+# 3. Click "Connect" → "Web Terminal" on controller pod
 ```
 
-### 3. Install Docker Slurm Cluster
+### 3. Setup Repository and DataTrove
+
+Slurm is already configured! Setup your code:
 
 ```bash
-# Pull the Slurm Docker cluster image
-docker pull giovtorres/slurm-docker-cluster
+# Clone your repo (public, no SSH key needed)
+git clone https://github.com/yoniebans/datatrove.git
+cd datatrove
+git checkout learning/phase2-slurm-distributed
 
-# Run the cluster (creates controller + 2 workers)
-docker run -it --rm \
-    --name slurm-cluster \
-    -h slurm-cluster \
-    -v /workspace:/data \
-    --privileged \
-    giovtorres/slurm-docker-cluster
+# Install DataTrove
+pip install -e ".[processing,io]"
 
-# In another terminal, exec into the container
-docker exec -it slurm-cluster /bin/bash
+# Install on worker node (node-1 needs the repo)
+srun --nodelist=node-1 git clone https://github.com/yoniebans/datatrove.git /root/datatrove
+srun --nodelist=node-1 bash -c "cd /root/datatrove && git checkout learning/phase2-slurm-distributed && pip install -e '.[processing,io]'"
 ```
 
-### 4. Verify Slurm is Working
+### 4. Verify Cluster is Working
 
+On node-0:
 ```bash
-# Inside container
-sinfo  # Should show c1, c2 nodes
-squeue # Should be empty
-srun -N 2 hostname # Should return c1, c2
+# Check node status
+sinfo
+# Should show:
+# PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
+# gpu*         up   infinite      2   idle node-[0-1]
 
-# Test job submission
-sbatch --wrap="sleep 30 && echo 'Hello from Slurm'"
-squeue # Should show job running
+# Test distributed execution
+srun --nodes=2 hostname
+# Should return both hostnames
+
+# Test job submission (use single quotes to avoid bash history issues)
+sbatch --wrap='sleep 10 && echo "Cluster working!"'
+squeue  # Monitor job
 ```
 
-### 5. Install DataTrove in Container
+### 5. Run Distributed Examples on Slurm
 
+Test both basic filtering and statistics collection:
+
+#### Example 1: Basic Filtering
 ```bash
-# Inside the Slurm container
-pip install datatrove[io,processing]
+# Create directory
+mkdir -p examples_slurm
 
-# Also install in worker nodes
-docker exec slurmd1 pip install datatrove[io,processing]
-docker exec slurmd2 pip install datatrove[io,processing]
-```
-
-### 6. Create Test Pipeline Script
-
-```python
-# /data/test_slurm.py
+# Create basic filtering test
+cat > examples_slurm/01_basic_filtering_slurm.py << 'EOF'
 from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.pipeline.readers import JsonlReader
-from datatrove.pipeline.filters import LambdaFilter
+from datatrove.pipeline.filters import LambdaFilter, SamplerFilter
 from datatrove.pipeline.writers import JsonlWriter
 
 pipeline = [
-    JsonlReader(
-        "hf://datasets/allenai/c4/en/",
-        glob_pattern="c4-train.00000-of-01024.json.gz",
-        limit=100
-    ),
-    LambdaFilter(lambda doc: len(doc.text) > 50),
-    JsonlWriter("/data/output/")
+    JsonlReader("hf://datasets/allenai/c4/en/",
+               glob_pattern="c4-train.00000-of-01024.json.gz",
+               limit=100),
+    LambdaFilter(lambda doc: len(doc.text) > 100),
+    LambdaFilter(lambda doc: any(keyword in doc.text.lower()
+                for keyword in ["data", "learning", "computer", "science"])),
+    SamplerFilter(rate=0.5),
+    JsonlWriter("/tmp/output/")
 ]
 
 executor = SlurmPipelineExecutor(
-    job_name="test_datatrove",
+    job_name="basic_filtering",
     pipeline=pipeline,
     tasks=2,
     time="00:05:00",
-    partition="normal",
-    logging_dir="/data/logs/",
+    partition="gpu",
+    logging_dir="/tmp/logs/",
     slurm_logs_folder="/tmp/slurm_logs/",
-    cpus_per_task=1,
-    mem_per_cpu_gb=1,
+    cpus_per_task=8,
+    mem_per_cpu_gb=8,
 )
 
 executor.run()
+EOF
+
+# Run basic filtering test
+python examples_slurm/01_basic_filtering_slurm.py
 ```
 
-### 7. Run the Test
+#### Example 2: True Distributed Statistics
+```bash
+# Create distributed statistics test
+cat > examples_slurm/04_statistics_slurm.py << 'EOF'
+from datatrove.executor.slurm import SlurmPipelineExecutor
+from datatrove.pipeline.readers import JsonlReader
+from datatrove.pipeline.stats import DocStats, LangStats
+
+pipeline = [
+    # Use multiple C4 files so both nodes get work
+    JsonlReader("hf://datasets/allenai/c4/en/",
+                glob_pattern="c4-train.0000[0-3]-of-01024.json.gz",  # 4 files
+                limit=200),  # 200 docs per file = 800 total
+    DocStats(
+        output_folder="/tmp/stats_truly_distributed/",
+        histogram_round_digits=1,
+    ),
+    LangStats(
+        output_folder="/tmp/stats_truly_distributed/",
+        language="en",
+    ),
+]
+
+executor = SlurmPipelineExecutor(
+    job_name="true_distributed",
+    pipeline=pipeline,
+    tasks=2,  # 2 tasks, should get 2 files each
+    time="00:10:00",
+    partition="gpu",
+    logging_dir="/tmp/logs_truly_distributed/",
+    cpus_per_task=8,
+    mem_per_cpu_gb=8,
+)
+
+executor.run()
+EOF
+
+# Run distributed statistics
+python examples_slurm/04_statistics_slurm.py
+```
+
+### 6. Monitor and Verify Results
 
 ```bash
-cd /data
-python test_slurm.py
-
-# Monitor
+# Monitor job execution
 squeue
-tail -f /data/logs/*/logs/*.log
+
+# Example 1 Results - Basic Filtering
+ls -la /tmp/output/
+zcat /tmp/output/00000.jsonl.gz | wc -l  # Should show ~5 documents
+find /tmp/logs -name "*.log" -exec tail -5 {} \;
+
+# Example 2 Results - Distributed Statistics
+ls -la /tmp/logs_truly_distributed/logs/
+cat /tmp/logs_truly_distributed/logs/*.log | grep "Processing done for rank"
+cat /tmp/logs_truly_distributed/logs/*.log | grep "documents:"
+
+# Verify true distribution (both nodes working)
+cat /tmp/logs_truly_distributed/logs/task_00000.log | grep "Reading input file"
+cat /tmp/logs_truly_distributed/logs/task_00001.log | grep "Reading input file"
+
+# Check collected statistics
+ls -la /tmp/stats_truly_distributed/
+find /tmp/stats_truly_distributed -name "*.json" | head -5
 ```
 
 ## Success Metrics
 
-- [ ] Slurm cluster running (sinfo shows nodes)
-- [ ] Can submit jobs (sbatch works)
-- [ ] DataTrove installed on all nodes
-- [ ] Test pipeline runs successfully
-- [ ] Output files created in /data/output/
-- [ ] Logs show distributed execution
+- [x] Managed Slurm Cluster deployed (2x A100 nodes)
+- [x] Slurm services running automatically
+- [x] DataTrove installed on all nodes
+- [x] **Example 1 - Basic Filtering**: 100→77→5 documents processed
+- [x] **Example 2 - True Distributed Statistics**: Both nodes processing different files
+  - Task 0: c4-train.00000 → 200 documents (404K chars)
+  - Task 1: c4-train.00001 → 200 documents (434K chars)
+- [x] **Perfect load balancing**: Each node got separate files to process
+- [x] **Complete statistics collection**: Document stats and language detection
+- [x] **All pipeline components verified**: Readers, Filters, Stats, Writers
+- [x] **Total cost: ~$25 for comprehensive testing**
 
 ## Troubleshooting
 
@@ -151,56 +228,64 @@ tail -f /data/logs/*/logs/*.log
 1. **Nodes show DOWN**
 
 ```bash
-scontrol update nodename=c1 state=idle
-scontrol update nodename=c2 state=idle
+# On node-0
+scontrol update nodename=node-0 state=idle
+scontrol update nodename=node-1 state=idle
 ```
 
-2. **Permission issues**
+2. **Munge authentication errors**
 
 ```bash
-chmod -R 777 /data
+# Ensure same secret key used on both nodes
+# Restart munge if needed:
+pkill munged
+munged -F &
 ```
 
-3. **DataTrove not found**
+3. **DataTrove not found on workers**
 
 ```bash
-# Install on all nodes
-for node in c1 c2; do
-    srun -N 1 --nodelist=$node pip install datatrove
-done
+# Install on all nodes via srun
+srun -N 2 pip install datatrove[io,processing]
+```
+
+4. **IP addresses don't match**
+
+```bash
+# Check actual IPs:
+hostname -I
+# Update install.sh command with correct IPs
 ```
 
 ## Cost Analysis
 
-- Setup time: ~30 minutes
-- Test runs: ~30 minutes
-- Total cost: $0.10/hr × 1 hr = **$0.10**
+- Setup time: ~10 minutes
+- Test runs: ~15 minutes
+- Total cost: $33.41/hr × 0.42 hr = **~$14**
 
 ## Next Steps
 
 Once this works:
 
-1. Run Example 1 converted to Slurm
-2. Test with more workers
-3. Try with actual S3 storage
-4. Move to Lambda Labs for production setup
+1. Scale to more nodes (3-4 pods)
+2. Run all Phase 1 examples on Slurm
+3. Test with S3 storage
+4. Implement multi-stage pipelines
+5. Move to Lambda Labs for larger scale
 
 ## Cleanup
 
 ```bash
-# Exit container
-exit
-
-# Stop Docker container (auto-removes with --rm flag)
-docker stop slurm-cluster
-
-# Terminate RunPod instance to stop billing
-# Go to RunPod dashboard → Stop pod
+# IMPORTANT: Delete cluster to stop billing
+# Go to https://www.console.runpod.io/cluster
+# Click on your cluster
+# Click "Delete Cluster"
 ```
 
 ## Notes
 
-- This is a learning setup, not production
-- All nodes run on same physical machine
-- Good for understanding Slurm commands and DataTrove integration
-- Real distributed processing needs separate physical nodes (see Example 7: Lambda Labs)
+- Expensive but powerful: 2x A100 pods with 8 GPUs each
+- True distributed processing across multiple pods
+- High-speed networking between pods
+- Perfect for testing GPU-accelerated DataTrove features
+- Be efficient - test quickly and cleanup

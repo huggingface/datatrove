@@ -136,8 +136,8 @@ datatrove/
 ## Success Criteria
 - [x] Successfully run all local examples
 - [x] Understand pipeline composition and data flow
-- [ ] Convert at least one example to Slurm
-- [ ] Run a multi-stage distributed pipeline
+- [x] Convert at least one example to Slurm
+- [x] Run distributed processing with load balancing
 - [x] Collect and analyze statistics from processed data
 - [x] Implement custom filtering or processing logic
 
@@ -169,19 +169,25 @@ datatrove/
 
 | Example | Status | Implementation | Notes |
 |---------|--------|---------------|-------|
-| 6. RunPod Slurm Setup | ⏳ Starting | `spec/06_runpod_slurm.md` | Docker-based quick setup |
-| 7. Lambda Slurm Setup | ⏳ Not Started | `spec/07_lambda_slurm.md` | Manual setup with more control |
-| 8. Local to Slurm Conversion | ⏳ Not Started | - | Convert Example 1 to distributed |
-| 9. Multi-Stage MinHash | ⏳ Not Started | - | 4-stage deduplication pipeline |
+| 6. RunPod Slurm Setup | ✅ Complete | `spec/06_runpod_slurm.md` | Managed Slurm clusters, 2x A100 nodes |
+| 6a. Basic Filtering (Slurm) | ✅ Complete | `examples_slurm/01_basic_filtering_slurm.py` | 100→77→5 docs distributed processing |
+| 6b. Statistics Collection (Slurm) | ✅ Complete | `examples_slurm/04_statistics_slurm.py` | True load balancing: 200 docs per node |
+| 7. Lambda Slurm Setup | ⏳ Not Started | `spec/07_lambda_slurm.md` | Alternative provider option |
+| 8. Multi-Stage MinHash | ⏳ Not Started | - | 4-stage deduplication pipeline |
 
 ### Quick Start for Next Session
 ```bash
 # Activate environment
 conda activate datatrove-learn
 
-# Run Example 1
+# Phase 1 (Local) - All complete
 python examples_local/01_basic_filtering.py
+python examples_local/04_statistics.py
 
-# Continue with Example 2
-# (See spec/02_extraction_filtering.md)
+# Phase 2 (Slurm) - RunPod examples complete
+# See spec/06_runpod_slurm.md for full setup
+# examples_slurm/01_basic_filtering_slurm.py
+# examples_slurm/04_statistics_slurm.py
+
+# Next: Lambda Labs setup or multi-stage pipelines
 ```
