@@ -1,3 +1,4 @@
+import base64
 from typing import IO, Callable
 
 from datatrove.io import DataFolderLike
@@ -40,5 +41,7 @@ class JsonlWriter(DiskWriter):
 
     def _write(self, document: dict, file_handler: IO, _filename: str):
         import orjson
-
+        for media in document.get("media", []):
+            if media["media_bytes"]:
+                media["media_bytes"] = base64.b64encode(media["media_bytes"]).decode("ascii")
         file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))

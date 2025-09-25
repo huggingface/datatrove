@@ -4,6 +4,7 @@ from itertools import chain
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.stats import Stats
+from datatrove.data import Media
 
 
 class PipelineStep(ABC):
@@ -52,6 +53,17 @@ class PipelineStep(ABC):
         """
         for label in labels:
             self.stats[label].update(value, unit)
+
+    def update_media_stats(self, media: Media):
+        """
+            Compute some general media related statistics, such as length of each media in bytes
+        Args:
+          media: Media:
+
+        Returns:
+
+        """
+        self.stat_update("media_size", value=len(media.media_bytes or b""), unit="bytes")
 
     def update_doc_stats(self, document: Document):
         """

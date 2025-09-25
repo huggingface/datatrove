@@ -4,7 +4,7 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.pipeline.dedup.url_dedup import (
+from datatrove.pipeline.dedup.exact_dedup import (
     UrlDedupBuildIndex,
     UrlDedupConfig,
     UrlDedupFilter,

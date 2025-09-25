@@ -4101,6 +4101,7 @@ class StatHints:
 class ExtensionHelperSD:
     stage_1_signature = ".c4_sig"
     stage_2_duplicates = ".c4_dup"
+    stage_2_counts = ".c4_counts"
     index = ".c4_index"
 
 

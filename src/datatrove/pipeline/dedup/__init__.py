@@ -9,4 +9,4 @@ from .minhash import (
     MinhashDedupSignature,
 )
 from .sentence_dedup import SentDedupConfig, SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
-from .url_dedup import UrlDedupConfig, UrlDedupFilter, UrlDedupSignature, UrlFindDedups
+from .exact_dedup import ExactDedupConfig, ExactDedupFilter, ExactDedupSignature, ExactFindDedups

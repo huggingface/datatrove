@@ -4,7 +4,7 @@ import numpy as np
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.dedup.url_dedup import (
+from datatrove.pipeline.dedup.exact_dedup import (
     UrlDedupConfig,
     UrlDedupFilter,
     UrlDedupSignature,
