@@ -1,206 +1,90 @@
-# Example 7: Lambda Labs Slurm Setup (Production-Like)
+# Example 7: Lambda Labs Managed Slurm Setup
 
 ## Objective
-Set up a proper distributed Slurm cluster on Lambda Labs with separate physical nodes for real distributed processing.
+Set up a Lambda Labs 1-Click Cluster (1CC) with Managed Slurm for production-like distributed DataTrove processing.
 
-## Why Lambda Labs After RunPod?
-- Real distributed processing across physical machines
-- More production-like setup
-- Better for testing actual scaling
-- Learn real cluster administration
-- Can add GPU nodes later if needed
+## Why Lambda's Managed Slurm?
+- **Zero configuration** - Slurm pre-installed and managed by Lambda
+- **Production-ready** - High availability, monitoring, and support
+- **True distributed processing** - Separate physical nodes with high-speed networking
+- **Shared filesystems** - `/home` and `/data` across all nodes
+- **Container support** - Pyxis/Enroot for containerized workloads
+- **User management** - LDAP-based multi-user environment
 
 ## Prerequisites
 - Lambda Labs account with credits
-- SSH key added to Lambda Labs
-- Basic Linux administration knowledge
+- SSH public key for access
+- Basic Slurm knowledge
 
 ## Architecture
 ```
-Lambda Labs Infrastructure
-├── slurm-controller (2 vCPU, 4GB RAM)
-│   ├── slurmctld (controller daemon)
-│   ├── slurmdbd (database daemon)
-│   └── NFS server (/shared)
-├── slurm-worker-1 (2 vCPU, 4GB RAM)
-│   ├── slurmd (worker daemon)
-│   └── NFS client (/shared)
-└── slurm-worker-2 (2 vCPU, 4GB RAM)
-    ├── slurmd (worker daemon)
-    └── NFS client (/shared)
+Lambda 1-Click Cluster (Managed Slurm)
+├── Login Node (-head-003)
+│   ├── User access point
+│   ├── Job submission
+│   └── Cluster management
+├── Compute Nodes (slurm-compute[001-N])
+│   ├── GPU/CPU workers
+│   ├── Slurm daemons (managed)
+│   └── Container runtime
+└── Shared Storage
+    ├── /home (user directories)
+    └── /data (datasets, shared resources)
 ```
 
 ## Cost Estimate
-- Controller: $0.10/hr
-- Worker 1: $0.10/hr
-- Worker 2: $0.10/hr
-- **Total: $0.30/hr** (~$1.50 for 5-hour learning session)
+- 1CC with 2-4 nodes: Variable based on instance types
+- **Managed Slurm**: No additional cost
+- **Minimum commitment**: 1 week reservation required
+- **Support**: Included with SLAs
+
+**⚠️ CAVEAT: Lambda's 1-Click Managed Slurm requires minimum 1-week reservation, making it unsuitable for short learning sessions.**
 
 ## Step-by-Step Setup
 
-### 1. Launch Lambda Labs Instances
+### 1. Deploy Lambda 1-Click Cluster
 
 ```bash
-# Go to Lambda Labs Cloud dashboard
-# Launch 3 instances:
-# - Name: slurm-controller (Ubuntu 22.04, 2 vCPU, 4GB RAM)
-# - Name: slurm-worker-1 (Ubuntu 22.04, 2 vCPU, 4GB RAM)
-# - Name: slurm-worker-2 (Ubuntu 22.04, 2 vCPU, 4GB RAM)
-
-# Note the IPs:
-# CONTROLLER_IP=xxx.xxx.xxx.xxx
-# WORKER1_IP=xxx.xxx.xxx.xxx
-# WORKER2_IP=xxx.xxx.xxx.xxx
+# Go to Lambda Cloud Dashboard → 1-Click Clusters
+# Click "Create cluster"
+# Configure:
+# - Cluster type: Select instance types (e.g., 2x GPU nodes + login node)
+# - Region: Choose preferred region
+# - SSH Key: Add your public key
+# - Slurm: Select "Managed Slurm"
+# - Name: datatrove-cluster
+# Click "Launch cluster"
 ```
 
-### 2. Initial Setup Script (Run on ALL nodes)
+### 2. Access the Cluster
 
-Create `initial_setup.sh`:
 ```bash
-#!/bin/bash
-# Run on all nodes
+# Get login node IP from dashboard (-head-003)
+LOGIN_NODE_IP=<IP_FROM_DASHBOARD>
 
-# Update system
-sudo apt update && sudo apt upgrade -y
+# SSH into login node
+ssh ubuntu@$LOGIN_NODE_IP
 
-# Install basic tools
-sudo apt install -y build-essential git vim htop
-
-# Create slurm user
-sudo useradd -m -s /bin/bash slurm
-sudo usermod -aG sudo slurm
-
-# Install Python and pip
-sudo apt install -y python3.10 python3-pip python3.10-venv
-
-# Install DataTrove
-pip install datatrove[io,processing]
-
-# Create directories
-sudo mkdir -p /var/spool/slurm/ctld
-sudo mkdir -p /var/spool/slurm/d
-sudo mkdir -p /var/log/slurm
-sudo mkdir -p /shared
-
-# Set permissions
-sudo chown -R slurm:slurm /var/spool/slurm
-sudo chown -R slurm:slurm /var/log/slurm
+# Verify cluster status
+sinfo
+# Should show:
+# PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
+# gpu*         up   infinite      2   idle slurm-compute[001-002]
 ```
 
-### 3. Controller-Specific Setup
+### 3. Setup DataTrove Repository
 
-SSH into controller and create `controller_setup.sh`:
 ```bash
-#!/bin/bash
+# Clone your DataTrove fork (public repo, no SSH key needed)
+git clone https://github.com/yoniebans/datatrove.git
+cd datatrove
+git checkout learning/phase2-slurm-distributed
 
-# Install Slurm controller packages
-sudo apt install -y slurmctld slurmdbd mysql-server
+# Install DataTrove from source
+pip install -e ".[processing,io]"
 
-# Install NFS server
-sudo apt install -y nfs-kernel-server
-
-# Configure NFS exports
-echo "/shared *(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports
-sudo systemctl restart nfs-kernel-server
-
-# Install munge for authentication
-sudo apt install -y munge libmunge-dev
-sudo systemctl enable munge
-sudo systemctl start munge
-
-# Create Slurm configuration
-sudo tee /etc/slurm/slurm.conf << 'EOF'
-# Cluster Configuration
-ClusterName=datatrove
-ControlMachine=slurm-controller
-ControlAddr=CONTROLLER_IP
-AuthType=auth/munge
-CryptoType=crypto/munge
-
-# Slurm User
-SlurmUser=slurm
-SlurmdUser=root
-SlurmctldPort=6817
-SlurmdPort=6818
-
-# State Preservation
-StateSaveLocation=/var/spool/slurm/ctld
-SlurmdSpoolDir=/var/spool/slurm/d
-
-# Logging
-SlurmctldLogFile=/var/log/slurm/slurmctld.log
-SlurmdLogFile=/var/log/slurm/slurmd.log
-SlurmctldDebug=info
-SlurmdDebug=info
-
-# Process Tracking
-ProctrackType=proctrack/cgroup
-TaskPlugin=task/cgroup
-
-# Scheduling
-SchedulerType=sched/backfill
-SelectType=select/cons_tres
-SelectTypeParameters=CR_Core
-
-# Timing
-SlurmctldTimeout=300
-SlurmdTimeout=300
-InactiveLimit=0
-MinJobAge=300
-KillWait=30
-Waittime=0
-
-# Compute Nodes
-NodeName=slurm-worker-[1-2] CPUs=2 RealMemory=3800 State=UNKNOWN
-PartitionName=compute Nodes=slurm-worker-[1-2] Default=YES MaxTime=INFINITE State=UP
-EOF
-
-# Replace CONTROLLER_IP with actual IP
-sudo sed -i "s/CONTROLLER_IP/$CONTROLLER_IP/g" /etc/slurm/slurm.conf
-
-# Configure cgroup
-sudo tee /etc/slurm/cgroup.conf << 'EOF'
-CgroupAutomount=yes
-ConstrainCores=yes
-ConstrainRAMSpace=yes
-EOF
-
-# Start services
-sudo systemctl enable slurmctld
-sudo systemctl start slurmctld
-```
-
-### 4. Worker-Specific Setup
-
-SSH into each worker and create `worker_setup.sh`:
-```bash
-#!/bin/bash
-
-# Install Slurm worker packages
-sudo apt install -y slurmd
-
-# Install NFS client
-sudo apt install -y nfs-common
-
-# Mount shared directory
-sudo mount $CONTROLLER_IP:/shared /shared
-echo "$CONTROLLER_IP:/shared /shared nfs defaults 0 0" | sudo tee -a /etc/fstab
-
-# Install munge
-sudo apt install -y munge libmunge-dev
-
-# Copy munge key from controller (do this manually)
-# scp controller:/etc/munge/munge.key /tmp/munge.key
-sudo cp /tmp/munge.key /etc/munge/munge.key
-sudo chown munge:munge /etc/munge/munge.key
-sudo chmod 400 /etc/munge/munge.key
-
-# Copy slurm.conf from controller
-# scp controller:/etc/slurm/slurm.conf /etc/slurm/slurm.conf
-
-# Start services
-sudo systemctl enable munge slurmd
-sudo systemctl start munge slurmd
+# Optional: Create user accounts (if needed for team access)
+sudo suser add datauser --key ~/.ssh/id_rsa.pub
 ```
 
 ### 5. Verify Cluster
@@ -222,49 +106,25 @@ sbatch --wrap="sleep 10 && echo 'Cluster working!'"
 squeue  # Monitor job
 ```
 
-### 6. Test DataTrove Pipeline
+### 6. Run DataTrove Examples
 
-Create `/shared/test_distributed.py`:
-```python
-from datatrove.executor.slurm import SlurmPipelineExecutor
-from datatrove.pipeline.readers import JsonlReader
-from datatrove.pipeline.filters import LambdaFilter, SamplerFilter
-from datatrove.pipeline.writers import JsonlWriter
+Use the tested examples from our repo:
 
-pipeline = [
-    JsonlReader(
-        "hf://datasets/allenai/c4/en/",
-        glob_pattern="c4-train.00000-of-01024.json.gz",
-        limit=1000
-    ),
-    LambdaFilter(lambda doc: len(doc.text) > 100),
-    SamplerFilter(rate=0.5),
-    JsonlWriter("/shared/output/")
-]
-
-executor = SlurmPipelineExecutor(
-    job_name="datatrove_test",
-    pipeline=pipeline,
-    tasks=4,  # Will distribute across workers
-    time="00:10:00",
-    partition="compute",
-    logging_dir="/shared/logs/",
-    slurm_logs_folder="/shared/slurm_logs/",
-    cpus_per_task=1,
-    mem_per_cpu_gb=1,
-)
-
-executor.run()
-```
-
-Run it:
 ```bash
-cd /shared
-python test_distributed.py
+# Run existing Slurm examples (from RunPod testing)
+python examples_slurm/01_basic_filtering_slurm.py
+python examples_slurm/04_statistics_slurm.py
 
-# Monitor
+# Monitor execution
+squeue -u ubuntu
 watch squeue
-tail -f /shared/logs/datatrove_test/logs/*.log
+
+# Check logs and results
+tail -f /tmp/logs*/*/logs/*.log
+
+# View final results
+ls -la /tmp/output*/
+ls -la /tmp/stats*/
 ```
 
 ## Advanced Configuration

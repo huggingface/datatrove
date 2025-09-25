@@ -172,22 +172,20 @@ datatrove/
 | 6. RunPod Slurm Setup | ✅ Complete | `spec/06_runpod_slurm.md` | Managed Slurm clusters, 2x A100 nodes |
 | 6a. Basic Filtering (Slurm) | ✅ Complete | `examples_slurm/01_basic_filtering_slurm.py` | 100→77→5 docs distributed processing |
 | 6b. Statistics Collection (Slurm) | ✅ Complete | `examples_slurm/04_statistics_slurm.py` | True load balancing: 200 docs per node |
-| 7. Lambda Slurm Setup | ⏳ Not Started | `spec/07_lambda_slurm.md` | Alternative provider option |
-| 8. Multi-Stage MinHash | ⏳ Not Started | - | 4-stage deduplication pipeline |
+| 7. Lambda Managed Slurm | ⏸️ Parked | `spec/07_lambda_slurm.md` | 1-week minimum commitment constraint |
+| 7b. Lambda Manual Slurm | ✅ Complete | `spec/07b_lambda_manual_slurm.md` | DIY H100 cluster from scratch |
+| 7c. DataTrove Execution | ✅ Complete | `spec/07c_datatrove_slurm_execution.md` | Distributed processing on manual clusters |
+| 8. Multi-Stage MinHash | ⏳ Future | - | 4-stage deduplication pipeline |
 
 ### Quick Start for Next Session
 ```bash
-# Activate environment
-conda activate datatrove-learn
-
 # Phase 1 (Local) - All complete
 python examples_local/01_basic_filtering.py
 python examples_local/04_statistics.py
 
-# Phase 2 (Slurm) - RunPod examples complete
-# See spec/06_runpod_slurm.md for full setup
-# examples_slurm/01_basic_filtering_slurm.py
-# examples_slurm/04_statistics_slurm.py
+# Phase 2 (Distributed) - Complete
+# RunPod: spec/06_runpod_slurm.md (managed clusters)
+# Lambda: spec/07b_lambda_manual_slurm.md + 07c_datatrove_slurm_execution.md
 
-# Next: Lambda Labs setup or multi-stage pipelines
+# Ready for Phase 3: PDF processing and fine-tuning data preparation
 ```
