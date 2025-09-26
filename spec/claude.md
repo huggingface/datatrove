@@ -198,5 +198,5 @@ python examples_local/04_statistics.py
 |-----------|--------|---------------|-------|
 | PDF WARC Reader | ✅ Complete | `src/.../readers/pdf_warc.py` | PDF-only CommonCrawl filtering |
 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identify truncated PDFs |
-| PDF Classification Test | ⏳ Planned | - | Test existing XGBoost classifier |
+| PDF Classifier Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
 | Basic PDF Pipeline | ⏳ Planned | `examples/finepdfs.py` | Docling-only extraction |

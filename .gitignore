@@ -171,3 +171,18 @@ examples_local/output/
 examples_local/logs/
 examples_local/data/*.warc.gz
 examples_local/data/*.jsonl
+
+# PDF classification training outputs
+examples_local/*.xgb
+examples_local/*.pkl
+examples_local/*.pdf
+examples_local/threshold_analysis/
+examples/*.xgb
+examples/*.pkl
+examples/threshold_analysis/
+
+# Generated plots and analysis
+examples_local/plots/
+examples_local/*.png
+threshold_analysis/
+*.png
