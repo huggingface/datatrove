@@ -10,6 +10,8 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.batching import batched
 from datatrove.utils.typeshelper import StatHints
 
+from datatrove.data import Media
+
 
 def get_filter_result(res):
     result, reason = res, None

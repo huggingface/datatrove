@@ -5,6 +5,7 @@ import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
+import re
 
 from datatrove.io import DataFolder, get_datafolder
 from datatrove.pipeline.filters import SamplerFilter
@@ -46,6 +47,11 @@ parser.add_argument(
 parser.add_argument(
     "-l", "--label", type=str, help="Label the examples as good/bad and store at this location", default=""
 )
+
+parser.add_argument(
+    "-f", "--filter", type=str, help="Filter the examples by a given expression", default=None
+)
+
 
 console = Console()
 
@@ -126,11 +132,12 @@ def main():
         f"If you don't see any color you may run \"export PAGER='less -r'\"."
     )
 
-    filter_expr_text = None
-    if Confirm.ask(
-        "Would you like to add a filtering expression? (ex: x.metadata['token_count'] > 5000)", default=False
-    ):
-        filter_expr_text = Confirm.get_input(console, "Type your filtering expression: ", password=False)
+    filter_expr_text = args.filter
+    if filter_expr_text is None:
+        if Confirm.ask(
+            "Would you like to add a filtering expression? (ex: x.metadata['token_count'] > 5000)", default=False
+        ):
+            filter_expr_text = Confirm.get_input(console, "Type your filtering expression: ", password=False)
     filter_expr = get_filter_expr(filter_expr_text)
 
     good_samples = []

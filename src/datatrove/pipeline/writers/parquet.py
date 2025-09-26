@@ -19,6 +19,7 @@ class ParquetWriter(DiskWriter):
         batch_size: int = 1000,
         expand_metadata: bool = False,
         max_file_size: int = 5 * 2**30,  # 5GB
+        save_media_bytes: bool = False,
         schema: Any = None,
     ):
         # Validate the compression setting
@@ -35,6 +36,7 @@ class ParquetWriter(DiskWriter):
             mode="wb",
             expand_metadata=expand_metadata,
             max_file_size=max_file_size,
+            save_media_bytes=save_media_bytes,
         )
         self._writers = {}
         self._batches = defaultdict(list)

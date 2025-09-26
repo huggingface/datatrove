@@ -41,6 +41,7 @@ def add_task_logger(
     logging_dir,
     rank: int,
     local_rank: int = 0,
+    log_level: str = "INFO",
 ):
     """
     Sets up logging for a given task
@@ -53,7 +54,7 @@ def add_task_logger(
     """
     logger.remove()
     logfile = logging_dir.open(f"logs/task_{rank:05d}.log", "w")
-    logger.add(sys.stderr, colorize=DATATROVE_COLORIZE_LOGS, level="INFO" if local_rank == 0 else "ERROR")
+    logger.add(sys.stderr, colorize=DATATROVE_COLORIZE_LOGS, level=log_level if local_rank == 0 else "ERROR")
     logger.add(logfile, colorize=DATATROVE_COLORIZE_LOG_FILES, level="DEBUG")
     logger.info(f"Launching pipeline for {rank=}")
     return logfile

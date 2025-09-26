@@ -52,7 +52,8 @@ class FastTextLID(LID):
 
     def predict(self, doc: Document) -> tuple[tuple[str, int], dict[str, float]]:
         langs, scores = self.model.predict(doc.text.replace("\n", " "), k=self.k)
-        lang_pairs = {lang.split("__")[2]: score.item() for lang, score in zip(langs, scores)}
+        # print(langs, scores)
+        lang_pairs = {lang.split("__")[2]: score for lang, score in zip(langs, scores)}
         best_lang_pair = max(lang_pairs.items(), key=lambda x: x[1])
         return best_lang_pair, {
             lang: lang_pairs.get(lang, 0.0) for lang in self.languages

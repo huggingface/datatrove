@@ -60,8 +60,13 @@ processing = [
     "fasteners",
     "regex",
     "xxhash",
-    "kenlm",
     "pyahocorasick"
+]
+vllm = [
+    "vllm", "httpx"
+]
+sglang = [
+    "sglang[all]"
 ]
 decont = [
     "lighteval>=0.3.0"
@@ -111,6 +116,9 @@ testing = [
   "moto[s3,server]",
   "spacy[ja]"
 ]
+crawling = [
+  "cloudscraper", "python-magic", "dnspython", "s3fs", "cloudscraper", "orjson"
+]
 all = [
   "datatrove[quality]",
   "datatrove[testing]",
@@ -118,6 +126,7 @@ all = [
 dev = [
   "datatrove[all]"
 ]
+
 
 [project.urls]
 Repository = "https://github.com/huggingface/datatrove"

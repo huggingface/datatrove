@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import multiprocess.pool
 import tempfile
 import textwrap
 import time
@@ -85,6 +86,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         mail_user: email address to send notifications to
         requeue: requeue the job if it fails
         tasks_per_job: each slurm job in the job array will run these many datatrove tasks. This reduces the total nb of slurm jobs launched.
+        max_jobs_to_run: maximum number of slurm jobs to run. If set, the pipeline will exit after this many jobs are launched.
     """
 
     def __init__(
@@ -115,11 +117,14 @@ class SlurmPipelineExecutor(PipelineExecutor):
         run_on_dependency_fail: bool = False,
         randomize_start_duration: int = 0,
         requeue_signals: tuple[str] | None = ("SIGUSR1",),
+        start_method: str = "spawn",
         mail_type: str = "ALL",
         mail_user: str = None,
         requeue: bool = True,
         srun_args: dict = None,
         tasks_per_job: int = 1,
+        force_exit: bool = False,
+        max_jobs_to_run: int = None,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -137,6 +142,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.depends = depends
         self.depends_job_id = depends_job_id
         self.job_id_position = job_id_position
+        self.force_exit = force_exit
+        self.max_jobs_to_run = max_jobs_to_run
 
         if job_id_retriever is None:
             job_id_retriever = partial(default_job_id_retriever, job_id_position=job_id_position)
@@ -149,6 +156,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.run_on_dependency_fail = run_on_dependency_fail
         self.randomize_start_duration = randomize_start_duration
         self.job_id = None
+        self.start_method = start_method
         self.requeue_signals = requeue_signals
         self.mail_type = mail_type
         self.mail_user = mail_user
@@ -177,21 +185,30 @@ class SlurmPipelineExecutor(PipelineExecutor):
             slurm_rank = int(os.environ["SLURM_ARRAY_TASK_ID"]) + self.max_array_size * int(
                 os.environ.get("RUN_OFFSET", 0)
             )
-            ranks_to_run_range = (slurm_rank * self.tasks_per_job, (slurm_rank + 1) * self.tasks_per_job)
+            ranks_id_range = (slurm_rank * self.tasks_per_job, (slurm_rank + 1) * self.tasks_per_job)
             with self.logging_dir.open("ranks_to_run.json", "r") as ranks_to_run_file:
                 all_ranks = json.load(ranks_to_run_file)
-            if ranks_to_run_range[0] >= len(all_ranks):
+            if ranks_id_range[0] >= len(all_ranks):
                 return
 
             for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
-            for rank_to_run in range(*ranks_to_run_range):
-                if rank_to_run >= len(all_ranks):
-                    break
-                rank = all_ranks[rank_to_run]
 
-                self._run_for_rank(rank)
+            ranks_to_run = [all_ranks[rank_id] for rank_id in range(*ranks_id_range) if rank_id < len(all_ranks)]
+
+            if len(ranks_to_run) == 1:
+                self._run_for_rank(ranks_to_run[0], 0)
+            else:
+                def run_for_rank_wrapper(args):
+                    return self._run_for_rank(*args)
+
+                ctx = multiprocess.get_context(self.start_method)
+                with ctx.Pool(processes=len(ranks_to_run)) as pool:
+                    list(pool.map(run_for_rank_wrapper, [(rank, local_rank) for rank, local_rank in zip(ranks_to_run, range(len(ranks_to_run)))]))
+            if self.force_exit:
+                os._exit(0)
+                
         else:
             # we still have to launch the job
             self.launch_job()
@@ -287,6 +304,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         # launch (possibly multiple) jobs
         launched_jobs = 0
         while launched_jobs * max_array < nb_jobs_to_launch:
+            if self.max_jobs_to_run and launched_jobs >= self.max_jobs_to_run:
+                break
             if launched_jobs and self.max_array_launch_parallel and self.stagger_max_array_jobs > 0:
                 time.sleep(self.stagger_max_array_jobs)
             args = [f"--export=ALL,RUN_OFFSET={launched_jobs}"]

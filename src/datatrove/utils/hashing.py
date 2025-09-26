@@ -50,3 +50,14 @@ def create_hash_func(config: HashConfig) -> Callable[[str], int]:
         return xxhash32 if config.precision == 32 else xxhash64
     else:
         raise ValueError(f"Unknown {config.hash_fc=}")
+
+
+def create_hash_func_from_bytes(config: HashConfig) -> Callable[[bytes], int]:
+    if config.hash_fc == "sha1":
+        return sha1_hash32_from_bytes if config.precision == 32 else sha1_hash64_from_bytes
+    elif config.hash_fc == "xxhash":
+        from datatrove.utils.hashes.xxhash import xxhash32, xxhash64
+        return xxhash32 if config.precision == 32 else xxhash64
+    else:
+        raise ValueError(f"Unknown {config.hash_fc=}")
+
