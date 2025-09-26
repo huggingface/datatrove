@@ -187,5 +187,16 @@ python examples_local/04_statistics.py
 # RunPod: spec/06_runpod_slurm.md (managed clusters)
 # Lambda: spec/07b_lambda_manual_slurm.md + 07c_datatrove_slurm_execution.md
 
-# Ready for Phase 3: PDF processing and fine-tuning data preparation
+# Phase 3: PDF Processing (FinePDFs Reproduction) - In Progress
+# Branch: learning/phase3-pdf-pipeline
+# See: spec/08_finepdfs_reproduction.md
 ```
+
+### Phase 3: PDF Processing Status
+
+| Component | Status | Implementation | Notes |
+|-----------|--------|---------------|-------|
+| PDF WARC Reader | 🔄 In Progress | `src/.../readers/pdf_warc.py` | PDF-only CommonCrawl filtering |
+| PDF Truncation Detector | ⏳ Planned | - | Identify truncated PDFs |
+| PDF Classification Test | ⏳ Planned | - | Test existing XGBoost classifier |
+| Basic PDF Pipeline | ⏳ Planned | `examples/finepdfs.py` | Docling-only extraction |
