@@ -25,7 +25,7 @@ from docling_ibm_models.reading_fixer.reading_fix import ReadingOrderFixer
 from docling_ibm_models.para_fix.para_fix import ParagraphFixer
 from docling_ibm_models.listitem_normalizer.list_marker_normalizer import ListItemMarkerProcessor
 from docling_ibm_models.page_num_remover.page_num_remover import PageNumberRemover
-from docling_ibm_models.pymupdf_table.table import Tables
+# from docling_ibm_models.pymupdf_table.table import Tables  # Not available in Docling-sync
 
 def keep_only_valid_metadata(metadata: dict) -> dict:
     return {k:v for k,v in metadata.items() if v}
@@ -419,7 +419,8 @@ class DoclingExtractor(BaseMediaExtractor):
         self.list_item_marker_processor = ListItemMarkerProcessor()
         self.page_number_remover = PageNumberRemover()
         # self.table_fixer = Tables()
-        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer, debug=debug, use_file_path=post_processing_options.use_file_path)
+        self.use_file_path = post_processing_options.use_file_path
+        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer)
 
 
     # def extract(self, path: str | None) -> tuple[str, dict]:
@@ -488,8 +489,8 @@ class DoclingReprocessor(BaseMediaExtractor):
         self.paragraph_fixer = ParagraphFixer()
         self.list_item_marker_processor = ListItemMarkerProcessor()
         self.page_number_remover = PageNumberRemover()
-        self.table_fixer = Tables()
-        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer, debug=debug, use_file_path=use_file_path)
+        # self.table_fixer = Tables()  # Not available in Docling-sync
+        super().__init__(timeout=timeout, exclusion_writer=exclusion_writer)
 
 
     # def extract(self, path: str | None) -> tuple[str, dict]:
@@ -512,7 +513,7 @@ class DoclingReprocessor(BaseMediaExtractor):
                 docling_document_parsed = self.paragraph_fixer.process_document(docling_document_parsed)
                 docling_document_parsed = self.list_item_marker_processor.process_document(docling_document_parsed)
                 docling_document_parsed = self.page_number_remover.process_document(docling_document_parsed)
-                docling_document_parsed = self.table_fixer.process_document(docling_document_parsed, pymupdf_doc)
+                # docling_document_parsed = self.table_fixer.process_document(docling_document_parsed, pymupdf_doc)  # Not available in Docling-sync
 
         page_break_placeholder = "<--- page break --->"
         serializer = TextDocSerializer(doc=docling_document_parsed,
