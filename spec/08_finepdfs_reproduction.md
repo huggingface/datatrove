@@ -46,14 +46,35 @@ def test_pdf_feature_extraction():
 - Discovered real feature dimension is 124, not 127
 - **Deep dive**: Built complete XGBoost training pipeline (see `spec/08b_pdf_classifier_model.md`)
 
-### Step 4: Basic PDF Extraction (Docling only)
-**File**: `examples/finepdfs_basic.py`
-**Goal**: End-to-end pipeline without inference server
+### Step 4: Full PDF Processing Pipeline with XGBoost Routing
+**File**: `examples/finepdfs.py`
+**Goal**: Complete pipeline with trained XGBoost model routing to Docling or OCR
 
+#### Step 4a: Test Docling Component
+- Verify Docling extractor works locally on sample PDFs
+- Test with text-based PDFs (OCR prob < 0.5)
+
+#### Step 4b: Test OCR Component
+- Setup OCR extraction for scanned PDFs
+- Test with scanned PDFs (OCR prob > 0.5)
+
+#### Step 4c: Lambda OCR Server
+- Spin up Lambda server for OCR processing
+- Test remote OCR functionality
+
+#### Step 4d: Full Pipeline Integration
 ```python
-# Simplified pipeline: PDFs -> Docling -> Output
-# No OCR, no model classification
+# Complete pipeline: PDFs -> XGBoost Classifier -> Docling/OCR -> Output
+reader = PDFWarcReader(...)
+truncation_filter = PDFTruncationDetector()
+classifier = PDFScannedPredictor(path_to_model="examples_local/pdf_classifier_real_data.xgb")
+# Route to Docling or OCR based on classification
 ```
+
+#### Step 4e: Process All 3 WARC Files
+- Run complete pipeline on all CommonCrawl data
+- Generate samples from each processing stage
+- Document output quality and routing decisions
 
 ### Step 5: Add PDF Re-fetching (if needed)
 **File**: `src/datatrove/pipeline/readers/pdf_refetch.py`
@@ -83,11 +104,18 @@ tests/pipeline/test_pdf_*.py      # Unit tests for each component
 | 2 | Truncation Tests | ✅ Complete | `tests/.../test_pdf_truncation.py` | Unit tests for filter logic |
 | 3 | PDF Classifier Tests | ✅ Complete | `tests/.../test_pdf_classification.py` | 9 test cases, found 124 features not 127 |
 | 3b | XGBoost Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | Deep dive: training pipeline + analysis |
-| 4 | Basic PDF Pipeline | ⏳ Next | `examples/finepdfs_basic.py` | Docling-only, no OCR routing |
+| 4a | Test Docling Component | ❌ Blocked | `examples_local/pdf_docling_test.py` | API compatibility issues - DocumentConverter mutex locks |
+| 4b | Test OCR Component | ⏳ In Progress | `examples_local/pdf_ocr_test.py` | Setup OCR for scanned PDFs |
+| 4c | Lambda OCR Server | ⏳ Next | Lambda setup | Remote OCR processing |
+| 4d | Full Pipeline Integration | ⏳ Next | `examples/finepdfs.py` | XGBoost routing to Docling/OCR |
+| 4e | Process All WARC Files | ⏳ Next | Pipeline execution | Complete dataset with samples |
 | 5 | PDF Re-fetching | ⏳ Future | `src/.../readers/pdf_refetch.py` | Re-fetch truncated PDFs |
 
 ## Course Correction
 
-**Original Plan**: Simple pipeline testing without ML complexity
+**Original Plan**: Simple Docling-only pipeline without ML complexity
 **What Happened**: Deep dive into XGBoost model training (Step 3b)
-**Next**: Return to simple Docling-only pipeline (Step 4)
+**New Plan**: Use trained XGBoost model for intelligent routing (Step 4)
+- Test both Docling and OCR extraction paths
+- Full pipeline with classification-based routing
+- Complete evaluation on all CommonCrawl data

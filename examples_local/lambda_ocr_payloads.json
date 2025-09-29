@@ -1,0 +1,42 @@
+[
+  {
+    "pdf_id": "<urn:uuid:98e53922-1ff8-45fd-be5c-41d9f906e869>",
+    "ocr_prob": 0.7582846879959106,
+    "num_pages": 33,
+    "content_length": 1048576,
+    "url": "http://bliachennai.org/pdf/How%20To%20Overcome%20Your%20Difficulties(Tamil).pdf",
+    "local_path": "examples_local/threshold_analysis/samples/high_ocr/high_ocr_01_<urn:uuid:98e53922-1ff8-45fd-be5c-41d9f906e869>.pdf"
+  },
+  {
+    "pdf_id": "<urn:uuid:f808a467-bd86-4c90-9e50-eeb5d47d36b5>",
+    "ocr_prob": 0.7983490824699402,
+    "num_pages": 1,
+    "content_length": 438121,
+    "url": "http://www.china-jinpei.com/Content/ue/net/upload/6361109498184199435172773.pdf",
+    "local_path": "examples_local/threshold_analysis/samples/high_ocr/high_ocr_02_<urn:uuid:f808a467-bd86-4c90-9e50-eeb5d47d36b5>.pdf"
+  },
+  {
+    "pdf_id": "<urn:uuid:3c02344a-24d1-4e38-961f-8b1f7bee9e32>",
+    "ocr_prob": 0.760897159576416,
+    "num_pages": 8,
+    "content_length": 1048576,
+    "url": "http://adeb.be/sites/502a034d9f83256166000004/assets/5a942c681dd6477de200016e/MON_S_LIVRE_2018_-_Dossier_de_pr_sentation.pdf",
+    "local_path": "examples_local/threshold_analysis/samples/high_ocr/high_ocr_03_<urn:uuid:3c02344a-24d1-4e38-961f-8b1f7bee9e32>.pdf"
+  },
+  {
+    "pdf_id": "<urn:uuid:24d2dd9d-271d-49fb-8817-abc5f42e46c0>",
+    "ocr_prob": 0.7694629430770874,
+    "num_pages": 1,
+    "content_length": 71307,
+    "url": "http://ddvalves.com/wp-content/uploads/2018/01/DD-International-Valves-Ltd-DD-International-Valves.pdf",
+    "local_path": "examples_local/threshold_analysis/samples/high_ocr/high_ocr_04_<urn:uuid:24d2dd9d-271d-49fb-8817-abc5f42e46c0>.pdf"
+  },
+  {
+    "pdf_id": "<urn:uuid:38bc9a73-50e9-4744-af6a-0f357ed5721c>",
+    "ocr_prob": 0.677153468132019,
+    "num_pages": 1,
+    "content_length": 101902,
+    "url": "http://www.sijosmenen.be/files/Lidgeld_Liberale%20Mutualiteit.pdf",
+    "local_path": "examples_local/threshold_analysis/samples/high_ocr/high_ocr_05_<urn:uuid:38bc9a73-50e9-4744-af6a-0f357ed5721c>.pdf"
+  }
+]
