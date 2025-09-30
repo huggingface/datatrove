@@ -25,6 +25,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.servers import (
     DummyServer,
     InferenceServer,
+    LMDeployServer,
     SGLangServer,
     VLLMServer,
 )
@@ -148,7 +149,7 @@ class InferenceConfig:
             This is useful for scenarios where the job can be killed at any time and you don't want to lose all the progress
         model_kwargs: Additional keyword arguments for model initialization (Will be provided as --key=value to the model)
     """
-    server_type: Literal["sglang", "vllm", "dummy"]
+    server_type: Literal["sglang", "vllm", "dummy", "lmdeploy"]
     model_name_or_path: str
     temperature: float = 0.0
     model_max_context: int = 8192
@@ -273,6 +274,12 @@ class InferenceRunner(PipelineStep):
             # Dummy server only uses standard library modules
             return DummyServer(
                 self.config.model_name_or_path,
+                self.config.model_kwargs,
+            )
+        elif stype == "lmdeploy":
+            return LMDeployServer(
+                self.config.model_name_or_path,
+                self.config.model_max_context,
                 self.config.model_kwargs,
             )
         else:

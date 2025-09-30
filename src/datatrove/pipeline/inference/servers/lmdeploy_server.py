@@ -15,10 +15,10 @@ from datatrove.pipeline.inference.servers import InferenceServer
 
 class LMDeployServer(InferenceServer):
     """LMDeploy inference server implementation."""
-    async def start_server_task(self, semaphore: asyncio.Semaphore, offset: int = 0) -> None:
+    async def start_server_task(self) -> None:
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
-        self.port = self.find_available_port(offset)
+        # Note: self.port is already set by base class host_server() method
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
         
         cmd = [
