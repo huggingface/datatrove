@@ -236,6 +236,18 @@ def test_rolmocr_integration():
     except Exception as e:
         print(f"RolmOCR inference failed: {e}")
         raise
+    finally:
+        # Explicitly close the writer to ensure gzip file is properly finalized
+        writer = None
+        for step in pipeline_executor.pipeline:
+            if isinstance(step, InferenceRunner):
+                for post_step in step.post_process_steps:
+                    if isinstance(post_step, PersistentContextJsonlWriter):
+                        writer = post_step
+                        break
+        if writer and writer._context_entered:
+            print("Closing writer context...")
+            writer.__exit__(None, None, None)
 
 
 def test_query_builder_only():
