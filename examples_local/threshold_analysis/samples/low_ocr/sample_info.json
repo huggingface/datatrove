@@ -1,0 +1,67 @@
+[
+  {
+    "id": "<urn:uuid:449f2fe2-49b5-4609-a4c9-901ebbffbb81>",
+    "warc_file": "CC-MAIN-20180420081400-20180420101400-00000.warc.gz",
+    "url": "http://legacy.azdeq.gov/environ/air/plan/download/16%20PM2.5%20Supp%20June_27_2012_Final%20Report.pdf",
+    "content_length": 846627,
+    "is_truncated": false,
+    "ocr_prob": 0.27446892857551575,
+    "is_form": false,
+    "garbled_text_ratio": 0.0,
+    "num_pages": 20,
+    "is_encrypted": false,
+    "saved_filename": "low_ocr_01_<urn:uuid:449f2fe2-49b5-4609-a4c9-901ebbffbb81>.pdf"
+  },
+  {
+    "id": "<urn:uuid:12fcdb36-1e9d-4192-88c8-55a70ec2872f>",
+    "warc_file": "CC-MAIN-20180420081400-20180420101400-00000.warc.gz",
+    "url": "http://www.vivat.de/shop/media/pdf/135617/135617.pdf",
+    "content_length": 302667,
+    "is_truncated": false,
+    "ocr_prob": 0.35202687978744507,
+    "is_form": false,
+    "garbled_text_ratio": 0.3636459877196697,
+    "num_pages": 7,
+    "is_encrypted": false,
+    "saved_filename": "low_ocr_02_<urn:uuid:12fcdb36-1e9d-4192-88c8-55a70ec2872f>.pdf"
+  },
+  {
+    "id": "<urn:uuid:ead811e4-4126-4ef9-8525-38beb86665a4>",
+    "warc_file": "CC-MAIN-20180420081400-20180420101400-00000.warc.gz",
+    "url": "https://www.55places.com/california/communities/trilogy-central-coast/floorplans/carmel/pdf",
+    "content_length": 107287,
+    "is_truncated": false,
+    "ocr_prob": 0.29636308550834656,
+    "is_form": false,
+    "garbled_text_ratio": 0.0,
+    "num_pages": 1,
+    "is_encrypted": false,
+    "saved_filename": "low_ocr_03_<urn:uuid:ead811e4-4126-4ef9-8525-38beb86665a4>.pdf"
+  },
+  {
+    "id": "<urn:uuid:337669b6-b4a5-45fc-ac85-339a5bdb9628>",
+    "warc_file": "CC-MAIN-20180420081400-20180420101400-00001.warc.gz",
+    "url": "http://institutcanadien.qc.ca/Media/Default/Documents/icq_rapannuel_2012.pdf",
+    "content_length": 580312,
+    "is_truncated": false,
+    "ocr_prob": 0.3006080389022827,
+    "is_form": false,
+    "garbled_text_ratio": 0.0,
+    "num_pages": 12,
+    "is_encrypted": false,
+    "saved_filename": "low_ocr_04_<urn:uuid:337669b6-b4a5-45fc-ac85-339a5bdb9628>.pdf"
+  },
+  {
+    "id": "<urn:uuid:7aba2725-f5e4-4fdb-a7b7-6f1b928720d9>",
+    "warc_file": "CC-MAIN-20180420081400-20180420101400-00002.warc.gz",
+    "url": "http://www.zora-ggmbh.de/tl_files/Angebotsuebersicht.pdf",
+    "content_length": 420647,
+    "is_truncated": false,
+    "ocr_prob": 0.3099205493927002,
+    "is_form": false,
+    "garbled_text_ratio": 0.0,
+    "num_pages": 1,
+    "is_encrypted": false,
+    "saved_filename": "low_ocr_05_<urn:uuid:7aba2725-f5e4-4fdb-a7b7-6f1b928720d9>.pdf"
+  }
+]
