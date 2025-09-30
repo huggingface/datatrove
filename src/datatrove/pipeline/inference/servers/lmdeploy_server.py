@@ -18,7 +18,7 @@ class LMDeployServer(InferenceServer):
 
     def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Optional[dict] = None):
         super().__init__(model_name_or_path, max_context, model_kwargs)
-        self.chat_template = model_kwargs.get('chat_template', 'internlm2-chat') if model_kwargs else 'internlm2-chat'
+        self.chat_template = model_kwargs.get('chat_template', 'internlm') if model_kwargs else 'internlm'
 
     async def start_server_task(self) -> None:
         """Start the LMDeploy server process."""

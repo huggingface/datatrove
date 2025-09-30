@@ -136,7 +136,7 @@ def test_rolmocr_integration():
         max_concurrent_requests=1,
         max_concurrent_tasks=1,
         model_kwargs={
-            "chat_template": "internlm2-chat",
+            "chat_template": "internlm",
             "vision_max_batch_size": 128  # From LMDeployServer
         }
     )
