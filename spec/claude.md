@@ -199,4 +199,6 @@ python examples_local/04_statistics.py
 | PDF WARC Reader | ✅ Complete | `src/.../readers/pdf_warc.py` | PDF-only CommonCrawl filtering |
 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identify truncated PDFs |
 | PDF Classifier Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
-| Basic PDF Pipeline | ⏳ Planned | `examples/finepdfs.py` | Docling-only extraction |
+| Docling Component Testing | ✅ Complete | `examples_local/test_local_pdfs.py` | DoclingExtractor working on Linux A100, validated across OCR thresholds |
+| RolmOCR Component Testing | ⏳ In Progress | `examples_local/pdf_ocr_test.py` | Setup and test RolmOCR with high OCR probability PDFs |
+| Two-tiered Routing Pipeline | ⏳ Next | `examples/finepdfs.py` | XGBoost classifier: low OCR→Docling, high OCR→RolmOCR |

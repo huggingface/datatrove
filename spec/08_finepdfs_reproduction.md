@@ -50,12 +50,15 @@ def test_pdf_feature_extraction():
 **File**: `examples/finepdfs.py`
 **Goal**: Complete pipeline with trained XGBoost model routing to Docling or OCR
 
-#### Step 4a: Test Docling Component
-- Verify Docling extractor works locally on sample PDFs
-- Test with text-based PDFs (OCR prob < 0.5)
+#### Step 4a: Test Docling Component ✅
+- Fixed Docling-sync integration issues (version conflicts, import errors)
+- Fixed critical JsonlReader metadata bug (line 77) that was dropping WARC metadata
+- DoclingExtractor works on Linux A100 with OpenVINO (no macOS ARM64 GridSample issues)
+- Tested across OCR probability thresholds: very_low_ocr (0.001) extracts 9,187 chars, high_ocr (0.758) extracts 2,173 chars
+- **Key finding**: DoclingExtractor doesn't auto-route - we need to implement XGBoost routing
 
 #### Step 4b: Test OCR Component
-- Setup OCR extraction for scanned PDFs
+- Setup Reducto/RolmOCR extraction for scanned PDFs
 - Test with scanned PDFs (OCR prob > 0.5)
 
 #### Step 4c: Lambda OCR Server
@@ -68,7 +71,7 @@ def test_pdf_feature_extraction():
 reader = PDFWarcReader(...)
 truncation_filter = PDFTruncationDetector()
 classifier = PDFScannedPredictor(path_to_model="examples_local/pdf_classifier_real_data.xgb")
-# Route to Docling or OCR based on classification
+# Route to Docling or RolmOCR based on classification
 ```
 
 #### Step 4e: Process All 3 WARC Files
@@ -104,8 +107,8 @@ tests/pipeline/test_pdf_*.py      # Unit tests for each component
 | 2 | Truncation Tests | ✅ Complete | `tests/.../test_pdf_truncation.py` | Unit tests for filter logic |
 | 3 | PDF Classifier Tests | ✅ Complete | `tests/.../test_pdf_classification.py` | 9 test cases, found 124 features not 127 |
 | 3b | XGBoost Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | Deep dive: training pipeline + analysis |
-| 4a | Test Docling Component | ❌ Blocked | `examples_local/pdf_docling_test.py` | API compatibility issues - DocumentConverter mutex locks |
-| 4b | Test OCR Component | ⏳ In Progress | `examples_local/pdf_ocr_test.py` | Setup OCR for scanned PDFs |
+| 4a | Test Docling Component | ✅ Complete | `examples_local/pdf_docling_test.py` | DoclingExtractor working on Linux A100 with OpenVINO |
+| 4b | Test OCR Component | ⏳ In Progress | `examples_local/pdf_ocr_test.py` | Setup Reducto/RolmOCR for scanned PDFs |
 | 4c | Lambda OCR Server | ⏳ Next | Lambda setup | Remote OCR processing |
 | 4d | Full Pipeline Integration | ⏳ Next | `examples/finepdfs.py` | XGBoost routing to Docling/OCR |
 | 4e | Process All WARC Files | ⏳ Next | Pipeline execution | Complete dataset with samples |
