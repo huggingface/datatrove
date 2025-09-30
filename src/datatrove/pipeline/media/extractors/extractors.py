@@ -450,8 +450,8 @@ class DoclingExtractor(BaseMediaExtractor):
 
 
         document_initial = converted.document.export_to_dict()
-        document_postprocessed = self.reading_order_fixer.process_document(converted.document, allow_multi_prov=True)
-        document_postprocessed = self.paragraph_fixer.process_document(document_postprocessed, allow_multi_prov=True)
+        document_postprocessed = self.reading_order_fixer.process_document(converted.document)
+        document_postprocessed = self.paragraph_fixer.process_document(document_postprocessed)
         document_postprocessed = self.list_item_marker_processor.process_document(document_postprocessed)
         document_postprocessed = self.page_number_remover.process_document(document_postprocessed)
         page_break_placeholder = "<--- page break --->"
