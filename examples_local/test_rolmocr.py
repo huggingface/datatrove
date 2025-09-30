@@ -221,7 +221,5 @@ if __name__ == "__main__":
     print("\n" + "=" * 40)
 
     # Test full integration if PDFs are available
-    # Note: This will require actual RolmOCR model to be available
-    # test_rolmocr_integration()
-    print("Full integration test commented out - requires RolmOCR model")
-    print("Uncomment test_rolmocr_integration() call when model is available")
+    # LMDeployServer will automatically pull RolmOCR model from HuggingFace Hub
+    test_rolmocr_integration()
