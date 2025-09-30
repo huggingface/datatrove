@@ -185,6 +185,7 @@ def test_rolmocr_integration():
             InferenceRunner(
                 query_builder=rolmocr_query_builder,
                 config=config,
+                post_process_steps=[],  # Empty - we chain steps outside instead
             ),
             # Chain post-processing steps AFTER InferenceRunner, not inside it
             PostProcessOCRResults(),  # Extract OCR text from inference_results
