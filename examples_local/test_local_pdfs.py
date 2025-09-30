@@ -168,11 +168,11 @@ def test_high_ocr_pdf_extraction():
 
     # Test extraction
     try:
-        print("🔄 Running DoclingExtractor on HIGH OCR PDF...")
+        print("🔄 Running DoclingExtractor on high OCR probability PDF...")
 
         extracted_text, metadata = extractor.extract((pdf_bytes, doc.metadata))
 
-        print(f"✅ High OCR extraction successful!")
+        print(f"✅ Extraction successful!")
         print(f"Extracted text length: {len(extracted_text):,} characters")
         print(f"Returned metadata keys: {list(metadata.keys()) if metadata else 'None'}")
 
@@ -195,25 +195,25 @@ def test_high_ocr_pdf_extraction():
             print("⚠️  No text extracted")
 
     except Exception as e:
-        print(f"❌ High OCR extraction failed: {e}")
+        print(f"❌ Extraction failed: {e}")
         import traceback
         traceback.print_exc()
 
 
 def compare_ocr_thresholds():
-    """Compare extraction performance across different OCR probability thresholds."""
+    """Compare DoclingExtractor performance across different OCR probability thresholds."""
 
     print("\n" + "="*60)
-    print("COMPARING OCR THRESHOLD PERFORMANCE")
+    print("COMPARING DOCLING EXTRACTOR ACROSS OCR THRESHOLDS")
     print("="*60)
 
     # Test categories in order of OCR probability
     categories = [
-        ("very_low_ocr", "Very Low OCR (should use fast CPU extraction)"),
+        ("very_low_ocr", "Very Low OCR"),
         ("low_ocr", "Low OCR"),
         ("medium_ocr", "Medium OCR"),
         ("high_ocr", "High OCR"),
-        ("very_high_ocr", "Very High OCR (should use intensive GPU OCR)")
+        ("very_high_ocr", "Very High OCR")
     ]
 
     for category, description in categories:
@@ -241,11 +241,11 @@ def compare_ocr_thresholds():
 
 
 if __name__ == "__main__":
-    # Test very low OCR (CPU extraction)
+    # Test very low OCR probability PDF
     test_local_pdf_extraction()
 
-    # Test high OCR (GPU extraction)
+    # Test high OCR probability PDF
     test_high_ocr_pdf_extraction()
 
-    # Compare across thresholds
+    # Compare DoclingExtractor across all thresholds
     compare_ocr_thresholds()
