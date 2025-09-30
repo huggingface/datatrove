@@ -23,6 +23,7 @@ from datatrove.pipeline.inference.utils.page_rendering import render_page_to_bas
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.run_inference import InferenceSuccess
+from datatrove.executor.local import LocalPipelineExecutor
 from typing import Iterable
 
 
@@ -125,8 +126,8 @@ def load_high_ocr_pdfs() -> List[Document]:
                                                     'high_ocr_04_' in pdf['saved_filename'] or
                                                     'high_ocr_05_' in pdf['saved_filename']]
 
-    # Test only the first working PDF to debug document overwriting
-    for pdf_info in working_pdfs[:1]:
+    # Test all working PDFs
+    for pdf_info in working_pdfs:
         pdf_path = sample_dir / pdf_info['saved_filename']
         if not pdf_path.exists():
             continue
@@ -177,21 +178,27 @@ def test_rolmocr_integration():
         }
     )
 
-    # Create inference runner with proper post-processing
-    runner = InferenceRunner(
-        query_builder=rolmocr_query_builder,
-        config=config,
-        post_process_steps=[
-            PostProcessOCRResults(),  # Extract OCR text from inference_results
-            JsonlWriter("examples_local/output/rolmocr_results")
-        ]
+    # Create pipeline executor (like the examples)
+    pipeline_executor = LocalPipelineExecutor(
+        pipeline=[
+            documents,  # Documents as part of the pipeline
+            InferenceRunner(
+                query_builder=rolmocr_query_builder,
+                config=config,
+                post_process_steps=[
+                    PostProcessOCRResults(),  # Extract OCR text from inference_results
+                    JsonlWriter("examples_local/output/rolmocr_results")
+                ]
+            ),
+        ],
+        logging_dir=None,
     )
 
     print("Starting RolmOCR inference...")
 
-    # Run RolmOCR inference
+    # Run the pipeline executor
     try:
-        runner.run(documents, rank=0, world_size=1)
+        pipeline_executor.run()
         print("RolmOCR inference completed successfully!")
     except Exception as e:
         print(f"RolmOCR inference failed: {e}")
