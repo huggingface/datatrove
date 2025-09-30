@@ -108,7 +108,12 @@ def load_high_ocr_pdfs() -> List[Document]:
         sample_info = json.load(f)
 
     documents = []
-    for pdf_info in sample_info[:3]:  # Test first 3 PDFs
+    # Filter to only working PDFs (02, 04, 05 - skip broken 01 and 03)
+    working_pdfs = [pdf for pdf in sample_info if 'high_ocr_02_' in pdf['saved_filename'] or
+                                                    'high_ocr_04_' in pdf['saved_filename'] or
+                                                    'high_ocr_05_' in pdf['saved_filename']]
+
+    for pdf_info in working_pdfs:
         pdf_path = sample_dir / pdf_info['saved_filename']
         if not pdf_path.exists():
             continue
