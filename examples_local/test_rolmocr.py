@@ -23,23 +23,6 @@ from datatrove.pipeline.inference.utils.page_rendering import render_page_to_bas
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 
 
-def ocr_result_processor(doc: Document) -> Document:
-    """Convert RolmOCR results to text-only format for JSON serialization."""
-    # Replace PDF bytes with OCR-extracted text
-    if 'inference_result' in doc.metadata:
-        ocr_text = doc.metadata.get('inference_result', {}).get('text', '')
-        return Document(
-            text=ocr_text,  # Use extracted text instead of PDF bytes
-            id=doc.id,
-            metadata={
-                **doc.metadata,
-                'original_processing_method': 'rolmocr',
-                'ocr_extracted_length': len(ocr_text)
-            }
-        )
-    return doc
-
-
 def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     """Convert PDF document to RolmOCR vision request.
 
@@ -161,16 +144,11 @@ def test_rolmocr_integration():
         }
     )
 
-    # Create inference runner with result processing
-    from datatrove.pipeline.base import LambdaFilter
-
+    # Create inference runner - it should automatically replace PDF bytes with extracted text
     runner = InferenceRunner(
         query_builder=rolmocr_query_builder,
         config=config,
-        post_process_steps=[
-            LambdaFilter(ocr_result_processor),  # Convert to text-only format
-            JsonlWriter("examples_local/output/rolmocr_results")
-        ]
+        post_process_steps=[JsonlWriter("examples_local/output/rolmocr_results")]
     )
 
     print("Starting RolmOCR inference...")
