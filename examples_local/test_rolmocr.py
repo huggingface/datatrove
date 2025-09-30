@@ -23,6 +23,23 @@ from datatrove.pipeline.inference.utils.page_rendering import render_page_to_bas
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 
 
+def ocr_result_processor(doc: Document) -> Document:
+    """Convert RolmOCR results to text-only format for JSON serialization."""
+    # Replace PDF bytes with OCR-extracted text
+    if 'inference_result' in doc.metadata:
+        ocr_text = doc.metadata.get('inference_result', {}).get('text', '')
+        return Document(
+            text=ocr_text,  # Use extracted text instead of PDF bytes
+            id=doc.id,
+            metadata={
+                **doc.metadata,
+                'original_processing_method': 'rolmocr',
+                'ocr_extracted_length': len(ocr_text)
+            }
+        )
+    return doc
+
+
 def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     """Convert PDF document to RolmOCR vision request.
 
@@ -36,16 +53,17 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     pdf_bytes = doc.text if isinstance(doc.text, bytes) else doc.text.encode()
     pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    # Process all pages
+    # Process limited pages to avoid memory issues (max 5 pages for testing)
+    max_pages = min(5, len(pdf_doc))
     page_images = []
-    for page_num in range(len(pdf_doc)):
+    for page_num in range(max_pages):
         page = pdf_doc.load_page(page_num)
 
-        # Use FinePDFs preprocessing: longest side ≥ 1280px, max 2048 tokens
+        # Use smaller image size to reduce memory usage
         base64_image = render_page_to_base64png_pymupdf(
             page,
-            resize_longest_side_pixels=1280,
-            max_visual_tokens=2048
+            resize_longest_side_pixels=640,  # Reduced from 1280
+            max_visual_tokens=512  # Reduced from 2048
         )
 
         page_images.append({
@@ -54,6 +72,8 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
         })
 
     pdf_doc.close()
+
+    print(f"Processing {max_pages} pages with reduced resolution for memory efficiency")
 
     # Create OpenAI-compatible vision request
     return {
@@ -141,11 +161,16 @@ def test_rolmocr_integration():
         }
     )
 
-    # Create inference runner
+    # Create inference runner with result processing
+    from datatrove.pipeline.base import LambdaFilter
+
     runner = InferenceRunner(
         query_builder=rolmocr_query_builder,
         config=config,
-        post_process_steps=[JsonlWriter("examples_local/output/rolmocr_results")]
+        post_process_steps=[
+            LambdaFilter(ocr_result_processor),  # Convert to text-only format
+            JsonlWriter("examples_local/output/rolmocr_results")
+        ]
     )
 
     print("Starting RolmOCR inference...")
