@@ -39,6 +39,39 @@ class PostProcessOCRResults(PipelineStep):
             yield document
 
 
+class PersistentContextJsonlWriter(JsonlWriter):
+    """JsonlWriter that keeps file context open across multiple run() calls.
+
+    Workaround for framework bug where InferenceRunner calls post_process_steps
+    separately for each document, causing JsonlWriter to close/reopen files
+    between documents, which truncates the output file.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._context_entered = False
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        # Enter context only once, on first call
+        if not self._context_entered:
+            self.__enter__()
+            self._context_entered = True
+
+        # Write documents without entering/exiting context
+        for document in data:
+            with self.track_time():
+                self.write(document, rank)
+            yield document
+
+    def __del__(self):
+        # Clean up context when object is destroyed
+        if self._context_entered:
+            try:
+                self.__exit__(None, None, None)
+            except:
+                pass
+
+
 def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     """Convert PDF document to RolmOCR vision request.
 
@@ -178,18 +211,18 @@ def test_rolmocr_integration():
         }
     )
 
-    # Create pipeline executor (like the other examples - chain steps outside InferenceRunner)
+    # Create pipeline executor (following the inference_example_basic.py pattern)
     pipeline_executor = LocalPipelineExecutor(
         pipeline=[
             documents,  # Documents as part of the pipeline
             InferenceRunner(
                 query_builder=rolmocr_query_builder,
                 config=config,
-                post_process_steps=[],  # Empty - we chain steps outside instead
+                post_process_steps=[
+                    PostProcessOCRResults(),  # Extract OCR text from inference_results
+                    PersistentContextJsonlWriter("examples_local/output/rolmocr_results")
+                ]
             ),
-            # Chain post-processing steps AFTER InferenceRunner, not inside it
-            PostProcessOCRResults(),  # Extract OCR text from inference_results
-            JsonlWriter("examples_local/output/rolmocr_results")
         ],
         logging_dir=None,
     )
