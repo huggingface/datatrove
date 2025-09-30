@@ -141,7 +141,7 @@ def test_rolmocr_integration():
         max_concurrent_requests=1,
         max_concurrent_tasks=1,
         model_kwargs={
-            "chat_template": "internlm2-chat",
+            "chat_template": "internlm",  # Use "internlm" not "internlm2-chat"
             "vision_max_batch_size": 128  # From LMDeployServer
         }
     )
@@ -229,9 +229,10 @@ lmdeploy --help
 
 ### Phase 2: Model Integration ✅ Complete
 - ✅ RolmOCR model auto-downloads from HuggingFace Hub
-- ✅ PDF preprocessing with FinePDFs specifications (640px, 512 tokens for memory)
+- ✅ PDF preprocessing with FinePDFs specifications (1280px, 2048 visual tokens)
 - ✅ OpenAI-compatible vision request format
 - ✅ Proper post-processing following DataTrove patterns
+- ✅ Chat template: "internlm" (not "internlm2-chat") for clean OCR output
 
 ### Phase 3: Testing Results ✅ Complete
 - ✅ **True OCR extraction** - correctly extracted Belgian sports form text
