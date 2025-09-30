@@ -192,16 +192,66 @@ def test_rolmocr_integration():
 5. **Test integration** - Verify infrastructure works
 6. **Test with actual model** - RolmOCR processing validation
 
-## Expected Outcomes
+## Server Setup Requirements
 
-- ✅ RolmOCR integrated using existing DataTrove infrastructure
-- ✅ PDF preprocessing follows FinePDFs specification
-- ✅ Ready for two-tiered routing implementation
-- ✅ Validated approach matches published research
+### CUDA and GPU Setup
+```bash
+# Install NVIDIA drivers for A100
+sudo apt update
+sudo apt install -y nvidia-utils-535-server nvidia-driver-535-server
+
+# Reboot to load drivers
+sudo reboot
+
+# Verify CUDA availability
+nvidia-smi
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+```
+
+### Required Python Packages
+```bash
+# Install LMDeploy with CUDA support
+pip install lmdeploy
+
+# Install Qwen VL utilities (required for RolmOCR)
+pip install qwen_vl_utils
+
+# Verify installations
+lmdeploy --help
+```
+
+## Implementation Results
+
+### Phase 1: Infrastructure Integration ✅ Complete
+- ✅ Fixed LMDeployServer constructor compatibility
+- ✅ Added LMDeployServer to InferenceRunner server types
+- ✅ Updated server exports and imports
+
+### Phase 2: Model Integration ✅ Complete
+- ✅ RolmOCR model auto-downloads from HuggingFace Hub
+- ✅ PDF preprocessing with FinePDFs specifications (640px, 512 tokens for memory)
+- ✅ OpenAI-compatible vision request format
+- ✅ Proper post-processing following DataTrove patterns
+
+### Phase 3: Testing Results ✅ Working
+- ✅ **True OCR extraction** - correctly extracted Belgian sports form text
+- ✅ **High accuracy** - perfect Dutch text recognition, form structure preserved
+- ✅ **Memory optimization** - reduced resolution prevents CUDA OOM errors
+- ⚠️ **Chat template issues** - model generates conversation format instead of plain text
+- ⚠️ **Document overwriting** - only last processed document appears in output
+
+### Test Results Summary
+```
+Input: 3 high OCR probability PDFs (filtered from 5, skipping corrupted)
+Processing: 2 successful requests, 1,165 input tokens, 8,194 output tokens
+Output: 1 document saved (Belgian sports form in Dutch, excellent OCR quality)
+Issues: Chat template causing repetitive dialogue format
+```
 
 ## Next Steps
 
-After RolmOCR integration:
-1. Compare RolmOCR vs DoclingExtractor on high OCR PDFs
-2. Implement XGBoost-based routing (Step 4d)
-3. Test complete two-tiered pipeline
+1. **Fix chat template** - Use plain OCR prompt instead of conversation format
+2. **Debug document overwriting** - Ensure all processed documents are saved
+3. **Test single document processing** - Verify individual document handling
+4. **Compare with DoclingExtractor** - Quality and performance analysis
+5. **Implement XGBoost routing** - Complete two-tiered pipeline

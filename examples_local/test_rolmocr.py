@@ -113,7 +113,8 @@ def load_high_ocr_pdfs() -> List[Document]:
                                                     'high_ocr_04_' in pdf['saved_filename'] or
                                                     'high_ocr_05_' in pdf['saved_filename']]
 
-    for pdf_info in working_pdfs:
+    # Test only the first working PDF to debug document overwriting
+    for pdf_info in working_pdfs[:1]:
         pdf_path = sample_dir / pdf_info['saved_filename']
         if not pdf_path.exists():
             continue
