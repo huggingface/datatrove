@@ -178,18 +178,17 @@ def test_rolmocr_integration():
         }
     )
 
-    # Create pipeline executor (like the examples)
+    # Create pipeline executor (like the other examples - chain steps outside InferenceRunner)
     pipeline_executor = LocalPipelineExecutor(
         pipeline=[
             documents,  # Documents as part of the pipeline
             InferenceRunner(
                 query_builder=rolmocr_query_builder,
                 config=config,
-                post_process_steps=[
-                    PostProcessOCRResults(),  # Extract OCR text from inference_results
-                    JsonlWriter("examples_local/output/rolmocr_results")
-                ]
             ),
+            # Chain post-processing steps AFTER InferenceRunner, not inside it
+            PostProcessOCRResults(),  # Extract OCR text from inference_results
+            JsonlWriter("examples_local/output/rolmocr_results")
         ],
         logging_dir=None,
     )
