@@ -5,16 +5,23 @@ Implement intelligent routing of PDFs based on XGBoost classifier predictions. L
 
 ## Architecture
 
+Following the FineWeb pattern of multi-stage dependent pipelines:
+
 ```
-PDFWarcReader (CommonCrawl)
-    ↓
-PDFTruncationDetector (filter corrupted)
-    ↓
-XGBoost Classifier (predict OCR probability)
-    ↓
-    ├─→ Low OCR (< 0.5) → DoclingExtractor → Text Output
-    └─→ High OCR (≥ 0.5) → RolmOCR Inference → OCR Output
+Stage 1: Classification
+PDFWarcReader → PDFTruncationDetector → PDFRouter → JsonlWriter(classified/)
+
+Stage 2: Low OCR Path (depends on Stage 1)
+JsonlReader(classified/) → ConditionalFilter(low_ocr) → DoclingExtractor → JsonlWriter(text_extraction/)
+
+Stage 3: High OCR Path (depends on Stage 1)
+JsonlReader(classified/) → ConditionalFilter(high_ocr) → RolmOCR → JsonlWriter(ocr_extraction/)
 ```
+
+**Benefits**:
+- PDFs classified once, intermediate results saved
+- Stages 2 & 3 can run in parallel after Stage 1
+- Follows DataTrove's linear pipeline model with dependencies
 
 ## Components Already Built
 
@@ -78,75 +85,90 @@ class PDFRouter(PipelineStep):
             yield doc
 ```
 
-### Step 2: Create Conditional Pipeline Steps
-**File**: `src/datatrove/pipeline/filters/conditional_filter.py`
+### Step 2: Use LambdaFilter for Conditional Routing
+**File**: Use existing `src/datatrove/pipeline/filters/lambda_filter.py`
+
+No new filter needed - LambdaFilter already provides this functionality:
 
 ```python
-class ConditionalFilter(BaseFilter):
-    """Filter documents based on metadata field value."""
+from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 
-    def __init__(self, metadata_key: str, expected_value: str):
-        super().__init__()
-        self.metadata_key = metadata_key
-        self.expected_value = expected_value
+# Filter for low OCR probability PDFs
+low_ocr_filter = LambdaFilter(
+    filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
+)
 
-    def filter(self, doc) -> bool:
-        return doc.metadata.get(self.metadata_key) == self.expected_value
+# Filter for high OCR probability PDFs
+high_ocr_filter = LambdaFilter(
+    filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
+)
 ```
 
-### Step 3: Create Main Pipeline
+### Step 3: Create Three-Stage Pipeline
 **File**: `examples/finepdfs.py`
+
+Following the FineWeb pattern of dependent stages:
 
 ```python
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
+from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.filters.pdf_truncation import PDFTruncationDetector
 from datatrove.pipeline.filters.pdf_router import PDFRouter
-from datatrove.pipeline.filters.conditional_filter import ConditionalFilter
+from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 from datatrove.pipeline.extractors.docling import DoclingExtractor
 from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 
-# Define two separate pipelines for each route
+# Shared paths
+WARC_INPUT = "data/warcs"
+CLASSIFIED_OUTPUT = "output/classified"
+TEXT_EXTRACTION_OUTPUT = "output/text_extraction"
+OCR_EXTRACTION_OUTPUT = "output/ocr_extraction"
+MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
 
-# Pipeline 1: Low OCR - Text Extraction
-text_extraction_pipeline = LocalPipelineExecutor(
+# Stage 1: Classify all PDFs and save with routing metadata
+stage1_classification = LocalPipelineExecutor(
+    job_name="pdf_classification",
     pipeline=[
         PDFWarcReader(
-            data_folder="data/warcs",
+            data_folder=WARC_INPUT,
             glob_pattern="*.warc.gz",
         ),
         PDFTruncationDetector(),
         PDFRouter(
-            model_path="examples_local/pdf_classifier_real_data.xgb",
+            model_path=MODEL_PATH,
             threshold=0.5
         ),
-        ConditionalFilter(
-            metadata_key="processing_route",
-            expected_value="text_extraction"
-        ),
-        DoclingExtractor(),
-        JsonlWriter("output/text_extraction"),
+        JsonlWriter(CLASSIFIED_OUTPUT),  # Save ALL with metadata
     ],
     tasks=4,
-    logging_dir="logs/text_extraction"
+    logging_dir="logs/classification"
 )
 
-# Pipeline 2: High OCR - OCR Extraction
-ocr_extraction_pipeline = LocalPipelineExecutor(
+# Stage 2: Process low OCR PDFs (text extraction path)
+stage2_text_extraction = LocalPipelineExecutor(
+    job_name="pdf_text_extraction",
     pipeline=[
-        PDFWarcReader(
-            data_folder="data/warcs",
-            glob_pattern="*.warc.gz",
+        JsonlReader(CLASSIFIED_OUTPUT),  # Read pre-classified PDFs
+        LambdaFilter(
+            filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
         ),
-        PDFTruncationDetector(),
-        PDFRouter(
-            model_path="examples_local/pdf_classifier_real_data.xgb",
-            threshold=0.5
-        ),
-        ConditionalFilter(
-            metadata_key="processing_route",
-            expected_value="ocr_extraction"
+        DoclingExtractor(),
+        JsonlWriter(TEXT_EXTRACTION_OUTPUT),
+    ],
+    tasks=4,  # Parallel CPU processing
+    logging_dir="logs/text_extraction",
+    depends=stage1_classification  # Wait for classification
+)
+
+# Stage 3: Process high OCR PDFs (OCR path)
+stage3_ocr_extraction = LocalPipelineExecutor(
+    job_name="pdf_ocr_extraction",
+    pipeline=[
+        JsonlReader(CLASSIFIED_OUTPUT),  # Read same pre-classified PDFs
+        LambdaFilter(
+            filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
         ),
         InferenceRunner(
             query_builder=rolmocr_query_builder,
@@ -160,20 +182,18 @@ ocr_extraction_pipeline = LocalPipelineExecutor(
             ),
             post_process_steps=[
                 PostProcessOCRResults(),
-                PersistentContextJsonlWriter("output/ocr_extraction")
+                PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
             ]
         ),
     ],
     tasks=1,  # GPU-bound, single task
-    logging_dir="logs/ocr_extraction"
+    logging_dir="logs/ocr_extraction",
+    depends=stage1_classification  # Wait for classification
 )
-```
 
-### Alternative: Single Pipeline with Branching
-DataTrove may not support branching pipelines natively. If not, we'll need to:
-1. Process all PDFs through router
-2. Save routed PDFs to separate intermediate folders
-3. Run two separate pipelines on each folder
+# Run the pipeline (stages 2 & 3 run in parallel after stage 1)
+stage3_ocr_extraction.run()
+```
 
 ## Testing Strategy
 
@@ -219,7 +239,7 @@ output/
 | File | Type | Purpose |
 |------|------|---------|
 | `src/.../filters/pdf_router.py` | New | Route PDFs based on XGBoost prediction |
-| `src/.../filters/conditional_filter.py` | New | Filter by metadata field |
+| `src/.../filters/lambda_filter.py` | Existing | Filter by metadata field (already available) |
 | `examples/finepdfs.py` | New | Main two-tiered pipeline |
 | `examples_local/test_routing.py` | New | Test routing logic with samples |
 | `tests/pipeline/test_pdf_router.py` | New | Unit tests for router |
@@ -227,8 +247,8 @@ output/
 ## Implementation Steps
 
 1. ✅ Review existing components (all built)
-2. **Create PDFRouter filter** - XGBoost classification integration
-3. **Create ConditionalFilter** - Metadata-based routing
+2. ✅ **Create PDFRouter filter** - XGBoost classification integration
+3. ✅ **Use LambdaFilter** - Leverage existing metadata-based filtering
 4. **Test routing logic** - Small sample validation
 5. **Create main pipeline** - Full integration
 6. **Test with sample WARCs** - End-to-end validation
