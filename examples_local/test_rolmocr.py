@@ -21,6 +21,21 @@ from datatrove.data import Document
 from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
 from datatrove.pipeline.inference.utils.page_rendering import render_page_to_base64png_pymupdf
 from datatrove.pipeline.writers.jsonl import JsonlWriter
+from datatrove.pipeline.base import PipelineStep
+from datatrove.pipeline.inference.run_inference import InferenceSuccess
+from typing import Iterable
+
+
+class PostProcessOCRResults(PipelineStep):
+    """Post-process RolmOCR inference results."""
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        for document in data:
+            # Extract OCR text from inference results and replace PDF bytes
+            document.text = "\n".join([x.text if isinstance(x, InferenceSuccess) else x.error for x in document.metadata["inference_results"]])
+            # Clean up inference_results metadata
+            del document.metadata["inference_results"]
+            yield document
 
 
 def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
@@ -144,11 +159,14 @@ def test_rolmocr_integration():
         }
     )
 
-    # Create inference runner - it should automatically replace PDF bytes with extracted text
+    # Create inference runner with proper post-processing
     runner = InferenceRunner(
         query_builder=rolmocr_query_builder,
         config=config,
-        post_process_steps=[JsonlWriter("examples_local/output/rolmocr_results")]
+        post_process_steps=[
+            PostProcessOCRResults(),  # Extract OCR text from inference_results
+            JsonlWriter("examples_local/output/rolmocr_results")
+        ]
     )
 
     print("Starting RolmOCR inference...")
