@@ -7,11 +7,16 @@ from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 from datatrove.executor.local import LocalPipelineExecutor
 
-# Sample PDFs to test routing
+# Sample PDFs to test routing - use threshold analysis samples
 SAMPLE_PDFS = [
-    "examples_local/data/pdfs/CC-MAIN-20240916-02.pdf",  # OCR prob: 0.001 (very low)
-    "examples_local/data/pdfs/CC-MAIN-20240916-04.pdf",  # OCR prob: 0.003 (low)
-    "examples_local/data/pdfs/CC-MAIN-20240916-05.pdf",  # OCR prob: 0.758 (high)
+    # Low OCR probability samples (should route to text_extraction)
+    "examples_local/threshold_analysis/samples/low_ocr/low_ocr_01_<urn:uuid:449f2fe2-49b5-4609-a4c9-901ebbffbb81>.pdf",
+    "examples_local/threshold_analysis/samples/low_ocr/low_ocr_02_<urn:uuid:12fcdb36-1e9d-4192-88c8-55a70ec2872f>.pdf",
+    "examples_local/threshold_analysis/samples/low_ocr/low_ocr_03_<urn:uuid:ead811e4-4126-4ef9-8525-38beb86665a4>.pdf",
+    # High OCR probability samples (should route to ocr_extraction)
+    "examples_local/threshold_analysis/samples/high_ocr/high_ocr_01_<urn:uuid:98e53922-1ff8-45fd-be5c-41d9f906e869>.pdf",
+    "examples_local/threshold_analysis/samples/high_ocr/high_ocr_02_<urn:uuid:f808a467-bd86-4c90-9e50-eeb5d47d36b5>.pdf",
+    "examples_local/threshold_analysis/samples/high_ocr/high_ocr_03_<urn:uuid:3c02344a-24d1-4e38-961f-8b1f7bee9e32>.pdf",
 ]
 
 # XGBoost model path
