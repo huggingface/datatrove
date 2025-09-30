@@ -200,5 +200,5 @@ python examples_local/04_statistics.py
 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identify truncated PDFs |
 | PDF Classifier Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
 | Docling Component Testing | ✅ Complete | `examples_local/test_local_pdfs.py` | DoclingExtractor working on Linux A100, validated across OCR thresholds |
-| RolmOCR Component Testing | ⏳ In Progress | `examples_local/pdf_ocr_test.py` | Setup and test RolmOCR with high OCR probability PDFs |
+| RolmOCR Component Testing | ✅ Complete | `examples_local/test_rolmocr.py` | RolmOCR integrated, multi-document bug fixed with PersistentContextJsonlWriter |
 | Two-tiered Routing Pipeline | ⏳ Next | `examples/finepdfs.py` | XGBoost classifier: low OCR→Docling, high OCR→RolmOCR |

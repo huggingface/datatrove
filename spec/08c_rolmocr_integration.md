@@ -233,25 +233,41 @@ lmdeploy --help
 - ✅ OpenAI-compatible vision request format
 - ✅ Proper post-processing following DataTrove patterns
 
-### Phase 3: Testing Results ✅ Working
+### Phase 3: Testing Results ✅ Complete
 - ✅ **True OCR extraction** - correctly extracted Belgian sports form text
 - ✅ **High accuracy** - perfect Dutch text recognition, form structure preserved
-- ✅ **Memory optimization** - reduced resolution prevents CUDA OOM errors
-- ⚠️ **Chat template issues** - model generates conversation format instead of plain text
-- ⚠️ **Document overwriting** - only last processed document appears in output
+- ✅ **High resolution processing** - Using FinePDFs spec: 1280px, 2048 visual tokens
+- ✅ **Multi-document support** - All 3 PDFs successfully processed and saved
+- ✅ **Framework bug discovered and fixed** - PersistentContextJsonlWriter workaround
 
 ### Test Results Summary
 ```
-Input: 3 high OCR probability PDFs (filtered from 5, skipping corrupted)
-Processing: 2 successful requests, 1,165 input tokens, 8,194 output tokens
-Output: 1 document saved (Belgian sports form in Dutch, excellent OCR quality)
-Issues: Chat template causing repetitive dialogue format
+Input: 3 high OCR probability PDFs (capacitor spec, ISO certificate, sports form)
+Processing: 3 successful requests, 4,950 prompt tokens, 8,612 completion tokens
+Output: All 3 documents saved to JSONL with proper text extraction
+Quality: Clean markdown tables, proper formatting, excellent OCR accuracy
 ```
+
+### Framework Bug Discovery
+**Issue**: InferenceRunner calls `post_process_steps.run()` separately for each document, causing JsonlWriter to enter/exit context per document. The `with self:` in `run()` closes files between documents, and reopening in `"wb"` mode truncates the file.
+
+**Solution**: Created `PersistentContextJsonlWriter` that:
+- Enters context once on first `run()` call
+- Keeps file handles open across all documents
+- Explicitly closes in `finally` block to ensure gzip finalization
+
+**Verification**: Tested with `test_inference_simple.py` - confirmed vanilla example also has this bug (only saves last of 3 documents).
+
+## Implementation Complete
+
+✅ **Infrastructure** - LMDeployServer integrated into InferenceRunner
+✅ **Query Builder** - PDF to vision request with FinePDFs preprocessing
+✅ **Post-Processing** - Proper text extraction following DataTrove patterns
+✅ **Bug Workaround** - PersistentContextJsonlWriter for multi-document support
+✅ **Testing** - Validated with 3 high OCR PDFs, sample outputs saved
 
 ## Next Steps
 
-1. **Fix chat template** - Use plain OCR prompt instead of conversation format
-2. **Debug document overwriting** - Ensure all processed documents are saved
-3. **Test single document processing** - Verify individual document handling
-4. **Compare with DoclingExtractor** - Quality and performance analysis
-5. **Implement XGBoost routing** - Complete two-tiered pipeline
+1. **Implement two-tiered routing** - XGBoost classifier → Docling (low OCR) / RolmOCR (high OCR)
+2. **Test chunking and checkpointing** - Scale to 1000s of PDFs with resumption support
+3. **Production pipeline** - PDFWarcReader streaming from CommonCrawl with distributed processing

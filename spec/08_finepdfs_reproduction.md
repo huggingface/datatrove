@@ -108,8 +108,8 @@ tests/pipeline/test_pdf_*.py      # Unit tests for each component
 | 3 | PDF Classifier Tests | ✅ Complete | `tests/.../test_pdf_classification.py` | 9 test cases, found 124 features not 127 |
 | 3b | XGBoost Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | Deep dive: training pipeline + analysis |
 | 4a | Test Docling Component | ✅ Complete | `examples_local/pdf_docling_test.py` | DoclingExtractor working on Linux A100 with OpenVINO |
-| 4b | Test OCR Component | ⏳ In Progress | `examples_local/pdf_ocr_test.py` | Setup Reducto/RolmOCR for scanned PDFs |
-| 4c | Lambda OCR Server | ⏳ Next | Lambda setup | Remote OCR processing |
+| 4b | Test OCR Component | ✅ Complete | `examples_local/test_rolmocr.py` | RolmOCR integrated with PersistentContextJsonlWriter fix |
+| 4c | Lambda OCR Server | ✅ Complete | LMDeploy integration | RolmOCR on LMDeploy with DataTrove InferenceRunner |
 | 4d | Full Pipeline Integration | ⏳ Next | `examples/finepdfs.py` | XGBoost routing to Docling/OCR |
 | 4e | Process All WARC Files | ⏳ Next | Pipeline execution | Complete dataset with samples |
 | 5 | PDF Re-fetching | ⏳ Future | `src/.../readers/pdf_refetch.py` | Re-fetch truncated PDFs |
