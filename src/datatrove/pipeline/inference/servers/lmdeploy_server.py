@@ -2,7 +2,7 @@ import asyncio
 import atexit
 import logging
 import sys
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 import os
@@ -15,6 +15,11 @@ from datatrove.pipeline.inference.servers import InferenceServer
 
 class LMDeployServer(InferenceServer):
     """LMDeploy inference server implementation."""
+
+    def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Optional[dict] = None):
+        super().__init__(model_name_or_path, max_context, model_kwargs)
+        self.chat_template = model_kwargs.get('chat_template', 'internlm2-chat') if model_kwargs else 'internlm2-chat'
+
     async def start_server_task(self) -> None:
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
