@@ -54,6 +54,11 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     # Process limited pages to avoid memory issues (max 5 pages for testing)
     max_pages = min(5, len(pdf_doc))
     page_images = []
+
+    # Create debug directory for saving processed images
+    debug_dir = Path("examples_local/output/rolmocr_debug")
+    debug_dir.mkdir(parents=True, exist_ok=True)
+
     for page_num in range(max_pages):
         page = pdf_doc.load_page(page_num)
 
@@ -63,6 +68,13 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
             resize_longest_side_pixels=640,  # Reduced from 1280
             max_visual_tokens=512  # Reduced from 2048
         )
+
+        # Save processed image to file for debugging
+        doc_id_safe = doc.id.replace('/', '_').replace(':', '_')
+        image_path = debug_dir / f"{doc_id_safe}_page_{page_num}.png"
+        with open(image_path, 'wb') as f:
+            f.write(base64.b64decode(base64_image))
+        print(f"Saved processed image: {image_path}")
 
         page_images.append({
             "type": "image_url",
