@@ -19,6 +19,14 @@ class LMDeployServer(InferenceServer):
         """Start the LMDeploy server process."""
         # Check GPU memory for memory settings
         # Note: self.port is already set by base class host_server() method
+
+        # Check CUDA availability first
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available. LMDeploy requires GPU support.")
+
+        if torch.cuda.device_count() == 0:
+            raise RuntimeError("No CUDA devices found. LMDeploy requires GPU support.")
+
         gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # Convert to GB
         
         cmd = [
@@ -73,7 +81,15 @@ class LMDeployServer(InferenceServer):
             nonlocal server_printed_ready_message
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
-                logger.info(line)
+                logger.info(f"LMDeploy: {line}")
+
+            # Show model download progress
+            if "Downloading" in line or "download" in line.lower():
+                logger.info(f"Model Download: {line}")
+            elif "Loading" in line or "loading" in line.lower():
+                logger.info(f"Model Loading: {line}")
+            elif "model" in line.lower() and ("load" in line.lower() or "init" in line.lower()):
+                logger.info(f"Model Status: {line}")
 
             if "Application startup complete" in line or "Uvicorn running on" in line or "server started" in line:
                 server_printed_ready_message = True
