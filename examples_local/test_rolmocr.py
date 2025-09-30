@@ -62,11 +62,11 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     for page_num in range(max_pages):
         page = pdf_doc.load_page(page_num)
 
-        # Use smaller image size to reduce memory usage
+        # Use FinePDFs specification resolution
         base64_image = render_page_to_base64png_pymupdf(
             page,
-            resize_longest_side_pixels=640,  # Reduced from 1280
-            max_visual_tokens=512  # Reduced from 2048
+            resize_longest_side_pixels=1280,  # FinePDFs spec
+            max_visual_tokens=2048  # FinePDFs spec
         )
 
         # Save processed image to file for debugging
