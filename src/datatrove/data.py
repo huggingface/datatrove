@@ -31,6 +31,16 @@ class Media:
     media_bytes: bytes | None = None
     metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
 
+    def __post_init__(self):
+        """Decode base64-encoded media_bytes if needed.
+
+        When Media objects are deserialized from JSONL, media_bytes may be a
+        base64-encoded string instead of bytes. This converts it back.
+        """
+        if self.media_bytes is not None and isinstance(self.media_bytes, str):
+            import base64
+            self.media_bytes = base64.b64decode(self.media_bytes)
+
 @dataclass
 class Document:
     """Main Document dataclass going through the processing pipeline
