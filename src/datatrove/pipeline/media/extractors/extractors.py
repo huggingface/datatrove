@@ -444,6 +444,7 @@ class DoclingExtractor(BaseMediaExtractor):
                         converted = self.doc_converter.convert(document_stream, raises_on_error=True)
                     except Exception as e:
                         logger.exception(e)
+                        return "", {"extraction_error": str(e)}
                 else:
                     # Note: use_file_path=True is incompatible with Media objects (expects str path, not bytes)
                     converted = self.doc_converter.convert(media_bytes, raises_on_error=True)
