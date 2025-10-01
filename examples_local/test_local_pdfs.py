@@ -12,8 +12,12 @@ from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, 'src')
-from datatrove.data import Document
+from datatrove.data import Document, Media, MediaType
 from datatrove.pipeline.media.extractors.extractors import DoclingExtractor
+from datatrove.executor.local import LocalPipelineExecutor
+from datatrove.pipeline.writers.jsonl import JsonlWriter
+import tempfile
+import gzip
 
 
 def test_local_pdf_extraction():
@@ -61,28 +65,61 @@ def test_local_pdf_extraction():
 
     print(f"PDF size: {len(pdf_bytes):,} bytes")
 
-    # Create Document with PDF bytes as text (how media extractors expect it)
+    # Create Document with PDF bytes in Media object (correct pattern)
     doc = Document(
-        text=pdf_bytes,  # DoclingExtractor expects PDF bytes in text field
+        text="",  # Empty until extracted
         id=pdf_info['id'],
+        media=[
+            Media(
+                id=pdf_info['id'],
+                type=MediaType.DOCUMENT,
+                media_bytes=pdf_bytes,  # Correct: PDF bytes in Media object
+                url=f"file://{pdf_path}",
+            )
+        ],
         metadata={
-            'url': f"file://{pdf_path}",
             'content_length': len(pdf_bytes),
             'ocr_prob': pdf_info['ocr_prob'],
             'content_mime_detected': 'application/pdf'
         }
     )
 
-    # Test extraction directly
+    # Test extraction using full pipeline with LocalPipelineExecutor
     try:
-        print("🔄 Running DoclingExtractor...")
+        print("🔄 Running DoclingExtractor through pipeline...")
 
-        # DoclingExtractor.extract() expects (pdf_bytes, metadata) tuple
-        extracted_text, metadata = extractor.extract((pdf_bytes, doc.metadata))
+        # Create temporary output directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "output"
 
-        print(f"✅ Extraction successful!")
-        print(f"Extracted text length: {len(extracted_text):,} characters")
-        print(f"Returned metadata keys: {list(metadata.keys()) if metadata else 'None'}")
+            # Run through LocalPipelineExecutor (tests Media objects properly)
+            pipeline_executor = LocalPipelineExecutor(
+                pipeline=[
+                    [doc],  # Document with Media object
+                    extractor,  # Will process doc.media[0].media_bytes
+                    JsonlWriter(str(output_dir))  # Write extracted text
+                ],
+                tasks=1,
+                logging_dir=None
+            )
+
+            pipeline_executor.run()
+
+            # Read back the results
+            output_file = output_dir / "00000.jsonl.gz"
+            if not output_file.exists():
+                print("❌ No output file generated")
+                return
+
+            with gzip.open(output_file, 'rt') as f:
+                result = json.loads(f.readline())
+
+            extracted_text = result['text']
+            metadata = result.get('metadata', {})
+
+            print(f"✅ Extraction successful!")
+            print(f"Extracted text length: {len(extracted_text):,} characters")
+            print(f"Returned metadata keys: {list(metadata.keys()) if metadata else 'None'}")
 
         # Show text preview
         if extracted_text:
