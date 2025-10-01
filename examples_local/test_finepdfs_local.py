@@ -337,7 +337,20 @@ def test_finepdfs_local():
         depends=stage1_classification
     )
 
-    stage3_ocr_extraction.run()
+    try:
+        stage3_ocr_extraction.run()
+    finally:
+        # Explicitly close the writer to ensure gzip file is properly finalized
+        writer = None
+        for step in stage3_ocr_extraction.pipeline:
+            if isinstance(step, InferenceRunner):
+                for post_step in step.post_process_steps:
+                    if isinstance(post_step, PersistentContextJsonlWriter):
+                        writer = post_step
+                        break
+        if writer and writer._context_entered:
+            print("Closing OCR writer context...")
+            writer.__exit__(None, None, None)
 
     print("\n" + "=" * 80)
     print("Pipeline Complete!")
