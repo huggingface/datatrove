@@ -178,7 +178,6 @@ examples_local/*.pdf
 # Generated plots and analysis
 examples_local/plots/
 examples_local/*.png
-threshold_analysis/
 *.png
 
 # DataTrove runtime logs

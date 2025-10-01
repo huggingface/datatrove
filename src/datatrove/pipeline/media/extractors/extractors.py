@@ -423,11 +423,13 @@ class DoclingExtractor(BaseMediaExtractor):
         super().__init__(timeout=timeout, exclusion_writer=exclusion_writer)
 
 
-    # def extract(self, path: str | None) -> tuple[str, dict]:
-    def extract(self, path_metadata: tuple[bytes | str, dict | None]) -> tuple[str, dict]:
-        path, metadata = path_metadata
-        if path is None or metadata is None:
+    def extract(self, media_bytes: bytes | None) -> tuple[str, dict]:
+        if not media_bytes:
             return "", {}
+    # def extract(self, path_metadata: tuple[bytes | str, dict | None]) -> tuple[str, dict]:
+    #     path, metadata = path_metadata
+    #     if path is None or metadata is None:
+    #         return "", {}
 
         from docling.datamodel.settings import settings
         from docling_core.types.io import DocumentStream
@@ -438,12 +440,13 @@ class DoclingExtractor(BaseMediaExtractor):
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 if not self.use_file_path:
                     try:
-                        document_stream = DocumentStream(name="test.pdf", stream=io.BytesIO(path))
+                        document_stream = DocumentStream(name="test.pdf", stream=io.BytesIO(media_bytes))
                         converted = self.doc_converter.convert(document_stream, raises_on_error=True)
                     except Exception as e:
                         logger.exception(e)
                 else:
-                    converted = self.doc_converter.convert(path, raises_on_error=True)
+                    # Note: use_file_path=True is incompatible with Media objects (expects str path, not bytes)
+                    converted = self.doc_converter.convert(media_bytes, raises_on_error=True)
 
                 logger_content = log_output.value()
 
