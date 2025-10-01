@@ -196,9 +196,12 @@ python examples_local/04_statistics.py
 
 | Component | Status | Implementation | Notes |
 |-----------|--------|---------------|-------|
-| PDF WARC Reader | ✅ Complete | `src/.../readers/pdf_warc.py` | PDF-only CommonCrawl filtering |
+| PDF WARC Reader | ⚠️ Deprecated | `src/.../readers/pdf_warc.py` | **To be replaced with WarcReaderFast** (see 08e) |
 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identify truncated PDFs |
 | PDF Classifier Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
-| Docling Component Testing | ✅ Complete | `examples_local/test_local_pdfs.py` | DoclingExtractor working on Linux A100, validated across OCR thresholds |
-| RolmOCR Component Testing | ✅ Complete | `examples_local/test_rolmocr.py` | RolmOCR integrated, multi-document bug fixed with PersistentContextJsonlWriter |
-| Two-tiered Routing Pipeline | ⏳ Next | `examples/finepdfs.py` | XGBoost classifier: low OCR→Docling, high OCR→RolmOCR |
+| Docling Component Testing | ⚠️ Needs Refactor | `examples_local/test_local_pdfs.py` | Works but uses wrong pattern (bytes in text field) |
+| RolmOCR Component Testing | ⚠️ Needs Refactor | `examples_local/test_rolmocr.py` | Works but uses wrong pattern (bytes in text field) |
+| PDFRouter Component | ✅ Complete | `src/.../filters/pdf_router.py` | XGBoost classification, needs Media object update |
+| Routing Pipeline Spec | ✅ Complete | `spec/08d_routing_pipeline.md` | Three-stage architecture defined |
+| **Media Objects Refactor** | ⏳ **In Progress** | `spec/08e_media_objects_refactor.md` | **Fixing design pattern: use Media objects, not text field** |
+| Two-tiered Routing Pipeline | ⏳ After Refactor | `examples/finepdfs.py` | Waiting on 08e completion |
