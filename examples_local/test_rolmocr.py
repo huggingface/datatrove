@@ -17,7 +17,7 @@ from typing import List
 # Add src to path
 sys.path.insert(0, 'src')
 
-from datatrove.data import Document
+from datatrove.data import Document, Media, MediaType
 from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
 from datatrove.pipeline.inference.utils.page_rendering import render_page_to_base64png_pymupdf
 from datatrove.pipeline.writers.jsonl import JsonlWriter
@@ -81,8 +81,11 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     - Total context length set to 8096 tokens
     """
 
-    # Open PDF from document text (PDF bytes)
-    pdf_bytes = doc.text if isinstance(doc.text, bytes) else doc.text.encode()
+    # Get PDF bytes from Media object
+    if not doc.media or not doc.media[0].media_bytes:
+        raise ValueError(f"Document {doc.id} has no media bytes")
+
+    pdf_bytes = doc.media[0].media_bytes
     pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
     # Process limited pages to avoid memory issues (max 5 pages for testing)
@@ -169,13 +172,20 @@ def load_high_ocr_pdfs() -> List[Document]:
             pdf_bytes = f.read()
 
         doc = Document(
-            text=pdf_bytes,
+            text="",  # Empty until OCR extraction
             id=pdf_info['id'],
+            media=[
+                Media(
+                    id=pdf_info['id'],
+                    type=MediaType.DOCUMENT,
+                    media_bytes=pdf_bytes,  # Correct: PDF bytes in Media object
+                    url=pdf_info.get('url', f"file://{pdf_path}"),
+                )
+            ],
             metadata={
                 "source": str(pdf_path),
                 "ocr_probability": pdf_info['ocr_prob'],
                 "processing_method": "rolmocr",
-                "url": pdf_info.get('url', ''),
                 "num_pages": pdf_info.get('num_pages', 0)
             }
         )
