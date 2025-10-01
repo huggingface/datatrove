@@ -82,6 +82,39 @@ class PostProcessOCRResults(PipelineStep):
             yield document
 
 
+class PersistentContextJsonlWriter(JsonlWriter):
+    """JsonlWriter that keeps file context open across multiple run() calls.
+
+    Workaround for framework bug where InferenceRunner calls post_process_steps
+    separately for each document, causing JsonlWriter to close/reopen files
+    between documents, which truncates the output file.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._context_entered = False
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        # Enter context only once, on first call
+        if not self._context_entered:
+            self.__enter__()
+            self._context_entered = True
+
+        # Write documents without entering/exiting context
+        for document in data:
+            with self.track_time():
+                self.write(document, rank)
+            yield document
+
+    def __del__(self):
+        # Clean up context when object is destroyed
+        if self._context_entered:
+            try:
+                self.__exit__(None, None, None)
+            except:
+                pass
+
+
 def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     """Convert PDF document to RolmOCR vision request.
 
@@ -244,7 +277,7 @@ def create_production_pipeline():
                 ),
                 post_process_steps=[
                     PostProcessOCRResults(),
-                    JsonlWriter(OCR_EXTRACTION_OUTPUT)
+                    PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
                 ]
             ),
         ],
@@ -289,21 +322,28 @@ def main():
         # Run stage 3 (which depends on stage 1)
         # Stage 2 and 3 will automatically wait for stage 1
         stage3.run()
+    finally:
+        # Explicitly close the writer to ensure gzip file is properly finalized
+        writer = None
+        for step in stage3.pipeline:
+            if isinstance(step, InferenceRunner):
+                for post_step in step.post_process_steps:
+                    if isinstance(post_step, PersistentContextJsonlWriter):
+                        writer = post_step
+                        break
+        if writer and writer._context_entered:
+            print("Closing OCR writer context...")
+            writer.__exit__(None, None, None)
 
-        print("\n" + "=" * 80)
-        print("Pipeline Completed Successfully!")
-        print("=" * 80)
-        print(f"\nOutputs:")
-        print(f"  Classified PDFs: {CLASSIFIED_OUTPUT}")
-        print(f"  Text Extraction: {TEXT_EXTRACTION_OUTPUT}")
-        print(f"  OCR Extraction: {OCR_EXTRACTION_OUTPUT}")
-        print(f"\nLogs:")
-        print(f"  {LOGGING_DIR}/*/stats/")
-
-    except Exception as e:
-        print(f"\n❌ Pipeline failed: {e}")
-        import traceback
-        traceback.print_exc()
+    print("\n" + "=" * 80)
+    print("Pipeline Completed Successfully!")
+    print("=" * 80)
+    print(f"\nOutputs:")
+    print(f"  Classified PDFs: {CLASSIFIED_OUTPUT}")
+    print(f"  Text Extraction: {TEXT_EXTRACTION_OUTPUT}")
+    print(f"  OCR Extraction: {OCR_EXTRACTION_OUTPUT}")
+    print(f"\nLogs:")
+    print(f"  {LOGGING_DIR}/*/stats/")
 
 
 if __name__ == "__main__":
