@@ -191,27 +191,61 @@ def test_high_ocr_pdf_extraction():
 
     print(f"PDF size: {len(pdf_bytes):,} bytes")
 
-    # Create Document with PDF bytes
+    # Create Document with PDF bytes in Media object (correct pattern)
     doc = Document(
-        text=pdf_bytes,
+        text="",  # Empty until extracted
         id=pdf_info['id'],
+        media=[
+            Media(
+                id=pdf_info['id'],
+                type=MediaType.DOCUMENT,
+                media_bytes=pdf_bytes,  # Correct: PDF bytes in Media object
+                url=f"file://{pdf_path}",
+            )
+        ],
         metadata={
-            'url': f"file://{pdf_path}",
             'content_length': len(pdf_bytes),
             'ocr_prob': pdf_info['ocr_prob'],
             'content_mime_detected': 'application/pdf'
         }
     )
 
-    # Test extraction
+    # Test extraction using full pipeline with LocalPipelineExecutor
     try:
-        print("🔄 Running DoclingExtractor on high OCR probability PDF...")
+        print("🔄 Running DoclingExtractor through pipeline...")
 
-        extracted_text, metadata = extractor.extract((pdf_bytes, doc.metadata))
+        # Create temporary output directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "output"
 
-        print(f"✅ Extraction successful!")
-        print(f"Extracted text length: {len(extracted_text):,} characters")
-        print(f"Returned metadata keys: {list(metadata.keys()) if metadata else 'None'}")
+            # Run through LocalPipelineExecutor (tests Media objects properly)
+            pipeline_executor = LocalPipelineExecutor(
+                pipeline=[
+                    [doc],  # Document with Media object
+                    extractor,  # Will process doc.media[0].media_bytes
+                    JsonlWriter(str(output_dir))  # Write extracted text
+                ],
+                tasks=1,
+                logging_dir=None
+            )
+
+            pipeline_executor.run()
+
+            # Read back the results
+            output_file = output_dir / "00000.jsonl.gz"
+            if not output_file.exists():
+                print("❌ No output file generated")
+                return
+
+            with gzip.open(output_file, 'rt') as f:
+                result = json.loads(f.readline())
+
+            extracted_text = result['text']
+            metadata = result.get('metadata', {})
+
+            print(f"✅ Extraction successful!")
+            print(f"Extracted text length: {len(extracted_text):,} characters")
+            print(f"Returned metadata keys: {list(metadata.keys()) if metadata else 'None'}")
 
         # Show text preview
         if extracted_text:
