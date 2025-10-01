@@ -66,6 +66,39 @@ class PostProcessOCRResults(PipelineStep):
             yield document
 
 
+class PersistentContextJsonlWriter(JsonlWriter):
+    """JsonlWriter that keeps file context open across multiple run() calls.
+
+    Workaround for framework bug where InferenceRunner calls post_process_steps
+    separately for each document, causing JsonlWriter to close/reopen files
+    between documents, which truncates the output file.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._context_entered = False
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        # Enter context only once, on first call
+        if not self._context_entered:
+            self.__enter__()
+            self._context_entered = True
+
+        # Write documents without entering/exiting context
+        for document in data:
+            with self.track_time():
+                self.write(document, rank)
+            yield document
+
+    def __del__(self):
+        # Clean up context when object is destroyed
+        if self._context_entered:
+            try:
+                self.__exit__(None, None, None)
+            except:
+                pass
+
+
 class SavePDFsToDisk(PipelineStep):
     """Save PDF bytes from Media objects to disk as .pdf files."""
 
@@ -295,7 +328,7 @@ def test_finepdfs_local():
                     PostProcessOCRResults(),
                     SavePDFsToDisk("examples_local/output/finepdfs_local/ocr_extraction_pdfs"),
                     SaveOCRPagesAsPNG("examples_local/output/finepdfs_local/ocr_extraction_pages_png"),
-                    JsonlWriter(OCR_EXTRACTION_OUTPUT)
+                    PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
                 ]
             ),
         ],
