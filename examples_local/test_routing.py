@@ -1,7 +1,7 @@
 """Test PDF routing logic with sample PDFs."""
 
 from pathlib import Path
-from datatrove.data import Document
+from datatrove.data import Document, Media, MediaType
 from datatrove.pipeline.filters.pdf_router import PDFRouter
 from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
@@ -41,8 +41,16 @@ def load_pdf_documents():
             pdf_bytes = f.read()
 
         doc = Document(
-            text=pdf_bytes,
+            text="",  # Empty until extracted
             id=path.stem,
+            media=[
+                Media(
+                    id=path.stem,
+                    type=MediaType.DOCUMENT,
+                    media_bytes=pdf_bytes,  # Correct: PDF bytes in Media object
+                    url=f"file://{path}",
+                )
+            ],
             metadata={"source": str(path)}
         )
         documents.append(doc)
@@ -69,7 +77,7 @@ def test_routing():
                 model_path=MODEL_PATH,
                 threshold=0.5
             ),
-            JsonlWriter(CLASSIFIED_OUTPUT),
+            JsonlWriter(CLASSIFIED_OUTPUT, save_media_bytes=True),  # Save Media objects with PDF bytes
         ],
         tasks=1,
         logging_dir="examples_local/logs/routing_test/classification"

@@ -56,8 +56,20 @@ class PDFRouter(PipelineStep):
             with self.track_time():
                 self.stat_update(StatHints.total)
 
+                # Get PDF bytes from Media object
+                if not doc.media:
+                    self.stat_update("no_media")
+                    doc.metadata["prediction_error"] = "No media objects found"
+                    continue
+
+                if not doc.media[0].media_bytes:
+                    self.stat_update("no_media_bytes")
+                    doc.metadata["prediction_error"] = "Media object has no bytes"
+                    continue
+
+                pdf_bytes = doc.media[0].media_bytes
+
                 # Get prediction from XGBoost classifier
-                pdf_bytes = doc.text if isinstance(doc.text, bytes) else doc.text.encode()
                 prediction = self.predictor.predict(pdf_bytes)
 
                 # Check for prediction failure
