@@ -66,6 +66,63 @@ class PostProcessOCRResults(PipelineStep):
             yield document
 
 
+class SavePDFsToDisk(PipelineStep):
+    """Save PDF bytes from Media objects to disk as .pdf files."""
+
+    def __init__(self, output_dir: str):
+        super().__init__()
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        for document in data:
+            # Save PDF to disk if media bytes exist
+            if document.media and document.media[0].media_bytes:
+                pdf_path = self.output_dir / f"{document.id}.pdf"
+                with open(pdf_path, "wb") as f:
+                    f.write(document.media[0].media_bytes)
+                self.stat_update("pdfs_saved")
+            yield document
+
+
+class SaveOCRPagesAsPNG(PipelineStep):
+    """Save rendered PDF pages as PNG images (as sent to RolmOCR)."""
+
+    def __init__(self, output_dir: str):
+        super().__init__()
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        import base64
+        for document in data:
+            if document.media and document.media[0].media_bytes:
+                pdf_bytes = document.media[0].media_bytes
+                pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+                # Render pages (match RolmOCR processing)
+                max_pages = min(1, len(pdf_doc))  # Same as rolmocr_query_builder
+                for page_num in range(max_pages):
+                    page = pdf_doc.load_page(page_num)
+
+                    # Use same rendering as RolmOCR
+                    base64_image = render_page_to_base64png_pymupdf(
+                        page,
+                        resize_longest_side_pixels=1280,
+                        max_visual_tokens=2048
+                    )
+
+                    # Save PNG
+                    png_path = self.output_dir / f"{document.id}_page{page_num + 1:03d}.png"
+                    with open(png_path, "wb") as f:
+                        f.write(base64.b64decode(base64_image))
+
+                    self.stat_update("pages_saved")
+
+                pdf_doc.close()
+            yield document
+
+
 def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
     """Convert PDF document to RolmOCR vision request."""
 
@@ -197,6 +254,7 @@ def test_finepdfs_local():
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
             ),
+            SavePDFsToDisk("examples_local/output/finepdfs_local/text_extraction_pdfs"),
             DoclingExtractor(timeout=60),
             JsonlWriter(TEXT_EXTRACTION_OUTPUT),
         ],
@@ -235,6 +293,8 @@ def test_finepdfs_local():
                 ),
                 post_process_steps=[
                     PostProcessOCRResults(),
+                    SavePDFsToDisk("examples_local/output/finepdfs_local/ocr_extraction_pdfs"),
+                    SaveOCRPagesAsPNG("examples_local/output/finepdfs_local/ocr_extraction_pages_png"),
                     JsonlWriter(OCR_EXTRACTION_OUTPUT)
                 ]
             ),
