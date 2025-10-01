@@ -122,6 +122,17 @@ doc = Document(
 )
 ```
 
+**Testing Note**: When running DoclingExtractor tests, set the environment variable:
+```bash
+export LAYOUT_VINO_PATH="../Docling-sync/models/v2-quant.xml"
+python examples_local/test_local_pdfs.py
+```
+
+**Status**: ✅ COMPLETED
+- test_local_pdfs.py: Both functions refactored and tested successfully
+- DoclingExtractor signature fixed: `def extract(self, media_bytes: bytes | None)`
+- Tested on Lambda: Low OCR (9,187 chars) and High OCR (2,173 chars) both working
+
 **Estimated time**: 1 hour
 
 ---
