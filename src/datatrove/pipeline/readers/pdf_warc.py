@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Callable, Literal
 from datatrove.io import DataFileLike, DataFolderLike
 from datatrove.pipeline.readers.warc import WarcIndexReprocess
-from datatrove.data import Media, MediaType
+from datatrove.data import MediaType
 
 
 if TYPE_CHECKING:
@@ -108,12 +108,12 @@ def process_pdf_record(record: "ArcWarcRecord", offset: int, name: str, pdf_mime
         "text": "",  # Empty until text extraction
         "id": id_,
         "media": [
-            Media(
-                id=id_,
-                type=MediaType.DOCUMENT,
-                media_bytes=content_bytes,
-                url=url,
-            )
+            {
+                "id": id_,
+                "type": MediaType.DOCUMENT,
+                "media_bytes": content_bytes,
+                "url": url,
+            }
         ],
         "url": url,
         "date": date,
