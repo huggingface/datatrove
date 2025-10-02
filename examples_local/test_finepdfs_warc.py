@@ -153,8 +153,9 @@ def test_finepdfs_warc():
     print("Stages 2 & 3 will run in parallel after Stage 1 completes\n")
 
     try:
-        # Run stage 3 (which depends on stage 1)
-        # Stage 2 and 3 will automatically wait for stage 1
+        # Run all stages explicitly (depends only ensures ordering, not automatic execution)
+        stage1_classification.run()
+        stage2_text_extraction.run()
         stage3_ocr_extraction.run()
     finally:
         # Explicitly close the writer to ensure gzip file is properly finalized
