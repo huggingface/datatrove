@@ -69,9 +69,10 @@ def test_finepdfs_s3():
         job_name="pdf_s3_classification",
         pipeline=[
             # Extract PDFs from S3 WARC files (anonymous/public access)
+            # Use paths_file to avoid directory listing (which CommonCrawl S3 doesn't allow)
             PDFWarcReader(
-                data_folder=(WARC_DATA_FOLDER, {"anon": True}),  # Tuple: (path, storage_options)
-                glob_pattern=WARC_PATTERN,
+                data_folder=("s3://commoncrawl", {"anon": True}),  # Tuple: (path, storage_options)
+                paths_file="examples_local/data/cc_warc_paths.txt",  # Explicit file paths
                 limit=50  # Limit for testing
             ),
             # Filter truncated PDFs
