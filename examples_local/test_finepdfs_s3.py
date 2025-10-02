@@ -68,9 +68,9 @@ def test_finepdfs_s3():
     stage1_classification = LocalPipelineExecutor(
         job_name="pdf_s3_classification",
         pipeline=[
-            # Extract PDFs from S3 WARC files
+            # Extract PDFs from S3 WARC files (anonymous/public access)
             PDFWarcReader(
-                data_folder=WARC_DATA_FOLDER,
+                data_folder=(WARC_DATA_FOLDER, {"anon": True}),  # Tuple: (path, storage_options)
                 glob_pattern=WARC_PATTERN,
                 limit=50  # Limit for testing
             ),
