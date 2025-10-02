@@ -44,10 +44,10 @@ from datatrove.pipeline.writers.jsonl import JsonlWriter, PersistentContextJsonl
 # CommonCrawl dump to process
 DUMP_TO_PROCESS = "CC-MAIN-2018-17"  # example
 
-# S3 paths (requires AWS credentials)
-MAIN_OUTPUT_PATH = "s3://your-bucket-name"  # Update with your S3 bucket
+# Output path - local for testing, S3 for production
+MAIN_OUTPUT_PATH = "output"  # Local output (change to s3://your-bucket for S3)
 
-# WARC source - choose one approach:
+# WARC source (requires AWS credentials):
 # Option 1: Single segment for testing (~1000 WARC files)
 WARC_DATA_FOLDER = f"s3://commoncrawl/crawl-data/{DUMP_TO_PROCESS}/segments/1524125937193.1/warc/"
 WARC_GLOB_PATTERN = "*.warc.gz"
