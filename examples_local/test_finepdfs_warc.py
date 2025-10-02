@@ -52,10 +52,8 @@ def test_finepdfs_warc():
     print(f"  Output: {CLASSIFIED_OUTPUT}")
     print()
 
-    # Create output directories and placeholder files
-    # (JsonlReader checks for files during initialization, before stage1 runs)
+    # Create output directories
     Path(CLASSIFIED_OUTPUT).mkdir(parents=True, exist_ok=True)
-    (Path(CLASSIFIED_OUTPUT) / ".placeholder").touch()
 
     # ========================================================================
     # Stage 1: Classification - Extract PDFs from WARCs and route
@@ -94,7 +92,7 @@ def test_finepdfs_warc():
     stage2_text_extraction = LocalPipelineExecutor(
         pipeline=[
             # Read pre-classified PDFs with Media objects
-            JsonlReader(CLASSIFIED_OUTPUT),
+            JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
             # Filter for low OCR PDFs
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
@@ -118,7 +116,7 @@ def test_finepdfs_warc():
     stage3_ocr_extraction = LocalPipelineExecutor(
         pipeline=[
             # Read same pre-classified PDFs
-            JsonlReader(CLASSIFIED_OUTPUT),
+            JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
             # Filter for high OCR PDFs
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
