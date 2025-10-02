@@ -67,11 +67,11 @@ def test_finepdfs_s3():
 
     stage1_classification = LocalPipelineExecutor(
         pipeline=[
-            # Extract PDFs from S3 WARC files (anonymous/public access)
-            # Use paths_file to avoid directory listing (which CommonCrawl S3 doesn't allow)
+            # Extract PDFs from CommonCrawl HTTPS (public access, no credentials)
+            # Use paths_file with HTTPS URLs (S3 requires credentials)
             PDFWarcReader(
-                data_folder=("s3://commoncrawl", {"anon": True}),  # Tuple: (path, storage_options)
-                paths_file="examples_local/data/cc_warc_paths.txt",  # Explicit file paths
+                data_folder="https://data.commoncrawl.org",
+                paths_file="examples_local/data/cc_warc_paths.txt",  # HTTPS URLs
                 limit=50  # Limit for testing
             ),
             # Filter truncated PDFs
