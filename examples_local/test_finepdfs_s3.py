@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """
-Test FinePDFs Pipeline with CommonCrawl S3 WARC Files
+Test FinePDFs Pipeline with CommonCrawl HTTPS WARC Files
 
-Tests the complete pipeline using publicly accessible CommonCrawl S3 data:
+Tests the complete pipeline using publicly accessible CommonCrawl HTTPS data:
+- Downloads warc.paths.gz for specified dump
+- Converts to HTTPS URLs (no credentials required)
 - Stage 1: PDFWarcReader → PDFTruncationFilter → PDFRouter → Save
 - Stage 2: Docling extraction for low OCR PDFs
 - Stage 3: RolmOCR extraction for high OCR PDFs
 
-Uses the same WARC file as test_finepdfs_warc.py but from S3 instead of local.
-No AWS authentication required - CommonCrawl is a public dataset.
+This is a test/development version. Production should use S3 paths with credentials
+like examples/fineweb.py does.
 """
 
 import sys
+import gzip
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, 'src')
 
+import requests
 from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
 from datatrove.pipeline.filters.pdf_truncation import PDFTruncationFilter
 from datatrove.pipeline.filters.pdf_router import PDFRouter
@@ -30,39 +34,69 @@ from datatrove.pipeline.readers import JsonlReader
 from datatrove.executor.local import LocalPipelineExecutor
 
 # Configuration
-# Using CC-MAIN-2018-17 dump (same as our local WARC files)
-# Segment timestamp: 1524125937193.1
-# File: CC-MAIN-20180420081400-20180420101400-00000.warc.gz
-WARC_DATA_FOLDER = "s3://commoncrawl/crawl-data/CC-MAIN-2018-17/segments/1524125937193.1/warc/"
-WARC_PATTERN = "CC-MAIN-20180420081400-20180420101400-00000.warc.gz"  # Specific file
+DUMP_TO_PROCESS = "CC-MAIN-2018-17"  # CommonCrawl dump to process
+NUM_WARC_FILES = 10  # Number of WARC files to process (for testing)
 
 MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
-CLASSIFIED_OUTPUT = "examples_local/output/finepdfs_s3/classified"
-TEXT_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_s3/text_extraction"
-OCR_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_s3/ocr_extraction"
-LOGGING_DIR = "examples_local/logs/finepdfs_s3"
+CLASSIFIED_OUTPUT = "examples_local/output/finepdfs_https/classified"
+TEXT_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_https/text_extraction"
+OCR_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_https/ocr_extraction"
+LOGGING_DIR = "examples_local/logs/finepdfs_https"
 
 OCR_THRESHOLD = 0.5
 
 
+def download_warc_paths():
+    """Download and convert WARC paths to HTTPS URLs."""
+    paths_file = Path("examples_local/data/cc_warc_paths.txt")
+
+    print(f"\n📥 Downloading WARC paths for {DUMP_TO_PROCESS}...")
+    paths_url = f"https://data.commoncrawl.org/crawl-data/{DUMP_TO_PROCESS}/warc.paths.gz"
+
+    print(f"   Fetching: {paths_url}")
+    response = requests.get(paths_url)
+    if response.status_code != 200:
+        raise RuntimeError(f"Failed to download paths: HTTP {response.status_code}")
+
+    # Extract paths
+    paths_content = gzip.decompress(response.content).decode('utf-8')
+    warc_paths = [line.strip() for line in paths_content.split('\n') if line.strip()]
+
+    print(f"   Found {len(warc_paths)} WARC files in dump")
+    print(f"   Using first {NUM_WARC_FILES} files for testing")
+
+    # Convert to HTTPS URLs
+    paths_file.parent.mkdir(parents=True, exist_ok=True)
+    https_paths = [f"https://data.commoncrawl.org/{path}" for path in warc_paths[:NUM_WARC_FILES]]
+    paths_file.write_text('\n'.join(https_paths))
+
+    print(f"   ✅ Saved {len(https_paths)} paths to {paths_file}")
+    return paths_file
+
+
 def test_finepdfs_s3():
-    """Test full FinePDFs pipeline with CommonCrawl S3 WARC files."""
+    """Test full FinePDFs pipeline with CommonCrawl HTTPS WARC files."""
 
     print("=" * 80)
-    print("FinePDFs Pipeline Test - CommonCrawl S3")
+    print("FinePDFs Pipeline Test - CommonCrawl HTTPS")
     print("=" * 80)
-    print(f"\nConfiguration:")
-    print(f"  S3 Bucket: s3://commoncrawl (public dataset)")
-    print(f"  WARC File: {WARC_PATTERN}")
-    print(f"  Model: {MODEL_PATH}")
-    print(f"  OCR Threshold: {OCR_THRESHOLD}")
-    print(f"  Output: {CLASSIFIED_OUTPUT}")
+
+    # Download paths file
+    paths_file = download_warc_paths()
+
+    print(f"\n⚙️  Configuration:")
+    print(f"   Dump: {DUMP_TO_PROCESS}")
+    print(f"   WARC files: {NUM_WARC_FILES}")
+    print(f"   Paths file: {paths_file}")
+    print(f"   Model: {MODEL_PATH}")
+    print(f"   OCR Threshold: {OCR_THRESHOLD}")
+    print(f"   Output: {CLASSIFIED_OUTPUT}")
     print()
 
     # ========================================================================
-    # Stage 1: Classification - Extract PDFs from S3 WARCs and route
+    # Stage 1: Classification - Extract PDFs from HTTPS WARCs and route
     # ========================================================================
-    print("Stage 1: PDF Extraction from S3, Truncation Detection, and Classification")
+    print("\n🔍 Stage 1: PDF Extraction, Truncation Detection, and Classification")
     print("-" * 80)
 
     stage1_classification = LocalPipelineExecutor(
