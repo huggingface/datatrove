@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, 'src')
 
 from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
-from datatrove.pipeline.filters.pdf_truncation import PDFTruncationDetector
+from datatrove.pipeline.filters.pdf_truncation import PDFTruncationFilter
 from datatrove.pipeline.filters.pdf_router import PDFRouter
 from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 from datatrove.pipeline.media.extractors.extractors import DoclingExtractor
@@ -68,7 +68,7 @@ def test_finepdfs_warc():
                 limit=100  # Limit for testing
             ),
             # Filter truncated PDFs
-            PDFTruncationDetector(),
+            PDFTruncationFilter(),
             # Classify and route PDFs
             PDFRouter(
                 model_path=MODEL_PATH,

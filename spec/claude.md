@@ -205,10 +205,17 @@ python examples_local/04_statistics.py
 | Routing Pipeline Spec | ✅ Complete | `spec/08d_routing_pipeline.md` | Three-stage architecture defined |
 | **Media Objects Refactor** | ✅ **Complete** | `spec/08e_media_objects_refactor.md` | Media.__post_init__ base64 decoding |
 | Two-tiered Routing Pipeline (Test) | ✅ **Complete** | `examples_local/test_finepdfs_local.py` | Tested on Lambda with 6 PDFs |
-| Two-tiered Routing Pipeline (Prod) | ⚠️ Needs Updates | `examples/finepdfs.py` | Apply PersistentContextJsonlWriter fixes |
+| Two-tiered Routing Pipeline (Prod) | ✅ **Complete** | `examples/finepdfs.py` | Production-ready pipeline |
+| **Code Refactoring** | ✅ **Complete** | Multiple files | Moved duplicated code to proper locations |
+
+**Refactoring (2025-10-02)**:
+- ✅ `PersistentContextJsonlWriter` → `src/datatrove/pipeline/writers/jsonl.py`
+- ✅ `ExtractInferenceText` → `src/datatrove/pipeline/inference/post_process.py`
+- ✅ `rolmocr_query_builder` → `src/datatrove/pipeline/inference/query_builders/vision.py`
+- ✅ All test scripts verified working with refactored imports
 
 **Test Results** (Lambda - 6 PDFs):
 - ✅ Classification: 3 low OCR, 3 high OCR routed correctly
 - ✅ Docling: 24.6K, 9.6K, 1.5K chars extracted
-- ✅ RolmOCR: 5.9K, 20K, 1.2K chars extracted
+- ✅ RolmOCR: 5.9K, 19K, 1.2K chars extracted
 - ✅ PDFs and PNGs saved for cross-reference
