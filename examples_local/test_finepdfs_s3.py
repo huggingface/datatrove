@@ -122,10 +122,13 @@ def test_finepdfs_s3():
         logging_dir=f"{LOGGING_DIR}/classification"
     )
 
+    # Run stage 1 first
+    stage1_classification.run()
+
     # ========================================================================
     # Stage 2: Text Extraction Path - Low OCR probability PDFs
     # ========================================================================
-    print("\nStage 2: Text Extraction (Low OCR Probability - Docling)")
+    print("\n🔍 Stage 2: Text Extraction (Low OCR Probability - Docling)")
     print("-" * 80)
 
     stage2_text_extraction = LocalPipelineExecutor(
@@ -142,14 +145,13 @@ def test_finepdfs_s3():
             JsonlWriter(TEXT_EXTRACTION_OUTPUT),
         ],
         tasks=1,
-        logging_dir=f"{LOGGING_DIR}/text_extraction",
-        depends=stage1_classification  # Wait for classification to complete
+        logging_dir=f"{LOGGING_DIR}/text_extraction"
     )
 
     # ========================================================================
     # Stage 3: OCR Extraction Path - High OCR probability PDFs
     # ========================================================================
-    print("\nStage 3: OCR Extraction (High OCR Probability - RolmOCR)")
+    print("\n🔍 Stage 3: OCR Extraction (High OCR Probability - RolmOCR)")
     print("-" * 80)
 
     stage3_ocr_extraction = LocalPipelineExecutor(
@@ -181,22 +183,12 @@ def test_finepdfs_s3():
             ),
         ],
         tasks=1,  # GPU-bound, single task
-        logging_dir=f"{LOGGING_DIR}/ocr_extraction",
-        depends=stage1_classification  # Wait for classification to complete
+        logging_dir=f"{LOGGING_DIR}/ocr_extraction"
     )
 
-    # ========================================================================
-    # Execute Pipeline
-    # ========================================================================
-    print("\n" + "=" * 80)
-    print("Starting Pipeline Execution")
-    print("=" * 80)
-    print("\nStage 1 will run first (classification)")
-    print("Stages 2 & 3 will run in parallel after Stage 1 completes\n")
-
+    # Run stages 2 & 3
     try:
-        # Run stage 3 (which depends on stage 1)
-        # Stage 2 and 3 will automatically wait for stage 1
+        stage2_text_extraction.run()
         stage3_ocr_extraction.run()
     finally:
         # Explicitly close the writer to ensure gzip file is properly finalized
