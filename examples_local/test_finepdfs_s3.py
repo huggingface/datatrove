@@ -65,12 +65,12 @@ def download_warc_paths():
     print(f"   Found {len(warc_paths)} WARC files in dump")
     print(f"   Using first {NUM_WARC_FILES} files for testing")
 
-    # Convert to HTTPS URLs
+    # Save relative paths (data_folder will be prepended)
     paths_file.parent.mkdir(parents=True, exist_ok=True)
-    https_paths = [f"https://data.commoncrawl.org/{path}" for path in warc_paths[:NUM_WARC_FILES]]
-    paths_file.write_text('\n'.join(https_paths))
+    relative_paths = warc_paths[:NUM_WARC_FILES]
+    paths_file.write_text('\n'.join(relative_paths))
 
-    print(f"   ✅ Saved {len(https_paths)} paths to {paths_file}")
+    print(f"   ✅ Saved {len(relative_paths)} paths to {paths_file}")
     return paths_file
 
 
