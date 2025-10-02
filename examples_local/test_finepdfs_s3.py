@@ -31,9 +31,9 @@ from datatrove.executor.local import LocalPipelineExecutor
 
 # Configuration
 # Using CC-MAIN-2018-17 dump (same as our local WARC files)
-# Segment timestamp: 1524125937193.53
+# Segment timestamp: 1524125937193.1
 # File: CC-MAIN-20180420081400-20180420101400-00000.warc.gz
-WARC_DATA_FOLDER = "s3://commoncrawl/crawl-data/CC-MAIN-2018-17/segments/1524125937193.53/warc/"
+WARC_DATA_FOLDER = "s3://commoncrawl/crawl-data/CC-MAIN-2018-17/segments/1524125937193.1/warc/"
 WARC_PATTERN = "CC-MAIN-20180420081400-20180420101400-00000.warc.gz"  # Specific file
 
 MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
