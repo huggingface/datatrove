@@ -66,7 +66,6 @@ def test_finepdfs_s3():
     print("-" * 80)
 
     stage1_classification = LocalPipelineExecutor(
-        job_name="pdf_s3_classification",
         pipeline=[
             # Extract PDFs from S3 WARC files (anonymous/public access)
             # Use paths_file to avoid directory listing (which CommonCrawl S3 doesn't allow)
@@ -96,7 +95,6 @@ def test_finepdfs_s3():
     print("-" * 80)
 
     stage2_text_extraction = LocalPipelineExecutor(
-        job_name="pdf_text_extraction",
         pipeline=[
             # Read pre-classified PDFs with Media objects
             JsonlReader(CLASSIFIED_OUTPUT),
@@ -121,7 +119,6 @@ def test_finepdfs_s3():
     print("-" * 80)
 
     stage3_ocr_extraction = LocalPipelineExecutor(
-        job_name="pdf_ocr_extraction",
         pipeline=[
             # Read same pre-classified PDFs
             JsonlReader(CLASSIFIED_OUTPUT),
