@@ -6,10 +6,16 @@ Implements intelligent routing of PDFs based on XGBoost classifier predictions:
 - Low OCR probability PDFs → Docling for direct text extraction
 - High OCR probability PDFs → RolmOCR for GPU-based OCR
 
-Architecture: Three-stage pipeline with direct WARC streaming:
+Architecture: Three-stage pipeline with S3 WARC streaming:
 1. Classification: Extract PDFs from WARCs, filter truncated, route by OCR probability
 2. Text Extraction Path: Process low OCR PDFs with Docling
 3. OCR Extraction Path: Process high OCR PDFs with RolmOCR
+
+Requirements:
+- AWS credentials configured (for S3 access to CommonCrawl)
+- XGBoost model trained (see examples_local/08b_pdf_classifier_model.py)
+
+Note: For testing without AWS credentials, see examples_local/test_finepdfs_https.py
 """
 
 import sys
@@ -35,26 +41,29 @@ from datatrove.pipeline.writers.jsonl import JsonlWriter, PersistentContextJsonl
 # Configuration
 # ============================================================================
 
-# WARC data source (S3 or local)
-# For CommonCrawl: "s3://commoncrawl/crawl-data/CC-MAIN-YYYY-WW/segments/"
-WARC_DATA_FOLDER = "s3://commoncrawl/crawl-data/CC-MAIN-2018-17/segments/1524125937193.1/warc/"
-WARC_GLOB_PATTERN = "*.warc.gz"  # or "CC-MAIN-*.warc.gz" for specific files
+# CommonCrawl dump to process
+DUMP_TO_PROCESS = "CC-MAIN-2018-17"  # example
 
-# XGBoost model path
+# S3 paths (requires AWS credentials)
+MAIN_OUTPUT_PATH = "s3://your-bucket-name"  # Update with your S3 bucket
+WARC_DATA_FOLDER = f"s3://commoncrawl/crawl-data/{DUMP_TO_PROCESS}/segments/"
+WARC_GLOB_PATTERN = "*/warc/*.warc.gz"  # Match all WARC files in segments
+
+# XGBoost model path (must be trained first)
 MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
 
 # Output paths
-CLASSIFIED_OUTPUT = "output/finepdfs/classified"
-TEXT_EXTRACTION_OUTPUT = "output/finepdfs/text_extraction"
-OCR_EXTRACTION_OUTPUT = "output/finepdfs/ocr_extraction"
+CLASSIFIED_OUTPUT = f"{MAIN_OUTPUT_PATH}/finepdfs/{DUMP_TO_PROCESS}/classified"
+TEXT_EXTRACTION_OUTPUT = f"{MAIN_OUTPUT_PATH}/finepdfs/{DUMP_TO_PROCESS}/text_extraction"
+OCR_EXTRACTION_OUTPUT = f"{MAIN_OUTPUT_PATH}/finepdfs/{DUMP_TO_PROCESS}/ocr_extraction"
 
 # Logging
-LOGGING_DIR = "logs/finepdfs"
+LOGGING_DIR = f"{MAIN_OUTPUT_PATH}/logs/finepdfs/{DUMP_TO_PROCESS}"
 
 # Processing configuration
 OCR_THRESHOLD = 0.5
 PDF_LIMIT = -1  # Set to limit number of PDFs processed (-1 for all)
-NUM_TASKS = 1  # Number of parallel tasks
+NUM_TASKS = 1  # Number of parallel tasks (increase for Slurm)
 
 
 # ============================================================================
@@ -68,12 +77,12 @@ def create_production_pipeline():
     print("FinePDFs Production Pipeline - Two-Tiered PDF Processing")
     print("=" * 80)
     print(f"\nConfiguration:")
-    print(f"  WARC Data: {WARC_DATA_FOLDER}")
-    print(f"  WARC Pattern: {WARC_GLOB_PATTERN}")
+    print(f"  Dump: {DUMP_TO_PROCESS}")
+    print(f"  S3 Input: {WARC_DATA_FOLDER}")
+    print(f"  S3 Output: {MAIN_OUTPUT_PATH}")
     print(f"  Model: {MODEL_PATH}")
     print(f"  OCR Threshold: {OCR_THRESHOLD}")
     print(f"  PDF Limit: {PDF_LIMIT if PDF_LIMIT > 0 else 'All'}")
-    print(f"  Output: {CLASSIFIED_OUTPUT}")
     print()
 
     # ========================================================================
