@@ -59,7 +59,6 @@ def test_finepdfs_warc():
     print("-" * 80)
 
     stage1_classification = LocalPipelineExecutor(
-        job_name="pdf_warc_classification",
         pipeline=[
             # Extract PDFs from WARC files
             PDFWarcReader(
@@ -88,7 +87,6 @@ def test_finepdfs_warc():
     print("-" * 80)
 
     stage2_text_extraction = LocalPipelineExecutor(
-        job_name="pdf_text_extraction",
         pipeline=[
             # Read pre-classified PDFs with Media objects
             JsonlReader(CLASSIFIED_OUTPUT),
@@ -113,7 +111,6 @@ def test_finepdfs_warc():
     print("-" * 80)
 
     stage3_ocr_extraction = LocalPipelineExecutor(
-        job_name="pdf_ocr_extraction",
         pipeline=[
             # Read same pre-classified PDFs
             JsonlReader(CLASSIFIED_OUTPUT),
