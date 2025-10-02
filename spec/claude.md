@@ -187,21 +187,28 @@ python examples_local/04_statistics.py
 # RunPod: spec/06_runpod_slurm.md (managed clusters)
 # Lambda: spec/07b_lambda_manual_slurm.md + 07c_datatrove_slurm_execution.md
 
-# Phase 3: PDF Processing (FinePDFs Reproduction) - In Progress
-# Branch: learning/phase3-pdf-pipeline
-# See: spec/08_finepdfs_reproduction.md
+# Phase 3: PDF Processing (FinePDFs Reproduction) - ✅ COMPLETED
+# Branch: learning/phase3-routing-pipeline
+# See: spec/08_finepdfs_reproduction.md, spec/08d_routing_pipeline.md
 ```
 
-### Phase 3: PDF Processing Status
+### Phase 3: PDF Processing Status ✅ COMPLETED (2025-10-01)
 
 | Component | Status | Implementation | Notes |
 |-----------|--------|---------------|-------|
-| PDF WARC Reader | ⚠️ Deprecated | `src/.../readers/pdf_warc.py` | **To be replaced with WarcReaderFast** (see 08e) |
+| PDF WARC Reader | ⏭️ Skipped | `src/.../readers/pdf_warc.py` | Using WarcReaderFast instead (see 08e) |
 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identify truncated PDFs |
 | PDF Classifier Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
-| Docling Component Testing | ⚠️ Needs Refactor | `examples_local/test_local_pdfs.py` | Works but uses wrong pattern (bytes in text field) |
-| RolmOCR Component Testing | ⚠️ Needs Refactor | `examples_local/test_rolmocr.py` | Works but uses wrong pattern (bytes in text field) |
-| PDFRouter Component | ✅ Complete | `src/.../filters/pdf_router.py` | XGBoost classification, needs Media object update |
+| Docling Component Testing | ✅ Complete | `examples_local/test_local_pdfs.py` | Refactored to use Media objects |
+| RolmOCR Component Testing | ✅ Complete | `examples_local/test_rolmocr.py` | Refactored to use Media objects |
+| PDFRouter Component | ✅ Complete | `src/.../filters/pdf_router.py` | XGBoost classification with Media objects |
 | Routing Pipeline Spec | ✅ Complete | `spec/08d_routing_pipeline.md` | Three-stage architecture defined |
-| **Media Objects Refactor** | ⏳ **In Progress** | `spec/08e_media_objects_refactor.md` | **Fixing design pattern: use Media objects, not text field** |
-| Two-tiered Routing Pipeline | ⏳ After Refactor | `examples/finepdfs.py` | Waiting on 08e completion |
+| **Media Objects Refactor** | ✅ **Complete** | `spec/08e_media_objects_refactor.md` | Media.__post_init__ base64 decoding |
+| Two-tiered Routing Pipeline (Test) | ✅ **Complete** | `examples_local/test_finepdfs_local.py` | Tested on Lambda with 6 PDFs |
+| Two-tiered Routing Pipeline (Prod) | ⚠️ Needs Updates | `examples/finepdfs.py` | Apply PersistentContextJsonlWriter fixes |
+
+**Test Results** (Lambda - 6 PDFs):
+- ✅ Classification: 3 low OCR, 3 high OCR routed correctly
+- ✅ Docling: 24.6K, 9.6K, 1.5K chars extracted
+- ✅ RolmOCR: 5.9K, 20K, 1.2K chars extracted
+- ✅ PDFs and PNGs saved for cross-reference

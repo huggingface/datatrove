@@ -26,13 +26,10 @@ from datatrove.pipeline.filters.pdf_router import PDFRouter
 from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 from datatrove.pipeline.media.extractors.extractors import DoclingExtractor
 from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
-from datatrove.pipeline.writers.jsonl import JsonlWriter
+from datatrove.pipeline.inference.post_process import ExtractInferenceText
+from datatrove.pipeline.inference.query_builders.vision import rolmocr_query_builder
+from datatrove.pipeline.writers.jsonl import JsonlWriter, PersistentContextJsonlWriter
 from datatrove.data import Document
-from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.inference.run_inference import InferenceSuccess
-from typing import Iterable
-import fitz
-import base64
 
 
 # ============================================================================
@@ -61,113 +58,6 @@ OCR_THRESHOLD = 0.5
 WARC_WORKERS = 4
 TEXT_EXTRACTION_TASKS = 4
 OCR_EXTRACTION_TASKS = 1  # GPU-bound
-
-
-# ============================================================================
-# RolmOCR Support Classes
-# ============================================================================
-
-class PostProcessOCRResults(PipelineStep):
-    """Post-process RolmOCR inference results."""
-
-    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
-        for document in data:
-            # Extract OCR text from inference results and replace with extracted text
-            document.text = "\n".join([
-                x.text if isinstance(x, InferenceSuccess) else x.error
-                for x in document.metadata["inference_results"]
-            ])
-            # Clean up inference_results metadata
-            del document.metadata["inference_results"]
-            yield document
-
-
-class PersistentContextJsonlWriter(JsonlWriter):
-    """JsonlWriter that keeps file context open across multiple run() calls.
-
-    Workaround for framework bug where InferenceRunner calls post_process_steps
-    separately for each document, causing JsonlWriter to close/reopen files
-    between documents, which truncates the output file.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._context_entered = False
-
-    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
-        # Enter context only once, on first call
-        if not self._context_entered:
-            self.__enter__()
-            self._context_entered = True
-
-        # Write documents without entering/exiting context
-        for document in data:
-            with self.track_time():
-                self.write(document, rank)
-            yield document
-
-    def __del__(self):
-        # Clean up context when object is destroyed
-        if self._context_entered:
-            try:
-                self.__exit__(None, None, None)
-            except:
-                pass
-
-
-def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
-    """Convert PDF document to RolmOCR vision request.
-
-    Follows FinePDFs specification:
-    - Rescale PDFs so longest dimension ≥ 1280px
-    - Ensure representation doesn't exceed 2048 image tokens
-    - Total context length set to 8096 tokens
-    """
-    from datatrove.pipeline.inference.utils.page_rendering import render_page_to_base64png_pymupdf
-
-    # Get PDF bytes from Media object
-    if not doc.media or not doc.media[0].media_bytes:
-        raise ValueError(f"Document {doc.id} has no media bytes")
-
-    pdf_bytes = doc.media[0].media_bytes
-    pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-
-    # Process all pages (or limit for memory)
-    max_pages = len(pdf_doc)  # Process all pages in production
-    page_images = []
-
-    for page_num in range(max_pages):
-        page = pdf_doc.load_page(page_num)
-
-        # Use FinePDFs specification resolution
-        base64_image = render_page_to_base64png_pymupdf(
-            page,
-            resize_longest_side_pixels=1280,  # FinePDFs spec
-            max_visual_tokens=2048  # FinePDFs spec
-        )
-
-        page_images.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{base64_image}"}
-        })
-
-    pdf_doc.close()
-
-    # Create OpenAI-compatible vision request
-    return {
-        "model": runner.config.model_name_or_path,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Extract all text from this PDF document using OCR. Return only the extracted text."},
-                    *page_images
-                ]
-            }
-        ],
-        "max_tokens": 4096,  # Leave room for input in 8096 total context
-        "temperature": 0.0
-    }
 
 
 # ============================================================================
@@ -276,7 +166,7 @@ def create_production_pipeline():
                     }
                 ),
                 post_process_steps=[
-                    PostProcessOCRResults(),
+                    ExtractInferenceText(),
                     PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
                 ]
             ),

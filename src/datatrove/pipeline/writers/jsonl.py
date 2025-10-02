@@ -1,7 +1,8 @@
-from typing import IO, Callable
+from typing import IO, Callable, Iterable
 
 from loguru import logger
 from datatrove.io import DataFolderLike
+from datatrove.data import Document
 import base64
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
@@ -50,3 +51,38 @@ class JsonlWriter(DiskWriter):
             if media["media_bytes"]:
                 media["media_bytes"] = base64.b64encode(media["media_bytes"]).decode("ascii")
         file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))
+
+
+class PersistentContextJsonlWriter(JsonlWriter):
+    """JsonlWriter that keeps file context open across multiple run() calls.
+
+    Workaround for framework bug where InferenceRunner calls post_process_steps
+    separately for each document, causing JsonlWriter to close/reopen files
+    between documents, which truncates the output file.
+
+    See spec/08f_CONTEXT_inference_runner_post_process_design_decisions.md for details.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._context_entered = False
+
+    def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
+        # Enter context only once, on first call
+        if not self._context_entered:
+            self.__enter__()
+            self._context_entered = True
+
+        # Write documents without entering/exiting context
+        for document in data:
+            with self.track_time():
+                self.write(document, rank)
+            yield document
+
+    def __del__(self):
+        # Clean up context when object is destroyed
+        if self._context_entered:
+            try:
+                self.__exit__(None, None, None)
+            except:
+                pass
