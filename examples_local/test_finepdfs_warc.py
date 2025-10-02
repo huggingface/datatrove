@@ -52,6 +52,11 @@ def test_finepdfs_warc():
     print(f"  Output: {CLASSIFIED_OUTPUT}")
     print()
 
+    # Create output directories and placeholder files
+    # (JsonlReader checks for files during initialization, before stage1 runs)
+    Path(CLASSIFIED_OUTPUT).mkdir(parents=True, exist_ok=True)
+    (Path(CLASSIFIED_OUTPUT) / ".placeholder").touch()
+
     # ========================================================================
     # Stage 1: Classification - Extract PDFs from WARCs and route
     # ========================================================================
