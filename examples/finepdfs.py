@@ -46,8 +46,15 @@ DUMP_TO_PROCESS = "CC-MAIN-2018-17"  # example
 
 # S3 paths (requires AWS credentials)
 MAIN_OUTPUT_PATH = "s3://your-bucket-name"  # Update with your S3 bucket
-WARC_DATA_FOLDER = f"s3://commoncrawl/crawl-data/{DUMP_TO_PROCESS}/segments/"
-WARC_GLOB_PATTERN = "*/warc/*.warc.gz"  # Match all WARC files in segments
+
+# WARC source - choose one approach:
+# Option 1: Single segment for testing (~1000 WARC files)
+WARC_DATA_FOLDER = f"s3://commoncrawl/crawl-data/{DUMP_TO_PROCESS}/segments/1524125937193.1/warc/"
+WARC_GLOB_PATTERN = "*.warc.gz"
+
+# Option 2: All segments in dump (WARNING: ~64K WARC files, expensive!)
+# WARC_DATA_FOLDER = f"s3://commoncrawl/crawl-data/{DUMP_TO_PROCESS}/segments/"
+# WARC_GLOB_PATTERN = "*/warc/*.warc.gz"
 
 # XGBoost model path (must be trained first)
 MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
@@ -62,7 +69,7 @@ LOGGING_DIR = f"{MAIN_OUTPUT_PATH}/logs/finepdfs/{DUMP_TO_PROCESS}"
 
 # Processing configuration
 OCR_THRESHOLD = 0.5
-PDF_LIMIT = -1  # Set to limit number of PDFs processed (-1 for all)
+PDF_LIMIT = 1000  # Limit PDFs for testing (set to -1 for production/all)
 NUM_TASKS = 1  # Number of parallel tasks (increase for Slurm)
 
 
