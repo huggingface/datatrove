@@ -6,8 +6,8 @@ Implements intelligent routing of PDFs based on XGBoost classifier predictions:
 - Low OCR probability PDFs → Docling for direct text extraction
 - High OCR probability PDFs → RolmOCR for GPU-based OCR
 
-Architecture follows FineWeb pattern with three dependent stages:
-1. Classification: Route PDFs based on OCR probability
+Architecture: Three-stage pipeline with direct WARC streaming:
+1. Classification: Extract PDFs from WARCs, filter truncated, route by OCR probability
 2. Text Extraction Path: Process low OCR PDFs with Docling
 3. OCR Extraction Path: Process high OCR PDFs with RolmOCR
 """
@@ -20,8 +20,8 @@ sys.path.insert(0, 'src')
 
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.readers import JsonlReader
-from datatrove.pipeline.media.readers.warc_threaded import WarcReaderFast
-from datatrove.pipeline.filters.pdf_truncation import PDFTruncationDetector
+from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
+from datatrove.pipeline.filters.pdf_truncation import PDFTruncationFilter
 from datatrove.pipeline.filters.pdf_router import PDFRouter
 from datatrove.pipeline.filters.lambda_filter import LambdaFilter
 from datatrove.pipeline.media.extractors.extractors import DoclingExtractor
@@ -29,18 +29,16 @@ from datatrove.pipeline.inference.run_inference import InferenceRunner, Inferenc
 from datatrove.pipeline.inference.post_process import ExtractInferenceText
 from datatrove.pipeline.inference.query_builders.vision import rolmocr_query_builder
 from datatrove.pipeline.writers.jsonl import JsonlWriter, PersistentContextJsonlWriter
-from datatrove.data import Document
 
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
-# Input: JSONL file with WARC metadata (warc_filename, warc_record_offset)
-WARC_METADATA_FILE = "data/warc_metadata.jsonl.gz"
-
 # WARC data source (S3 or local)
-WARC_DATA_FOLDER = "s3://commoncrawl"  # or local path like "data/warcs"
+# For CommonCrawl: "s3://commoncrawl/crawl-data/CC-MAIN-YYYY-WW/segments/"
+WARC_DATA_FOLDER = "s3://commoncrawl/crawl-data/CC-MAIN-2018-17/segments/1524125937193.1/warc/"
+WARC_GLOB_PATTERN = "*.warc.gz"  # or "CC-MAIN-*.warc.gz" for specific files
 
 # XGBoost model path
 MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
@@ -55,9 +53,8 @@ LOGGING_DIR = "logs/finepdfs"
 
 # Processing configuration
 OCR_THRESHOLD = 0.5
-WARC_WORKERS = 4
-TEXT_EXTRACTION_TASKS = 4
-OCR_EXTRACTION_TASKS = 1  # GPU-bound
+PDF_LIMIT = -1  # Set to limit number of PDFs processed (-1 for all)
+NUM_TASKS = 1  # Number of parallel tasks
 
 
 # ============================================================================
@@ -65,40 +62,36 @@ OCR_EXTRACTION_TASKS = 1  # GPU-bound
 # ============================================================================
 
 def create_production_pipeline():
-    """Create the three-stage production pipeline."""
+    """Create the three-stage production pipeline with direct WARC streaming."""
 
     print("=" * 80)
     print("FinePDFs Production Pipeline - Two-Tiered PDF Processing")
     print("=" * 80)
     print(f"\nConfiguration:")
-    print(f"  WARC Metadata: {WARC_METADATA_FILE}")
     print(f"  WARC Data: {WARC_DATA_FOLDER}")
+    print(f"  WARC Pattern: {WARC_GLOB_PATTERN}")
     print(f"  Model: {MODEL_PATH}")
     print(f"  OCR Threshold: {OCR_THRESHOLD}")
+    print(f"  PDF Limit: {PDF_LIMIT if PDF_LIMIT > 0 else 'All'}")
     print(f"  Output: {CLASSIFIED_OUTPUT}")
     print()
 
     # ========================================================================
-    # Stage 1: Classification - Route PDFs based on OCR probability
+    # Stage 1: Classification - Extract PDFs from WARCs and route
     # ========================================================================
-    print("Stage 1: PDF Classification and Routing")
+    print("Stage 1: PDF Extraction, Truncation Detection, and Classification")
     print("-" * 80)
 
     stage1_classification = LocalPipelineExecutor(
-        job_name="pdf_classification",
         pipeline=[
-            # Read JSONL with WARC metadata (warc_filename, warc_record_offset)
-            JsonlReader(
-                data_folder=str(Path(WARC_METADATA_FILE).parent),
-                glob_pattern=Path(WARC_METADATA_FILE).name,
-            ),
-            # Fetch PDFs from WARCs into doc.media
-            WarcReaderFast(
+            # Extract PDFs from WARC files (streams directly)
+            PDFWarcReader(
                 data_folder=WARC_DATA_FOLDER,
-                workers=WARC_WORKERS
+                glob_pattern=WARC_GLOB_PATTERN,
+                limit=PDF_LIMIT
             ),
             # Filter truncated PDFs
-            PDFTruncationDetector(),
+            PDFTruncationFilter(),
             # Classify and route PDFs
             PDFRouter(
                 model_path=MODEL_PATH,
@@ -107,21 +100,23 @@ def create_production_pipeline():
             # Save ALL PDFs with routing metadata
             JsonlWriter(CLASSIFIED_OUTPUT, save_media_bytes=True),
         ],
-        tasks=WARC_WORKERS,
+        tasks=NUM_TASKS,
         logging_dir=f"{LOGGING_DIR}/classification"
     )
+
+    # Run stage 1 first
+    stage1_classification.run()
 
     # ========================================================================
     # Stage 2: Text Extraction Path - Low OCR probability PDFs
     # ========================================================================
-    print("\nStage 2: Text Extraction (Low OCR Probability)")
+    print("\nStage 2: Text Extraction (Low OCR Probability - Docling)")
     print("-" * 80)
 
     stage2_text_extraction = LocalPipelineExecutor(
-        job_name="pdf_text_extraction",
         pipeline=[
             # Read pre-classified PDFs with Media objects
-            JsonlReader(CLASSIFIED_OUTPUT),
+            JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
             # Filter for low OCR PDFs
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
@@ -131,22 +126,20 @@ def create_production_pipeline():
             # Save extracted text
             JsonlWriter(TEXT_EXTRACTION_OUTPUT),
         ],
-        tasks=TEXT_EXTRACTION_TASKS,
-        logging_dir=f"{LOGGING_DIR}/text_extraction",
-        depends=stage1_classification  # Wait for classification to complete
+        tasks=NUM_TASKS,
+        logging_dir=f"{LOGGING_DIR}/text_extraction"
     )
 
     # ========================================================================
     # Stage 3: OCR Extraction Path - High OCR probability PDFs
     # ========================================================================
-    print("\nStage 3: OCR Extraction (High OCR Probability)")
+    print("\nStage 3: OCR Extraction (High OCR Probability - RolmOCR)")
     print("-" * 80)
 
     stage3_ocr_extraction = LocalPipelineExecutor(
-        job_name="pdf_ocr_extraction",
         pipeline=[
             # Read same pre-classified PDFs
-            JsonlReader(CLASSIFIED_OUTPUT),
+            JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
             # Filter for high OCR PDFs
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
@@ -171,51 +164,18 @@ def create_production_pipeline():
                 ]
             ),
         ],
-        tasks=OCR_EXTRACTION_TASKS,  # GPU-bound, single task
-        logging_dir=f"{LOGGING_DIR}/ocr_extraction",
-        depends=stage1_classification  # Wait for classification to complete
+        tasks=NUM_TASKS,
+        logging_dir=f"{LOGGING_DIR}/ocr_extraction"
     )
 
-    return stage1_classification, stage2_text_extraction, stage3_ocr_extraction
-
-
-# ============================================================================
-# Main Execution
-# ============================================================================
-
-def main():
-    """Run the complete FinePDFs production pipeline."""
-
-    # Check prerequisites
-    if not Path(WARC_METADATA_FILE).exists():
-        print(f"❌ Error: WARC metadata file not found: {WARC_METADATA_FILE}")
-        print("\nCreate this file with JSONL entries containing:")
-        print('  {"id": "...", "warc_filename": "...", "warc_record_offset": ...}')
-        return
-
-    if not Path(MODEL_PATH).exists():
-        print(f"❌ Error: XGBoost model not found: {MODEL_PATH}")
-        print("\nTrain the model using examples_local/08b_pdf_classifier_model.py")
-        return
-
-    # Create pipeline
-    stage1, stage2, stage3 = create_production_pipeline()
-
-    # Run stages (2 & 3 will run in parallel after stage 1 completes)
-    print("\n" + "=" * 80)
-    print("Starting Pipeline Execution")
-    print("=" * 80)
-    print("\nStage 1 will run first (classification)")
-    print("Stages 2 & 3 will run in parallel after Stage 1 completes\n")
-
+    # Run stages 2 & 3
     try:
-        # Run stage 3 (which depends on stage 1)
-        # Stage 2 and 3 will automatically wait for stage 1
-        stage3.run()
+        stage2_text_extraction.run()
+        stage3_ocr_extraction.run()
     finally:
         # Explicitly close the writer to ensure gzip file is properly finalized
         writer = None
-        for step in stage3.pipeline:
+        for step in stage3_ocr_extraction.pipeline:
             if isinstance(step, InferenceRunner):
                 for post_step in step.post_process_steps:
                     if isinstance(post_step, PersistentContextJsonlWriter):
@@ -234,6 +194,32 @@ def main():
     print(f"  OCR Extraction: {OCR_EXTRACTION_OUTPUT}")
     print(f"\nLogs:")
     print(f"  {LOGGING_DIR}/*/stats/")
+    print()
+
+
+# ============================================================================
+# Main Execution
+# ============================================================================
+
+def main():
+    """Run the complete FinePDFs production pipeline."""
+
+    # Check prerequisites
+    if not Path(MODEL_PATH).exists():
+        print(f"❌ Error: XGBoost model not found: {MODEL_PATH}")
+        print("\nTrain the model using examples_local/08b_pdf_classifier_model.py")
+        return
+
+    # Run pipeline
+    try:
+        create_production_pipeline()
+    except Exception as e:
+        print(f"\n❌ Pipeline failed with error: {e}")
+        import traceback
+        traceback.print_exc()
+        return
+
+    print("\n✅ Pipeline completed successfully!")
 
 
 if __name__ == "__main__":
