@@ -52,9 +52,6 @@ def test_finepdfs_warc():
     print(f"  Output: {CLASSIFIED_OUTPUT}")
     print()
 
-    # Create output directories
-    Path(CLASSIFIED_OUTPUT).mkdir(parents=True, exist_ok=True)
-
     # ========================================================================
     # Stage 1: Classification - Extract PDFs from WARCs and route
     # ========================================================================
@@ -84,80 +81,79 @@ def test_finepdfs_warc():
     )
 
     # ========================================================================
-    # Stage 2: Text Extraction Path - Low OCR probability PDFs
-    # ========================================================================
-    print("\nStage 2: Text Extraction (Low OCR Probability - Docling)")
-    print("-" * 80)
-
-    stage2_text_extraction = LocalPipelineExecutor(
-        pipeline=[
-            # Read pre-classified PDFs with Media objects
-            JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
-            # Filter for low OCR PDFs
-            LambdaFilter(
-                filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
-            ),
-            # Extract text with Docling
-            DoclingExtractor(timeout=10*60),  # 10 minute timeout per PDF
-            # Save extracted text
-            JsonlWriter(TEXT_EXTRACTION_OUTPUT),
-        ],
-        tasks=1,
-        logging_dir=f"{LOGGING_DIR}/text_extraction",
-        depends=stage1_classification  # Wait for classification to complete
-    )
-
-    # ========================================================================
-    # Stage 3: OCR Extraction Path - High OCR probability PDFs
-    # ========================================================================
-    print("\nStage 3: OCR Extraction (High OCR Probability - RolmOCR)")
-    print("-" * 80)
-
-    stage3_ocr_extraction = LocalPipelineExecutor(
-        pipeline=[
-            # Read same pre-classified PDFs
-            JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
-            # Filter for high OCR PDFs
-            LambdaFilter(
-                filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
-            ),
-            # Extract text with RolmOCR
-            InferenceRunner(
-                query_builder=rolmocr_query_builder,
-                config=InferenceConfig(
-                    server_type="lmdeploy",
-                    model_name_or_path="Reducto/RolmOCR",
-                    model_max_context=8096,
-                    max_concurrent_requests=1,
-                    max_concurrent_tasks=1,
-                    model_kwargs={
-                        "chat_template": "internlm",
-                        "vision_max_batch_size": 128
-                    }
-                ),
-                post_process_steps=[
-                    ExtractInferenceText(),
-                    PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
-                ]
-            ),
-        ],
-        tasks=1,  # GPU-bound, single task
-        logging_dir=f"{LOGGING_DIR}/ocr_extraction",
-        depends=stage1_classification  # Wait for classification to complete
-    )
-
-    # ========================================================================
     # Execute Pipeline
     # ========================================================================
     print("\n" + "=" * 80)
     print("Starting Pipeline Execution")
     print("=" * 80)
-    print("\nStage 1 will run first (classification)")
-    print("Stages 2 & 3 will run in parallel after Stage 1 completes\n")
+    print("\nRunning Stage 1: Classification\n")
 
     try:
-        # Run all stages explicitly (depends only ensures ordering, not automatic execution)
+        # Run stage 1 first
         stage1_classification.run()
+
+        # ========================================================================
+        # Stage 2: Text Extraction Path - Low OCR probability PDFs
+        # ========================================================================
+        print("\nStage 2: Text Extraction (Low OCR Probability - Docling)")
+        print("-" * 80)
+
+        stage2_text_extraction = LocalPipelineExecutor(
+            pipeline=[
+                # Read pre-classified PDFs with Media objects
+                JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
+                # Filter for low OCR PDFs
+                LambdaFilter(
+                    filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
+                ),
+                # Extract text with Docling
+                DoclingExtractor(timeout=10*60),  # 10 minute timeout per PDF
+                # Save extracted text
+                JsonlWriter(TEXT_EXTRACTION_OUTPUT),
+            ],
+            tasks=1,
+            logging_dir=f"{LOGGING_DIR}/text_extraction"
+        )
+
+        # ========================================================================
+        # Stage 3: OCR Extraction Path - High OCR probability PDFs
+        # ========================================================================
+        print("\nStage 3: OCR Extraction (High OCR Probability - RolmOCR)")
+        print("-" * 80)
+
+        stage3_ocr_extraction = LocalPipelineExecutor(
+            pipeline=[
+                # Read same pre-classified PDFs
+                JsonlReader(CLASSIFIED_OUTPUT, glob_pattern="*.jsonl.gz"),
+                # Filter for high OCR PDFs
+                LambdaFilter(
+                    filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
+                ),
+                # Extract text with RolmOCR
+                InferenceRunner(
+                    query_builder=rolmocr_query_builder,
+                    config=InferenceConfig(
+                        server_type="lmdeploy",
+                        model_name_or_path="Reducto/RolmOCR",
+                        model_max_context=8096,
+                        max_concurrent_requests=1,
+                        max_concurrent_tasks=1,
+                        model_kwargs={
+                            "chat_template": "internlm",
+                            "vision_max_batch_size": 128
+                        }
+                    ),
+                    post_process_steps=[
+                        ExtractInferenceText(),
+                        PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
+                    ]
+                ),
+            ],
+            tasks=1,  # GPU-bound, single task
+            logging_dir=f"{LOGGING_DIR}/ocr_extraction"
+        )
+
+        # Run stages 2 & 3
         stage2_text_extraction.run()
         stage3_ocr_extraction.run()
     finally:
