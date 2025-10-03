@@ -63,7 +63,7 @@ git checkout learning/phase3-routing-pipeline
 
 ```bash
 cd ~
-git clone https://github.com/hynky1999/Docling-sync.git
+git clone https://github.com/yoniebans/Docling-sync.git
 ```
 
 **Important:** This provides the OpenVINO quantized layout model (`v2-quant.xml`) which is significantly faster than the default model.
@@ -488,5 +488,5 @@ Once setup is complete:
 For issues or questions:
 - DataTrove: https://github.com/huggingface/datatrove
 - Docling: https://github.com/DS4SD/docling
-- Docling-sync: https://github.com/hynky1999/Docling-sync
+- Docling-sync: https://github.com/yoniebans/Docling-sync
 - RolmOCR: https://huggingface.co/Reducto/RolmOCR
