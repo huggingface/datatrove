@@ -34,7 +34,9 @@ class DiskWriter(PipelineStep, ABC):
         adapter: Callable = None,
         mode: str = "wt",
         expand_metadata: bool = False,
-        max_file_size: int = -1,  # in bytes. -1 for unlimited
+        max_file_size: int = -1,  # in bytes. -1 for unlimited,
+        max_records: int = -1,
+        save_media_bytes: bool = False,
     ):
         super().__init__()
         self.compression = compression
@@ -46,12 +48,15 @@ class DiskWriter(PipelineStep, ABC):
             output_filename += ".zst"
         self.max_file_size = max_file_size
         self.file_id_counter = Counter()
+        self.max_records = max_records
+        self.records_written = 0
         if self.max_file_size > 0 and mode != "wb":
             raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
         self.output_filename = Template(output_filename)
         self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=compression)
         self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self.expand_metadata = expand_metadata
+        self.save_media_bytes = save_media_bytes
 
     def _default_adapter(self, document: Document) -> dict:
         """
@@ -65,6 +70,15 @@ class DiskWriter(PipelineStep, ABC):
         data = {key: val for key, val in dataclasses.asdict(document).items() if val}
         if self.expand_metadata and "metadata" in data:
             data |= data.pop("metadata")
+
+        if not self.save_media_bytes and "media" in data:
+            data["media"] = [
+                {
+                    **media,
+                    "media_bytes": None,
+                }
+                for media in data["media"]
+            ]
         return data
 
     def __enter__(self):
@@ -148,20 +162,31 @@ class DiskWriter(PipelineStep, ABC):
         """
         original_name = output_filename = self._get_output_filename(document, rank, **kwargs)
         # we possibly have to change file
+        should_switch_file = False
         if self.max_file_size > 0:
             # get size of current file
             output_filename = self._get_filename_with_file_id(original_name)
-            # we have to switch file!
-            if self.output_mg.get_file(output_filename).tell() >= self.max_file_size:
-                self.file_id_counter[original_name] += 1
-                new_output_filename = self._get_filename_with_file_id(original_name)
-                self._on_file_switch(original_name, output_filename, new_output_filename)
-                output_filename = new_output_filename
+            should_switch_file = self.output_mg.get_file(output_filename).tell() >= self.max_file_size
+
+        elif self.max_records > 0:
+            output_filename = self._get_filename_with_file_id(original_name)
+            should_switch_file = self.records_written >= self.max_records
+
+        # we have to switch file!
+        if should_switch_file:
+            self.file_id_counter[original_name] += 1
+            new_output_filename = self._get_filename_with_file_id(original_name)
+            self._on_file_switch(original_name, output_filename, new_output_filename)
+            output_filename = new_output_filename
+            # Reset the counter
+            self.records_written = 0
+
         # actually write
         self._write(self.adapter(document), self.output_mg.get_file(output_filename), original_name)
         self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
         self.update_doc_stats(document)
+        self.records_written += 1
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """

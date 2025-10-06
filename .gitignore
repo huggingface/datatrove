@@ -171,3 +171,14 @@ examples_local/output/
 examples_local/logs/
 examples_local/data/*.warc.gz
 examples_local/data/*.jsonl
+
+# PDF classification training outputs
+examples_local/*.pdf
+
+# Generated plots and analysis
+examples_local/plots/
+examples_local/*.png
+*.png
+
+# DataTrove runtime logs
+logs/

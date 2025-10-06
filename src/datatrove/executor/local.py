@@ -45,8 +45,9 @@ class LocalPipelineExecutor(PipelineExecutor):
         local_tasks: int = -1,
         local_rank_offset: int = 0,
         randomize_start_duration: int = 0,
+        log_level: str = "INFO",
     ):
-        super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
+        super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration, log_level)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.start_method = start_method

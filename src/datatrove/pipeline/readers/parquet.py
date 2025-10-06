@@ -42,7 +42,7 @@ class ParquetReader(BaseDiskReader):
         read_metadata: bool = True,
         file_progress: bool = False,
         doc_progress: bool = False,
-        adapter: Callable = None,
+        adapter: Callable[[dict, str, int], dict] = None,
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,

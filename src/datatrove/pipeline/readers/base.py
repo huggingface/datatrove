@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from datatrove.data import Document, DocumentsPipeline
+from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.io import DataFileLike, DataFolderLike, get_datafolder, get_shard_from_paths_file
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
@@ -36,6 +36,7 @@ class BaseReader(PipelineStep):
         text_key: str = "text",
         id_key: str = "id",
         default_metadata: dict = None,
+        save_media_bytes: bool = False,
     ):
         super().__init__()
         self.limit = limit
@@ -45,6 +46,7 @@ class BaseReader(PipelineStep):
         self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
+        self.save_media_bytes = save_media_bytes
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
         """
@@ -71,8 +73,8 @@ class BaseReader(PipelineStep):
         return {
             "text": data.pop(self.text_key, ""),
             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
-            "media": data.pop("media", []),
-            "metadata": metadata | data,  # remaining data goes into metadata
+            "media": [Media(**media) for media in data.pop("media", [])],
+            "metadata": metadata | data,  # use the metadata we popped earlier + remaining data
         }
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
@@ -87,14 +89,14 @@ class BaseReader(PipelineStep):
 
         """
         parsed_data = self.adapter(data, source_file, id_in_file)
-        if not parsed_data.get("text", None):
-            if not self._empty_warning:
-                self._empty_warning = True
-                logger.warning(
-                    f"Found document without text, skipping. "
-                    f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
-                )
-            return None
+        # if not parsed_data.get("text", None):
+        #     if not self._empty_warning:
+        #         self._empty_warning = True
+        #         logger.warning(
+        #             f"Found document without text, skipping. "
+        #             f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
+        #         )
+        #     return document
         document = Document(**parsed_data)
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata
@@ -147,15 +149,31 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        shuffle_paths: bool = False,
+        continuous: bool = False,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
-        self.paths_file = paths_file
-        self.recursive = recursive
-        self.glob_pattern = glob_pattern
+        if not paths_file:
+            logger.info(f"Listing files on {self.data_folder.path}...")
+            self.paths = sorted(self.data_folder.list_files(recursive=recursive, glob_pattern=glob_pattern))
+            if len(self.paths) == 0:
+                raise RuntimeError(f"No files found on {self.data_folder.path}!")
+            logger.info(f"Found {len(self.paths)} files on {self.data_folder.path}!")
+
+            if shuffle_paths:
+                rng = random.Random(42)
+                rng.shuffle(self.paths)
+
+            self.paths_file = None
+        else:
+            self.paths_file = paths_file
+            self.paths = None
+
         self.shuffle_files = shuffle_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
+        self.continuous = continuous
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
@@ -229,11 +247,25 @@ class BaseDiskReader(BaseReader):
         """
         if data:
             yield from data
-        files_shard = (
-            self.data_folder.get_shard(rank, world_size, recursive=self.recursive, glob_pattern=self.glob_pattern)
-            if not self.paths_file
-            else list(get_shard_from_paths_file(self.paths_file, rank, world_size))
-        )
+        
+        if not self.paths_file:
+            if self.continuous:
+                num_files = len(self.paths)
+                shard_size = num_files // world_size
+                remainder = num_files % world_size
+                start_index = rank * shard_size + min(rank, remainder)
+                end_index = start_index + shard_size + (1 if rank < remainder else 0)
+                files_shard = self.paths[start_index:end_index]
+            else:
+                files_shard = self.paths[rank::world_size]
+        else:
+            if self.continuous:
+                raise NotImplementedError("Continuous reading from paths file is not implemented")
+            files_shard = list(get_shard_from_paths_file(self.paths_file, rank, world_size))
+
+        # Free up memory
+        self.paths = None
+
         if files_shard is None:
             raise RuntimeError(f"No files found on {self.data_folder.path}!")
         elif len(files_shard) == 0:
