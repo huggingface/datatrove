@@ -136,8 +136,8 @@ datatrove/
 ## Success Criteria
 - [x] Successfully run all local examples
 - [x] Understand pipeline composition and data flow
-- [ ] Convert at least one example to Slurm
-- [ ] Run a multi-stage distributed pipeline
+- [x] Convert at least one example to Slurm
+- [x] Run distributed processing with load balancing
 - [x] Collect and analyze statistics from processed data
 - [x] Implement custom filtering or processing logic
 
@@ -152,7 +152,8 @@ datatrove/
 ### Environment Setup
 - **Conda Environment:** `datatrove-learn` (Python 3.10)
 - **Installation:** `pip install -e ".[processing,io]"`
-- **Current Branch:** `learning/phase1-local-examples`
+- **Current Branch:** `learning/phase2-slurm-distributed`
+- **Phase 2 Start Date:** 2025-09-23
 
 ### Phase 1: Local Examples Status
 
@@ -164,14 +165,27 @@ datatrove/
 | 4. Statistics | ✅ Complete | `examples_local/04_statistics.py` | Collects doc/word/line/language stats: 922 docs analyzed |
 | 5. Deduplication | ✅ Complete | `examples_local/05_deduplication.py` | Hash-based dedup: 14→10 docs (28.6% removed), C4: no duplicates in 5000 |
 
+### Phase 2: Slurm/Distributed Status
+
+| Example | Status | Implementation | Notes |
+|---------|--------|---------------|-------|
+| 6. RunPod Slurm Setup | ✅ Complete | `spec/06_runpod_slurm.md` | Managed Slurm clusters, 2x A100 nodes |
+| 6a. Basic Filtering (Slurm) | ✅ Complete | `examples_slurm/01_basic_filtering_slurm.py` | 100→77→5 docs distributed processing |
+| 6b. Statistics Collection (Slurm) | ✅ Complete | `examples_slurm/04_statistics_slurm.py` | True load balancing: 200 docs per node |
+| 7. Lambda Managed Slurm | ⏸️ Parked | `spec/07_lambda_slurm.md` | 1-week minimum commitment constraint |
+| 7b. Lambda Manual Slurm | ✅ Complete | `spec/07b_lambda_manual_slurm.md` | DIY H100 cluster from scratch |
+| 7c. DataTrove Execution | ✅ Complete | `spec/07c_datatrove_slurm_execution.md` | Distributed processing on manual clusters |
+| 8. Multi-Stage MinHash | ⏳ Future | - | 4-stage deduplication pipeline |
+
 ### Quick Start for Next Session
 ```bash
-# Activate environment
-conda activate datatrove-learn
-
-# Run Example 1
+# Phase 1 (Local) - All complete
 python examples_local/01_basic_filtering.py
+python examples_local/04_statistics.py
 
-# Continue with Example 2
-# (See spec/02_extraction_filtering.md)
+# Phase 2 (Distributed) - Complete
+# RunPod: spec/06_runpod_slurm.md (managed clusters)
+# Lambda: spec/07b_lambda_manual_slurm.md + 07c_datatrove_slurm_execution.md
+
+# Ready for Phase 3: PDF processing and fine-tuning data preparation
 ```
