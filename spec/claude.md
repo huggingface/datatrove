@@ -119,18 +119,46 @@ Running examples locally to understand the framework basics without infrastructu
 ## Directory Structure
 ```
 datatrove/
-├── spec/                      # Specifications
-│   ├── claude.md             # This file
-│   ├── 01_basic_filtering.md
-│   ├── 02_extraction_filtering.md
-│   └── ...
-├── examples_local/           # Local example implementations
-│   ├── 01_basic_filtering.py
-│   ├── data/                # Sample data
-│   └── output/              # Results
-└── examples_slurm/          # Slurm example implementations
-    ├── 06_local_to_slurm.py
-    └── ...
+├── spec/                       # Learning specifications and examples
+│   ├── claude.md              # This file - overall learning plan
+│   ├── phase1/                # Phase 1: Local examples
+│   │   ├── 01_basic_filtering.md
+│   │   ├── 02_extraction_filtering.md
+│   │   ├── 03_tokenization.md
+│   │   ├── 04_statistics.md
+│   │   ├── 05_deduplication.md
+│   │   ├── examples/          # Python implementations
+│   │   ├── data/              # Sample data (gitignored)
+│   │   ├── logs/              # Runtime logs (gitignored)
+│   │   └── output/            # Results (gitignored)
+│   ├── phase2/                # Phase 2: Slurm/distributed
+│   │   ├── 06_runpod_slurm.md
+│   │   ├── 07_lambda_slurm.md
+│   │   ├── 07b_lambda_manual_slurm.md
+│   │   ├── 07c_datatrove_slurm_execution.md
+│   │   ├── examples/
+│   │   ├── data/
+│   │   ├── logs/
+│   │   └── output/
+│   └── phase3/                # Phase 3: PDF processing
+│       ├── 08_finepdfs_reproduction.md
+│       ├── 08b_pdf_classifier_model.md
+│       ├── 08c_rolmocr_integration.md
+│       ├── 08d_routing_pipeline.md
+│       ├── 08e_media_objects_refactor.md
+│       ├── examples/          # Includes utils/ subfolder
+│       ├── data/
+│       ├── logs/
+│       └── output/
+├── docs/                      # Documentation
+│   ├── design/                # Design decision documents
+│   │   ├── pdf_router.md
+│   │   ├── media_objects.md
+│   │   └── inference_runner.md
+│   └── guides/
+│       └── lambda_setup.md
+└── examples/                  # Production-ready examples
+    └── finepdfs.py
 ```
 
 ## Success Criteria
@@ -159,37 +187,39 @@ datatrove/
 
 | Example | Status | Implementation | Notes |
 |---------|--------|---------------|-------|
-| 1. Basic Filtering | ✅ Complete | `examples_local/01_basic_filtering.py` | Successfully processes C4 data: 1000→77 docs |
-| 2. Text Extraction | ✅ Complete | `examples_local/02_text_extraction.py` | WARC processing with quality filters: 200→8 docs |
-| 3. Tokenization | ✅ Complete | `examples_local/03_tokenization.py` | Token counting with GPT-2: 1000→922 docs, ~380K tokens |
-| 4. Statistics | ✅ Complete | `examples_local/04_statistics.py` | Collects doc/word/line/language stats: 922 docs analyzed |
-| 5. Deduplication | ✅ Complete | `examples_local/05_deduplication.py` | Hash-based dedup: 14→10 docs (28.6% removed), C4: no duplicates in 5000 |
+| 1. Basic Filtering | ✅ Complete | `spec/phase1/examples/01_basic_filtering.py` | Successfully processes C4 data: 1000→77 docs |
+| 2. Text Extraction | ✅ Complete | `spec/phase1/examples/02_text_extraction.py` | WARC processing with quality filters: 200→8 docs |
+| 3. Tokenization | ✅ Complete | `spec/phase1/examples/03_tokenization.py` | Token counting with GPT-2: 1000→922 docs, ~380K tokens |
+| 4. Statistics | ✅ Complete | `spec/phase1/examples/04_statistics.py` | Collects doc/word/line/language stats: 922 docs analyzed |
+| 5. Deduplication | ✅ Complete | `spec/phase1/examples/05_deduplication.py` | Hash-based dedup: 14→10 docs (28.6% removed), C4: no duplicates in 5000 |
 
 ### Phase 2: Slurm/Distributed Status
 
 | Example | Status | Implementation | Notes |
 |---------|--------|---------------|-------|
-| 6. RunPod Slurm Setup | ✅ Complete | `spec/06_runpod_slurm.md` | Managed Slurm clusters, 2x A100 nodes |
-| 6a. Basic Filtering (Slurm) | ✅ Complete | `examples_slurm/01_basic_filtering_slurm.py` | 100→77→5 docs distributed processing |
-| 6b. Statistics Collection (Slurm) | ✅ Complete | `examples_slurm/04_statistics_slurm.py` | True load balancing: 200 docs per node |
-| 7. Lambda Managed Slurm | ⏸️ Parked | `spec/07_lambda_slurm.md` | 1-week minimum commitment constraint |
-| 7b. Lambda Manual Slurm | ✅ Complete | `spec/07b_lambda_manual_slurm.md` | DIY H100 cluster from scratch |
-| 7c. DataTrove Execution | ✅ Complete | `spec/07c_datatrove_slurm_execution.md` | Distributed processing on manual clusters |
+| 6. RunPod Slurm Setup | ✅ Complete | `spec/phase2/06_runpod_slurm.md` | Managed Slurm clusters, 2x A100 nodes |
+| 6a. Basic Filtering (Slurm) | ✅ Complete | `spec/phase2/examples/01_basic_filtering_slurm.py` | 100→77→5 docs distributed processing |
+| 6b. Statistics Collection (Slurm) | ✅ Complete | `spec/phase2/examples/04_statistics_slurm.py` | True load balancing: 200 docs per node |
+| 7. Lambda Managed Slurm | ⏸️ Parked | `spec/phase2/07_lambda_slurm.md` | 1-week minimum commitment constraint |
+| 7b. Lambda Manual Slurm | ✅ Complete | `spec/phase2/07b_lambda_manual_slurm.md` | DIY H100 cluster from scratch |
+| 7c. DataTrove Execution | ✅ Complete | `spec/phase2/07c_datatrove_slurm_execution.md` | Distributed processing on manual clusters |
 | 8. Multi-Stage MinHash | ⏳ Future | - | 4-stage deduplication pipeline |
 
 ### Quick Start for Next Session
 ```bash
 # Phase 1 (Local) - All complete
-python examples_local/01_basic_filtering.py
-python examples_local/04_statistics.py
+python spec/phase1/examples/01_basic_filtering.py
+python spec/phase1/examples/04_statistics.py
 
 # Phase 2 (Distributed) - Complete
-# RunPod: spec/06_runpod_slurm.md (managed clusters)
-# Lambda: spec/07b_lambda_manual_slurm.md + 07c_datatrove_slurm_execution.md
+python spec/phase2/examples/01_basic_filtering_slurm.py
+# See: spec/phase2/06_runpod_slurm.md, spec/phase2/07b_lambda_manual_slurm.md
 
-# Phase 3: PDF Processing (FinePDFs Reproduction) - ✅ COMPLETED
-# Branch: learning/phase3-routing-pipeline
-# See: spec/08_finepdfs_reproduction.md, spec/08d_routing_pipeline.md
+# Phase 3: PDF Processing - ✅ COMPLETED
+python spec/phase3/examples/08_finepdfs_local.py
+python spec/phase3/examples/08d_docling_test.py
+python spec/phase3/examples/08c_rolmocr_test.py
+# See: spec/phase3/08_finepdfs_reproduction.md, spec/phase3/08d_routing_pipeline.md
 ```
 
 ### Phase 3: PDF Processing Status ✅ COMPLETED (2025-10-01)
@@ -198,13 +228,13 @@ python examples_local/04_statistics.py
 |-----------|--------|---------------|-------|
 | PDF WARC Reader | ⏭️ Skipped | `src/.../readers/pdf_warc.py` | Using WarcReaderFast instead (see 08e) |
 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identify truncated PDFs |
-| PDF Classifier Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
-| Docling Component Testing | ✅ Complete | `examples_local/test_local_pdfs.py` | Refactored to use Media objects |
-| RolmOCR Component Testing | ✅ Complete | `examples_local/test_rolmocr.py` | Refactored to use Media objects |
+| PDF Classifier Model Training | ✅ Complete | `spec/phase3/08b_pdf_classifier_model.md` | XGBoost model + threshold analysis |
+| Docling Component Testing | ✅ Complete | `spec/phase3/examples/08d_docling_test.py` | Refactored to use Media objects |
+| RolmOCR Component Testing | ✅ Complete | `spec/phase3/examples/08c_rolmocr_test.py` | Refactored to use Media objects |
 | PDFRouter Component | ✅ Complete | `src/.../filters/pdf_router.py` | XGBoost classification with Media objects |
-| Routing Pipeline Spec | ✅ Complete | `spec/08d_routing_pipeline.md` | Three-stage architecture defined |
-| **Media Objects Refactor** | ✅ **Complete** | `spec/08e_media_objects_refactor.md` | Media.__post_init__ base64 decoding |
-| Two-tiered Routing Pipeline (Test) | ✅ **Complete** | `examples_local/test_finepdfs_local.py` | Tested on Lambda with 6 PDFs |
+| Routing Pipeline Spec | ✅ Complete | `spec/phase3/08d_routing_pipeline.md` | Three-stage architecture defined |
+| **Media Objects Refactor** | ✅ **Complete** | `spec/phase3/08e_media_objects_refactor.md` | Media.__post_init__ base64 decoding |
+| Two-tiered Routing Pipeline (Test) | ✅ **Complete** | `spec/phase3/examples/08_finepdfs_local.py` | Tested on Lambda with 6 PDFs |
 | Two-tiered Routing Pipeline (Prod) | ✅ **Complete** | `examples/finepdfs.py` | Production-ready pipeline |
 | **Code Refactoring** | ✅ **Complete** | Multiple files | Moved duplicated code to proper locations |
 
