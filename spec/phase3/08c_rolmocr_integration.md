@@ -70,7 +70,7 @@ def __init__(self, model_name_or_path: str, max_context: int, model_kwargs: Opti
 ```
 
 ### Step 4: Create RolmOCR Query Builder
-**File**: `examples_local/test_rolmocr.py`
+**File**: `spec/phase3/examples/08c_rolmocr_test.py`
 
 ```python
 import base64
@@ -121,7 +121,7 @@ def rolmocr_query_builder(runner: InferenceRunner, doc: Document) -> dict:
 ```
 
 ### Step 5: Create RolmOCR Test Script
-**File**: `examples_local/test_rolmocr.py`
+**File**: `spec/phase3/examples/08c_rolmocr_test.py`
 
 ```python
 from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
@@ -150,7 +150,7 @@ def test_rolmocr_integration():
     runner = InferenceRunner(
         query_builder=rolmocr_query_builder,
         config=config,
-        post_process_steps=[JsonlWriter("examples_local/output/rolmocr_results")]
+        post_process_steps=[JsonlWriter("spec/phase3/examples/output/rolmocr_results")]
     )
 
     # Run RolmOCR inference
@@ -181,7 +181,7 @@ def test_rolmocr_integration():
 | `src/.../run_inference.py` | Modify | Add lmdeploy server type and import |
 | `src/.../servers/__init__.py` | Modify | Export LMDeployServer |
 | `src/.../lmdeploy_server.py` | Fix | Update constructor to match base class |
-| `examples_local/test_rolmocr.py` | New | RolmOCR integration test script |
+| `spec/phase3/examples/08c_rolmocr_test.py` | New | RolmOCR integration test script |
 
 ## Implementation Order
 

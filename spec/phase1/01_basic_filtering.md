@@ -48,9 +48,9 @@ JsonlWriter("output/filtered/")
 ```
 
 ## Files to Create
-1. `examples_local/01_basic_filtering.py` - Main pipeline implementation
-2. `examples_local/data/sample_data_generator.py` - Script to generate sample data
-3. `examples_local/data/sample.jsonl` - Sample input data
+1. `spec/phase1/examples/01_basic_filtering.py` - Main pipeline implementation
+2. `spec/phase1/examples/data/sample_data_generator.py` - Script to generate sample data
+3. `spec/phase1/examples/data/sample.jsonl` - Sample input data
 
 ## Execution Plan
 1. Generate sample data

@@ -62,8 +62,8 @@ StatsMerger(
 - Short/long line ratios
 
 ## Files to Create
-1. `examples_local/04_statistics.py` - Main pipeline
-2. `examples_local/04_merge_stats.py` - Stats merger
+1. `spec/phase1/examples/04_statistics.py` - Main pipeline
+2. `spec/phase1/examples/04_merge_stats.py` - Stats merger
 
 ## Execution Plan
 1. Run stats collection pipeline (can use multiple tasks)

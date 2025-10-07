@@ -112,8 +112,8 @@ Use the tested examples from our repo:
 
 ```bash
 # Run existing Slurm examples (from RunPod testing)
-python examples_slurm/01_basic_filtering_slurm.py
-python examples_slurm/04_statistics_slurm.py
+python spec/phase2/examples/01_basic_filtering_slurm.py
+python spec/phase2/examples/04_statistics_slurm.py
 
 # Monitor execution
 squeue -u ubuntu

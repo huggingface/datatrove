@@ -36,7 +36,7 @@ JsonlWriter("output/tokenized/")
 ```
 
 ## Files to Create
-1. `examples_local/03_tokenization.py` - Main pipeline
+1. `spec/phase1/examples/03_tokenization.py` - Main pipeline
 
 ## Execution Plan
 1. Read C4 data subset

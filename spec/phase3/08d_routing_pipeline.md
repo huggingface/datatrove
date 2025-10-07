@@ -129,7 +129,7 @@ WARC_INPUT = "data/warcs"
 CLASSIFIED_OUTPUT = "output/classified"
 TEXT_EXTRACTION_OUTPUT = "output/text_extraction"
 OCR_EXTRACTION_OUTPUT = "output/ocr_extraction"
-MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
+MODEL_PATH = "spec/phase3/examples/pdf_classifier_real_data.xgb"
 
 # Stage 1: Classify all PDFs and save with routing metadata
 stage1_classification = LocalPipelineExecutor(
@@ -245,7 +245,7 @@ output/
 | `src/.../filters/pdf_router.py` | New | Route PDFs based on XGBoost prediction |
 | `src/.../filters/lambda_filter.py` | Existing | Filter by metadata field (already available) |
 | `examples/finepdfs.py` | New | Main two-tiered pipeline |
-| `examples_local/test_routing.py` | New | Test routing logic with samples |
+| `spec/phase3/examples/08d_routing_test.py` | New | Test routing logic with samples |
 | `tests/pipeline/test_pdf_router.py` | New | Unit tests for router |
 
 ## Implementation Steps
@@ -303,11 +303,11 @@ output/
 | `src/datatrove/data.py` | ✅ Modified | Added Media.__post_init__ for base64 decoding |
 | `src/.../filters/pdf_router.py` | ✅ Created | Route PDFs based on XGBoost prediction |
 | `examples/finepdfs.py` | ✅ Created | Production two-tiered pipeline (needs fixes) |
-| `examples_local/test_finepdfs_local.py` | ✅ Created | Local test pipeline (fully working) |
-| `examples_local/test_routing.py` | ✅ Created | Classification-only test |
-| `examples_local/pull_results.sh` | ✅ Created | Download results from Lambda via SCP |
-| `examples_local/extract_text_for_review.py` | ✅ Created | Extract JSONL to readable .txt files |
-| `spec/08d_CONTEXT_design_decision.md` | ✅ Created | Serialization vs streaming analysis |
+| `spec/phase3/examples/08_finepdfs_local.py` | ✅ Created | Local test pipeline (fully working) |
+| `spec/phase3/examples/08d_routing_test.py` | ✅ Created | Classification-only test |
+| `spec/phase3/examples/pull_results.sh` | ✅ Created | Download results from Lambda via SCP |
+| `spec/phase3/examples/extract_text_for_review.py` | ✅ Created | Extract JSONL to readable .txt files |
+| `spec/phase3/08d_CONTEXT_design_decision.md` | ✅ Created | Serialization vs streaming analysis |
 
 ## Production Pipeline Status
 

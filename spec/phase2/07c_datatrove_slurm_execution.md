@@ -34,7 +34,7 @@ From your local machine:
 
 ```bash
 # Test SCP access to shared storage
-scp examples_slurm/01_basic_filtering_slurm.py ubuntu@controller_ip:/shared/
+scp spec/phase2/examples/01_basic_filtering_slurm.py ubuntu@controller_ip:/shared/
 ```
 
 If this works, permissions are correct.

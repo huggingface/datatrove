@@ -44,7 +44,7 @@ def test_pdf_feature_extraction():
 - Found existing classifier needs pre-trained model
 - Created comprehensive test suite (9 test cases)
 - Discovered real feature dimension is 124, not 127
-- **Deep dive**: Built complete XGBoost training pipeline (see `spec/08b_pdf_classifier_model.md`)
+- **Deep dive**: Built complete XGBoost training pipeline (see `spec/phase3/08b_pdf_classifier_model.md`)
 
 ### Step 4: Full PDF Processing Pipeline with XGBoost Routing
 **File**: `examples/finepdfs.py`
@@ -70,7 +70,7 @@ def test_pdf_feature_extraction():
 # Complete pipeline: PDFs -> XGBoost Classifier -> Docling/OCR -> Output
 reader = PDFWarcReader(...)
 truncation_filter = PDFTruncationDetector()
-classifier = PDFScannedPredictor(path_to_model="examples_local/pdf_classifier_real_data.xgb")
+classifier = PDFScannedPredictor(path_to_model="spec/phase3/examples/pdf_classifier_real_data.xgb")
 # Route to Docling or RolmOCR based on classification
 ```
 
@@ -106,11 +106,11 @@ tests/pipeline/test_pdf_*.py      # Unit tests for each component
 | 2 | PDF Truncation Detector | ✅ Complete | `src/.../filters/pdf_truncation.py` | Identifies truncated PDFs |
 | 2 | Truncation Tests | ✅ Complete | `tests/.../test_pdf_truncation.py` | Unit tests for filter logic |
 | 3 | PDF Classifier Tests | ✅ Complete | `tests/.../test_pdf_classification.py` | 9 test cases, found 124 features not 127 |
-| 3b | XGBoost Model Training | ✅ Complete | `spec/08b_pdf_classifier_model.md` | Deep dive: training pipeline + analysis |
-| 4a | Test Docling Component | ✅ Complete | `examples_local/test_local_pdfs.py` | DoclingExtractor working on Linux A100 with OpenVINO |
-| 4b | Test OCR Component | ✅ Complete | `examples_local/test_rolmocr.py` | RolmOCR integrated with PersistentContextJsonlWriter fix |
+| 3b | XGBoost Model Training | ✅ Complete | `spec/phase3/08b_pdf_classifier_model.md` | Deep dive: training pipeline + analysis |
+| 4a | Test Docling Component | ✅ Complete | `spec/phase3/examples/08d_docling_test.py` | DoclingExtractor working on Linux A100 with OpenVINO |
+| 4b | Test OCR Component | ✅ Complete | `spec/phase3/examples/08c_rolmocr_test.py` | RolmOCR integrated with PersistentContextJsonlWriter fix |
 | 4c | Lambda OCR Server | ✅ Complete | LMDeploy integration | RolmOCR on LMDeploy with DataTrove InferenceRunner |
-| 4d | Full Pipeline Integration | ✅ Complete | `examples/finepdfs.py` + `examples_local/test_finepdfs_local.py` | Three-stage routing pipeline tested on Lambda |
+| 4d | Full Pipeline Integration | ✅ Complete | `examples/finepdfs.py` + `spec/phase3/examples/08_finepdfs_local.py` | Three-stage routing pipeline tested on Lambda |
 | 4d+ | Code Refactoring | ✅ Complete | Multiple files | Moved duplicated code to proper repo locations |
 | 4e | Process All WARC Files | ⏳ Next | Pipeline execution | Complete dataset with samples |
 | 5 | PDF Re-fetching | ⏳ Future | `src/.../readers/pdf_refetch.py` | Re-fetch truncated PDFs |

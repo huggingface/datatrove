@@ -58,8 +58,8 @@ JsonlWriter("output/url_dedup/")
 - Simple but effective
 
 ## Files to Create
-1. `examples_local/05_deduplication.py` - Main pipeline
-2. `examples_local/05_create_duplicates.py` - Helper to add duplicates for testing
+1. `spec/phase1/examples/05_deduplication.py` - Main pipeline
+2. `spec/phase1/examples/05_create_duplicates.py` - Helper to add duplicates for testing
 
 ## Execution Plan
 1. Create dataset with known duplicates

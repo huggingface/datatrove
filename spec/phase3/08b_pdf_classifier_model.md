@@ -18,7 +18,7 @@ Test existing `PDFScannedPredictor` and create missing XGBoost model for OCR rou
 - Mock XGBoost model for testing
 
 ### Train XGBoost Model
-**File**: `examples_local/pdf_classifier_training.py`
+**File**: `spec/phase3/examples/08b_pdf_classifier_training.py`
 - Process CommonCrawl PDFs for training data
 - Extract 124 features per PDF using existing extractor
 - Generate heuristic labels (scanner metadata, forms, garbled text)
@@ -26,14 +26,14 @@ Test existing `PDFScannedPredictor` and create missing XGBoost model for OCR rou
 - Save model and metadata
 
 ### Analyze Feature Distribution
-**File**: `examples_local/pdf_feature_analysis.py`
+**File**: `spec/phase3/examples/08b_pdf_feature_analysis.py`
 - Validate feature dimensions across real PDFs
 - Analyze page count distribution
 - Check feature extraction success rates
 - Document real-world characteristics
 
 ### Threshold Analysis
-**File**: `examples_local/pdf_threshold_analysis.py`
+**File**: `spec/phase3/examples/08b_pdf_threshold_analysis.py`
 - Process all CommonCrawl PDFs
 - Generate OCR probability distribution
 - Extract sample PDFs for each threshold range
@@ -54,7 +54,7 @@ Test existing `PDFScannedPredictor` and create missing XGBoost model for OCR rou
 
 ### Files Generated
 ```
-examples_local/
+spec/phase3/examples/
 ├── pdf_classifier_training.py      # Training script
 ├── pdf_feature_analysis.py         # Feature analysis
 ├── pdf_threshold_analysis.py       # Threshold evaluation
@@ -70,17 +70,17 @@ examples_local/
 
 ### Train Model
 ```bash
-python examples_local/pdf_classifier_training.py --max-pdfs 1000
+python spec/phase3/examples/08b_pdf_classifier_training.py --max-pdfs 1000
 ```
 
 ### Analyze Features
 ```bash
-python examples_local/pdf_feature_analysis.py --limit 100
+python spec/phase3/examples/08b_pdf_feature_analysis.py --limit 100
 ```
 
 ### Evaluate Thresholds
 ```bash
-python examples_local/pdf_threshold_analysis.py
+python spec/phase3/examples/08b_pdf_threshold_analysis.py
 ```
 
 ## Integration

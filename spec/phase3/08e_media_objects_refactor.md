@@ -94,9 +94,9 @@ record.media.append(Media(
 ### Task 1: Update Test Files to Create Media Objects
 
 **Files to update**:
-- `examples_local/test_local_pdfs.py`
-- `examples_local/test_rolmocr.py`
-- `examples_local/test_routing.py`
+- `spec/phase3/examples/08d_docling_test.py`
+- `spec/phase3/examples/08c_rolmocr_test.py`
+- `spec/phase3/examples/08d_routing_test.py`
 
 **Change pattern**:
 
@@ -129,7 +129,7 @@ doc = Document(
 **Testing Note**: When running DoclingExtractor tests, set the environment variable:
 ```bash
 export LAYOUT_VINO_PATH="../Docling-sync/models/v2-quant.xml"
-python examples_local/test_local_pdfs.py
+python spec/phase3/examples/08d_docling_test.py
 ```
 
 **Status**: ✅ COMPLETED
@@ -241,7 +241,7 @@ executor = LocalPipelineExecutor(pipeline=pipeline, tasks=1)
 executor.run()
 ```
 
-**Reference implementation**: `examples_local/pdf_docling_test.py` lines 31-44
+**Reference implementation**: `spec/phase3/examples/pdf_docling_test.py` lines 31-44
 
 **Estimated time**: 30 minutes
 
@@ -325,13 +325,13 @@ If refactoring causes issues:
 
 | File | Change Type | Description |
 |------|-------------|-------------|
-| `examples_local/test_local_pdfs.py` | Modify | Create Media objects instead of text field |
-| `examples_local/test_rolmocr.py` | Modify | Create Media objects instead of text field |
-| `examples_local/test_routing.py` | Modify | Create Media objects instead of text field |
+| `spec/phase3/examples/08d_docling_test.py` | Modify | Create Media objects instead of text field |
+| `spec/phase3/examples/08c_rolmocr_test.py` | Modify | Create Media objects instead of text field |
+| `spec/phase3/examples/08d_routing_test.py` | Modify | Create Media objects instead of text field |
 | `src/datatrove/pipeline/filters/pdf_router.py` | Modify | Read from `doc.media[0].media_bytes` |
 | `src/datatrove/pipeline/readers/pdf_warc.py` | Delete | Use WarcReaderFast instead |
 | `tests/pipeline/test_pdf_warc_reader.py` | Delete | No longer needed |
-| `spec/08d_routing_pipeline.md` | Update | Reference WarcReaderFast instead of PDFWarcReader |
+| `spec/phase3/08d_routing_pipeline.md` | Update | Reference WarcReaderFast instead of PDFWarcReader |
 
 ## Estimated Total Time
 
@@ -380,6 +380,6 @@ Move to spec 08d to complete the production routing pipeline implementation.
 
 - **WarcReaderFast**: `src/datatrove/pipeline/media/readers/warc_threaded.py`
 - **BaseMediaExtractor**: `src/datatrove/pipeline/media/extractors/media_extractor.py`
-- **Example usage**: `examples_local/pdf_docling_test.py`
+- **Example usage**: `spec/phase3/examples/pdf_docling_test.py`
 - **Design analysis**: `spec/DESIGN_ANALYSIS.md`
 - **Cost analysis**: `spec/REFACTORING_COST_ANALYSIS.md`

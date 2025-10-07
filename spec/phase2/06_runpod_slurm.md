@@ -105,7 +105,7 @@ Test both basic filtering and statistics collection:
 mkdir -p examples_slurm
 
 # Create basic filtering test
-cat > examples_slurm/01_basic_filtering_slurm.py << 'EOF'
+cat > spec/phase2/examples/01_basic_filtering_slurm.py << 'EOF'
 from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.filters import LambdaFilter, SamplerFilter
@@ -138,13 +138,13 @@ executor.run()
 EOF
 
 # Run basic filtering test
-python examples_slurm/01_basic_filtering_slurm.py
+python spec/phase2/examples/01_basic_filtering_slurm.py
 ```
 
 #### Example 2: True Distributed Statistics
 ```bash
 # Create distributed statistics test
-cat > examples_slurm/04_statistics_slurm.py << 'EOF'
+cat > spec/phase2/examples/04_statistics_slurm.py << 'EOF'
 from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.stats import DocStats, LangStats
@@ -179,7 +179,7 @@ executor.run()
 EOF
 
 # Run distributed statistics
-python examples_slurm/04_statistics_slurm.py
+python spec/phase2/examples/04_statistics_slurm.py
 ```
 
 ### 6. Monitor and Verify Results

@@ -38,8 +38,8 @@ JsonlWriter("output/clean/")
 ```
 
 ## Files to Create
-1. `examples_local/02_extraction_filtering.py` - Main pipeline
-2. Download a sample WARC file to `examples_local/data/`
+1. `spec/phase1/examples/02_extraction_filtering.py` - Main pipeline
+2. Download a sample WARC file to `spec/phase1/examples/data/`
 
 ## Execution Plan
 1. Download one Common Crawl sample WARC file
