@@ -215,31 +215,31 @@ cd ~/datatrove
 conda activate datatrove-docling
 export LAYOUT_VINO_PATH="../Docling-sync/models/v2-quant.xml"
 
-python examples_local/test_local_pdfs.py
+python spec/phase3/examples/08d_docling_test.py
 ```
 
 ### 7.3 Test RolmOCR (OCR Extraction)
 
 ```bash
-python examples_local/test_rolmocr.py
+python spec/phase3/examples/08c_rolmocr_test.py
 ```
 
 ### 7.4 Test Full Routing Pipeline (Local PDFs)
 
 ```bash
-python examples_local/test_finepdfs_local.py
+python spec/phase3/examples/08_finepdfs_local.py
 ```
 
 ### 7.5 Test WARC Processing
 
 ```bash
-python examples_local/test_finepdfs_warc.py
+python spec/phase3/examples/08_finepdfs_warc.py
 ```
 
 ### 7.6 Test HTTPS CommonCrawl Streaming (No AWS needed)
 
 ```bash
-python examples_local/test_finepdfs_https.py
+python spec/phase3/examples/08_finepdfs_https.py
 ```
 
 ### 7.7 Test S3 CommonCrawl Access (Requires AWS credentials)
@@ -292,12 +292,12 @@ python examples/finepdfs.py
 │   ├── src/datatrove/                  # Source code
 │   ├── examples/                       # Production scripts
 │   │   └── finepdfs.py                # Main production pipeline
-│   ├── examples_local/                 # Test scripts
-│   │   ├── test_local_pdfs.py         # Test Docling
-│   │   ├── test_rolmocr.py            # Test RolmOCR
-│   │   ├── test_finepdfs_local.py     # Test full pipeline (local)
-│   │   ├── test_finepdfs_warc.py      # Test WARC processing
-│   │   ├── test_finepdfs_https.py     # Test HTTPS streaming
+│   ├── spec/phase3/examples/                 # Test scripts
+│   │   ├── 08d_docling_test.py         # Test Docling
+│   │   ├── 08c_rolmocr_test.py            # Test RolmOCR
+│   │   ├── 08_finepdfs_local.py     # Test full pipeline (local)
+│   │   ├── 08_finepdfs_warc.py      # Test WARC processing
+│   │   ├── 08_finepdfs_https.py     # Test HTTPS streaming
 │   │   ├── data/                       # Test data
 │   │   ├── output/                     # Test outputs
 │   │   └── logs/                       # Test logs
@@ -314,34 +314,34 @@ python examples/finepdfs.py
 
 ### Clean up test outputs
 ```bash
-rm -rf examples_local/logs examples_local/output
+rm -rf spec/phase3/logs spec/phase3/output
 ```
 
 ### Clean up completion markers (to re-run failed tasks)
 ```bash
-rm -rf examples_local/logs/*/completions/
+rm -rf spec/phase3/logs/*/completions/
 ```
 
 ### Check output files
 ```bash
 # List outputs
-ls -lh examples_local/output/finepdfs_local/*/
+ls -lh spec/phase3/output/finepdfs_local/*/
 
 # Count documents
-zcat examples_local/output/finepdfs_local/classified/*.jsonl.gz | wc -l
-zcat examples_local/output/finepdfs_local/text_extraction/*.jsonl.gz | wc -l
-zcat examples_local/output/finepdfs_local/ocr_extraction/*.jsonl.gz | wc -l
+zcat spec/phase3/output/finepdfs_local/classified/*.jsonl.gz | wc -l
+zcat spec/phase3/output/finepdfs_local/text_extraction/*.jsonl.gz | wc -l
+zcat spec/phase3/output/finepdfs_local/ocr_extraction/*.jsonl.gz | wc -l
 
 # View document IDs
-zcat examples_local/output/finepdfs_local/classified/*.jsonl.gz | jq -r '.id'
+zcat spec/phase3/output/finepdfs_local/classified/*.jsonl.gz | jq -r '.id'
 
 # View extracted text
-zcat examples_local/output/finepdfs_local/text_extraction/*.jsonl.gz | jq -r '.text' | head -50
+zcat spec/phase3/output/finepdfs_local/text_extraction/*.jsonl.gz | jq -r '.text' | head -50
 ```
 
 ### Check stats
 ```bash
-cat examples_local/logs/finepdfs_local/classification/stats/*.json | jq '.'
+cat spec/phase3/logs/finepdfs_local/classification/stats/*.json | jq '.'
 ```
 
 ---
@@ -379,7 +379,7 @@ ls -la ../Docling-sync/models/v2-quant.xml
 aws configure
 
 # Test S3 access
-python examples_local/test_cc_s3_access.py
+python spec/phase3/examples/utils/test_cc_s3_access.py
 ```
 
 ### Issue: Version conflicts with aiobotocore/botocore
@@ -399,7 +399,7 @@ pip install 's3fs[boto3]' --upgrade
 
 Check stats to verify:
 ```bash
-cat examples_local/logs/*/ocr_extraction/stats/*.json | jq '.successful_documents'
+cat spec/phase3/logs/*/ocr_extraction/stats/*.json | jq '.successful_documents'
 ```
 
 ---
@@ -435,13 +435,13 @@ cd ~/datatrove
 ### Test Suite
 ```bash
 # Quick smoke tests
-python examples_local/test_local_pdfs.py        # Docling
-python examples_local/test_rolmocr.py           # RolmOCR
+python spec/phase3/examples/08d_docling_test.py        # Docling
+python spec/phase3/examples/08c_rolmocr_test.py           # RolmOCR
 
 # Full pipeline tests
-python examples_local/test_finepdfs_local.py    # Local PDFs
-python examples_local/test_finepdfs_warc.py     # WARC files
-python examples_local/test_finepdfs_https.py    # HTTPS streaming
+python spec/phase3/examples/08_finepdfs_local.py    # Local PDFs
+python spec/phase3/examples/08_finepdfs_warc.py     # WARC files
+python spec/phase3/examples/08_finepdfs_https.py    # HTTPS streaming
 
 # Production
 python examples/finepdfs.py                     # S3 + glob patterns
@@ -450,7 +450,7 @@ python examples/finepdfs.py                     # S3 + glob patterns
 ### Key Files to Configure
 
 **For testing:**
-- `examples_local/test_finepdfs_https.py`: `NUM_WARC_FILES`, `DUMP_TO_PROCESS`
+- `spec/phase3/examples/08_finepdfs_https.py`: `NUM_WARC_FILES`, `DUMP_TO_PROCESS`
 
 **For production:**
 - `examples/finepdfs.py`: `DUMP_TO_PROCESS`, `PDF_LIMIT`, `MAIN_OUTPUT_PATH`, `NUM_TASKS`
