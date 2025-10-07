@@ -24,7 +24,7 @@ def test_pymupdf_ocr():
     print("Testing OCR extraction on high OCR probability PDFs...")
 
     # Path to sample PDFs
-    sample_dir = Path("examples_local/threshold_analysis/samples/high_ocr")
+    sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     if not sample_dir.exists():
         print(f"Sample directory not found: {sample_dir}")
         return
@@ -139,7 +139,7 @@ def test_lambda_ocr_preparation():
     """Prepare data structure for Lambda OCR server testing."""
     print("\n=== Lambda OCR Preparation ===")
 
-    sample_dir = Path("examples_local/threshold_analysis/samples/high_ocr")
+    sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     sample_info_path = sample_dir / "sample_info.json"
 
     if not sample_info_path.exists():
@@ -167,7 +167,7 @@ def test_lambda_ocr_preparation():
     print(f"Prepared {len(lambda_payloads)} PDFs for Lambda OCR testing")
 
     # Save payload info
-    payload_file = Path("examples_local/lambda_ocr_payloads.json")
+    payload_file = Path("spec/phase3/lambda_ocr_payloads.json")
     with open(payload_file, 'w') as f:
         json.dump(lambda_payloads, f, indent=2)
 

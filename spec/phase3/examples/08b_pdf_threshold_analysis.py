@@ -34,10 +34,10 @@ from datatrove.pipeline.media.predictor.scanned_pdf_predictor import PDFScannedP
 
 
 class PDFThresholdAnalyzer:
-    def __init__(self, data_folder="examples_local/data", model_path="examples_local/pdf_classifier_real_data.xgb"):
+    def __init__(self, data_folder="spec/phase3/data", model_path="spec/phase3/data/pdf_classifier_real_data.xgb"):
         self.data_folder = data_folder
         self.model_path = model_path
-        self.output_dir = "examples_local/threshold_analysis"
+        self.output_dir = "spec/phase3/threshold_analysis"
 
         # Create output directories
         os.makedirs(self.output_dir, exist_ok=True)
@@ -452,8 +452,8 @@ class PDFThresholdAnalyzer:
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='Comprehensive PDF threshold analysis')
-    parser.add_argument('--data-folder', default='examples_local/data', help='Folder containing WARC files')
-    parser.add_argument('--model-path', default='examples_local/pdf_classifier_real_data.xgb', help='Path to trained model')
+    parser.add_argument('--data-folder', default='spec/phase3/data', help='Folder containing WARC files')
+    parser.add_argument('--model-path', default='spec/phase3/data/pdf_classifier_real_data.xgb', help='Path to trained model')
     parser.add_argument('--samples-per-threshold', type=int, default=5, help='Number of samples per threshold')
 
     args = parser.parse_args()

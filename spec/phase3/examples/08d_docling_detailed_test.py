@@ -49,7 +49,7 @@ def test_docling_with_datatrove_data():
     print("Testing DoclingExtractor with LocalPipelineExecutor pattern...")
 
     # Use fixed JSONL format for testing
-    test_data_file = "examples_local/test_sample_fixed.jsonl.gz"
+    test_data_file = "spec/phase3/data/test_sample_fixed.jsonl.gz"
 
     if not Path(test_data_file).exists():
         print(f"❌ Test data file not found: {test_data_file}")
@@ -120,7 +120,7 @@ def test_docling_with_local_pdfs():
     print("\nTesting DoclingExtractor with local PDF samples...")
 
     # Path to local PDF samples
-    sample_dir = Path("examples_local/threshold_analysis/samples/very_low_ocr")
+    sample_dir = Path("spec/phase3/threshold_analysis/samples/very_low_ocr")
     if not sample_dir.exists():
         print(f"⚠️  Local PDF samples not found at: {sample_dir}")
         print("Skipping local PDF test.")

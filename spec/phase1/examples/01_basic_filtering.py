@@ -42,7 +42,7 @@ def main():
 
         # Save the filtered results
         JsonlWriter(
-            output_folder="examples_local/output/01_filtered",
+            output_folder="spec/phase1/output/01_filtered",
             output_filename="filtered_${rank}.jsonl",
             compression=None  # No compression for easier inspection
         )
@@ -55,7 +55,7 @@ def main():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,  # Start with single task
-        logging_dir="examples_local/logs/01_basic_filtering"
+        logging_dir="spec/phase1/logs/01_basic_filtering"
     )
 
     # Run the pipeline
@@ -63,8 +63,8 @@ def main():
 
     print("\n" + "=" * 50)
     print("Pipeline completed!")
-    print("Check outputs in: examples_local/output/01_filtered/")
-    print("Check logs in: examples_local/logs/01_basic_filtering/")
+    print("Check outputs in: spec/phase1/output/01_filtered/")
+    print("Check logs in: spec/phase1/logs/01_basic_filtering/")
 
 
 def inspect_results():
@@ -72,7 +72,7 @@ def inspect_results():
     import json
     import os
 
-    output_file = "examples_local/output/01_filtered/filtered_00000.jsonl"
+    output_file = "spec/phase1/output/01_filtered/filtered_00000.jsonl"
 
     if not os.path.exists(output_file):
         print("No output file found. Run the pipeline first.")

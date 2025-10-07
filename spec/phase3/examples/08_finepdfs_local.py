@@ -33,20 +33,20 @@ from datatrove.pipeline.inference.utils.page_rendering import render_page_to_bas
 # Sample PDFs - same as test_routing.py
 SAMPLE_PDFS = [
     # Low OCR probability samples (should route to text_extraction)
-    "examples_local/threshold_analysis/samples/low_ocr/low_ocr_01_<urn:uuid:449f2fe2-49b5-4609-a4c9-901ebbffbb81>.pdf",
-    "examples_local/threshold_analysis/samples/low_ocr/low_ocr_02_<urn:uuid:12fcdb36-1e9d-4192-88c8-55a70ec2872f>.pdf",
-    "examples_local/threshold_analysis/samples/low_ocr/low_ocr_03_<urn:uuid:ead811e4-4126-4ef9-8525-38beb86665a4>.pdf",
+    "spec/phase3/threshold_analysis/samples/low_ocr/low_ocr_01_<urn:uuid:449f2fe2-49b5-4609-a4c9-901ebbffbb81>.pdf",
+    "spec/phase3/threshold_analysis/samples/low_ocr/low_ocr_02_<urn:uuid:12fcdb36-1e9d-4192-88c8-55a70ec2872f>.pdf",
+    "spec/phase3/threshold_analysis/samples/low_ocr/low_ocr_03_<urn:uuid:ead811e4-4126-4ef9-8525-38beb86665a4>.pdf",
     # High OCR probability samples (should route to ocr_extraction)
-    "examples_local/threshold_analysis/samples/high_ocr/high_ocr_02_<urn:uuid:f808a467-bd86-4c90-9e50-eeb5d47d36b5>.pdf",
-    "examples_local/threshold_analysis/samples/high_ocr/high_ocr_04_<urn:uuid:24d2dd9d-271d-49fb-8817-abc5f42e46c0>.pdf",
-    "examples_local/threshold_analysis/samples/high_ocr/high_ocr_05_<urn:uuid:38bc9a73-50e9-4744-af6a-0f357ed5721c>.pdf",
+    "spec/phase3/threshold_analysis/samples/high_ocr/high_ocr_02_<urn:uuid:f808a467-bd86-4c90-9e50-eeb5d47d36b5>.pdf",
+    "spec/phase3/threshold_analysis/samples/high_ocr/high_ocr_04_<urn:uuid:24d2dd9d-271d-49fb-8817-abc5f42e46c0>.pdf",
+    "spec/phase3/threshold_analysis/samples/high_ocr/high_ocr_05_<urn:uuid:38bc9a73-50e9-4744-af6a-0f357ed5721c>.pdf",
 ]
 
 # Configuration
-MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
-CLASSIFIED_OUTPUT = "examples_local/output/finepdfs_local/classified"
-TEXT_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_local/text_extraction"
-OCR_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_local/ocr_extraction"
+MODEL_PATH = "spec/phase3/data/pdf_classifier_real_data.xgb"
+CLASSIFIED_OUTPUT = "spec/phase3/output/finepdfs_local/classified"
+TEXT_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_local/text_extraction"
+OCR_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_local/ocr_extraction"
 
 
 # ============================================================================
@@ -177,7 +177,7 @@ def test_finepdfs_local():
             JsonlWriter(CLASSIFIED_OUTPUT, save_media_bytes=True),
         ],
         tasks=1,
-        logging_dir="examples_local/logs/finepdfs_local/classification"
+        logging_dir="spec/phase3/logs/finepdfs_local/classification"
     )
 
     stage1_classification.run()
@@ -195,12 +195,12 @@ def test_finepdfs_local():
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
             ),
-            SavePDFsToDisk("examples_local/output/finepdfs_local/text_extraction_pdfs"),
+            SavePDFsToDisk("spec/phase3/output/finepdfs_local/text_extraction_pdfs"),
             DoclingExtractor(timeout=60),
             JsonlWriter(TEXT_EXTRACTION_OUTPUT),
         ],
         tasks=1,
-        logging_dir="examples_local/logs/finepdfs_local/text_extraction",
+        logging_dir="spec/phase3/logs/finepdfs_local/text_extraction",
         depends=stage1_classification
     )
 
@@ -234,14 +234,14 @@ def test_finepdfs_local():
                 ),
                 post_process_steps=[
                     ExtractInferenceText(),
-                    SavePDFsToDisk("examples_local/output/finepdfs_local/ocr_extraction_pdfs"),
-                    SaveOCRPagesAsPNG("examples_local/output/finepdfs_local/ocr_extraction_pages_png"),
+                    SavePDFsToDisk("spec/phase3/output/finepdfs_local/ocr_extraction_pdfs"),
+                    SaveOCRPagesAsPNG("spec/phase3/output/finepdfs_local/ocr_extraction_pages_png"),
                     PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
                 ]
             ),
         ],
         tasks=1,
-        logging_dir="examples_local/logs/finepdfs_local/ocr_extraction",
+        logging_dir="spec/phase3/logs/finepdfs_local/ocr_extraction",
         depends=stage1_classification
     )
 

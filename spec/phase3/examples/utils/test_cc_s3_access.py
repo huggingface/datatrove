@@ -41,7 +41,7 @@ def test_paths_file_approach():
     print(f"   First path: {warc_paths[0]}")
 
     # Save first 10 paths to file for testing
-    paths_file = Path("examples_local/data/cc_warc_paths.txt")
+    paths_file = Path("spec/phase3/data/cc_warc_paths.txt")
     paths_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Convert to full HTTPS paths (not S3)

@@ -26,7 +26,7 @@ def test_local_pdf_extraction():
     print("Testing DoclingExtractor on local PDF files...")
 
     # Path to local PDF samples
-    sample_dir = Path("examples_local/threshold_analysis/samples/very_low_ocr")
+    sample_dir = Path("spec/phase3/threshold_analysis/samples/very_low_ocr")
     sample_info_path = sample_dir / "sample_info.json"
 
     if not sample_info_path.exists():
@@ -152,7 +152,7 @@ def test_high_ocr_pdf_extraction():
     print("\nTesting DoclingExtractor on high OCR probability PDF...")
 
     # Path to high OCR PDF samples
-    sample_dir = Path("examples_local/threshold_analysis/samples/high_ocr")
+    sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     sample_info_path = sample_dir / "sample_info.json"
 
     if not sample_info_path.exists():
@@ -290,7 +290,7 @@ def compare_ocr_thresholds():
     for category, description in categories:
         print(f"\n--- {description} ---")
 
-        sample_dir = Path(f"examples_local/threshold_analysis/samples/{category}")
+        sample_dir = Path(f"spec/phase3/threshold_analysis/samples/{category}")
         sample_info_path = sample_dir / "sample_info.json"
 
         if not sample_info_path.exists():

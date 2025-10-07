@@ -29,12 +29,12 @@ from datatrove.pipeline.readers import JsonlReader
 from datatrove.executor.local import LocalPipelineExecutor
 
 # Configuration
-WARC_DATA_FOLDER = "examples_local/data"
-MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
-CLASSIFIED_OUTPUT = "examples_local/output/finepdfs_warc/classified"
-TEXT_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_warc/text_extraction"
-OCR_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_warc/ocr_extraction"
-LOGGING_DIR = "examples_local/logs/finepdfs_warc"
+WARC_DATA_FOLDER = "spec/phase3/data"
+MODEL_PATH = "spec/phase3/data/pdf_classifier_real_data.xgb"
+CLASSIFIED_OUTPUT = "spec/phase3/output/finepdfs_warc/classified"
+TEXT_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_warc/text_extraction"
+OCR_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_warc/ocr_extraction"
+LOGGING_DIR = "spec/phase3/logs/finepdfs_warc"
 
 OCR_THRESHOLD = 0.5
 

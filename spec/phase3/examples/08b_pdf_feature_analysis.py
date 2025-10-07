@@ -29,7 +29,7 @@ from datatrove.pipeline.media.predictor.scanned_pdf_predictor import (
 
 
 class PDFFeatureAnalyzer:
-    def __init__(self, data_folder="examples_local/data", limit_per_file=None):
+    def __init__(self, data_folder="spec/phase3/data", limit_per_file=None):
         self.data_folder = data_folder
         self.limit_per_file = limit_per_file
         self.results = {
@@ -278,7 +278,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Analyze PDF features from CommonCrawl WARC files')
     parser.add_argument('--limit', type=int, help='Limit PDFs per WARC file for testing')
-    parser.add_argument('--data-folder', default='examples_local/data', help='Folder containing WARC files')
+    parser.add_argument('--data-folder', default='spec/phase3/data', help='Folder containing WARC files')
 
     args = parser.parse_args()
 

@@ -16,10 +16,10 @@ def debug_warc_metadata():
     """Debug what metadata the Document objects actually have."""
 
     # Read the FIXED test file
-    test_file = "examples_local/test_sample_fixed.jsonl.gz"
+    test_file = "spec/phase3/test_sample_fixed.jsonl.gz"
 
     reader = JsonlReader(
-        data_folder="examples_local",
+        data_folder="spec/phase3/examples",
         glob_pattern="test_sample_fixed.jsonl.gz",
         limit=1
     )

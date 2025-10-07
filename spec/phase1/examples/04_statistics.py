@@ -26,26 +26,26 @@ def main():
     pipeline = [
         # Read from the tokenized output of Example 3
         JsonlReader(
-            data_folder="examples_local/output/03_tokenized",
+            data_folder="spec/phase1/output/03_tokenized",
             glob_pattern="*.jsonl",
         ),
 
         # Collect various statistics
         DocStats(
-            output_folder="examples_local/output/04_stats",
+            output_folder="spec/phase1/output/04_stats",
             histogram_round_digits=1,
         ),
         WordStats(
-            output_folder="examples_local/output/04_stats",
+            output_folder="spec/phase1/output/04_stats",
             histogram_round_digits=0,
             top_k_config=TopKConfig(top_k_groups=["fqdn", "suffix"], top_k=100),
         ),
         LineStats(
-            output_folder="examples_local/output/04_stats",
+            output_folder="spec/phase1/output/04_stats",
             histogram_round_digits=0,
         ),
         LangStats(
-            output_folder="examples_local/output/04_stats",
+            output_folder="spec/phase1/output/04_stats",
             language="en",
         ),
     ]
@@ -57,14 +57,14 @@ def main():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,  # Single task for simplicity
-        logging_dir="examples_local/logs/04_statistics"
+        logging_dir="spec/phase1/logs/04_statistics"
     )
 
     executor.run()
 
     print("\n" + "=" * 50)
     print("Statistics collection completed!")
-    print("Stats saved in: examples_local/output/04_stats/")
+    print("Stats saved in: spec/phase1/output/04_stats/")
 
 
 def analyze_statistics():
@@ -72,7 +72,7 @@ def analyze_statistics():
     import json
     from pathlib import Path
 
-    stats_dir = Path("examples_local/output/04_stats")
+    stats_dir = Path("spec/phase1/output/04_stats")
 
     if not stats_dir.exists():
         print("No stats found. Run the pipeline first.")
@@ -137,8 +137,8 @@ if __name__ == "__main__":
         # Clear previous completions to force re-run
         import shutil
         import os
-        if os.path.exists("examples_local/logs/04_statistics/completions"):
-            shutil.rmtree("examples_local/logs/04_statistics/completions")
+        if os.path.exists("spec/phase1/logs/04_statistics/completions"):
+            shutil.rmtree("spec/phase1/logs/04_statistics/completions")
 
         main()
         analyze_statistics()

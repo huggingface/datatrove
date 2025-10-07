@@ -167,17 +167,17 @@ cython_debug/
 playground/
 
 # DataTrove learning examples - outputs and logs
-examples_local/output/
-examples_local/logs/
-examples_local/data/*.warc.gz
-examples_local/data/*.jsonl
-
-# PDF classification training outputs
-examples_local/*.pdf
+spec/phase1/output/
+spec/phase1/logs/
+spec/phase1/data/
+spec/phase2/output/
+spec/phase2/logs/
+spec/phase2/data/
+spec/phase3/output/
+spec/phase3/logs/
+spec/phase3/data/
 
 # Generated plots and analysis
-examples_local/plots/
-examples_local/*.png
 *.png
 
 # DataTrove runtime logs

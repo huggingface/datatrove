@@ -48,7 +48,7 @@ def rolmocr_query_builder_with_debug(runner: InferenceRunner, doc: Document) -> 
     page_images = []
 
     # Create debug directory for saving processed images
-    debug_dir = Path("examples_local/output/rolmocr_debug")
+    debug_dir = Path("spec/phase3/output/rolmocr_debug")
     debug_dir.mkdir(parents=True, exist_ok=True)
 
     for page_num in range(max_pages):
@@ -98,7 +98,7 @@ def load_high_ocr_pdfs() -> List[Document]:
     """Load high OCR probability PDFs for testing."""
 
     # Look for high OCR probability PDFs from previous classification
-    sample_dir = Path("examples_local/threshold_analysis/samples/high_ocr")
+    sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     if not sample_dir.exists():
         print(f"Warning: {sample_dir} not found.")
         return []
@@ -185,7 +185,7 @@ def test_rolmocr_integration():
                 config=config,
                 post_process_steps=[
                     ExtractInferenceText(),  # Extract OCR text from inference_results
-                    PersistentContextJsonlWriter("examples_local/output/rolmocr_results")
+                    PersistentContextJsonlWriter("spec/phase3/output/rolmocr_results")
                 ]
             ),
         ],

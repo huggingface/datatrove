@@ -56,7 +56,7 @@ def main():
                 config=config,
                 post_process_steps=[
                     PostProcessInferenceResults(),
-                    JsonlWriter("examples_local/output/inference_test")
+                    JsonlWriter("spec/phase3/output/inference_test")
                 ]
             ),
         ],
@@ -69,7 +69,7 @@ def main():
 
     import subprocess
     result = subprocess.run(
-        "zcat examples_local/output/inference_test/00000.jsonl.gz | wc -l",
+        "zcat spec/phase3/output/inference_test/00000.jsonl.gz | wc -l",
         shell=True,
         capture_output=True,
         text=True
@@ -77,7 +77,7 @@ def main():
     print(f"Documents written: {result.stdout.strip()}")
 
     result = subprocess.run(
-        "zcat examples_local/output/inference_test/00000.jsonl.gz | jq -r '.id'",
+        "zcat spec/phase3/output/inference_test/00000.jsonl.gz | jq -r '.id'",
         shell=True,
         capture_output=True,
         text=True

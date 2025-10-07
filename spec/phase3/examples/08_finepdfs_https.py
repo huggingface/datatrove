@@ -37,18 +37,18 @@ from datatrove.executor.local import LocalPipelineExecutor
 DUMP_TO_PROCESS = "CC-MAIN-2018-17"  # CommonCrawl dump to process
 NUM_WARC_FILES = 10  # Number of WARC files to process (for testing)
 
-MODEL_PATH = "examples_local/pdf_classifier_real_data.xgb"
-CLASSIFIED_OUTPUT = "examples_local/output/finepdfs_https/classified"
-TEXT_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_https/text_extraction"
-OCR_EXTRACTION_OUTPUT = "examples_local/output/finepdfs_https/ocr_extraction"
-LOGGING_DIR = "examples_local/logs/finepdfs_https"
+MODEL_PATH = "spec/phase3/data/pdf_classifier_real_data.xgb"
+CLASSIFIED_OUTPUT = "spec/phase3/output/finepdfs_https/classified"
+TEXT_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_https/text_extraction"
+OCR_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_https/ocr_extraction"
+LOGGING_DIR = "spec/phase3/logs/finepdfs_https"
 
 OCR_THRESHOLD = 0.5
 
 
 def download_warc_paths():
     """Download and convert WARC paths to HTTPS URLs."""
-    paths_file = Path("examples_local/data/cc_warc_paths.txt")
+    paths_file = Path("spec/phase3/data/cc_warc_paths.txt")
 
     print(f"\n📥 Downloading WARC paths for {DUMP_TO_PROCESS}...")
     paths_url = f"https://data.commoncrawl.org/crawl-data/{DUMP_TO_PROCESS}/warc.paths.gz"
@@ -105,7 +105,7 @@ def test_finepdfs_s3():
             # Use paths_file with HTTPS URLs (S3 requires credentials)
             PDFWarcReader(
                 data_folder="https://data.commoncrawl.org",
-                paths_file="examples_local/data/cc_warc_paths.txt",  # HTTPS URLs
+                paths_file="spec/phase3/data/cc_warc_paths.txt",  # HTTPS URLs
                 limit=50  # Limit for testing
             ),
             # Filter truncated PDFs

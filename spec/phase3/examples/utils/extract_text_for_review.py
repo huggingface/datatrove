@@ -68,7 +68,7 @@ def extract_text_from_jsonl(jsonl_path: Path, output_dir: Path):
 
 
 def main():
-    base_dir = Path("examples_local/output/finepdfs_local")
+    base_dir = Path("spec/phase3/output/finepdfs_local")
 
     print("=" * 80)
     print("Extracting Text from FinePDFs Results")

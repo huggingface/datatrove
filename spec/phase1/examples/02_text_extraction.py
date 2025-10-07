@@ -27,10 +27,10 @@ def check_warc_file():
     """Check for existing WARC file"""
 
     # Create data directory if it doesn't exist
-    os.makedirs("examples_local/data", exist_ok=True)
+    os.makedirs("spec/phase1/data", exist_ok=True)
 
     # The actual file downloaded
-    sample_file = "examples_local/data/CC-MAIN-20180420081400-20180420101400-00000.warc.gz"
+    sample_file = "spec/phase1/data/CC-MAIN-20180420081400-20180420101400-00000.warc.gz"
 
     if os.path.exists(sample_file):
         print(f"Found WARC file: {sample_file}")
@@ -62,7 +62,7 @@ def main():
     pipeline = [
         # Read WARC file
         WarcReader(
-            data_folder="examples_local/data",
+            data_folder="spec/phase1/data",
             glob_pattern="CC-MAIN-20180420081400-20180420101400-00000.warc.gz",
             limit=200,  # Process 200 records to get some through filters
         ),
@@ -76,7 +76,7 @@ def main():
         LanguageFilter(
             languages=["en"],
             exclusion_writer=JsonlWriter(
-                output_folder="examples_local/output/02_non_english",
+                output_folder="spec/phase1/output/02_non_english",
                 compression=None
             )
         ),
@@ -84,7 +84,7 @@ def main():
         # Filter out repetitive content
         GopherRepetitionFilter(
             exclusion_writer=JsonlWriter(
-                output_folder="examples_local/output/02_repetitive",
+                output_folder="spec/phase1/output/02_repetitive",
                 compression=None
             )
         ),
@@ -94,14 +94,14 @@ def main():
             min_doc_words=50,
             max_doc_words=100000,
             exclusion_writer=JsonlWriter(
-                output_folder="examples_local/output/02_low_quality",
+                output_folder="spec/phase1/output/02_low_quality",
                 compression=None
             )
         ),
 
         # Save the clean results
         JsonlWriter(
-            output_folder="examples_local/output/02_clean",
+            output_folder="spec/phase1/output/02_clean",
             output_filename="clean_${rank}.jsonl",
             compression=None
         )
@@ -113,7 +113,7 @@ def main():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/02_text_extraction"
+        logging_dir="spec/phase1/logs/02_text_extraction"
     )
 
     executor.run()
@@ -121,10 +121,10 @@ def main():
     print("\n" + "=" * 50)
     print("Pipeline completed!")
     print("Check outputs in:")
-    print("  - Clean: examples_local/output/02_clean/")
-    print("  - Non-English: examples_local/output/02_non_english/")
-    print("  - Repetitive: examples_local/output/02_repetitive/")
-    print("  - Low Quality: examples_local/output/02_low_quality/")
+    print("  - Clean: spec/phase1/output/02_clean/")
+    print("  - Non-English: spec/phase1/output/02_non_english/")
+    print("  - Repetitive: spec/phase1/output/02_repetitive/")
+    print("  - Low Quality: spec/phase1/output/02_low_quality/")
 
 
 def inspect_results():
@@ -137,10 +137,10 @@ def inspect_results():
     print("=" * 50)
 
     folders = {
-        "Clean": "examples_local/output/02_clean/*.jsonl",
-        "Non-English": "examples_local/output/02_non_english/*.jsonl",
-        "Repetitive": "examples_local/output/02_repetitive/*.jsonl",
-        "Low Quality": "examples_local/output/02_low_quality/*.jsonl",
+        "Clean": "spec/phase1/output/02_clean/*.jsonl",
+        "Non-English": "spec/phase1/output/02_non_english/*.jsonl",
+        "Repetitive": "spec/phase1/output/02_repetitive/*.jsonl",
+        "Low Quality": "spec/phase1/output/02_low_quality/*.jsonl",
     }
 
     for category, pattern in folders.items():

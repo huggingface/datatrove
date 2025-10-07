@@ -47,7 +47,7 @@ def main():
 
         # Save the results
         JsonlWriter(
-            output_folder="examples_local/output/03_tokenized",
+            output_folder="spec/phase1/output/03_tokenized",
             output_filename="tokenized_${rank}.jsonl",
             compression=None  # No compression for easier inspection
         )
@@ -59,14 +59,14 @@ def main():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/03_tokenization"
+        logging_dir="spec/phase1/logs/03_tokenization"
     )
 
     executor.run()
 
     print("\n" + "=" * 50)
     print("Pipeline completed!")
-    print("Check output in: examples_local/output/03_tokenized/")
+    print("Check output in: spec/phase1/output/03_tokenized/")
 
 
 def analyze_tokenization():
@@ -75,7 +75,7 @@ def analyze_tokenization():
     import os
     from transformers import AutoTokenizer
 
-    output_file = "examples_local/output/03_tokenized/tokenized_00000.jsonl"
+    output_file = "spec/phase1/output/03_tokenized/tokenized_00000.jsonl"
 
     if not os.path.exists(output_file):
         print("No output file found. Run the pipeline first.")

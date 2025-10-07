@@ -12,8 +12,8 @@ import gzip
 def fix_jsonl_format():
     """Convert CommonCrawl JSONL format to DataTrove Document format."""
 
-    input_file = "examples_local/test_sample.jsonl.gz"
-    output_file = "examples_local/test_sample_fixed.jsonl.gz"
+    input_file = "spec/phase3/test_sample.jsonl.gz"
+    output_file = "spec/phase3/test_sample_fixed.jsonl.gz"
 
     print("Converting CommonCrawl JSONL format to DataTrove Document format...")
 

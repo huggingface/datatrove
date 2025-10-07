@@ -86,7 +86,7 @@ def create_sample_data_with_duplicates():
     ])
 
     # Save to file
-    output_file = "examples_local/data/sample_with_duplicates.jsonl"
+    output_file = "spec/phase1/data/sample_with_duplicates.jsonl"
     with open(output_file, 'w') as f:
         for doc in documents:
             f.write(json.dumps(doc) + '\n')
@@ -117,19 +117,19 @@ def exact_dedup_pipeline():
 
     pipeline = [
         JsonlReader(
-            data_folder="examples_local/data",
+            data_folder="spec/phase1/data",
             glob_pattern="sample_with_duplicates.jsonl",
         ),
 
         # Bloom filter for exact deduplication
         SingleBloomFilter(
-            output_folder="examples_local/output/05_dedup_bloom",
+            output_folder="spec/phase1/output/05_dedup_bloom",
             config=bloom_config,
             save_bloom_filter=True,
         ),
 
         JsonlWriter(
-            output_folder="examples_local/output/05_dedup_exact",
+            output_folder="spec/phase1/output/05_dedup_exact",
             compression=None,
         )
     ]
@@ -137,7 +137,7 @@ def exact_dedup_pipeline():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/05_dedup_exact"
+        logging_dir="spec/phase1/logs/05_dedup_exact"
     )
 
     executor.run()
@@ -153,12 +153,12 @@ def minhash_dedup_pipeline():
     # First, compute MinHash signatures
     signature_pipeline = [
         JsonlReader(
-            data_folder="examples_local/data",
+            data_folder="spec/phase1/data",
             glob_pattern="sample_with_duplicates.jsonl",
         ),
 
         MinhashDedupSignature(
-            output_folder="examples_local/output/05_minhash_sigs",
+            output_folder="spec/phase1/output/05_minhash_sigs",
             config=MinhashConfig(
                 num_buckets=10,  # Number of hash buckets
                 hashes_per_bucket=10,  # Hashes per bucket
@@ -170,19 +170,19 @@ def minhash_dedup_pipeline():
     sig_executor = LocalPipelineExecutor(
         pipeline=signature_pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/05_minhash_sig"
+        logging_dir="spec/phase1/logs/05_minhash_sig"
     )
     sig_executor.run()
 
     # Then filter based on signatures
     filter_pipeline = [
         JsonlReader(
-            data_folder="examples_local/data",
+            data_folder="spec/phase1/data",
             glob_pattern="sample_with_duplicates.jsonl",
         ),
 
         MinhashDedupFilter(
-            input_folder="examples_local/output/05_minhash_sigs",
+            input_folder="spec/phase1/output/05_minhash_sigs",
             config=MinhashConfig(
                 num_buckets=10,
                 hashes_per_bucket=10,
@@ -190,7 +190,7 @@ def minhash_dedup_pipeline():
         ),
 
         JsonlWriter(
-            output_folder="examples_local/output/05_dedup_minhash",
+            output_folder="spec/phase1/output/05_dedup_minhash",
             compression=None,
         )
     ]
@@ -199,7 +199,7 @@ def minhash_dedup_pipeline():
     filter_executor = LocalPipelineExecutor(
         pipeline=filter_pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/05_minhash_filter"
+        logging_dir="spec/phase1/logs/05_minhash_filter"
     )
     filter_executor.run()
 
@@ -223,7 +223,7 @@ def hash_based_dedup():
 
     pipeline = [
         JsonlReader(
-            data_folder="examples_local/data",
+            data_folder="spec/phase1/data",
             glob_pattern="sample_with_duplicates.jsonl",
         ),
 
@@ -231,7 +231,7 @@ def hash_based_dedup():
         LambdaFilter(is_duplicate),
 
         JsonlWriter(
-            output_folder="examples_local/output/05_dedup_hash",
+            output_folder="spec/phase1/output/05_dedup_hash",
             compression=None,
         )
     ]
@@ -239,7 +239,7 @@ def hash_based_dedup():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/05_dedup_hash"
+        logging_dir="spec/phase1/logs/05_dedup_hash"
     )
 
     executor.run()
@@ -257,7 +257,7 @@ def analyze_results():
     print("=" * 50)
 
     # Count original documents
-    original_file = "examples_local/data/sample_with_duplicates.jsonl"
+    original_file = "spec/phase1/data/sample_with_duplicates.jsonl"
     with open(original_file, 'r') as f:
         original_count = sum(1 for _ in f)
 
@@ -265,9 +265,9 @@ def analyze_results():
 
     # Check results from different methods
     results = {
-        "Hash-based": "examples_local/output/05_dedup_hash/00000.jsonl",
-        "Bloom filter": "examples_local/output/05_dedup_exact/00000.jsonl",
-        "MinHash": "examples_local/output/05_dedup_minhash/00000.jsonl",
+        "Hash-based": "spec/phase1/output/05_dedup_hash/00000.jsonl",
+        "Bloom filter": "spec/phase1/output/05_dedup_exact/00000.jsonl",
+        "MinHash": "spec/phase1/output/05_dedup_minhash/00000.jsonl",
     }
 
     for method, filepath in results.items():
@@ -312,7 +312,7 @@ def dedup_c4_data():
         LambdaFilter(is_duplicate),
 
         JsonlWriter(
-            output_folder="examples_local/output/05_c4_dedup",
+            output_folder="spec/phase1/output/05_c4_dedup",
             compression=None,
         )
     ]
@@ -320,7 +320,7 @@ def dedup_c4_data():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,
-        logging_dir="examples_local/logs/05_c4_dedup"
+        logging_dir="spec/phase1/logs/05_c4_dedup"
     )
 
     executor.run()
@@ -337,20 +337,20 @@ if __name__ == "__main__":
         analyze_results()
     elif len(sys.argv) > 1 and sys.argv[1] == "c4":
         # Clean C4 output
-        if os.path.exists("examples_local/output/05_c4_dedup"):
-            shutil.rmtree("examples_local/output/05_c4_dedup")
-        if os.path.exists("examples_local/logs/05_c4_dedup"):
-            shutil.rmtree("examples_local/logs/05_c4_dedup")
+        if os.path.exists("spec/phase1/output/05_c4_dedup"):
+            shutil.rmtree("spec/phase1/output/05_c4_dedup")
+        if os.path.exists("spec/phase1/logs/05_c4_dedup"):
+            shutil.rmtree("spec/phase1/logs/05_c4_dedup")
         dedup_c4_data()
     else:
         # Clean previous outputs
         for folder in ["05_dedup_hash", "05_dedup_exact", "05_dedup_minhash", "05_dedup_bloom", "05_minhash_sigs"]:
-            output_path = f"examples_local/output/{folder}"
+            output_path = f"spec/phase1/output/{folder}"
             if os.path.exists(output_path):
                 shutil.rmtree(output_path)
 
         for folder in ["05_dedup_hash", "05_dedup_exact", "05_minhash_sig", "05_minhash_filter"]:
-            log_path = f"examples_local/logs/{folder}"
+            log_path = f"spec/phase1/logs/{folder}"
             if os.path.exists(log_path):
                 shutil.rmtree(log_path)
 
