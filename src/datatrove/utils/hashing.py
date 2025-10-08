@@ -1,6 +1,6 @@
 # https://github.com/ekzhu/datasketch/blob/master/datasketch/hashfunc.py
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Callable, Literal, Type
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class HashConfig:
         return f"HashConfig(precision={self.precision}, hash_fc={self.hash_fc})"
 
 
-def create_hash_func(config: HashConfig, input_type: type) -> Callable[[str], int] | Callable[[bytes], int]:
+def create_hash_func(config: HashConfig, input_type: Type[str] | Type[bytes] = str) -> Callable[[str], int] | Callable[[bytes], int]:
     if config.hash_fc == "sha1":
         if input_type == bytes:
             return sha1_hash32_bytes if config.precision == 32 else sha1_hash64_bytes
