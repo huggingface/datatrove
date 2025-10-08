@@ -29,6 +29,7 @@ from datatrove.pipeline.inference.servers import (
     InferenceServer,
     SGLangServer,
     VLLMServer,
+    CustomServer,
 )
 from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -439,6 +440,8 @@ class InferenceRunner(PipelineStep):
             return VLLMServer(self.config)
         elif stype == "dummy":
             return DummyServer(self.config)
+        elif stype == "custom":
+            return CustomServer(self.config)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
@@ -656,11 +659,11 @@ class InferenceRunner(PipelineStep):
                     task = asyncio.create_task(self._send_request(payload, semaphore))
                     request_tasks.append(task)
 
+                if not request_tasks:
+                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
+
                 # Wait for all requests to complete and collect results in order
-                if request_tasks:
-                    results = await asyncio.gather(*request_tasks)
-                else:
-                    results = []
+                results = await asyncio.gather(*request_tasks)
 
                 for result in results:
                     if isinstance(result, InferenceError) and (

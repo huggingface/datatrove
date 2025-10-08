@@ -4,4 +4,4 @@ from datatrove.pipeline.inference.servers.sglang_server import SGLangServer
 from datatrove.pipeline.inference.servers.vllm_server import VLLMServer
 
 
-__all__ = ["InferenceServer", "SGLangServer", "VLLMServer", "DummyServer"]
+__all__ = ["InferenceServer", "SGLangServer", "VLLMServer", "DummyServer", "CustomServer"]
