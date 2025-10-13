@@ -1,90 +1,35 @@
 # Example 1: Basic Data Processing Pipeline
 
 ## Objective
-Learn the fundamentals of DataTrove by creating a simple pipeline that reads data, applies basic filtering, and writes the results.
+Learn DataTrove fundamentals: read from HuggingFace datasets, apply filters, save results.
 
-## Learning Goals
-- Understand the Document structure (text, id, metadata)
-- Learn pipeline composition basics
-- Master basic I/O operations (JsonlReader, JsonlWriter)
-- Implement simple filtering logic with LambdaFilter
+## Components
+- **JsonlReader**: Stream from HuggingFace C4 dataset
+- **LambdaFilter**: Custom filtering logic (length > 100 chars, keyword matching)
+- **SamplerFilter**: Random sampling (50%)
+- **JsonlWriter**: Save filtered results (uncompressed)
 
-## Implementation Details
+## Implementation
+**File:** `spec/phase1/examples/01_basic_filtering.py`
 
-### Pipeline Components
-1. **JsonlReader**: Read from HuggingFace datasets
-2. **LambdaFilter**: Apply custom filtering logic
-3. **JsonlWriter**: Save filtered results
+## Data Requirements
+- **Input:** `hf://datasets/allenai/c4/en/` (glob: `c4-train.00000-of-01024.json.gz`, limit: 1000)
+- **Output:** `spec/phase1/output/01_filtered/filtered_${rank}.jsonl` (no compression)
+- **Logs:** `spec/phase1/logs/01_basic_filtering/`
 
-### Data Source
-- Use HuggingFace C4 dataset (small subset)
-- Direct reading: `hf://datasets/allenai/c4/en/`
-- DataTrove can read directly from HF Hub
-- No need to download - streams data as needed
+## Expected Results
+- Input: 1000 documents from C4 first shard
+- After length filter (>100 chars): ~900 docs
+- After keyword filter (data/learning/computer/science): ~200 docs
+- After 50% sampling: ~100 docs
+- Actual result: 1000 → 77 docs
 
-### Example Access Pattern
-```python
-JsonlReader(
-    "hf://datasets/allenai/c4/en/",
-    glob_pattern="c4-train.00000-of-01024.json.gz",  # Just one shard
-    limit=1000  # Only read 1000 documents for testing
-)
-```
-
-### Filtering Criteria
-- Filter 1: Keep documents with text length > 50 characters
-- Filter 2: Keep documents containing specific keywords
-- Filter 3: Keep documents based on metadata values
-
-### Expected Pipeline Flow
-```
-JsonlReader("data/sample.jsonl")
-    ↓
-LambdaFilter(lambda doc: len(doc.text) > 50)
-    ↓
-LambdaFilter(lambda doc: "machine learning" in doc.text.lower())
-    ↓
-JsonlWriter("output/filtered/")
-```
-
-## Files to Create
-1. `spec/phase1/examples/01_basic_filtering.py` - Main pipeline implementation
-2. `spec/phase1/examples/data/sample_data_generator.py` - Script to generate sample data
-3. `spec/phase1/examples/data/sample.jsonl` - Sample input data
-
-## Execution Plan
-1. Generate sample data
-2. Run pipeline with LocalPipelineExecutor
-3. Verify output
-4. Experiment with different filter combinations
-5. Analyze filtered vs. original data statistics
-
-## Success Metrics
-- [x] Pipeline runs without errors
-- [x] Correct number of documents filtered
-- [x] Output files created in expected location
-- [x] Can modify filters and see different results
-- [x] Understanding of Document flow through pipeline
-
-## Variations to Try
-1. Chain multiple filters
-2. Use SamplerFilter for random sampling
-3. Add exclusion_writer to save filtered-out documents
-4. Experiment with different reader/writer formats
-
-## Key Concepts Demonstrated
-- Document as the core data structure
-- Generator-based processing (memory efficient)
-- Pipeline composition pattern
-- Task-based parallelization basics
+## Status
+- [x] Implemented
+- [x] Tested
+- [x] Documentation updated
 
 ## Notes
-- Start with 1 task, then try with multiple tasks
-- Observe how files are sharded across tasks
-- Check logging output to understand execution flow
-
-## Implementation Notes (Completed)
-- Used C4 dataset directly from HuggingFace (1000 docs)
-- Applied 3 filters: length > 100, keyword matching, 50% sampling
-- Results: 1000 → 77 documents after filtering
-- Learned about LambdaFilter parameter issues (no 'name' param)
+- Demonstrates Document structure and pipeline composition
+- Includes `inspect_results()` helper function
+- Start with 1 task, scale to multiple for parallelization

@@ -1,67 +1,43 @@
 # Example 2: Text Extraction and Quality Filtering
 
 ## Objective
-Work with real Common Crawl data to extract text and apply quality filters.
+Extract clean text from Common Crawl WARC files using Trafilatura and apply quality filters.
 
-## Learning Goals
-- Read WARC files from Common Crawl samples
-- Extract clean text using Trafilatura
-- Apply language and quality filters
-- Understand exclusion writing for analysis
+## Components
+- **WarcReader**: Read Common Crawl WARC files
+- **Trafilatura**: Extract text from HTML
+- **LanguageFilter**: Keep only English (with exclusion writer)
+- **GopherRepetitionFilter**: Remove repetitive content (with exclusion writer)
+- **GopherQualityFilter**: Apply quality heuristics (with exclusion writer)
+- **JsonlWriter**: Save clean results
 
-## Implementation Details
+## Implementation
+**File:** `spec/phase1/examples/02_text_extraction.py`
 
-### Pipeline Components
-1. **WarcReader**: Read Common Crawl WARC files
-2. **Trafilatura**: Extract text from HTML
-3. **LanguageFilter**: Keep only English
-4. **GopherQualityFilter**: Apply quality heuristics
-5. **JsonlWriter**: Save results
+## Data Requirements
+- **Input:** `spec/phase1/data/CC-MAIN-20180420081400-20180420101400-00000.warc.gz` (limit: 200)
+- **Output:**
+  - Clean: `spec/phase1/output/02_clean/clean_${rank}.jsonl`
+  - Non-English: `spec/phase1/output/02_non_english/`
+  - Repetitive: `spec/phase1/output/02_repetitive/`
+  - Low Quality: `spec/phase1/output/02_low_quality/`
+- **Logs:** `spec/phase1/logs/02_text_extraction/`
 
-### Data Source
-- Use Common Crawl sample files (small WARC files ~1MB each)
-- Download from: https://commoncrawl.org/get-started
-- Or use local sample: `wget https://data.commoncrawl.org/crawl-data/CC-MAIN-2024-10/segments/1707947474671.63/warc/CC-MAIN-20240224032749-20240224062749-00000.warc.gz`
-- This is real web data - no synthetic generation needed
+## Expected Results
+- Input: 200 WARC records
+- After Trafilatura extraction: ~100 docs (some records fail)
+- After language filter: ~80 docs (remove non-English)
+- After repetition filter: ~40 docs (aggressive repetition removal)
+- After quality filter: ~8 docs (strict quality requirements)
+- Result: 200 → 8 clean documents (96% filtered)
 
-### Pipeline Flow
-```
-WarcReader("data/CC-MAIN-sample.warc.gz")
-    ↓
-Trafilatura()
-    ↓
-LanguageFilter(languages=["en"])
-    ↓
-GopherQualityFilter()
-    ↓
-JsonlWriter("output/clean/")
-```
-
-## Files to Create
-1. `spec/phase1/examples/02_extraction_filtering.py` - Main pipeline
-2. Download a sample WARC file to `spec/phase1/examples/data/`
-
-## Execution Plan
-1. Download one Common Crawl sample WARC file
-2. Run extraction pipeline locally
-3. Check output size and quality
-4. Add exclusion writers to see what gets filtered
-
-## Success Metrics
-- [x] Successfully reads WARC file
-- [x] Extracts text from HTML records
-- [x] Filters apply correctly
-- [x] Output contains clean text documents
+## Status
+- [x] Implemented
+- [x] Tested
+- [x] Documentation updated
 
 ## Notes
-- WARC files contain real web data - expect varied quality
-- Single WARC sample is small enough for local testing
-- This mirrors production Common Crawl processing
-
-## Implementation Notes (Completed)
-- Downloaded real Common Crawl WARC file (CC-MAIN-20180420081400-20180420101400-00000.warc.gz)
-- Processed 200 records with Trafilatura extraction
-- Applied GopherRepetition and GopherQuality filters
-- Results: 200 → 8 clean documents (96% filtered - very aggressive)
-- Learned about dependencies: libmagic (OS level), spacy (for repetition filter)
-- Discovered filtered content was mostly adult/spam with repetitive SEO patterns
+- Demonstrates exclusion writers to analyze what gets filtered
+- Includes helper function to check WARC file exists
+- Filters are very aggressive - real web data is low quality
+- Requires WARC file download (not included in repo)
