@@ -1,29 +1,43 @@
+#!/usr/bin/env python3
 """
 Example 5: Deduplication Pipeline
-==================================
-Remove duplicate and near-duplicate content from documents.
 
-This example demonstrates:
-- Creating data with intentional duplicates
-- Exact deduplication using hash-based methods
-- Near-duplicate detection using MinHash
-- Measuring deduplication effectiveness
+Remove duplicate and near-duplicate content using hash-based exact deduplication.
+
+Components:
+- JsonlReader: Read documents from synthetic test data
+- LambdaFilter: Hash-based exact duplicate detection and removal
+- JsonlWriter: Save deduplicated results
+
+Usage:
+    python spec/phase1/examples/05_deduplication.py
+    python spec/phase1/examples/05_deduplication.py analyze
+    python spec/phase1/examples/05_deduplication.py c4
 """
 
+import hashlib
+import json
+import os
+import shutil
+import sys
+
+from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.readers import JsonlReader
-from datatrove.pipeline.writers import JsonlWriter
-from datatrove.pipeline.filters import LambdaFilter
 from datatrove.pipeline.dedup import (
-    SingleBloomFilter,
-    MinhashDedupSignature,
-    MinhashDedupFilter,
     MinhashConfig,
+    MinhashDedupFilter,
+    MinhashDedupSignature,
+    SingleBloomFilter,
 )
 from datatrove.pipeline.dedup.bloom_filter import BloomFilterConfig
-from datatrove.data import Document
-import json
-import hashlib
+from datatrove.pipeline.filters import LambdaFilter
+from datatrove.pipeline.readers import JsonlReader
+from datatrove.pipeline.writers import JsonlWriter
+from datatrove.utils.logging import logger
+
+# Configuration
+OUTPUT_DIR = "spec/phase1/output/05_dedup_hash"
+LOGS_DIR = "spec/phase1/logs/05_dedup_hash"
 
 
 def create_sample_data_with_duplicates():
@@ -91,12 +105,10 @@ def create_sample_data_with_duplicates():
         for doc in documents:
             f.write(json.dumps(doc) + '\n')
 
-    print(f"Created {len(documents)} documents with duplicates:")
-    print(f"  - {len(unique_texts)} unique documents")
-    print(f"  - 3 exact duplicates")
-    print(f"  - {len(variations)} near duplicates")
-    print(f"  - 2 pangram documents (1 duplicate)")
-    print(f"Saved to: {output_file}")
+    logger.info(f"Created {len(documents)} documents with duplicates: "
+                f"{len(unique_texts)} unique, 3 exact duplicates, "
+                f"{len(variations)} near duplicates, 2 pangram documents (1 duplicate)")
+    logger.info(f"Saved to: {output_file}")
 
     return len(documents)
 
@@ -104,9 +116,7 @@ def create_sample_data_with_duplicates():
 def exact_dedup_pipeline():
     """Run exact deduplication using Bloom filter"""
 
-    print("\n" + "=" * 50)
-    print("Running Exact Deduplication with Bloom Filter")
-    print("=" * 50)
+    logger.info("Running Exact Deduplication with Bloom Filter")
 
     # Bloom filter config for exact matching
     bloom_config = BloomFilterConfig(
@@ -146,9 +156,7 @@ def exact_dedup_pipeline():
 def minhash_dedup_pipeline():
     """Run near-duplicate detection using MinHash"""
 
-    print("\n" + "=" * 50)
-    print("Running Near-Duplicate Detection with MinHash")
-    print("=" * 50)
+    logger.info("Running Near-Duplicate Detection with MinHash")
 
     # First, compute MinHash signatures
     signature_pipeline = [
@@ -166,7 +174,7 @@ def minhash_dedup_pipeline():
         ),
     ]
 
-    print("Step 1: Computing MinHash signatures...")
+    logger.info("Step 1: Computing MinHash signatures...")
     sig_executor = LocalPipelineExecutor(
         pipeline=signature_pipeline,
         tasks=1,
@@ -195,7 +203,7 @@ def minhash_dedup_pipeline():
         )
     ]
 
-    print("\nStep 2: Filtering duplicates based on signatures...")
+    logger.info("Step 2: Filtering duplicates based on signatures...")
     filter_executor = LocalPipelineExecutor(
         pipeline=filter_pipeline,
         tasks=1,
@@ -207,9 +215,7 @@ def minhash_dedup_pipeline():
 def hash_based_dedup():
     """Simple hash-based exact deduplication"""
 
-    print("\n" + "=" * 50)
-    print("Running Simple Hash-Based Deduplication")
-    print("=" * 50)
+    logger.info("Running Simple Hash-Based Deduplication")
 
     seen_hashes = set()
 
@@ -231,7 +237,7 @@ def hash_based_dedup():
         LambdaFilter(is_duplicate),
 
         JsonlWriter(
-            output_folder="spec/phase1/output/05_dedup_hash",
+            output_folder=OUTPUT_DIR,
             compression=None,
         )
     ]
@@ -239,29 +245,25 @@ def hash_based_dedup():
     executor = LocalPipelineExecutor(
         pipeline=pipeline,
         tasks=1,
-        logging_dir="spec/phase1/logs/05_dedup_hash"
+        logging_dir=LOGS_DIR
     )
 
     executor.run()
 
-    print(f"Unique documents found: {len(seen_hashes)}")
+    logger.info(f"Unique documents found: {len(seen_hashes)}")
 
 
 def analyze_results():
     """Analyze deduplication results"""
-    import os
-    from pathlib import Path
 
-    print("\n" + "=" * 50)
-    print("Deduplication Results Analysis")
-    print("=" * 50)
+    logger.info("Deduplication Results Analysis")
 
     # Count original documents
     original_file = "spec/phase1/data/sample_with_duplicates.jsonl"
     with open(original_file, 'r') as f:
         original_count = sum(1 for _ in f)
 
-    print(f"\nOriginal documents: {original_count}")
+    logger.info(f"Original documents: {original_count}")
 
     # Check results from different methods
     results = {
@@ -275,22 +277,20 @@ def analyze_results():
             with open(filepath, 'r') as f:
                 lines = f.readlines()
                 count = len(lines)
-                print(f"\n{method}:")
-                print(f"  Remaining documents: {count}")
-                print(f"  Removed: {original_count - count} ({(original_count - count) / original_count * 100:.1f}%)")
+                removed = original_count - count
+                pct = removed / original_count * 100
+                logger.info(f"{method} - Remaining: {count}, Removed: {removed} ({pct:.1f}%)")
 
                 # Show sample of what was kept
                 if lines:
                     doc = json.loads(lines[0])
-                    print(f"  Sample kept: '{doc['text'][:50]}...'")
+                    logger.info(f"  Sample kept: '{doc['text'][:50]}...'")
 
 
 def dedup_c4_data():
     """Apply deduplication to real C4 data"""
 
-    print("\n" + "=" * 50)
-    print("Deduplicating C4 Data")
-    print("=" * 50)
+    logger.info("Deduplicating C4 Data")
 
     seen_hashes = set()
 
@@ -325,14 +325,10 @@ def dedup_c4_data():
 
     executor.run()
 
-    print(f"\nUnique documents in C4 sample: {len(seen_hashes)}")
+    logger.info(f"Unique documents in C4 sample: {len(seen_hashes)}")
 
 
 if __name__ == "__main__":
-    import sys
-    import shutil
-    import os
-
     if len(sys.argv) > 1 and sys.argv[1] == "analyze":
         analyze_results()
     elif len(sys.argv) > 1 and sys.argv[1] == "c4":

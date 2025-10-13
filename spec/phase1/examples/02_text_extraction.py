@@ -31,6 +31,7 @@ from datatrove.pipeline.readers import WarcReader
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 
 # Configuration
+OUTPUT_DIR = "spec/phase1/output"
 LOGS_DIR = "spec/phase1/logs/02_text_extraction"
 
 
@@ -75,13 +76,13 @@ def main():
         LanguageFilter(
             languages=["en"],
             exclusion_writer=JsonlWriter(
-                output_folder="spec/phase1/output/02_non_english",
+                output_folder=f"{OUTPUT_DIR}/02_non_english",
                 compression=None
             )
         ),
         GopherRepetitionFilter(
             exclusion_writer=JsonlWriter(
-                output_folder="spec/phase1/output/02_repetitive",
+                output_folder=f"{OUTPUT_DIR}/02_repetitive",
                 compression=None
             )
         ),
@@ -89,12 +90,12 @@ def main():
             min_doc_words=50,
             max_doc_words=100000,
             exclusion_writer=JsonlWriter(
-                output_folder="spec/phase1/output/02_low_quality",
+                output_folder=f"{OUTPUT_DIR}/02_low_quality",
                 compression=None
             )
         ),
         JsonlWriter(
-            output_folder="spec/phase1/output/02_clean",
+            output_folder=f"{OUTPUT_DIR}/02_clean",
             output_filename="clean_${rank}.jsonl",
             compression=None
         )
@@ -116,10 +117,10 @@ def inspect_results():
     logger.info("Analyzing Results")
 
     folders = {
-        "Clean": "spec/phase1/output/02_clean/*.jsonl",
-        "Non-English": "spec/phase1/output/02_non_english/*.jsonl",
-        "Repetitive": "spec/phase1/output/02_repetitive/*.jsonl",
-        "Low Quality": "spec/phase1/output/02_low_quality/*.jsonl",
+        "Clean": f"{OUTPUT_DIR}/02_clean/*.jsonl",
+        "Non-English": f"{OUTPUT_DIR}/02_non_english/*.jsonl",
+        "Repetitive": f"{OUTPUT_DIR}/02_repetitive/*.jsonl",
+        "Low Quality": f"{OUTPUT_DIR}/02_low_quality/*.jsonl",
     }
 
     for category, pattern in folders.items():
