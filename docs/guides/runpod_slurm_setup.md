@@ -95,92 +95,19 @@ sbatch --wrap='sleep 10 && echo "Cluster working!"'
 squeue  # Monitor job
 ```
 
-### 5. Run Distributed Examples on Slurm
+### 5. Run DataTrove Examples on Slurm
 
-Test both basic filtering and statistics collection:
+The DataTrove examples are in `spec/phase2/examples/`. On RunPod managed Slurm, `/tmp/` paths work automatically across nodes.
 
-#### Example 1: Basic Filtering
 ```bash
-# Create directory
-mkdir -p examples_slurm
-
-# Create basic filtering test
-cat > spec/phase2/examples/01_basic_filtering_slurm.py << 'EOF'
-from datatrove.executor.slurm import SlurmPipelineExecutor
-from datatrove.pipeline.readers import JsonlReader
-from datatrove.pipeline.filters import LambdaFilter, SamplerFilter
-from datatrove.pipeline.writers import JsonlWriter
-
-pipeline = [
-    JsonlReader("hf://datasets/allenai/c4/en/",
-               glob_pattern="c4-train.00000-of-01024.json.gz",
-               limit=100),
-    LambdaFilter(lambda doc: len(doc.text) > 100),
-    LambdaFilter(lambda doc: any(keyword in doc.text.lower()
-                for keyword in ["data", "learning", "computer", "science"])),
-    SamplerFilter(rate=0.5),
-    JsonlWriter("/tmp/output/")
-]
-
-executor = SlurmPipelineExecutor(
-    job_name="basic_filtering",
-    pipeline=pipeline,
-    tasks=2,
-    time="00:05:00",
-    partition="gpu",
-    logging_dir="/tmp/logs/",
-    slurm_logs_folder="/tmp/slurm_logs/",
-    cpus_per_task=8,
-    mem_per_cpu_gb=8,
-)
-
-executor.run()
-EOF
-
-# Run basic filtering test
+# Run basic filtering example
 python spec/phase2/examples/01_basic_filtering_slurm.py
-```
 
-#### Example 2: True Distributed Statistics
-```bash
-# Create distributed statistics test
-cat > spec/phase2/examples/04_statistics_slurm.py << 'EOF'
-from datatrove.executor.slurm import SlurmPipelineExecutor
-from datatrove.pipeline.readers import JsonlReader
-from datatrove.pipeline.stats import DocStats, LangStats
-
-pipeline = [
-    # Use multiple C4 files so both nodes get work
-    JsonlReader("hf://datasets/allenai/c4/en/",
-                glob_pattern="c4-train.0000[0-3]-of-01024.json.gz",  # 4 files
-                limit=200),  # 200 docs per file = 800 total
-    DocStats(
-        output_folder="/tmp/stats_truly_distributed/",
-        histogram_round_digits=1,
-    ),
-    LangStats(
-        output_folder="/tmp/stats_truly_distributed/",
-        language="en",
-    ),
-]
-
-executor = SlurmPipelineExecutor(
-    job_name="true_distributed",
-    pipeline=pipeline,
-    tasks=2,  # 2 tasks, should get 2 files each
-    time="00:10:00",
-    partition="gpu",
-    logging_dir="/tmp/logs_truly_distributed/",
-    cpus_per_task=8,
-    mem_per_cpu_gb=8,
-)
-
-executor.run()
-EOF
-
-# Run distributed statistics
+# Run distributed statistics example
 python spec/phase2/examples/04_statistics_slurm.py
 ```
+
+**Note**: RunPod's managed Slurm automatically synchronizes `/tmp/` directories, so the examples work without modification.
 
 ### 6. Monitor and Verify Results
 
@@ -188,23 +115,16 @@ python spec/phase2/examples/04_statistics_slurm.py
 # Monitor job execution
 squeue
 
-# Example 1 Results - Basic Filtering
+# Check basic filtering results
 ls -la /tmp/output/
 zcat /tmp/output/00000.jsonl.gz | wc -l  # Should show ~5 documents
+
+# Check statistics results
+ls -la /tmp/stats/
+find /tmp/stats -name "*.json" | head -5
+
+# Check logs to verify distribution
 find /tmp/logs -name "*.log" -exec tail -5 {} \;
-
-# Example 2 Results - Distributed Statistics
-ls -la /tmp/logs_truly_distributed/logs/
-cat /tmp/logs_truly_distributed/logs/*.log | grep "Processing done for rank"
-cat /tmp/logs_truly_distributed/logs/*.log | grep "documents:"
-
-# Verify true distribution (both nodes working)
-cat /tmp/logs_truly_distributed/logs/task_00000.log | grep "Reading input file"
-cat /tmp/logs_truly_distributed/logs/task_00001.log | grep "Reading input file"
-
-# Check collected statistics
-ls -la /tmp/stats_truly_distributed/
-find /tmp/stats_truly_distributed -name "*.json" | head -5
 ```
 
 ## Success Metrics
@@ -212,14 +132,10 @@ find /tmp/stats_truly_distributed -name "*.json" | head -5
 - [x] Managed Slurm Cluster deployed (2x A100 nodes)
 - [x] Slurm services running automatically
 - [x] DataTrove installed on all nodes
-- [x] **Example 1 - Basic Filtering**: 100→77→5 documents processed
-- [x] **Example 2 - True Distributed Statistics**: Both nodes processing different files
-  - Task 0: c4-train.00000 → 200 documents (404K chars)
-  - Task 1: c4-train.00001 → 200 documents (434K chars)
-- [x] **Perfect load balancing**: Each node got separate files to process
-- [x] **Complete statistics collection**: Document stats and language detection
-- [x] **All pipeline components verified**: Readers, Filters, Stats, Writers
-- [x] **Total cost: ~$25 for comprehensive testing**
+- [x] Both examples run successfully with distributed processing
+- [x] Jobs properly distributed across nodes
+- [x] All pipeline components verified: Readers, Filters, Stats, Writers
+- [x] Total cost: ~$25 for comprehensive testing
 
 ## Troubleshooting
 
