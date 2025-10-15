@@ -357,7 +357,7 @@ class InferenceRunner(PipelineStep):
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
-        postprocess_fn: Callable[[Document], Document | None] | None = None,
+        postprocess_fn: Callable[[InferenceRunner, Document], Document | None] | None = None,
         skip_bad_requests: bool = False,
     ):
         """
@@ -373,7 +373,7 @@ class InferenceRunner(PipelineStep):
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             skip_bad_requests: If True, will skip documents that cause BadRequestError from the server. Default: False.
-            postprocess_fn: Function that post-processes the document after inference. If it returns None, the document is not saved to output_writer.
+            postprocess_fn: Function that post-processes the document after inference. Takes the InferenceRunner instance and document as arguments. If it returns None, the document is not saved to output_writer.
         """
         super().__init__()
 
@@ -674,7 +674,7 @@ class InferenceRunner(PipelineStep):
 
                 # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
                 if self.postprocess_fn:
-                    postprocess_result = self.postprocess_fn(doc)
+                    postprocess_result = self.postprocess_fn(self, doc)
                     if postprocess_result is None:
                         doc.metadata["postprocess_remove"] = True
                     else:
