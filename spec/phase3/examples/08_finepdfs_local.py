@@ -8,26 +8,24 @@ Uses the same local PDFs as test_routing.py but adds full extraction:
 - Stage 3: RolmOCR extraction for high OCR PDFs
 """
 
-import sys
+import base64
+import fitz
 from pathlib import Path
-
-# Add src to path
-sys.path.insert(0, 'src')
+from typing import Iterable
 
 from datatrove.data import Document, Media, MediaType
-from datatrove.pipeline.filters.pdf_router import PDFRouter
-from datatrove.pipeline.filters.lambda_filter import LambdaFilter
-from datatrove.pipeline.media.extractors.extractors import DoclingExtractor
-from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
-from datatrove.pipeline.inference.post_process import ExtractInferenceText
-from datatrove.pipeline.inference.query_builders.vision import rolmocr_query_builder
-from datatrove.pipeline.writers.jsonl import JsonlWriter, PersistentContextJsonlWriter
-from datatrove.pipeline.readers import JsonlReader
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.base import PipelineStep
-from typing import Iterable
-import fitz
+from datatrove.pipeline.filters.lambda_filter import LambdaFilter
+from datatrove.pipeline.filters.pdf_router import PDFRouter
+from datatrove.pipeline.inference.post_process import ExtractInferenceText
+from datatrove.pipeline.inference.query_builders.vision import rolmocr_query_builder
+from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.utils.page_rendering import render_page_to_base64png_pymupdf
+from datatrove.pipeline.media.extractors.extractors import DoclingExtractor
+from datatrove.pipeline.readers import JsonlReader
+from datatrove.pipeline.writers.jsonl import JsonlWriter, PersistentContextJsonlWriter
+from datatrove.utils.logging import logger
 
 
 # Sample PDFs - same as test_routing.py
@@ -44,9 +42,8 @@ SAMPLE_PDFS = [
 
 # Configuration
 MODEL_PATH = "spec/phase3/data/pdf_classifier_real_data.xgb"
-CLASSIFIED_OUTPUT = "spec/phase3/output/finepdfs_local/classified"
-TEXT_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_local/text_extraction"
-OCR_EXTRACTION_OUTPUT = "spec/phase3/output/finepdfs_local/ocr_extraction"
+OUTPUT_DIR = "spec/phase3/output/finepdfs_local"
+LOGS_DIR = "spec/phase3/logs/finepdfs_local"
 
 
 # ============================================================================
@@ -82,7 +79,6 @@ class SaveOCRPagesAsPNG(PipelineStep):
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, data: Iterable[Document], rank: int = 0, world_size: int = 1):
-        import base64
         for document in data:
             if document.media and document.media[0].media_bytes:
                 pdf_bytes = document.media[0].media_bytes
@@ -121,7 +117,7 @@ def load_pdf_documents():
     for pdf_path in SAMPLE_PDFS:
         path = Path(pdf_path)
         if not path.exists():
-            print(f"Warning: {pdf_path} not found, skipping")
+            logger.warning(f"{pdf_path} not found, skipping")
             continue
 
         with open(path, "rb") as f:
@@ -149,23 +145,19 @@ def load_pdf_documents():
 # Pipeline
 # ============================================================================
 
-def test_finepdfs_local():
+def main():
     """Test FinePDFs pipeline with local PDFs."""
 
-    print("=" * 80)
-    print("FinePDFs Local Test - Two-Tiered PDF Processing")
-    print("=" * 80)
+    logger.info("FinePDFs Local Test - Two-Tiered PDF Processing")
 
     # Load PDFs
     documents = load_pdf_documents()
-    print(f"\nLoaded {len(documents)} PDFs for testing")
+    logger.info(f"Loaded {len(documents)} PDFs for testing")
 
     # ========================================================================
     # Stage 1: Classification
     # ========================================================================
-    print("\n" + "=" * 80)
-    print("Stage 1: PDF Classification and Routing")
-    print("=" * 80)
+    logger.info("Stage 1: PDF Classification and Routing")
 
     stage1_classification = LocalPipelineExecutor(
         pipeline=[
@@ -174,10 +166,10 @@ def test_finepdfs_local():
                 model_path=MODEL_PATH,
                 threshold=0.5
             ),
-            JsonlWriter(CLASSIFIED_OUTPUT, save_media_bytes=True),
+            JsonlWriter(OUTPUT_DIR + "/classified", save_media_bytes=True),
         ],
         tasks=1,
-        logging_dir="spec/phase3/logs/finepdfs_local/classification"
+        logging_dir=LOGS_DIR + "/classification"
     )
 
     stage1_classification.run()
@@ -185,22 +177,20 @@ def test_finepdfs_local():
     # ========================================================================
     # Stage 2: Text Extraction (Low OCR)
     # ========================================================================
-    print("\n" + "=" * 80)
-    print("Stage 2: Text Extraction (Low OCR Probability)")
-    print("=" * 80)
+    logger.info("Stage 2: Text Extraction (Low OCR Probability)")
 
     stage2_text_extraction = LocalPipelineExecutor(
         pipeline=[
-            JsonlReader(CLASSIFIED_OUTPUT),
+            JsonlReader(OUTPUT_DIR + "/classified"),
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "text_extraction"
             ),
-            SavePDFsToDisk("spec/phase3/output/finepdfs_local/text_extraction_pdfs"),
+            SavePDFsToDisk(OUTPUT_DIR + "/text_extraction_pdfs"),
             DoclingExtractor(timeout=60),
-            JsonlWriter(TEXT_EXTRACTION_OUTPUT),
+            JsonlWriter(OUTPUT_DIR + "/text_extraction"),
         ],
         tasks=1,
-        logging_dir="spec/phase3/logs/finepdfs_local/text_extraction",
+        logging_dir=LOGS_DIR + "/text_extraction",
         depends=stage1_classification
     )
 
@@ -209,13 +199,11 @@ def test_finepdfs_local():
     # ========================================================================
     # Stage 3: OCR Extraction (High OCR)
     # ========================================================================
-    print("\n" + "=" * 80)
-    print("Stage 3: OCR Extraction (High OCR Probability)")
-    print("=" * 80)
+    logger.info("Stage 3: OCR Extraction (High OCR Probability)")
 
     stage3_ocr_extraction = LocalPipelineExecutor(
         pipeline=[
-            JsonlReader(CLASSIFIED_OUTPUT),
+            JsonlReader(OUTPUT_DIR + "/classified"),
             LambdaFilter(
                 filter_function=lambda doc: doc.metadata.get("processing_route") == "ocr_extraction"
             ),
@@ -234,14 +222,14 @@ def test_finepdfs_local():
                 ),
                 post_process_steps=[
                     ExtractInferenceText(),
-                    SavePDFsToDisk("spec/phase3/output/finepdfs_local/ocr_extraction_pdfs"),
-                    SaveOCRPagesAsPNG("spec/phase3/output/finepdfs_local/ocr_extraction_pages_png"),
-                    PersistentContextJsonlWriter(OCR_EXTRACTION_OUTPUT)
+                    SavePDFsToDisk(OUTPUT_DIR + "/ocr_extraction_pdfs"),
+                    SaveOCRPagesAsPNG(OUTPUT_DIR + "/ocr_extraction_pages_png"),
+                    PersistentContextJsonlWriter(OUTPUT_DIR + "/ocr_extraction")
                 ]
             ),
         ],
         tasks=1,
-        logging_dir="spec/phase3/logs/finepdfs_local/ocr_extraction",
+        logging_dir=LOGS_DIR + "/ocr_extraction",
         depends=stage1_classification
     )
 
@@ -257,17 +245,12 @@ def test_finepdfs_local():
                         writer = post_step
                         break
         if writer and writer._context_entered:
-            print("Closing OCR writer context...")
+            logger.info("Closing OCR writer context...")
             writer.__exit__(None, None, None)
 
-    print("\n" + "=" * 80)
-    print("Pipeline Complete!")
-    print("=" * 80)
-    print(f"\nOutputs:")
-    print(f"  Classified: {CLASSIFIED_OUTPUT}")
-    print(f"  Text Extraction: {TEXT_EXTRACTION_OUTPUT}")
-    print(f"  OCR Extraction: {OCR_EXTRACTION_OUTPUT}")
+    logger.info("Pipeline Complete!")
+    logger.info(f"Outputs: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
-    test_finepdfs_local()
+    main()
