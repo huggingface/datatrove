@@ -1,31 +1,35 @@
 #!/usr/bin/env python3
 """
-Comprehensive analysis of PDF features from CommonCrawl WARC files.
+Example 08b: PDF Feature Analysis
 
-This script processes multiple WARC files to understand:
-1. Feature dimension distribution (number of pages, features per PDF)
-2. Real-world data characteristics for XGBoost training
-3. Performance metrics of the PDF classification pipeline
+Analyzes PDF features from CommonCrawl WARC files for model training insights.
+
+Components:
+- PDFWarcReader: Read PDFs from WARC files
+- PDFFeatureExtractor: Extract PDF features
+- PDFScannedPredictor: Test classifier predictions
+
+Usage:
+    python spec/phase3/examples/08b_pdf_feature_analysis.py --limit 100
 """
 
 import io
 import os
-import sys
 import tempfile
 import time
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
+
 import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
 
-# Add src to path
-sys.path.insert(0, 'src')
-from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
 from datatrove.pipeline.media.predictor.scanned_pdf_predictor import (
-    PDFScannedPredictor,
     PDFFeatureExtractor,
-    flatten_per_page_features
+    PDFScannedPredictor,
+    flatten_per_page_features,
 )
+from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
+from datatrove.utils.logging import logger
 
 
 class PDFFeatureAnalyzer:
@@ -71,12 +75,12 @@ class PDFFeatureAnalyzer:
     def analyze_warc_files(self):
         """Process all WARC files and collect statistics."""
         warc_files = [f for f in os.listdir(self.data_folder) if f.endswith('.warc.gz')]
-        print(f"Found {len(warc_files)} WARC files:")
+        logger.info(f"Found {len(warc_files)} WARC files:")
         for f in warc_files:
-            print(f"  - {f}")
+            logger.info(f"  - {f}")
 
         for warc_file in warc_files:
-            print(f"\nProcessing {warc_file}...")
+            logger.info(f"\nProcessing {warc_file}...")
             self._analyze_single_warc(warc_file)
 
         self._generate_report()
@@ -168,105 +172,103 @@ class PDFFeatureAnalyzer:
             if file_pdf_count % 50 == 0:
                 elapsed = time.time() - file_start_time
                 rate = file_pdf_count / elapsed
-                print(f"  Processed {file_pdf_count} PDFs ({rate:.1f} PDFs/sec)")
+                logger.info(f"  Processed {file_pdf_count} PDFs ({rate:.1f} PDFs/sec)")
 
-        print(f"  Completed {warc_file}: {file_pdf_count} PDFs in {time.time() - file_start_time:.1f}s")
+        logger.info(f"  Completed {warc_file}: {file_pdf_count} PDFs in {time.time() - file_start_time:.1f}s")
 
     def _generate_report(self):
         """Generate comprehensive analysis report."""
-        print("\n" + "="*80)
-        print("PDF FEATURE ANALYSIS REPORT")
-        print("="*80)
+        logger.info("PDF FEATURE ANALYSIS REPORT")
 
         # Basic statistics
-        print(f"\nBasic Statistics:")
-        print(f"  Total PDFs found: {self.results['pdf_count']}")
-        print(f"  Valid PDFs (with header): {self.results['valid_pdf_count']}")
-        print(f"  Feature extraction success: {self.results['feature_extraction_success']}")
-        print(f"  Feature extraction failures: {self.results['feature_extraction_failures']}")
-        print(f"  Success rate: {self.results['feature_extraction_success']/max(1, self.results['valid_pdf_count']):.1%}")
+        logger.info(f"\nBasic Statistics:")
+        logger.info(f"  Total PDFs found: {self.results['pdf_count']}")
+        logger.info(f"  Valid PDFs (with header): {self.results['valid_pdf_count']}")
+        logger.info(f"  Feature extraction success: {self.results['feature_extraction_success']}")
+        logger.info(f"  Feature extraction failures: {self.results['feature_extraction_failures']}")
+        logger.info(f"  Success rate: {self.results['feature_extraction_success']/max(1, self.results['valid_pdf_count']):.1%}")
 
         # Processing performance
         if self.results['processing_times']:
-            print(f"\nProcessing Performance:")
+            logger.info(f"\nProcessing Performance:")
             times = np.array(self.results['processing_times'])
-            print(f"  Average time per PDF: {np.mean(times):.3f}s")
-            print(f"  Median time per PDF: {np.median(times):.3f}s")
-            print(f"  95th percentile time: {np.percentile(times, 95):.3f}s")
-            print(f"  Total processing time: {np.sum(times):.1f}s")
+            logger.info(f"  Average time per PDF: {np.mean(times):.3f}s")
+            logger.info(f"  Median time per PDF: {np.median(times):.3f}s")
+            logger.info(f"  95th percentile time: {np.percentile(times, 95):.3f}s")
+            logger.info(f"  Total processing time: {np.sum(times):.1f}s")
 
         # Truncation analysis
-        print(f"\nTruncation Analysis:")
+        logger.info(f"\nTruncation Analysis:")
         total_valid = sum(self.results['truncation_stats'].values())
         for reason, count in self.results['truncation_stats'].items():
             percentage = count / max(1, total_valid) * 100
-            print(f"  {reason}: {count} ({percentage:.1f}%)")
+            logger.info(f"  {reason}: {count} ({percentage:.1f}%)")
 
         # Page count distribution
         if self.results['page_counts']:
-            print(f"\nPage Count Distribution:")
+            logger.info(f"\nPage Count Distribution:")
             pages = np.array(self.results['page_counts'])
-            print(f"  Mean pages: {np.mean(pages):.1f}")
-            print(f"  Median pages: {np.median(pages):.1f}")
-            print(f"  Min/Max pages: {np.min(pages)}/{np.max(pages)}")
-            print(f"  Pages <= 8: {np.sum(pages <= 8)} ({np.sum(pages <= 8)/len(pages):.1%})")
+            logger.info(f"  Mean pages: {np.mean(pages):.1f}")
+            logger.info(f"  Median pages: {np.median(pages):.1f}")
+            logger.info(f"  Min/Max pages: {np.min(pages)}/{np.max(pages)}")
+            logger.info(f"  Pages <= 8: {np.sum(pages <= 8)} ({np.sum(pages <= 8)/len(pages):.1%})")
 
             # Show distribution
             page_counts = Counter(pages)
-            print(f"  Page distribution (top 10):")
+            logger.info(f"  Page distribution (top 10):")
             for pages_num, count in page_counts.most_common(10):
                 percentage = count / len(self.results['page_counts']) * 100
-                print(f"    {pages_num} pages: {count} PDFs ({percentage:.1f}%)")
+                logger.info(f"    {pages_num} pages: {count} PDFs ({percentage:.1f}%)")
 
         # Feature dimension analysis
         if self.results['feature_dimensions']:
-            print(f"\nFeature Dimension Analysis:")
+            logger.info(f"\nFeature Dimension Analysis:")
             dims = np.array(self.results['feature_dimensions'])
             dim_counts = Counter(dims)
-            print(f"  Feature dimensions found: {sorted(set(dims))}")
+            logger.info(f"  Feature dimensions found: {sorted(set(dims))}")
             for dim, count in dim_counts.most_common():
                 percentage = count / len(dims) * 100
-                print(f"    {dim} features: {count} PDFs ({percentage:.1f}%)")
+                logger.info(f"    {dim} features: {count} PDFs ({percentage:.1f}%)")
 
         # Document characteristics
         if self.results['doc_features']:
-            print(f"\nDocument Characteristics:")
+            logger.info(f"\nDocument Characteristics:")
             df = pd.DataFrame(self.results['doc_features'])
 
-            print(f"  Form PDFs: {df['is_form'].sum()} ({df['is_form'].mean():.1%})")
-            print(f"  Scanner-created PDFs: {df['creator_or_producer_is_known_scanner'].sum()} ({df['creator_or_producer_is_known_scanner'].mean():.1%})")
-            print(f"  Average garbled text ratio: {df['garbled_text_ratio'].mean():.3f}")
-            print(f"  PDFs with images: {(df['num_unique_image_xrefs'] > 0).sum()} ({(df['num_unique_image_xrefs'] > 0).mean():.1%})")
-            print(f"  PDFs with junk images: {(df['num_junk_image_xrefs'] > 0).sum()} ({(df['num_junk_image_xrefs'] > 0).mean():.1%})")
+            logger.info(f"  Form PDFs: {df['is_form'].sum()} ({df['is_form'].mean():.1%})")
+            logger.info(f"  Scanner-created PDFs: {df['creator_or_producer_is_known_scanner'].sum()} ({df['creator_or_producer_is_known_scanner'].mean():.1%})")
+            logger.info(f"  Average garbled text ratio: {df['garbled_text_ratio'].mean():.3f}")
+            logger.info(f"  PDFs with images: {(df['num_unique_image_xrefs'] > 0).sum()} ({(df['num_unique_image_xrefs'] > 0).mean():.1%})")
+            logger.info(f"  PDFs with junk images: {(df['num_junk_image_xrefs'] > 0).sum()} ({(df['num_junk_image_xrefs'] > 0).mean():.1%})")
 
         # Error analysis
         if self.results['errors']:
-            print(f"\nError Analysis:")
+            logger.info(f"\nError Analysis:")
             total_errors = sum(self.results['errors'].values())
             sorted_errors = sorted(self.results['errors'].items(), key=lambda x: x[1], reverse=True)
             for error, count in sorted_errors:
                 percentage = count / total_errors * 100
-                print(f"  {error}: {count} ({percentage:.1f}%)")
+                logger.info(f"  {error}: {count} ({percentage:.1f}%)")
 
         # Recommendations
-        print(f"\nRecommendations:")
+        logger.info(f"\nRecommendations:")
 
         if self.results['feature_dimensions']:
             most_common_dim = Counter(self.results['feature_dimensions']).most_common(1)[0][0]
-            print(f"  - Most common feature dimension: {most_common_dim}")
-            print(f"  - Consider training XGBoost model with {most_common_dim} features")
+            logger.info(f"  - Most common feature dimension: {most_common_dim}")
+            logger.info(f"  - Consider training XGBoost model with {most_common_dim} features")
 
         if self.results['page_counts']:
             pages_le_8 = np.sum(np.array(self.results['page_counts']) <= 8)
             total_pages = len(self.results['page_counts'])
             if pages_le_8 / total_pages > 0.8:
-                print(f"  - {pages_le_8/total_pages:.1%} of PDFs have ≤8 pages, padding strategy needed")
+                logger.info(f"  - {pages_le_8/total_pages:.1%} of PDFs have ≤8 pages, padding strategy needed")
             else:
-                print(f"  - Page distribution is varied, consider dynamic feature extraction")
+                logger.info(f"  - Page distribution is varied, consider dynamic feature extraction")
 
         success_rate = self.results['feature_extraction_success'] / max(1, self.results['valid_pdf_count'])
         if success_rate < 0.9:
-            print(f"  - Feature extraction success rate is {success_rate:.1%}, investigate common errors")
+            logger.info(f"  - Feature extraction success rate is {success_rate:.1%}, investigate common errors")
 
     def cleanup(self):
         """Clean up temporary files."""
@@ -282,8 +284,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("PDF Feature Analysis Tool")
-    print("=" * 50)
+    logger.info("PDF Feature Analysis Tool")
 
     analyzer = PDFFeatureAnalyzer(
         data_folder=args.data_folder,

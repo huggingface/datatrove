@@ -1,66 +1,67 @@
 #!/usr/bin/env python3
 """
-Test OCR extraction on high OCR probability PDFs.
+Example 08d: OCR Detailed Test
 
-This script:
-1. Loads sample PDFs with high OCR probability (scanned/image-based)
-2. Tests different OCR extraction methods
-3. Compares OCR results with direct text extraction
-4. Prepares for Lambda OCR server testing
+Tests OCR extraction on high OCR probability PDFs.
+
+Components:
+- Document: Load PDFs for testing
+- Various OCR methods: Test different extraction approaches
+
+Usage:
+    python spec/phase3/examples/08d_ocr_detailed_test.py
 """
 
-import os
-import sys
 import json
-from pathlib import Path
+import os
 import time
+from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, 'src')
 from datatrove.data import Document
+from datatrove.utils.logging import logger
 
 def test_pymupdf_ocr():
     """Test PyMuPDF OCR extraction on high OCR probability PDFs."""
-    print("Testing OCR extraction on high OCR probability PDFs...")
+    logger.info("Testing OCR extraction on high OCR probability PDFs...")
 
     # Path to sample PDFs
     sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     if not sample_dir.exists():
-        print(f"Sample directory not found: {sample_dir}")
+        logger.info(f"Sample directory not found: {sample_dir}")
         return
 
     # Load sample info
     sample_info_path = sample_dir / "sample_info.json"
     if not sample_info_path.exists():
-        print(f"Sample info not found: {sample_info_path}")
+        logger.info(f"Sample info not found: {sample_info_path}")
         return
 
     with open(sample_info_path) as f:
         sample_info = json.load(f)
 
-    print(f"Found {len(sample_info)} high OCR probability sample PDFs")
+    logger.info(f"Found {len(sample_info)} high OCR probability sample PDFs")
 
     # Test OCR on first 2 PDFs
     for i, pdf_info in enumerate(sample_info[:2]):
-        print(f"\n--- Testing PDF {i+1}: {pdf_info['id']} ---")
-        print(f"OCR probability: {pdf_info['ocr_prob']:.3f}")
-        print(f"Pages: {pdf_info['num_pages']}")
-        print(f"Garbled text ratio: {pdf_info['garbled_text_ratio']:.3f}")
-        print(f"URL: {pdf_info['url']}")
+        logger.info(f"\n--- Testing PDF {i+1}: {pdf_info['id']} ---")
+        logger.info(f"OCR probability: {pdf_info['ocr_prob']:.3f}")
+        logger.info(f"Pages: {pdf_info['num_pages']}")
+        logger.info(f"Garbled text ratio: {pdf_info['garbled_text_ratio']:.3f}")
+        logger.info(f"URL: {pdf_info['url']}")
 
         # Load PDF bytes
         pdf_path = sample_dir / pdf_info['saved_filename']
         if not pdf_path.exists():
-            print(f"❌ PDF file not found: {pdf_path}")
+            logger.info(f"❌ PDF file not found: {pdf_path}")
             continue
 
         with open(pdf_path, 'rb') as f:
             pdf_bytes = f.read()
 
-        print(f"PDF size: {len(pdf_bytes)} bytes")
+        logger.info(f"PDF size: {len(pdf_bytes)} bytes")
 
         # Test 1: Direct text extraction (should fail/be garbled)
-        print("\n🔍 Testing direct text extraction...")
+        logger.info("\n🔍 Testing direct text extraction...")
         try:
             import fitz  # PyMuPDF
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -72,18 +73,18 @@ def test_pymupdf_ocr():
 
             doc.close()
 
-            print(f"Direct text length: {len(direct_text)} characters")
+            logger.info(f"Direct text length: {len(direct_text)} characters")
             if direct_text.strip():
                 preview = direct_text.strip()[:200].replace('\n', ' ')
-                print(f"Direct text preview: {preview}...")
+                logger.info(f"Direct text preview: {preview}...")
             else:
-                print("⚠️  No direct text extracted")
+                logger.info("⚠️  No direct text extracted")
 
         except Exception as e:
-            print(f"❌ Direct text extraction failed: {e}")
+            logger.info(f"❌ Direct text extraction failed: {e}")
 
         # Test 2: OCR extraction
-        print("\n🔄 Testing OCR extraction...")
+        logger.info("\n🔄 Testing OCR extraction...")
         try:
             import fitz  # PyMuPDF
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -111,39 +112,39 @@ def test_pymupdf_ocr():
                         ocr_text += page_text
 
                     except ImportError:
-                        print("⚠️  Neither PyMuPDF OCR nor Tesseract available")
+                        logger.info("⚠️  Neither PyMuPDF OCR nor Tesseract available")
                         break
                     except Exception as ocr_e:
-                        print(f"⚠️  OCR failed for page {page_num}: {ocr_e}")
+                        logger.info(f"⚠️  OCR failed for page {page_num}: {ocr_e}")
 
             doc.close()
 
-            print(f"OCR text length: {len(ocr_text)} characters")
+            logger.info(f"OCR text length: {len(ocr_text)} characters")
             if ocr_text.strip():
                 preview = ocr_text.strip()[:200].replace('\n', ' ')
-                print(f"OCR text preview: {preview}...")
+                logger.info(f"OCR text preview: {preview}...")
 
                 # Compare with direct text
                 if len(direct_text.strip()) > 0:
                     improvement = len(ocr_text) / len(direct_text) if len(direct_text) > 0 else float('inf')
-                    print(f"OCR improvement factor: {improvement:.2f}x")
+                    logger.info(f"OCR improvement factor: {improvement:.2f}x")
             else:
-                print("⚠️  No OCR text extracted")
+                logger.info("⚠️  No OCR text extracted")
 
         except Exception as e:
-            print(f"❌ OCR extraction failed: {e}")
+            logger.info(f"❌ OCR extraction failed: {e}")
             import traceback
             traceback.print_exc()
 
 def test_lambda_ocr_preparation():
     """Prepare data structure for Lambda OCR server testing."""
-    print("\n=== Lambda OCR Preparation ===")
+    logger.info("\n=== Lambda OCR Preparation ===")
 
     sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     sample_info_path = sample_dir / "sample_info.json"
 
     if not sample_info_path.exists():
-        print("No sample info found")
+        logger.info("No sample info found")
         return
 
     with open(sample_info_path) as f:
@@ -164,23 +165,23 @@ def test_lambda_ocr_preparation():
             }
             lambda_payloads.append(payload)
 
-    print(f"Prepared {len(lambda_payloads)} PDFs for Lambda OCR testing")
+    logger.info(f"Prepared {len(lambda_payloads)} PDFs for Lambda OCR testing")
 
     # Save payload info
     payload_file = Path("spec/phase3/lambda_ocr_payloads.json")
     with open(payload_file, 'w') as f:
         json.dump(lambda_payloads, f, indent=2)
 
-    print(f"Lambda OCR payloads saved to: {payload_file}")
+    logger.info(f"Lambda OCR payloads saved to: {payload_file}")
 
     # Show example payload
     if lambda_payloads:
-        print(f"\nExample Lambda payload:")
-        print(json.dumps(lambda_payloads[0], indent=2))
+        logger.info(f"\nExample Lambda payload:")
+        logger.info(json.dumps(lambda_payloads[0], indent=2))
 
 def main():
     """Run OCR testing suite."""
-    print("=== Step 4b: OCR Component Testing ===")
+    logger.info("=== Step 4b: OCR Component Testing ===")
 
     # Test local OCR capabilities
     test_pymupdf_ocr()
@@ -188,10 +189,10 @@ def main():
     # Prepare for Lambda OCR testing
     test_lambda_ocr_preparation()
 
-    print("\n✅ OCR testing setup complete!")
-    print("Next steps:")
-    print("- Set up Lambda OCR server (Step 4c)")
-    print("- Test full pipeline with XGBoost routing (Step 4d)")
+    logger.info("\n✅ OCR testing setup complete!")
+    logger.info("Next steps:")
+    logger.info("- Set up Lambda OCR server (Step 4c)")
+    logger.info("- Test full pipeline with XGBoost routing (Step 4d)")
 
 if __name__ == "__main__":
     main()

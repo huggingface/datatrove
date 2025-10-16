@@ -1,32 +1,38 @@
 #!/usr/bin/env python3
 """
-Train XGBoost PDF classifier on real CommonCrawl data.
+Example 08b: PDF Classifier Training
 
-This script:
-1. Extracts features from real PDFs in CommonCrawl WARC files
-2. Creates training labels based on heuristics (scanner metadata, form detection, etc.)
-3. Trains XGBoost classifier to predict OCR vs text-based extraction
-4. Evaluates the model and saves it for use in the PDF processing pipeline
+Trains XGBoost PDF classifier on real CommonCrawl data to predict OCR needs.
+
+Components:
+- PDFWarcReader: Read PDFs from WARC files
+- PDFFeatureExtractor: Extract PDF features for classification
+- XGBClassifier: Train binary classifier for OCR prediction
+
+Usage:
+    python spec/phase3/examples/08b_pdf_classifier_training.py --max-pdfs 1000 --data-folder data
 """
 
 import io
 import os
-import sys
-import time
 import pickle
+import time
+
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
-# Add src to path
-sys.path.insert(0, 'src')
-from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
 from datatrove.pipeline.media.predictor.scanned_pdf_predictor import (
     PDFFeatureExtractor,
-    flatten_per_page_features
+    flatten_per_page_features,
 )
+from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
+from datatrove.utils.logging import logger
+
+# Configuration
+OUTPUT_DIR = "spec/phase3/data"
 
 
 class PDFClassifierTrainer:
@@ -40,7 +46,7 @@ class PDFClassifierTrainer:
 
     def extract_features_and_labels(self):
         """Extract features from PDFs and create training labels."""
-        print("Extracting features from CommonCrawl PDFs...")
+        logger.info("Extracting features from CommonCrawl PDFs...")
 
         warc_files = [f for f in os.listdir(self.data_folder) if f.endswith('.warc.gz')]
         feature_extractor = PDFFeatureExtractor(num_pages_to_sample=8)
@@ -52,7 +58,7 @@ class PDFClassifierTrainer:
             if processed_count >= self.max_pdfs:
                 break
 
-            print(f"Processing {warc_file}...")
+            logger.info(f"Processing {warc_file}...")
             reader = PDFWarcReader(
                 data_folder=self.data_folder,
                 glob_pattern=warc_file,
@@ -108,14 +114,14 @@ class PDFClassifierTrainer:
                     success_count += 1
 
                     if success_count % 100 == 0:
-                        print(f"  Extracted {success_count} successful features")
+                        logger.info(f"  Extracted {success_count} successful features")
 
                     pymupdf_doc.close()
 
                 except Exception as e:
                     continue
 
-        print(f"Feature extraction complete: {success_count} PDFs with features")
+        logger.info(f"Feature extraction complete: {success_count} PDFs with features")
         return success_count
 
     def _create_training_label(self, features, doc_metadata):
@@ -184,15 +190,15 @@ class PDFClassifierTrainer:
         if not self.features:
             raise ValueError("No features extracted. Run extract_features_and_labels() first.")
 
-        print(f"\nTraining XGBoost classifier on {len(self.features)} PDFs...")
+        logger.info(f"Training XGBoost classifier on {len(self.features)} PDFs...")
 
         # Convert to numpy arrays
         X = np.array(self.features)
         y = np.array(self.labels)
 
-        print(f"Feature matrix shape: {X.shape}")
-        print(f"Label distribution: {np.bincount(y)} (0=text, 1=OCR)")
-        print(f"OCR percentage: {np.mean(y):.1%}")
+        logger.info(f"Feature matrix shape: {X.shape}")
+        logger.info(f"Label distribution: {np.bincount(y)} (0=text, 1=OCR)")
+        logger.info(f"OCR percentage: {np.mean(y):.1%}")
 
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
@@ -210,7 +216,7 @@ class PDFClassifierTrainer:
             eval_metric='logloss'
         )
 
-        print("Training model...")
+        logger.info("Training model...")
         start_time = time.time()
 
         model.fit(
@@ -220,7 +226,7 @@ class PDFClassifierTrainer:
         )
 
         training_time = time.time() - start_time
-        print(f"Training completed in {training_time:.1f}s")
+        logger.info(f"Training completed in {training_time:.1f}s")
 
         # Evaluate model
         self._evaluate_model(model, X_test, y_test)
@@ -232,47 +238,46 @@ class PDFClassifierTrainer:
 
     def _evaluate_model(self, model, X_test, y_test):
         """Evaluate trained model performance."""
-        print("\nModel Evaluation:")
-        print("=" * 50)
+        logger.info("Model Evaluation:")
 
         # Predictions
         y_pred = model.predict(X_test)
         y_pred_proba = model.predict_proba(X_test)[:, 1]
 
         # Classification report
-        print("Classification Report:")
-        print(classification_report(y_test, y_pred, target_names=['Text', 'OCR']))
+        logger.info("Classification Report:")
+        logger.info(f"\n{classification_report(y_test, y_pred, target_names=['Text', 'OCR'])}")
 
         # Confusion matrix
-        print("\nConfusion Matrix:")
+        logger.info("Confusion Matrix:")
         cm = confusion_matrix(y_test, y_pred)
-        print(f"           Predicted")
-        print(f"         Text   OCR")
-        print(f"Actual Text {cm[0,0]:4d} {cm[0,1]:4d}")
-        print(f"       OCR  {cm[1,0]:4d} {cm[1,1]:4d}")
+        logger.info(f"           Predicted")
+        logger.info(f"         Text   OCR")
+        logger.info(f"Actual Text {cm[0,0]:4d} {cm[0,1]:4d}")
+        logger.info(f"       OCR  {cm[1,0]:4d} {cm[1,1]:4d}")
 
         # ROC AUC
         auc = roc_auc_score(y_test, y_pred_proba)
-        print(f"\nROC AUC Score: {auc:.3f}")
+        logger.info(f"ROC AUC Score: {auc:.3f}")
 
         # Feature importance
-        print("\nTop 10 Most Important Features:")
+        logger.info("Top 10 Most Important Features:")
         feature_importance = model.feature_importances_
         indices = np.argsort(feature_importance)[::-1][:10]
 
         for i, idx in enumerate(indices):
             importance = feature_importance[idx]
             feature_name = self.feature_names[idx] if idx < len(self.feature_names) else f"feature_{idx}"
-            print(f"  {i+1:2d}. {feature_name}: {importance:.4f}")
+            logger.info(f"  {i+1:2d}. {feature_name}: {importance:.4f}")
 
     def _save_model(self, model):
         """Save trained model and metadata."""
-        model_path = "pdf_classifier_real_data.xgb"
-        metadata_path = "pdf_classifier_metadata.pkl"
+        model_path = OUTPUT_DIR + "/pdf_classifier_real_data.xgb"
+        metadata_path = OUTPUT_DIR + "/pdf_classifier_metadata.pkl"
 
         # Save XGBoost model
         model.save_model(model_path)
-        print(f"\nModel saved to: {model_path}")
+        logger.info(f"Model saved to: {model_path}")
 
         # Save metadata
         metadata = {
@@ -285,35 +290,34 @@ class PDFClassifierTrainer:
 
         with open(metadata_path, 'wb') as f:
             pickle.dump(metadata, f)
-        print(f"Metadata saved to: {metadata_path}")
+        logger.info(f"Metadata saved to: {metadata_path}")
 
     def analyze_training_data(self):
         """Analyze the training data characteristics."""
         if not self.pdf_metadata:
-            print("No metadata available for analysis")
+            logger.info("No metadata available for analysis")
             return
 
-        print("\nTraining Data Analysis:")
-        print("=" * 50)
+        logger.info("Training Data Analysis:")
 
         df = pd.DataFrame(self.pdf_metadata)
 
-        print(f"Total PDFs: {len(df)}")
-        print(f"OCR label distribution:")
-        print(f"  Text-based (0): {(df['predicted_needs_ocr'] == 0).sum()} ({(df['predicted_needs_ocr'] == 0).mean():.1%})")
-        print(f"  OCR-based (1): {(df['predicted_needs_ocr'] == 1).sum()} ({(df['predicted_needs_ocr'] == 1).mean():.1%})")
+        logger.info(f"Total PDFs: {len(df)}")
+        logger.info(f"OCR label distribution:")
+        logger.info(f"  Text-based (0): {(df['predicted_needs_ocr'] == 0).sum()} ({(df['predicted_needs_ocr'] == 0).mean():.1%})")
+        logger.info(f"  OCR-based (1): {(df['predicted_needs_ocr'] == 1).sum()} ({(df['predicted_needs_ocr'] == 1).mean():.1%})")
 
-        print(f"\nDocument characteristics by label:")
+        logger.info(f"Document characteristics by label:")
         for label, name in [(0, 'Text-based'), (1, 'OCR-based')]:
             subset = df[df['predicted_needs_ocr'] == label]
             if len(subset) == 0:
                 continue
-            print(f"  {name} PDFs ({len(subset)}):")
-            print(f"    Avg pages: {subset['num_pages'].mean():.1f}")
-            print(f"    Form PDFs: {subset['is_form'].mean():.1%}")
-            print(f"    Scanner-created: {subset['scanner_created'].mean():.1%}")
-            print(f"    Avg garbled ratio: {subset['garbled_ratio'].mean():.3f}")
-            print(f"    Truncated: {subset['is_truncated'].mean():.1%}")
+            logger.info(f"  {name} PDFs ({len(subset)}):")
+            logger.info(f"    Avg pages: {subset['num_pages'].mean():.1f}")
+            logger.info(f"    Form PDFs: {subset['is_form'].mean():.1%}")
+            logger.info(f"    Scanner-created: {subset['scanner_created'].mean():.1%}")
+            logger.info(f"    Avg garbled ratio: {subset['garbled_ratio'].mean():.3f}")
+            logger.info(f"    Truncated: {subset['is_truncated'].mean():.1%}")
 
 
 def main():
@@ -324,8 +328,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("PDF Classifier Training")
-    print("=" * 50)
+    logger.info("PDF Classifier Training")
 
     trainer = PDFClassifierTrainer(
         data_folder=args.data_folder,
@@ -336,7 +339,7 @@ def main():
     success_count = trainer.extract_features_and_labels()
 
     if success_count < 10:
-        print("ERROR: Too few successful feature extractions for training")
+        logger.error("Too few successful feature extractions for training")
         return
 
     # Analyze training data
@@ -345,7 +348,7 @@ def main():
     # Train model
     model = trainer.train_model()
 
-    print("\nTraining complete! Model ready for use in PDF processing pipeline.")
+    logger.info("Training complete! Model ready for use in PDF processing pipeline.")
 
 
 if __name__ == "__main__":

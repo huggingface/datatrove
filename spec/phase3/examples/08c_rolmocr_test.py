@@ -1,30 +1,38 @@
 #!/usr/bin/env python3
 """
-RolmOCR Integration Test Script
+Example 08c: RolmOCR Integration Test
 
 Tests RolmOCR integration using DataTrove's inference infrastructure.
-Follows the exact approach from FinePDFs paper: RolmOCR on LMDeploy.
+
+Components:
+- InferenceRunner: Run OCR inference on PDFs
+- rolmocr_query_builder: Convert PDFs to RolmOCR vision requests
+- PersistentContextJsonlWriter: Save results
+
+Usage:
+    python spec/phase3/examples/08c_rolmocr_test.py
 """
 
 import asyncio
 import base64
-import fitz
 import json
-import sys
 from pathlib import Path
-from typing import List
+from typing import Iterable, List
 
-# Add src to path
-sys.path.insert(0, 'src')
+import fitz
 
 from datatrove.data import Document, Media, MediaType
-from datatrove.pipeline.inference.run_inference import InferenceRunner, InferenceConfig
+from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.post_process import ExtractInferenceText
 from datatrove.pipeline.inference.query_builders.vision import rolmocr_query_builder
+from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.utils.page_rendering import render_page_to_base64png_pymupdf
 from datatrove.pipeline.writers.jsonl import PersistentContextJsonlWriter
-from datatrove.executor.local import LocalPipelineExecutor
-from typing import Iterable
+from datatrove.utils.logging import logger
+
+# Configuration
+OUTPUT_DIR = "spec/phase3/output/rolmocr_test"
+LOGS_DIR = "spec/phase3/logs/rolmocr_test"
 
 
 def rolmocr_query_builder_with_debug(runner: InferenceRunner, doc: Document) -> dict:
@@ -66,7 +74,7 @@ def rolmocr_query_builder_with_debug(runner: InferenceRunner, doc: Document) -> 
         image_path = debug_dir / f"{doc_id_safe}_page_{page_num}.png"
         with open(image_path, 'wb') as f:
             f.write(base64.b64decode(base64_image))
-        print(f"Saved processed image: {image_path}")
+        logger.info(f"Saved processed image: {image_path}")
 
         page_images.append({
             "type": "image_url",
@@ -75,7 +83,7 @@ def rolmocr_query_builder_with_debug(runner: InferenceRunner, doc: Document) -> 
 
     pdf_doc.close()
 
-    print(f"Processing {max_pages} pages with reduced resolution for memory efficiency")
+    logger.info(f"Processing {max_pages} pages with reduced resolution for memory efficiency")
 
     # Create OpenAI-compatible vision request
     return {
@@ -100,12 +108,12 @@ def load_high_ocr_pdfs() -> List[Document]:
     # Look for high OCR probability PDFs from previous classification
     sample_dir = Path("spec/phase3/threshold_analysis/samples/high_ocr")
     if not sample_dir.exists():
-        print(f"Warning: {sample_dir} not found.")
+        logger.info(f"Warning: {sample_dir} not found.")
         return []
 
     sample_info_path = sample_dir / "sample_info.json"
     if not sample_info_path.exists():
-        print(f"Warning: {sample_info_path} not found.")
+        logger.info(f"Warning: {sample_info_path} not found.")
         return []
 
     with open(sample_info_path) as f:
@@ -152,16 +160,16 @@ def load_high_ocr_pdfs() -> List[Document]:
 def test_rolmocr_integration():
     """Test RolmOCR using DataTrove's inference infrastructure."""
 
-    print("Loading high OCR probability PDFs...")
+    logger.info("Loading high OCR probability PDFs...")
     documents = load_high_ocr_pdfs()
 
     if not documents:
-        print("No high OCR PDFs found. Exiting test.")
+        logger.info("No high OCR PDFs found. Exiting test.")
         return
 
-    print(f"Found {len(documents)} high OCR probability PDFs")
+    logger.info(f"Found {len(documents)} high OCR probability PDFs")
     for doc in documents:
-        print(f"  - {doc.id}: OCR prob {doc.metadata['ocr_probability']:.3f}")
+        logger.info(f"  - {doc.id}: OCR prob {doc.metadata['ocr_probability']:.3f}")
 
     # Configure RolmOCR with LMDeploy
     config = InferenceConfig(
@@ -192,14 +200,14 @@ def test_rolmocr_integration():
         logging_dir=None,
     )
 
-    print("Starting RolmOCR inference...")
+    logger.info("Starting RolmOCR inference...")
 
     # Run the pipeline executor
     try:
         pipeline_executor.run()
-        print("RolmOCR inference completed successfully!")
+        logger.info("RolmOCR inference completed successfully!")
     except Exception as e:
-        print(f"RolmOCR inference failed: {e}")
+        logger.info(f"RolmOCR inference failed: {e}")
         raise
     finally:
         # Explicitly close the writer to ensure gzip file is properly finalized
@@ -211,23 +219,23 @@ def test_rolmocr_integration():
                         writer = post_step
                         break
         if writer and writer._context_entered:
-            print("Closing writer context...")
+            logger.info("Closing writer context...")
             writer.__exit__(None, None, None)
 
 
 def test_query_builder_only():
     """Test just the query builder without actual inference."""
 
-    print("Testing RolmOCR query builder...")
+    logger.info("Testing RolmOCR query builder...")
 
     # Load one high OCR PDF for testing
     documents = load_high_ocr_pdfs()
     if not documents:
-        print("No PDFs available for query builder test")
+        logger.info("No PDFs available for query builder test")
         return
 
     test_doc = documents[0]
-    print(f"Testing with PDF: {test_doc.id}")
+    logger.info(f"Testing with PDF: {test_doc.id}")
 
     # Mock runner for testing
     class MockRunner:
@@ -244,37 +252,35 @@ def test_query_builder_only():
 
     try:
         query = rolmocr_query_builder(mock_runner, test_doc)
-        print("Query builder test successful!")
-        print(f"Generated query keys: {list(query.keys())}")
-        print(f"Model: {query['model']}")
-        print(f"Max tokens: {query['max_tokens']}")
-        print(f"Temperature: {query['temperature']}")
+        logger.info("Query builder test successful!")
+        logger.info(f"Generated query keys: {list(query.keys())}")
+        logger.info(f"Model: {query['model']}")
+        logger.info(f"Max tokens: {query['max_tokens']}")
+        logger.info(f"Temperature: {query['temperature']}")
 
         # Check message structure
         messages = query['messages'][0]['content']
         text_items = [item for item in messages if item['type'] == 'text']
         image_items = [item for item in messages if item['type'] == 'image_url']
 
-        print(f"Text prompts: {len(text_items)}")
-        print(f"Image inputs: {len(image_items)}")
+        logger.info(f"Text prompts: {len(text_items)}")
+        logger.info(f"Image inputs: {len(image_items)}")
 
         if text_items:
-            print(f"Prompt: {text_items[0]['text']}")
+            logger.info(f"Prompt: {text_items[0]['text']}")
 
     except Exception as e:
-        print(f"Query builder test failed: {e}")
+        logger.info(f"Query builder test failed: {e}")
         import traceback
         traceback.print_exc()
 
 
 if __name__ == "__main__":
-    print("RolmOCR Integration Test")
-    print("=" * 40)
+    logger.info("RolmOCR Integration Test")
 
     # Test query builder first (safer)
     test_query_builder_only()
 
-    print("\n" + "=" * 40)
 
     # Test full integration if PDFs are available
     # LMDeployServer will automatically pull RolmOCR model from HuggingFace Hub

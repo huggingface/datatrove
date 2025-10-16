@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 """
-Test FinePDFs Pipeline with Local PDFs
+Example 08: FinePDFs Pipeline with Local PDFs
 
-Uses the same local PDFs as test_routing.py but adds full extraction:
-- Stage 1: Classification with PDFRouter
-- Stage 2: Docling extraction for low OCR PDFs
-- Stage 3: RolmOCR extraction for high OCR PDFs
+Complete end-to-end PDF processing pipeline with local test files.
+
+Components:
+- PDFRouter: Classify PDFs by OCR probability
+- DoclingExtractor: Extract text from low OCR PDFs
+- RolmOCR: Extract text from high OCR PDFs via inference
+- PersistentContextJsonlWriter: Save results with proper context management
+
+Usage:
+    python spec/phase3/examples/08_finepdfs_local.py
 """
 
 import base64
-import fitz
 from pathlib import Path
 from typing import Iterable
+
+import fitz
 
 from datatrove.data import Document, Media, MediaType
 from datatrove.executor.local import LocalPipelineExecutor

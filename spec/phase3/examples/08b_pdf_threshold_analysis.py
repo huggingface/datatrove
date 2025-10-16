@@ -1,36 +1,31 @@
 #!/usr/bin/env python3
 """
-Comprehensive PDF threshold analysis for manual evaluation.
+Example 08b: PDF Threshold Analysis
 
-This script:
-1. Processes all 3 CommonCrawl WARC files
-2. Classifies PDFs using the trained XGBoost model
-3. Extracts 5 sample PDFs from each OCR probability threshold
-4. Generates statistics and visualizations
-5. Saves organized samples for manual evaluation
+Analyzes PDF classification thresholds for manual evaluation and tuning.
 
-Thresholds:
-- 0.0-0.2: Very low OCR probability (text-based)
-- 0.2-0.4: Low OCR probability
-- 0.4-0.6: Medium OCR probability
-- 0.6-0.8: High OCR probability
-- 0.8-1.0: Very high OCR probability (scan-based)
+Components:
+- PDFWarcReader: Read PDFs from WARC files
+- PDFScannedPredictor: Classify PDFs by OCR probability
+- Matplotlib/Seaborn: Generate threshold visualizations
+
+Usage:
+    python spec/phase3/examples/08b_pdf_threshold_analysis.py
 """
 
 import io
 import os
-import sys
 import time
 from collections import defaultdict
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Add src to path
-sys.path.insert(0, 'src')
-from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
 from datatrove.pipeline.media.predictor.scanned_pdf_predictor import PDFScannedPredictor
+from datatrove.pipeline.readers.pdf_warc import PDFWarcReader
+from datatrove.utils.logging import logger
 
 
 class PDFThresholdAnalyzer:
@@ -59,7 +54,7 @@ class PDFThresholdAnalyzer:
         self.samples_per_threshold = 5
 
         # Initialize predictor
-        print(f"Loading model from {self.model_path}")
+        logger.info(f"Loading model from {self.model_path}")
         self.predictor = PDFScannedPredictor(
             path_to_model=self.model_path,
             num_pages_to_sample=8
@@ -68,7 +63,7 @@ class PDFThresholdAnalyzer:
     def process_all_warcs(self):
         """Process all WARC files and classify PDFs."""
         warc_files = [f for f in os.listdir(self.data_folder) if f.endswith('.warc.gz')]
-        print(f"Found {len(warc_files)} WARC files: {warc_files}")
+        logger.info(f"Found {len(warc_files)} WARC files: {warc_files}")
 
         total_pdfs = 0
         valid_pdfs = 0
@@ -76,7 +71,7 @@ class PDFThresholdAnalyzer:
         start_time = time.time()
 
         for warc_file in warc_files:
-            print(f"\nProcessing {warc_file}...")
+            logger.info(f"\nProcessing {warc_file}...")
             file_start = time.time()
 
             reader = PDFWarcReader(
@@ -135,18 +130,18 @@ class PDFThresholdAnalyzer:
                 if file_pdfs % 100 == 0:
                     elapsed = time.time() - file_start
                     rate = file_pdfs / elapsed if elapsed > 0 else 0
-                    print(f"  {file_pdfs} PDFs processed ({rate:.1f}/sec), {file_successful} classified")
+                    logger.info(f"  {file_pdfs} PDFs processed ({rate:.1f}/sec), {file_successful} classified")
 
             file_time = time.time() - file_start
-            print(f"  Completed {warc_file}: {file_pdfs} PDFs, {file_successful} classified in {file_time:.1f}s")
+            logger.info(f"  Completed {warc_file}: {file_pdfs} PDFs, {file_successful} classified in {file_time:.1f}s")
 
         total_time = time.time() - start_time
-        print(f"\nProcessing complete:")
-        print(f"  Total PDFs: {total_pdfs}")
-        print(f"  Valid PDFs: {valid_pdfs}")
-        print(f"  Successful classifications: {successful_classifications}")
-        print(f"  Success rate: {successful_classifications/max(1, valid_pdfs):.1%}")
-        print(f"  Total time: {total_time:.1f}s")
+        logger.info(f"\nProcessing complete:")
+        logger.info(f"  Total PDFs: {total_pdfs}")
+        logger.info(f"  Valid PDFs: {valid_pdfs}")
+        logger.info(f"  Successful classifications: {successful_classifications}")
+        logger.info(f"  Success rate: {successful_classifications/max(1, valid_pdfs):.1%}")
+        logger.info(f"  Total time: {total_time:.1f}s")
 
     def _check_for_sampling(self, classification):
         """Check if this PDF should be sampled for any threshold."""
@@ -156,12 +151,12 @@ class PDFThresholdAnalyzer:
             if min_thresh <= ocr_prob < max_thresh:
                 if len(self.threshold_samples[label]) < self.samples_per_threshold:
                     self.threshold_samples[label].append(classification)
-                    print(f"    Sampled PDF {classification['id']} for {label} threshold ({ocr_prob:.3f})")
+                    logger.info(f"    Sampled PDF {classification['id']} for {label} threshold ({ocr_prob:.3f})")
                 break
 
     def save_sample_pdfs(self):
         """Save sample PDFs to disk for manual evaluation."""
-        print(f"\nSaving sample PDFs...")
+        logger.info(f"\nSaving sample PDFs...")
 
         for threshold_label, samples in self.threshold_samples.items():
             if not samples:
@@ -186,7 +181,7 @@ class PDFThresholdAnalyzer:
                 info['saved_filename'] = filename
                 sample_info.append(info)
 
-                print(f"  Saved {filepath} (OCR prob: {sample['ocr_prob']:.3f})")
+                logger.info(f"  Saved {filepath} (OCR prob: {sample['ocr_prob']:.3f})")
 
             # Save sample metadata
             import json
@@ -196,10 +191,10 @@ class PDFThresholdAnalyzer:
     def generate_statistics(self):
         """Generate comprehensive statistics."""
         if not self.pdf_classifications:
-            print("No classifications to analyze")
+            logger.info("No classifications to analyze")
             return
 
-        print(f"\nGenerating statistics from {len(self.pdf_classifications)} classified PDFs...")
+        logger.info(f"\nGenerating statistics from {len(self.pdf_classifications)} classified PDFs...")
 
         df = pd.DataFrame([{k: v for k, v in pdf.items() if k != 'pdf_bytes'}
                           for pdf in self.pdf_classifications])
@@ -250,18 +245,18 @@ class PDFThresholdAnalyzer:
             json.dump(stats, f, indent=2)
 
         # Print summary
-        print(f"\nStatistics Summary:")
-        print(f"  Total classified PDFs: {stats['total_classified']}")
-        print(f"  OCR probability - Mean: {stats['ocr_prob_stats']['mean']:.3f}, Median: {stats['ocr_prob_stats']['median']:.3f}")
-        print(f"\nThreshold Distribution:")
+        logger.info(f"\nStatistics Summary:")
+        logger.info(f"  Total classified PDFs: {stats['total_classified']}")
+        logger.info(f"  OCR probability - Mean: {stats['ocr_prob_stats']['mean']:.3f}, Median: {stats['ocr_prob_stats']['median']:.3f}")
+        logger.info(f"\nThreshold Distribution:")
         for label, data in stats['threshold_distribution'].items():
-            print(f"  {label} ({data['range']}): {data['count']} PDFs ({data['percentage']:.1f}%)")
+            logger.info(f"  {label} ({data['range']}): {data['count']} PDFs ({data['percentage']:.1f}%)")
 
         return df, stats
 
     def create_visualizations(self, df, stats):
         """Create plots and tables for analysis."""
-        print(f"\nCreating visualizations...")
+        logger.info(f"\nCreating visualizations...")
 
         # Set style
         plt.style.use('default')
@@ -376,24 +371,23 @@ class PDFThresholdAnalyzer:
 
         # Save as CSV too
         table_df.to_csv(f"{self.output_dir}/characteristics_table.csv", index=False)
-        print(f"  Characteristics table saved to characteristics_table.csv")
+        logger.info(f"  Characteristics table saved to characteristics_table.csv")
 
     def generate_sampling_report(self):
         """Generate a report on the sampling results."""
-        print(f"\nSampling Report:")
-        print("=" * 50)
+        logger.info(f"\nSampling Report:")
 
         for min_thresh, max_thresh, label in self.thresholds:
             samples = self.threshold_samples[label]
-            print(f"\n{label.replace('_', ' ').title()} ({min_thresh}-{max_thresh}):")
-            print(f"  Samples collected: {len(samples)}/{self.samples_per_threshold}")
+            logger.info(f"\n{label.replace('_', ' ').title()} ({min_thresh}-{max_thresh}):")
+            logger.info(f"  Samples collected: {len(samples)}/{self.samples_per_threshold}")
 
             if samples:
                 ocr_probs = [s['ocr_prob'] for s in samples]
-                print(f"  OCR probability range: {min(ocr_probs):.3f} - {max(ocr_probs):.3f}")
-                print(f"  Sample PDFs:")
+                logger.info(f"  OCR probability range: {min(ocr_probs):.3f} - {max(ocr_probs):.3f}")
+                logger.info(f"  Sample PDFs:")
                 for i, sample in enumerate(samples):
-                    print(f"    {i+1}. {sample['id']} (OCR: {sample['ocr_prob']:.3f}, Pages: {sample['num_pages']}, Form: {sample['is_form']})")
+                    logger.info(f"    {i+1}. {sample['id']} (OCR: {sample['ocr_prob']:.3f}, Pages: {sample['num_pages']}, Form: {sample['is_form']})")
 
         # Create summary file
         summary = {
@@ -418,8 +412,7 @@ class PDFThresholdAnalyzer:
 
     def run_analysis(self):
         """Run the complete threshold analysis."""
-        print("Starting comprehensive PDF threshold analysis...")
-        print("=" * 60)
+        logger.info("Starting comprehensive PDF threshold analysis...")
 
         # Process all WARC files
         self.process_all_warcs()
@@ -436,17 +429,16 @@ class PDFThresholdAnalyzer:
         # Generate sampling report
         self.generate_sampling_report()
 
-        print(f"\n" + "=" * 60)
-        print("Analysis complete!")
-        print(f"Results saved to: {self.output_dir}/")
-        print(f"  - Sample PDFs: {self.output_dir}/samples/*/")
-        print(f"  - Statistics: {self.output_dir}/statistics.json")
-        print(f"  - Plots: {self.output_dir}/plots/")
-        print(f"  - Sampling report: {self.output_dir}/sampling_report.json")
-        print(f"\nNext steps:")
-        print(f"  1. Review the plots to understand OCR probability distribution")
-        print(f"  2. Manually evaluate sample PDFs in each threshold category")
-        print(f"  3. Determine appropriate threshold for OCR vs text extraction")
+        logger.info("Analysis complete!")
+        logger.info(f"Results saved to: {self.output_dir}/")
+        logger.info(f"  - Sample PDFs: {self.output_dir}/samples/*/")
+        logger.info(f"  - Statistics: {self.output_dir}/statistics.json")
+        logger.info(f"  - Plots: {self.output_dir}/plots/")
+        logger.info(f"  - Sampling report: {self.output_dir}/sampling_report.json")
+        logger.info(f"\nNext steps:")
+        logger.info(f"  1. Review the plots to understand OCR probability distribution")
+        logger.info(f"  2. Manually evaluate sample PDFs in each threshold category")
+        logger.info(f"  3. Determine appropriate threshold for OCR vs text extraction")
 
 
 def main():
@@ -460,13 +452,13 @@ def main():
 
     # Check if model exists
     if not os.path.exists(args.model_path):
-        print(f"ERROR: Model not found at {args.model_path}")
-        print("Please run train_pdf_classifier.py first to create the model")
+        logger.info(f"ERROR: Model not found at {args.model_path}")
+        logger.info("Please run train_pdf_classifier.py first to create the model")
         return
 
     # Check if data folder exists
     if not os.path.exists(args.data_folder):
-        print(f"ERROR: Data folder not found at {args.data_folder}")
+        logger.info(f"ERROR: Data folder not found at {args.data_folder}")
         return
 
     analyzer = PDFThresholdAnalyzer(

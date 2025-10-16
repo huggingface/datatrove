@@ -54,16 +54,18 @@ Test existing `PDFScannedPredictor` and create missing XGBoost model for OCR rou
 
 ### Files Generated
 ```
-spec/phase3/examples/
-├── pdf_classifier_training.py      # Training script
-├── pdf_feature_analysis.py         # Feature analysis
-├── pdf_threshold_analysis.py       # Threshold evaluation
-├── pdf_classifier_real_data.xgb    # Trained model (gitignored)
-├── pdf_classifier_metadata.pkl     # Model metadata (gitignored)
-└── threshold_analysis/             # Analysis results (gitignored)
-    ├── samples/                    # Sample PDFs by threshold
-    ├── plots/                      # Visualizations
-    └── statistics.json             # Dataset stats
+spec/phase3/
+├── examples/
+│   ├── 08b_pdf_classifier_training.py      # Training script
+│   ├── 08b_pdf_feature_analysis.py         # Feature analysis
+│   └── 08b_pdf_threshold_analysis.py       # Threshold evaluation
+├── data/
+│   ├── pdf_classifier_real_data.xgb        # Trained model (gitignored)
+│   └── pdf_classifier_metadata.pkl         # Model metadata (gitignored)
+└── threshold_analysis/                     # Analysis results (gitignored)
+    ├── samples/                            # Sample PDFs by threshold
+    ├── plots/                              # Visualizations
+    └── statistics.json                     # Dataset stats
 ```
 
 ## Usage
