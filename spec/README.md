@@ -3,6 +3,8 @@
 ## Overview
 Structured approach to learning DataTrove: local development → distributed processing → production pipelines.
 
+**For creating new examples:** See [GUIDELINES.md](GUIDELINES.md) for spec and implementation standards.
+
 ## Learning Phases
 
 ### Phase 1: Local Development ✅ Complete
