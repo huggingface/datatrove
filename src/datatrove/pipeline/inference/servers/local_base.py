@@ -42,6 +42,7 @@ class LocalInferenceServer(InferenceServer):
         Raises:
             RuntimeError: If no available port found after max attempts
         """
+
         def _is_port_available(port: int, host: str = "127.0.0.1") -> bool:
             """Check if a port is available on the given host."""
             try:

@@ -326,7 +326,6 @@ def test_remote_vllm_server_end_to_end():
     3. Runs a full pipeline and verifies all documents are processed correctly
     4. Validates that the remote server approach works end-to-end
     """
-    import asyncio
     import threading
     import time
     from http.server import HTTPServer
@@ -343,8 +342,9 @@ def test_remote_vllm_server_end_to_end():
 
         # Find an available port for our mock server
         import socket
+
         sock = socket.socket()
-        sock.bind(('', 0))
+        sock.bind(("", 0))
         mock_port = sock.getsockname()[1]
         sock.close()
 

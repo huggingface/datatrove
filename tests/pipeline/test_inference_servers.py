@@ -5,8 +5,9 @@ Tests the base server classes (InferenceServer, LocalInferenceServer, RemoteInfe
 and the new VLLMRemoteServer implementation.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from datatrove.pipeline.inference.run_inference import InferenceConfig
 from datatrove.pipeline.inference.servers.remote_base import RemoteInferenceServer
