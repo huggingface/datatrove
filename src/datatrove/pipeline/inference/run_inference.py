@@ -28,6 +28,7 @@ from datatrove.pipeline.inference.servers import (
     DummyServer,
     InferenceServer,
     SGLangServer,
+    VLLMRemoteServer,
     VLLMServer,
 )
 from datatrove.pipeline.readers.jsonl import JsonlReader
@@ -141,6 +142,10 @@ class InferenceConfig:
 
     Attributes:
         server_type: Type of inference server to use
+            - "vllm": Local vLLM server
+            - "sglang": Local SGLang server
+            - "dummy": Local dummy server for testing
+            - "vllm-remote": External vLLM server (requires external_endpoint)
         model_name_or_path: Path or name of the model to load
         temperature: Sampling temperature for generation
         model_max_context: Maximum context length for the model
@@ -164,9 +169,11 @@ class InferenceConfig:
         server_log_folder: Optional directory path where server logs will be stored.
             If provided, creates one log file per rank (e.g., server_rank_0.log). If None, server output
             is muted after startup completion.
+        external_endpoint: URL of external inference server (required for "vllm-remote" server_type).
+            Example: "http://my-vllm-server.com:8000" or "https://api.service.com"
     """
 
-    server_type: Literal["sglang", "vllm", "dummy"]
+    server_type: Literal["sglang", "vllm", "dummy", "vllm-remote"]
     model_name_or_path: str
     temperature: float = 0.0
     model_max_context: int = 8192
@@ -179,6 +186,7 @@ class InferenceConfig:
     use_chat: bool = True
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
+    external_endpoint: str | None = None
 
     def __post_init__(self):
         if self.max_concurrent_tasks is None:
@@ -423,7 +431,10 @@ class InferenceRunner(PipelineStep):
     # --------------------------------------------------------------------- #
     def _init_server(self) -> InferenceServer:
         """
-        Spawn the requested inference server (non-blocking).
+        Initialize the requested inference server (non-blocking).
+
+        For local servers (vllm, sglang, dummy), spawns a new server process.
+        For remote servers (vllm-remote), connects to an existing external endpoint.
 
         Returns:
             The initialized inference server instance
@@ -433,12 +444,18 @@ class InferenceRunner(PipelineStep):
         """
         stype = self.config.server_type
 
+        # Local servers
         if stype == "sglang":
             return SGLangServer(self.config)
         elif stype == "vllm":
             return VLLMServer(self.config)
         elif stype == "dummy":
             return DummyServer(self.config)
+
+        # Remote servers
+        elif stype == "vllm-remote":
+            return VLLMRemoteServer(self.config)
+
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 

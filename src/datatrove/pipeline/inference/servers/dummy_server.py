@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from datatrove.pipeline.inference.servers import InferenceServer
+from datatrove.pipeline.inference.servers.local_base import LocalInferenceServer
 
 
 if TYPE_CHECKING:
@@ -78,7 +78,7 @@ class DummyHandler(BaseHTTPRequestHandler):
         pass
 
 
-class DummyServer(InferenceServer):
+class DummyServer(LocalInferenceServer):
     """Dummy inference server for debugging and testing."""
 
     def __init__(self, config: "InferenceConfig"):
