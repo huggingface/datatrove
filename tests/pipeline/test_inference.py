@@ -316,5 +316,126 @@ def test_complete_pipeline_with_various_scenarios():
         )
 
 
+def test_remote_vllm_server_end_to_end():
+    """
+    End-to-end test using vllm-remote server type with a mock external endpoint.
+
+    This test:
+    1. Starts a local DummyServer to simulate an external vLLM server
+    2. Configures InferenceRunner with vllm-remote to connect to this "external" server
+    3. Runs a full pipeline and verifies all documents are processed correctly
+    4. Validates that the remote server approach works end-to-end
+    """
+    import asyncio
+    import threading
+    import time
+    from http.server import HTTPServer
+
+    # We'll reuse DummyServer's HTTP handler
+    from datatrove.pipeline.inference.servers.dummy_server import DummyHandler
+
+    num_docs = 10
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_path = Path(temp_dir) / "output"
+        logs_path = Path(temp_dir) / "logs"
+        checkpoint_path = Path(temp_dir) / "checkpoints"
+
+        # Find an available port for our mock server
+        import socket
+        sock = socket.socket()
+        sock.bind(('', 0))
+        mock_port = sock.getsockname()[1]
+        sock.close()
+
+        # Start a simple HTTP server in a background thread to simulate external vLLM
+        mock_server = HTTPServer(("localhost", mock_port), DummyHandler)
+
+        def run_server():
+            mock_server.serve_forever()
+
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+
+        # Give server time to start
+        time.sleep(0.5)
+
+        try:
+            # Create test documents
+            documents = [Document(text=f"Remote test doc {i}", id=str(i)) for i in range(num_docs)]
+
+            def query_builder(runner, document):
+                return {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": document.text}],
+                        }
+                    ],
+                    "max_tokens": 100,
+                }
+
+            # Configure to use vllm-remote with our mock server
+            config = InferenceConfig(
+                server_type="vllm-remote",
+                model_name_or_path="test-model",
+                external_endpoint=f"http://localhost:{mock_port}",
+                temperature=0.0,
+                max_concurrent_requests=5,
+                max_concurrent_tasks=5,
+                metric_interval=120,
+            )
+
+            pipeline_executor = LocalPipelineExecutor(
+                pipeline=[
+                    documents,
+                    InferenceRunner(
+                        query_builder=query_builder,
+                        config=config,
+                        records_per_chunk=100,  # All docs in one chunk
+                        checkpoints_local_dir=str(checkpoint_path),
+                        output_writer=JsonlWriter(
+                            str(output_path),
+                            output_filename="${rank}_chunk_${chunk_index}.jsonl",
+                            compression=None,
+                        ),
+                    ),
+                ],
+                logging_dir=str(logs_path),
+                tasks=1,
+            )
+
+            # Run the pipeline
+            pipeline_executor.run()
+
+            # Verify results
+            final_docs, final_files = read_output_files(output_path)
+
+            # All documents should be processed
+            assert len(final_docs) == num_docs, f"Expected {num_docs} documents, got {len(final_docs)}"
+
+            # Check all document IDs present
+            processed_ids = {doc["id"] for doc in final_docs}
+            expected_ids = {str(i) for i in range(num_docs)}
+            assert processed_ids == expected_ids, "Not all documents were processed"
+
+            # Verify inference results exist
+            for doc in final_docs:
+                assert "metadata" in doc
+                assert "inference_results" in doc["metadata"]
+                inference_results = doc["metadata"]["inference_results"]
+                assert len(inference_results) > 0
+
+                # Check structure of inference results
+                for result in inference_results:
+                    assert "text" in result
+                    assert "finish_reason" in result
+                    assert "usage" in result
+
+        finally:
+            # Cleanup: shutdown the mock server
+            mock_server.shutdown()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

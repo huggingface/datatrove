@@ -122,6 +122,27 @@ class RemoteInferenceServer(InferenceServer):
             f"Please verify the server is running and accessible."
         )
 
+    async def host_server(self, rank: int = 0, max_retries: int = 5) -> None:
+        """
+        Host/manage the remote server.
+
+        For remote servers, there's no server to host since it's already running externally.
+        This method exists for API compatibility with LocalInferenceServer.
+        It simply waits indefinitely (acting as a no-op background task).
+
+        Args:
+            rank: Process rank identifier (unused for remote servers)
+            max_retries: Maximum retries (unused for remote servers)
+        """
+        # Remote servers are already running, so just wait indefinitely
+        # This task will be cancelled when the inference is complete
+        try:
+            while True:
+                await asyncio.sleep(3600)  # Sleep for an hour at a time
+        except asyncio.CancelledError:
+            logger.info(f"Remote server connection to {self.endpoint} cancelled")
+            raise
+
     def cancel(self) -> None:
         """
         Cancel/cleanup for remote server.
