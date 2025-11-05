@@ -66,7 +66,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             raise ValueError("local_working_dir must be a local path")
         if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER", "0") == "1":
             logger.warning(
-                'You should now use xet for uploads.\nSee https://hf.co/docs/huggingface_hub/en/guides/download#faster-downloads\nexport HF_HUB_ENABLE_HF_TRANSFER=0'
+                "You should now use xet for uploads.\nSee https://hf.co/docs/huggingface_hub/en/guides/download#faster-downloads\nexport HF_HUB_ENABLE_HF_TRANSFER=0"
             )
         super().__init__(
             output_folder=local_working_dir,
@@ -115,7 +115,11 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 )
                 break
             except HfHubHTTPError as e:
-                if "A commit has happened since" in e.server_message or "maximum queue size reached" in e.server_message or "maximum time in concurrency queue reached" in e.server_message:
+                if (
+                    "A commit has happened since" in e.server_message
+                    or "maximum queue size reached" in e.server_message
+                    or "maximum time in concurrency queue reached" in e.server_message
+                ):
                     if retries >= MAX_RETRIES:
                         logger.error(f"Failed to create commit after {MAX_RETRIES=}. Giving up.")
                         raise e

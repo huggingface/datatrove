@@ -122,7 +122,6 @@ class ExtractorSandbox:
             except EOFError:
                 break
 
-
     def process_document(self, text, extract_fn):
         self._ensure_process(extract_fn)
         try:
@@ -182,7 +181,7 @@ class ExtractorSandbox:
             # Step 1: Terminate all processes
             for i, process in enumerate(alive_processes):
                 try:
-                    logger.debug(f"Terminating process {i+1}/{len(alive_processes)}: {process.pid}")
+                    logger.debug(f"Terminating process {i + 1}/{len(alive_processes)}: {process.pid}")
                     process.terminate()
                 except Exception as e:
                     logger.warning(f"Error terminating process {process.pid}: {e}")

@@ -372,7 +372,13 @@ class MinhashDedupBuckets(PipelineStep):
                     max_hash=hash_max,
                     lines_to_buffer=self.lines_to_buffer,
                 )
-                for file_i, file in enumerate(self.input_folder.open_files(sig_files, mode="rb", block_size=self.lines_to_buffer * line_size if self.lines_to_buffer != -1 else None))
+                for file_i, file in enumerate(
+                    self.input_folder.open_files(
+                        sig_files,
+                        mode="rb",
+                        block_size=self.lines_to_buffer * line_size if self.lines_to_buffer != -1 else None,
+                    )
+                )
             ]
 
             own_index_regex = re.compile(rf"bucket_{bucket:03d}/{self.create_index_name}_\d{{2}}.minhash.index")
