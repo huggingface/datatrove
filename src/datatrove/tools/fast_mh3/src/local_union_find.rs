@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 // use tokio::time::{Duration, sleep};
 use tokio::sync::Semaphore;
 
+const SENTINEL: u32 = u32::MAX;
+
 // fn format_duration(duration: Duration) -> String {
 //     let secs = duration.as_secs();
 //     let hours = secs / 3600;
@@ -342,7 +344,7 @@ async fn main() -> Result<()> {
                     let size_a = *data.set_size.get(&root_a).unwrap_or(&1);
                     let size_b = *data.set_size.get(&root_b).unwrap_or(&1);
 
-                    let (big_root, small_root) = if size_a >= size_b {
+                    let (big_root, small_root) = if root_a == (SENTINEL, SENTINEL) || (size_a >= size_b && root_b != (SENTINEL, SENTINEL)) {
                         (root_a, root_b)
                     } else {
                         (root_b, root_a)
