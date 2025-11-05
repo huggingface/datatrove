@@ -355,7 +355,7 @@ JsonlWriter(
 For deduplication check the examples [minhash_deduplication.py](examples/minhash_deduplication.py), [sentence_deduplication.py](examples/sentence_deduplication.py) and [exact_substrings.py](examples/exact_substrings.py).
 
 ### Summary Statistics
-For summary statistics on your data you can use the [Stats](src/datatrove/pipeline/stats/summary_stats/) blocks. These blocks provide an easy way to collect data-profiles on your dataset in a distributed manner. It's a two step process in which you first:
+For summary statistics on your data you can use the [Stats](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/stats) blocks. These blocks provide an easy way to collect data-profiles on your dataset in a distributed manner. It's a two step process in which you first:
 1) For each shard iterate over documents and collect stats into of the following groupings `summary` (all docs counted to "summary" key), `fqdn` (fully qualified domain name grouping), `suffix` (the last part of the url path grouping) or `histogram` (value based grouping).
 2) Merge the stats from different shards into a single file.
 See the [summary_stats.py](examples/summary_stats.py) for more details.
