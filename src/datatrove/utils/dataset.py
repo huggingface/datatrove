@@ -290,7 +290,7 @@ if is_torch_available():
                     glob_pattern=self.filename_pattern, recursive=self.recursive
                 )
                 if not matched_files:
-                    raise FileNotFoundError(f'No files matching "{self.filename_pattern}" found in {self.data_folder}')
+                    raise FileNotFoundError(f'No files matching "{self.filename_pattern}" found in {self.folder_path}')
             else:
                 with open_file(self.paths_file, "r") as f:
                     file_data = json.load(f)
