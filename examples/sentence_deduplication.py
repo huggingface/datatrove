@@ -17,7 +17,7 @@ https://jmlr.org/papers/v21/20-074.html
 
 to run deduplication we need to run three different pipelines,
 pipeline 1:
-    implements usual extraction + quality filtering, it ends with SentenceDedupSignature, preprended by a writer.
+    implements usual extraction + quality filtering, it ends with SentenceDedupSignature, prepended by a writer.
 pipeline 2:
     implements only SentenceFindDedups
 pipeline 3:

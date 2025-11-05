@@ -16,7 +16,7 @@ class LocalPipelineExecutor(PipelineExecutor):
     """Executor to run a pipeline locally
 
     Args:
-        pipeline: a list of PipelineStep and/or custom lamdba functions
+        pipeline: a list of PipelineStep and/or custom lambda functions
             with arguments (data: DocumentsPipeline, rank: int,
             world_size: int)
         tasks: total number of tasks to run the pipeline on (default: 1)
