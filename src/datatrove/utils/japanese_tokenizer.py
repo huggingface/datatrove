@@ -30,12 +30,12 @@ DEFAULT_CONFIG = """
 [nlp]
 
 [nlp.tokenizer]
-@tokenizers = "spacy.ja.JapaneseTokenizer"
+@tokenizers = "datatrove.ja.JapaneseTokenizer"
 split_mode = null
 """
 
 
-@registry.tokenizers("spacy.ja.JapaneseTokenizer")
+@registry.tokenizers("datatrove.ja.JapaneseTokenizer")
 def create_tokenizer(split_mode: Optional[str] = None):
     def japanese_tokenizer_factory(nlp):
         return JapaneseTokenizer(nlp.vocab, split_mode=split_mode)

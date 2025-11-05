@@ -1,4 +1,3 @@
-import platform
 import time
 from abc import abstractmethod
 from multiprocessing import Pipe, Process
@@ -83,11 +82,19 @@ class BaseExtractor(PipelineStep):
 
 
 class ExtractorSandbox:
-    def __init__(self, timeout):
+    def __init__(self, timeout, wamup_text):
         self.timeout = timeout
         self.process = None
         self.parent_conn = None
+        self.wamup_text = wamup_text
         self.child_conn = None
+        self.all_processes = []
+
+    def set_oom_score_adj(self, score):
+        if not -1000 <= score <= 1000:
+            raise ValueError("Score must be between -1000 and +1000")
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write(f"{score}\n")
 
     def _cleanup_process(self):
         if self.process is not None:
@@ -101,19 +108,11 @@ class ExtractorSandbox:
             self.parent_conn = None
             self.child_conn = None
 
-    def _set_oom_score_adj(self, score):
-        # Only for linux
-        if platform.system() == "Linux":
-            if not -1000 <= score <= 1000:
-                raise ValueError("Score must be between -1000 and +1000")
-            with open("/proc/self/oom_score_adj", "w") as f:
-                f.write(f"{score}\n")
-
     def _worker(self, conn, extract_fn):
-        # Ensure that the child process is killed first on oom
-        self._set_oom_score_adj(1000)
+        # Ensure this process is killed first
+        self.set_oom_score_adj(1000)
 
-        extract_fn("")  # "warmup"
+        extract_fn(self.wamup_text)  # "warmup"
         conn.send(None)  # ready
         while True:
             try:
@@ -131,8 +130,6 @@ class ExtractorSandbox:
             deadline = time.monotonic() + self.timeout
             # loop with short sleeps instead of one big poll()
             while True:
-                # 5 seconds is small enough not to take cpu time too much but not big enough so that we return quikly
-                # on child process death, so that we indeed after the return (not sure if needed)
                 poll_timeout = max(0, min(5, deadline - time.monotonic() + 0.1))
                 if self.parent_conn.poll(poll_timeout):
                     result = self.parent_conn.recv()
@@ -142,12 +139,10 @@ class ExtractorSandbox:
 
                 # 2) Has the child died?
                 if not self.process.is_alive():
-                    self._cleanup_process()
-                    raise EOFError("Child process died (likely OOM-killed)")
+                    raise EOFError("Child process died (probably OOM-killed)")
 
                 # 3) Has our deadline passed?
                 if time.monotonic() >= deadline:
-                    self._cleanup_process()
                     raise TimeoutError("Document extraction timed out")
         except (TimeoutError, EOFError):
             self._cleanup_process()
@@ -159,13 +154,64 @@ class ExtractorSandbox:
                 self._cleanup_process()
 
             self.parent_conn, self.child_conn = Pipe()
-            self.process = Process(target=self._worker, args=(self.child_conn, extract_fn))
+            self.process = Process(target=self._worker, args=(self.child_conn, extract_fn), daemon=True)
             self.process.start()
-            self.parent_conn.recv()
+            self.all_processes.append(self.process)
+            # Wait for the "ready" signal from the worker process with a timeout
+            if self.parent_conn.poll(self.timeout):
+                self.parent_conn.recv()  # Receive the None signal
+            else:
+                # Timeout occurred before the worker process signaled it's ready
+                self._cleanup_process()
+                raise TimeoutError(
+                    f"Worker process failed to initialize within {self.timeout} seconds (warmup timeout)."
+                )
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # First, clean up the current process
         self._cleanup_process()
-        return False
+        # Now clean up ALL processes
+        alive_processes = [p for p in self.all_processes if p.is_alive()]
+        logger.info(f"Found {len(alive_processes)} alive processes to terminate")
+
+        if alive_processes:
+            # Step 1: Terminate all processes
+            for i, process in enumerate(alive_processes):
+                try:
+                    logger.debug(f"Terminating process {i + 1}/{len(alive_processes)}: {process.pid}")
+                    process.terminate()
+                except Exception as e:
+                    logger.warning(f"Error terminating process {process.pid}: {e}")
+
+            # Step 2: Give them time to terminate gracefully (longer timeout)
+            logger.info("Waiting up to 5 seconds for processes to terminate gracefully...")
+            for process in alive_processes:
+                try:
+                    process.join(timeout=5.0)  # Much longer timeout
+                except Exception as e:
+                    logger.warning(f"Error joining process {process.pid}: {e}")
+
+            # Step 3: Kill any remaining processes
+            still_alive_processes = [p for p in alive_processes if p.is_alive()]
+            if still_alive_processes:
+                logger.warning(f"Force killing {len(still_alive_processes)} stubborn processes...")
+                for process in still_alive_processes:
+                    try:
+                        logger.debug(f"Killing process {process.pid}")
+                        process.kill()
+                        process.join(timeout=2.0)  # Final join with timeout
+                    except Exception as e:
+                        logger.error(f"Error killing process {process.pid}: {e}")
+
+            # Step 4: Final check
+            final_alive = [p for p in self.all_processes if p.is_alive()]
+            if final_alive:
+                logger.error(f"Failed to clean up {len(final_alive)} processes! PIDs: {[p.pid for p in final_alive]}")
+            else:
+                logger.info("Successfully cleaned up all processes")
+
+        # Clear the list
+        self.all_processes.clear()
