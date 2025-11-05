@@ -112,6 +112,11 @@ class SpaCyTokenizer(WordTokenizer):
         elif language == "zh":
             config = {"nlp": {"tokenizer": {"segmenter": "jieba"}}}
             check_required_dependencies(f"{language} word tokenizer", ["jieba"])
+        elif language == "ja":
+            # Ensure spaCy uses our locally-registered Japanese tokenizer fix
+            # registered in datatrove.utils.japanese_tokenizer as datatrove.ja.JapaneseTokenizer
+            # See: https://github.com/explosion/spaCy/issues/13684
+            config = {"nlp": {"tokenizer": {"@tokenizers": "datatrove.ja.JapaneseTokenizer"}}}
         self.config = config
         self._tokenizer = None
 
