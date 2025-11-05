@@ -1,3 +1,4 @@
+import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -38,6 +39,180 @@ class ControlledQueryBuilder:
             ],
             "max_tokens": 100,
         }
+
+
+def test_chunked_checkpoint_requires_chunk_index(tmp_path):
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        temperature=0.0,
+        model_max_context=2048,
+        max_concurrent_requests=1,
+        max_concurrent_tasks=1,
+        metric_interval=60,
+    )
+
+    with pytest.raises(ValueError, match="chunk_index"):
+        InferenceRunner(
+            query_builder=lambda runner, document: {},
+            config=config,
+            output_writer=JsonlWriter(
+                str(tmp_path / "no_chunk"),
+                output_filename="${rank}.jsonl",
+                compression=None,
+            ),
+            checkpoints_local_dir=str(tmp_path / "checkpoints"),
+            records_per_chunk=10,
+        )
+
+    try:
+        InferenceRunner(
+            query_builder=lambda runner, document: {},
+            config=config,
+            output_writer=JsonlWriter(
+                str(tmp_path / "with_chunk"),
+                output_filename="${rank}_chunk_${chunk_index}.jsonl",
+                compression=None,
+            ),
+            checkpoints_local_dir=str(tmp_path / "checkpoints_ok"),
+            records_per_chunk=10,
+        )
+    except ValueError as exc:  # pragma: no cover - explicit failure message
+        pytest.fail(f"InferenceRunner should allow chunk_index templates: {exc}")
+
+
+def test_callback_recursion_processes_all_parts(tmp_path):
+    parts = ["first chunk", "second chunk", "third chunk"]
+
+    def callback_query_builder(runner, document):
+        inference_results = document.metadata.get("inference_results") or []
+        part_index = min(len(inference_results), len(parts) - 1)
+        callback_flag = len(inference_results) < len(parts) - 1
+
+        document.metadata["builder_calls"] = document.metadata.get("builder_calls", 0) + 1
+        document.metadata.setdefault("parts_served", []).append(part_index)
+        document.metadata.setdefault("callback_flags", []).append(callback_flag)
+
+        return {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Process part {part_index}: {parts[part_index]}",
+                        }
+                    ],
+                }
+            ],
+            "max_tokens": 128,
+            "callback": callback_flag,
+        }
+
+    output_dir = tmp_path / "callback_output"
+    documents = [Document(text="dummy", id="callback-doc")]
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        temperature=0.0,
+        model_max_context=4096,
+        max_concurrent_requests=1,
+        max_concurrent_tasks=1,
+        metric_interval=60,
+    )
+
+    runner = InferenceRunner(
+        query_builder=callback_query_builder,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+
+    doc = documents[0]
+    assert doc.metadata["builder_calls"] == len(parts)
+    assert doc.metadata["parts_served"] == [0, 1, 2]
+    assert doc.metadata["callback_flags"] == [True, True, False]
+    assert len(doc.metadata["inference_results"]) == len(parts)
+
+    output_file = output_dir / "00000.jsonl"
+    assert output_file.exists(), "Expected output document to be saved"
+    with output_file.open() as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    assert len(lines) == 1, "Document should be written once after callbacks finish"
+    saved_doc = json.loads(lines[0])
+    assert saved_doc["id"] == "callback-doc"
+    assert len(saved_doc["metadata"]["inference_results"]) == len(parts)
+
+
+def test_query_builder_none_payload_skips_document(tmp_path):
+    output_dir = tmp_path / "none_payload_output"
+    documents = [Document(text="skip me", id="skip-none")]
+
+    def none_query_builder(runner, document):
+        return None
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        temperature=0.0,
+        model_max_context=2048,
+        max_concurrent_requests=1,
+        max_concurrent_tasks=1,
+        metric_interval=60,
+    )
+
+    runner = InferenceRunner(
+        query_builder=none_query_builder,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+
+    doc = documents[0]
+    assert not doc.metadata.get("inference_results"), "Document should have no inference results when payload is None"
+    output_file = output_dir / "00000.jsonl"
+    assert not output_file.exists() or output_file.read_text().strip() == "", (
+        "No output should be written for skipped document"
+    )
+
+
+def test_async_query_builder_none_payload_skips_document(tmp_path):
+    output_dir = tmp_path / "none_async_output"
+    documents = [Document(text="skip me async", id="skip-async")]
+
+    async def none_async_builder(runner, document):
+        yield None
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        temperature=0.0,
+        model_max_context=2048,
+        max_concurrent_requests=1,
+        max_concurrent_tasks=1,
+        metric_interval=60,
+    )
+
+    runner = InferenceRunner(
+        query_builder=none_async_builder,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+
+    doc = documents[0]
+    assert not doc.metadata.get("inference_results"), (
+        "Document should have no inference results when async payload is None"
+    )
+    output_file = output_dir / "00000.jsonl"
+    assert not output_file.exists() or output_file.read_text().strip() == "", (
+        "No output should be written for skipped document"
+    )
 
 
 def read_output_files(output_path):
@@ -99,7 +274,9 @@ def test_checkpoint_recovery_and_completeness():
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
                     output_writer=JsonlWriter(
-                        str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+                        str(output_path),
+                        output_filename="${rank}_chunk_${chunk_index}.jsonl",
+                        compression=None,
                     ),
                 ),
             ],
@@ -146,7 +323,9 @@ def test_checkpoint_recovery_and_completeness():
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
                     output_writer=JsonlWriter(
-                        str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+                        str(output_path),
+                        output_filename="${rank}_chunk_${chunk_index}.jsonl",
+                        compression=None,
                     ),
                 ),
             ],
@@ -260,7 +439,9 @@ def test_complete_pipeline_with_various_scenarios():
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
                     output_writer=JsonlWriter(
-                        str(output_path), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+                        str(output_path),
+                        output_filename="${rank}_chunk_${chunk_index}.jsonl",
+                        compression=None,
                     ),
                 ),
             ],

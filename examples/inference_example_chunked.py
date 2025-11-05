@@ -16,7 +16,7 @@ from datatrove.pipeline.writers import JsonlWriter
 
 # For creating query payloads, you have 2 options:
 # 1. Create a simple query builder that returns a dict
-def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
+def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any] | None:
     """
     Simple query builder that extracts text from document for OCR processing.
 
@@ -38,6 +38,60 @@ def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[st
         ],
         "max_tokens": 2048,
     }
+
+
+def large_sample_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any] | None:
+    """Query builder that chunks long samples and requests callbacks for continuation."""
+
+    MAX_CHARS_PER_PART = 4000
+    instruction = "Rewrite this in a more formal style:"
+    chunks = document.metadata.get("chunks")
+    if not chunks:
+        text = document.text
+        if len(text) > MAX_CHARS_PER_PART:
+            chunks = [text[i : i + MAX_CHARS_PER_PART] for i in range(0, len(text), MAX_CHARS_PER_PART)]
+            document.metadata["chunks"] = chunks
+        else:
+            chunks = [text]
+
+    inference_results = document.metadata.get("inference_results") or []
+    total_parts = len(chunks)
+    current_index = min(len(inference_results), total_parts - 1)
+    current_chunk = chunks[current_index]
+
+    if current_index == 0:
+        payload = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"{instruction}\n\n{current_chunk}",
+                }
+            ],
+        }
+    else:
+        previous_chunk = chunks[current_index - 1]
+        previous_result = inference_results[-1]
+        previous_generation = getattr(previous_result, "text", str(previous_result))
+        payload = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"{instruction}\n\n{previous_chunk}{current_chunk}",
+                },
+                {
+                    "role": "assistant",
+                    "content": previous_generation,
+                },
+            ],
+            # see these params here https://docs.vllm.ai/en/v0.7.2/api/offline_inference/llm.html#vllm.LLM.chat
+            "continue_final_message": True,
+            "add_generation_prompt": False,
+            "echo": False,
+        }
+
+    # if we have a bunch of chunks for this sample, we want this function to be called again after the next generation is completed
+    payload["callback"] = len(inference_results) < total_parts - 1
+    return payload
 
 
 # 2. Create an async query builder that returns an async generator of dicts. Use this option if you need
@@ -117,7 +171,7 @@ pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
         # Read input documents
         documents,
         InferenceRunner(
-            query_builder=simple_query_builder,
+            query_builder=large_sample_query_builder,
             config=config,
             records_per_chunk=500,  # Enable chunking with 500 documents per chunk
             checkpoints_local_dir=CHECKPOINTS_PATH,  # leave unset to disable checkpointing behaviour
