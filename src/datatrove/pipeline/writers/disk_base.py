@@ -9,8 +9,8 @@ from typing import IO, Callable
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.typeshelper import StatHints
 from datatrove.utils.logging import logger
+from datatrove.utils.typeshelper import StatHints
 
 
 class DiskWriter(PipelineStep, ABC):
@@ -49,7 +49,7 @@ class DiskWriter(PipelineStep, ABC):
         self.file_id_counter = Counter()
         if self.max_file_size > 0 and mode != "wb":
             raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
-        
+
         self.output_filename = Template(output_filename)
         if self.output_filename.safe_substitute(rank=0) == output_filename:
             logger.warning(
