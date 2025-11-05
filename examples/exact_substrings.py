@@ -7,7 +7,6 @@ from datatrove.pipeline.extractors import Trafilatura
 from datatrove.pipeline.filters import GopherQualityFilter, LanguageFilter
 from datatrove.pipeline.readers import JsonlReader, WarcReader
 from datatrove.pipeline.writers.jsonl import JsonlWriter
-from datatrove.utils.typeshelper import Languages
 
 
 """
@@ -40,7 +39,7 @@ def run_step_1_and_2():
         WarcReader(data_folder="warc/", limit=1000),
         Trafilatura(),
         GopherQualityFilter(min_stop_words=0),
-        LanguageFilter(language_threshold=0.5, languages=[Languages.english]),
+        LanguageFilter(language_threshold=0.5, languages=["en"]),
         JsonlWriter("intermediate/"),
         ESDatasetToSequence(output_folder="es/"),
     ]
