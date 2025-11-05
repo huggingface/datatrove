@@ -353,7 +353,7 @@ class InferenceRunner(PipelineStep):
 
     def __init__(
         self,
-        query_builder: Callable[[InferenceRunner, Document], AsyncGenerator[dict, None] | dict],
+        query_builder: Callable[[InferenceRunner, Document], AsyncGenerator[dict, None] | dict | None],
         config: InferenceConfig,
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
@@ -369,6 +369,7 @@ class InferenceRunner(PipelineStep):
                           Can return either:
                           - AsyncGenerator[dict, None]: async generator yielding dicts
                           - dict: single payload dict
+                          - None: skip the document
             config: Configuration for the inference server and processing
             output_writer: Writer for saving inference results
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
@@ -650,6 +651,8 @@ class InferenceRunner(PipelineStep):
                 if isinstance(payloads_result, AsyncGenerator):
                     # It's an async generator - process each payload as soon as it's yielded
                     async for payload in payloads_result:
+                        if payload is None:
+                            continue
                         callback_requested = callback_requested or payload.pop("callback", False) is True
                         # Set default values for payload
                         payload.setdefault("model", self.config.model_name_or_path)
@@ -658,6 +661,8 @@ class InferenceRunner(PipelineStep):
                         # Start request immediately
                         task = asyncio.create_task(self._send_request(payload, semaphore))
                         request_tasks.append(task)
+                    if not request_tasks:
+                        return
 
                 elif isinstance(payloads_result, dict):
                     # Single dict
@@ -667,6 +672,8 @@ class InferenceRunner(PipelineStep):
                     payload.setdefault("temperature", self.config.temperature)
                     task = asyncio.create_task(self._send_request(payload, semaphore))
                     request_tasks.append(task)
+                elif payloads_result is None:
+                    return
 
                 if not request_tasks:
                     raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
@@ -682,7 +689,7 @@ class InferenceRunner(PipelineStep):
                         raise InferenceProcessingError(doc, result.error)
 
                 # Store results directly in document metadata
-                doc.metadata["inference_results"] = results
+                doc.metadata.setdefault("inference_results", []).extend(results)
 
                 # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
                 if self.postprocess_fn:

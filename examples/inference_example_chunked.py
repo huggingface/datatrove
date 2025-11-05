@@ -16,7 +16,7 @@ from datatrove.pipeline.writers import JsonlWriter
 
 # For creating query payloads, you have 2 options:
 # 1. Create a simple query builder that returns a dict
-def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
+def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any] | None:
     """
     Simple query builder that extracts text from document for OCR processing.
 
@@ -40,7 +40,7 @@ def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[st
     }
 
 
-def large_sample_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any]:
+def large_sample_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any] | None:
     """Query builder that chunks long samples and requests callbacks for continuation."""
 
     MAX_CHARS_PER_PART = 4000
