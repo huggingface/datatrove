@@ -375,7 +375,7 @@ def launch_slurm_job(launch_file_contents, job_id_retriever: Callable, *args) ->
         Small helper function to save a sbatch script and call it.
     Args:
         launch_file_contents: Contents of the sbatch script
-        job_id_position: Index of dependecy job ID.
+        job_id_position: Index of dependency job ID.
         *args: any other arguments to pass to the sbatch command
 
     Returns: the id of the launched slurm job

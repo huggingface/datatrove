@@ -60,6 +60,7 @@ processing = [
     "fasteners",
     "regex",
     "xxhash",
+#    "kenlm",
     "pyahocorasick"
 ]
 decont = [

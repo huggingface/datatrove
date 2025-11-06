@@ -50,7 +50,7 @@ class RayPipelineExecutor(PipelineExecutor):
     been set up (e.g., via `ray.init()`) prior to invoking this pipeline.
 
     Args:
-        pipeline: a list of PipelineStep and/or custom lamdba functions
+        pipeline: a list of PipelineStep and/or custom lambda functions
             with arguments (data: DocumentsPipeline, rank: int,
             world_size: int)
         tasks: total number of tasks to run the pipeline on (default: 1)

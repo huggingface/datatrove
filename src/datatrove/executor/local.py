@@ -16,7 +16,7 @@ class LocalPipelineExecutor(PipelineExecutor):
     """Executor to run a pipeline locally
 
     Args:
-        pipeline: a list of PipelineStep and/or custom lamdba functions
+        pipeline: a list of PipelineStep and/or custom lambda functions
             with arguments (data: DocumentsPipeline, rank: int,
             world_size: int)
         tasks: total number of tasks to run the pipeline on (default: 1)
@@ -98,7 +98,9 @@ class LocalPipelineExecutor(PipelineExecutor):
             if not self.depends._launched:
                 logger.info(f'Launching dependency job "{self.depends}"')
                 self.depends.run()
-            while (incomplete := len(self.depends.get_incomplete_ranks())) > 0:
+            while (
+                incomplete := len(self.depends.get_incomplete_ranks(skip_completed=True))
+            ) > 0:  # set skip_completed=True to get *real* incomplete task count
                 logger.info(f"Dependency job still has {incomplete}/{self.depends.world_size} tasks. Waiting...")
                 time.sleep(2 * 60)
 

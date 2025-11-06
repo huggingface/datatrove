@@ -259,13 +259,14 @@ class CheckpointManager:
         if not self.checkpoints_local_dir:
             return 0, all_ids
 
+        should_update_last_chunk_index = False
+
         async with self.checkpoint_file_lock:
             if self.checkpoints_local_dir_df.exists(f"last_chunk/{rank:05d}.txt"):
                 with self.checkpoints_local_dir_df.open(f"last_chunk/{rank:05d}.txt", "r") as f:
                     self.last_chunk_index = int(f.read().strip())
 
             reader = JsonlReader(self.checkpoints_local_dir, compression=None)
-            should_update_last_chunk_index = False
             # find existing chunk files and read from them
             for filename in self.checkpoints_local_dir_df.glob(f"{rank:05d}/*.jsonl"):
                 chunk_index = int(filename.removeprefix(f"{rank:05d}/chunk_").removesuffix(".jsonl"))
@@ -284,10 +285,10 @@ class CheckpointManager:
                             self.new_completed_chunks.add(chunk_index)
                             # update the last chunk index/delete local file etc
                             should_update_last_chunk_index = True
-            # can not be within the chunk lock
-            if should_update_last_chunk_index:
-                await self.update_last_chunk_index(rank)
-            return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
+        # can not be within the chunk lock
+        if should_update_last_chunk_index:
+            await self.update_last_chunk_index(rank)
+        return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
 
     async def cleanup_last_chunk(self, rank: int, chunk_index: int):
         import shutil
@@ -353,12 +354,12 @@ class InferenceRunner(PipelineStep):
 
     def __init__(
         self,
-        query_builder: Callable[[InferenceRunner, Document], AsyncGenerator[dict, None] | dict],
+        query_builder: Callable[[InferenceRunner, Document], AsyncGenerator[dict, None] | dict | None],
         config: InferenceConfig,
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
-        postprocess_fn: Callable[[Document], Document | None] | None = None,
+        postprocess_fn: Callable[[InferenceRunner, Document], Document | None] | None = None,
         skip_bad_requests: bool = False,
     ):
         """
@@ -369,12 +370,13 @@ class InferenceRunner(PipelineStep):
                           Can return either:
                           - AsyncGenerator[dict, None]: async generator yielding dicts
                           - dict: single payload dict
+                          - None: skip the document
             config: Configuration for the inference server and processing
             output_writer: Writer for saving inference results
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             skip_bad_requests: If True, will skip documents that cause BadRequestError from the server. Default: False.
-            postprocess_fn: Function that post-processes the document after inference. If it returns None, the document is not saved to output_writer.
+            postprocess_fn: Function that post-processes the document after inference. Takes the InferenceRunner instance and document as arguments. If it returns None, the document is not saved to output_writer.
         """
         super().__init__()
 
@@ -384,6 +386,14 @@ class InferenceRunner(PipelineStep):
         self.skip_bad_requests = skip_bad_requests
 
         self.output_writer = output_writer
+
+        if checkpoints_local_dir is not None:
+            template = getattr(self.output_writer, "output_filename", None)
+            template_str = getattr(template, "template", None)
+            if not template_str or template.safe_substitute(chunk_index=0) == template_str:
+                raise ValueError(
+                    "Checkpoint chunking requires an output writer filename template that includes ${chunk_index}. Example: '${rank}_chunk_${chunk_index}.jsonl'"
+                )
 
         self.checkpoint_manager = CheckpointManager(checkpoints_local_dir, records_per_chunk)
 
@@ -638,11 +648,15 @@ class InferenceRunner(PipelineStep):
 
                 # Handle different return types
                 request_tasks = []
+                callback_requested = False
 
                 # Check if it's an async generator
                 if isinstance(payloads_result, AsyncGenerator):
                     # It's an async generator - process each payload as soon as it's yielded
                     async for payload in payloads_result:
+                        if payload is None:
+                            continue
+                        callback_requested = callback_requested or payload.pop("callback", False) is True
                         # Set default values for payload
                         payload.setdefault("model", self.config.model_name_or_path)
                         payload.setdefault("temperature", self.config.temperature)
@@ -650,14 +664,19 @@ class InferenceRunner(PipelineStep):
                         # Start request immediately
                         task = asyncio.create_task(self._send_request(payload, semaphore))
                         request_tasks.append(task)
+                    if not request_tasks:
+                        return
 
                 elif isinstance(payloads_result, dict):
                     # Single dict
                     payload = payloads_result
+                    callback_requested = callback_requested or payload.pop("callback", False) is True
                     payload.setdefault("model", self.config.model_name_or_path)
                     payload.setdefault("temperature", self.config.temperature)
                     task = asyncio.create_task(self._send_request(payload, semaphore))
                     request_tasks.append(task)
+                elif payloads_result is None:
+                    return
 
 
                 # Wait for all requests to complete and collect results in order
@@ -674,15 +693,19 @@ class InferenceRunner(PipelineStep):
                         raise InferenceProcessingError(doc, result.error)
 
                 # Store results directly in document metadata
-                doc.metadata["inference_results"] = results
+                doc.metadata.setdefault("inference_results", []).extend(results)
 
                 # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
                 if self.postprocess_fn:
-                    postprocess_result = self.postprocess_fn(doc)
+                    postprocess_result = self.postprocess_fn(self, doc)
                     if postprocess_result is None:
                         doc.metadata["postprocess_remove"] = True
                     else:
                         doc = postprocess_result
+
+                if callback_requested:
+                    await _handle_record(doc, rank, chunk_index, output_writer_context)
+                    return
 
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceProcessingError as e:

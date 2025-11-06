@@ -28,6 +28,7 @@ class HuggingFaceDatasetReader(BaseReader):
         default_metadata: default metadata to add to all documents
         shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
             with dedup blocks
+        load_from_disk: Dataset is stored locally (as Arrow/Parquet shards)
     """
 
     name = "🤗 HuggingFace"
@@ -47,6 +48,7 @@ class HuggingFaceDatasetReader(BaseReader):
         id_key: str = "id",
         default_metadata: dict = None,
         shuffle_files: bool = False,
+        load_from_disk: bool = False,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.dataset = dataset
@@ -55,6 +57,12 @@ class HuggingFaceDatasetReader(BaseReader):
         self.doc_progress = doc_progress
         self.streaming = streaming
         self.shuffle_files = shuffle_files
+        self.load_from_disk = load_from_disk
+        if self.load_from_disk:
+            if dataset_options is not None:
+                logger.warning("Any dataset options passed when loading from disk will be ignored.")
+            if streaming:
+                logger.warning("Streaming cannot be used when loading from disk, will be ignored.")
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
         document = super().get_document_from_dict(data, source_file, id_in_file)
@@ -91,11 +99,14 @@ class HuggingFaceDatasetReader(BaseReader):
             return split_dataset_by_node(dataset=dst, rank=rank, world_size=world_size)
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        from datasets import load_dataset  # type: ignore
+        from datasets import load_dataset, load_from_disk  # type: ignore
 
         if data:
             yield from data
-        ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
+        if self.load_from_disk:
+            ds = load_from_disk(self.dataset)
+        else:
+            ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
 
         if self.shuffle_files:
             if not self.streaming:
