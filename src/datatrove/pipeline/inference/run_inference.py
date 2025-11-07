@@ -569,7 +569,7 @@ class InferenceRunner(PipelineStep):
             self.stat_update("successful_requests", value=successful_requests, unit="document")
             self.stat_update("failed_requests", value=failed_requests, unit="document")
             if skipped_requests:
-                self.stat_update("skipped_requests", value=skipped_requests, unit="document")
+                self.stat_update("skipped_requests", value=skipped_requests)
             self.stat_update("successful_documents", value=1)
 
             await self.checkpoint_manager.write_document(document, rank, chunk_index, output_writer_context)
