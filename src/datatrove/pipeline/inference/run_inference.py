@@ -542,7 +542,8 @@ class InferenceRunner(PipelineStep):
         try:
             inference_results = document.metadata.get("inference_results", [])  # type: ignore
             successful_requests = sum(1 for result in inference_results if isinstance(result, InferenceSuccess))  # type: ignore
-            failed_requests = len(inference_results) - successful_requests  # type: ignore
+            failed_requests = sum(1 for result in inference_results if isinstance(result, InferenceError))  # type: ignore
+            skipped_requests = 1 if document.metadata.pop("_inference_skipped", False) else 0
 
             # Track tokens for each inference result
             total_input_tokens = 0
@@ -562,10 +563,13 @@ class InferenceRunner(PipelineStep):
                 tokens_finished_input=total_input_tokens,
                 tokens_finished_output=total_output_tokens,
                 requests=len(inference_results),  # type: ignore
+                skipped_requests=skipped_requests,
             )
 
             self.stat_update("successful_requests", value=successful_requests, unit="document")
             self.stat_update("failed_requests", value=failed_requests, unit="document")
+            if skipped_requests:
+                self.stat_update("skipped_requests", value=skipped_requests, unit="document")
             self.stat_update("successful_documents", value=1)
 
             await self.checkpoint_manager.write_document(document, rank, chunk_index, output_writer_context)
@@ -646,6 +650,7 @@ class InferenceRunner(PipelineStep):
                 # Handle different return types
                 request_tasks = []
                 callback_requested = False
+                run_request = True
 
                 # Check if it's an async generator
                 if isinstance(payloads_result, AsyncGenerator):
@@ -662,7 +667,7 @@ class InferenceRunner(PipelineStep):
                         task = asyncio.create_task(self._send_request(payload, semaphore))
                         request_tasks.append(task)
                     if not request_tasks:
-                        return
+                        run_request = False
 
                 elif isinstance(payloads_result, dict):
                     # Single dict
@@ -673,35 +678,39 @@ class InferenceRunner(PipelineStep):
                     task = asyncio.create_task(self._send_request(payload, semaphore))
                     request_tasks.append(task)
                 elif payloads_result is None:
-                    return
+                    run_request = False
 
-                if not request_tasks:
+                if not request_tasks and run_request:
                     raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
 
+                if not run_request:
+                    doc.metadata["_inference_skipped"] = True
+
                 # Wait for all requests to complete and collect results in order
-                results = await asyncio.gather(*request_tasks)
+                if run_request:
+                    results = await asyncio.gather(*request_tasks)
 
-                for result in results:
-                    if isinstance(result, InferenceError) and (
-                        not self.skip_bad_requests or "BadRequestError" not in result.error
-                    ):
-                        # re-raise any non-skippable errors
-                        raise InferenceProcessingError(doc, result.error)
+                    for result in results:
+                        if isinstance(result, InferenceError) and (
+                            not self.skip_bad_requests or "BadRequestError" not in result.error
+                        ):
+                            # re-raise any non-skippable errors
+                            raise InferenceProcessingError(doc, result.error)
 
-                # Store results directly in document metadata
-                doc.metadata.setdefault("inference_results", []).extend(results)
+                    # Store results directly in document metadata
+                    doc.metadata.setdefault("inference_results", []).extend(results)
 
-                # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
-                if self.postprocess_fn:
-                    postprocess_result = self.postprocess_fn(self, doc)
-                    if postprocess_result is None:
-                        doc.metadata["postprocess_remove"] = True
-                    else:
-                        doc = postprocess_result
+                    # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
+                    if self.postprocess_fn:
+                        postprocess_result = self.postprocess_fn(self, doc)
+                        if postprocess_result is None:
+                            doc.metadata["postprocess_remove"] = True
+                        else:
+                            doc = postprocess_result
 
-                if callback_requested:
-                    await _handle_record(doc, rank, chunk_index, output_writer_context)
-                    return
+                    if callback_requested:
+                        await _handle_record(doc, rank, chunk_index, output_writer_context)
+                        return
 
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceProcessingError as e:
