@@ -683,9 +683,6 @@ class InferenceRunner(PipelineStep):
                 if not request_tasks and run_request:
                     raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
 
-                if not run_request:
-                    doc.metadata["_inference_skipped"] = True
-
                 # Wait for all requests to complete and collect results in order
                 if run_request:
                     results = await asyncio.gather(*request_tasks)
@@ -711,6 +708,8 @@ class InferenceRunner(PipelineStep):
                     if callback_requested:
                         await _handle_record(doc, rank, chunk_index, output_writer_context)
                         return
+                else:
+                    doc.metadata["_inference_skipped"] = True
 
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceProcessingError as e:
