@@ -56,7 +56,7 @@ class PipelineStep(ABC):
 
     def update_media_stats(self, media: Media):
         """
-            Compute some general media related statistics, such as length of each media in bytes
+        Update the statistics for a given media.
         Args:
           media: Media:
 

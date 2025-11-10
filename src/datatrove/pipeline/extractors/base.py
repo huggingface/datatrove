@@ -6,6 +6,7 @@ from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import StatHints
+import platform
 
 
 class BaseExtractor(PipelineStep):

@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import BinaryIO, Callable, Generator
-import inspect
 
 import numpy as np
 from fsspec.spec import AbstractBufferedFile
@@ -23,6 +22,7 @@ from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
 from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
+import inspect
 
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
@@ -141,11 +141,11 @@ class ExactDedupSignature(PipelineStep):
                     break
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[tuple[int, int, int]]:
-        bytes_to_hash: bytes | str = (
+        content_to_hash: bytes | str = (
             self.config.content_getter(doc)
         )
         priority = self.config.document_priority(doc) if self.config.document_priority else 1
-        hashes = [(self.hash_fc(bytes_to_hash), priority, doc_idx)] # type: ignore
+        hashes = [(self.hash_fc(content_to_hash), priority, doc_idx)] # type: ignore
 
         return hashes
 
@@ -195,6 +195,7 @@ class ExactFindDedups(PipelineStep):
         data_folder: data folder where signatures are saved
         output_folder: folder where duplicates are saved
         index_folder: folder where index files are saved
+        save_cluster_size: save the cluster size
         config: configuration for the dedup
         lines_to_buffer: number of lines to buffer (speed up reading)
     """
@@ -207,6 +208,7 @@ class ExactFindDedups(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         config: ExactDedupConfig,
+        save_cluster_size: bool = False,
         index_folder: DataFolderLike | None = None,
         lines_to_buffer: int = 5,
     ):
@@ -272,11 +274,11 @@ class ExactFindDedups(PipelineStep):
             logger.info("PQ initialized.")
 
             output_mg = self.output_folder.get_output_file_manager(mode="wb")
-            duplicate_counts_mg = self.output_folder.get_output_file_manager(mode="wb")
+            cluster_size_mg = self.output_folder.get_output_file_manager(mode="wb")
             last: HashSig | None = None
             duplicate_count = 0
             duplicate_packer = struct.Struct("<I")
-            duplicate_count_packer = struct.Struct("<II")
+            cluster_size_packer = struct.Struct("<II")
             while pq:
                 v: HashSig = heapq.heappop(pq)
                 if last is not None and last.hash_value == v.hash_value and not v.is_from_index():
@@ -289,7 +291,7 @@ class ExactFindDedups(PipelineStep):
                 if last is None or last.hash_value != v.hash_value:
                     # Save the duplicate count for v since we are switching to a new hash
                     if last is not None and not last.is_from_index() and duplicate_count > 0:
-                        duplicate_counts_mg.write(f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}", duplicate_count_packer.pack(last.doc_id, duplicate_count))
+                        cluster_size_mg.write(f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}", cluster_size_packer.pack(last.doc_id, duplicate_count))
                     last = v
                     duplicate_count = 0
 
@@ -300,9 +302,9 @@ class ExactFindDedups(PipelineStep):
 
         # Save the duplicate count for the last hash
         if last is not None and not last.is_from_index() and duplicate_count > 0:
-            duplicate_counts_mg.write(f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}", duplicate_count_packer.pack(last.doc_id, duplicate_count))
+            cluster_size_mg.write(f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}", cluster_size_packer.pack(last.doc_id, duplicate_count))
         output_mg.close()
-        duplicate_counts_mg.close()
+        cluster_size_mg.close()
 
 
 

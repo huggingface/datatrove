@@ -3,14 +3,12 @@ import atexit
 import logging
 import sys
 import os
-from typing import Any
-
-import httpx
-import torch
-
+from typing import TYPE_CHECKING
 from datatrove.pipeline.inference.servers import InferenceServer
-from datatrove.utils._import_utils import check_required_dependencies
 from loguru import logger
+
+if TYPE_CHECKING:
+    from datatrove.pipeline.inference.run_inference import InferenceConfig
 
 class CustomServer(InferenceServer):
     """Custom inference server implementation."""
@@ -32,7 +30,7 @@ class CustomServer(InferenceServer):
         self.server_process = None
 
     async def start_server_task(self) -> None:
-        """Start the Transformers server process."""
+        """Start the Custom server process."""
 
         # Create the command to run the transformers_batching_app directly
         cmd = [
