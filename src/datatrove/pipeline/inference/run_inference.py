@@ -211,7 +211,7 @@ class CheckpointManager:
         should_update_last_chunk_index = False
         async with self.file_locks[chunk_index]:
             # write to main output writer
-            if "postprocess_remove" not in document.metadata:
+            if "__no_rollouts_remove" not in document.metadata:
                 output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
             self.per_chunk_counts[chunk_index] += 1
 
@@ -262,7 +262,7 @@ class CheckpointManager:
                 # not strictly needed but just to be safe for the future
                 async with self.file_locks[chunk_index]:
                     for document in reader.read_file(filename):
-                        if "postprocess_remove" not in document.metadata:
+                        if "__no_rollouts_remove" not in document.metadata:
                             output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
                         all_ids.add(document.id)
                         self.per_chunk_counts[chunk_index] += 1
@@ -357,7 +357,7 @@ class InferenceRunner(PipelineStep):
             rollout_fn: Function to perform a single rollout for a document.
                 Takes the InferenceRunner instance, the document, and a callback that sends a request to the server.
                 Should return either an InferenceResult, a JSON-serializable value (dict, list, string, number, or bool),
-                or None if nothing should be stored for this rollout. The callback returns an InferenceResult and may raise
+                or None (if all rollouts return None, the document will be removed). The callback returns an InferenceResult and may raise
                 InferenceError if the request fails.
             config: Configuration for the inference server and processing
             output_writer: Writer for saving inference results
@@ -643,6 +643,9 @@ class InferenceRunner(PipelineStep):
                     value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]),
                     unit="document",
                 )
+
+                if len(doc.metadata[self.metadata_key]) == 0:
+                    doc.metadata["__no_rollouts_remove"] = True
 
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceError as e:
