@@ -6,7 +6,7 @@ from collections import deque
 from typing import Callable, Optional, Sequence
 
 from datatrove.executor.base import PipelineExecutor
-from datatrove.io import DataFolderLike, get_datafolder
+from datatrove.io import DataFolderLike, file_is_local, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipeline, logger
@@ -86,6 +86,14 @@ class RayPipelineExecutor(PipelineExecutor):
         tasks_per_job: int = 1,
         time: Optional[int] = None,
     ):
+        # Check if the logging_dir is local fs and if so issue a warning that for synchronization it has to be a shared filesystem
+        if logging_dir and file_is_local(logging_dir):
+            logger.warning(
+                "Logging directory points to a local filesystem. For correct synchronization to work this "
+                "filesystem needs be shared across the submitting node as well as the workers and needs "
+                "to be persistent across node restarts."
+            )
+
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
@@ -158,7 +166,7 @@ class RayPipelineExecutor(PipelineExecutor):
 
         # 7) Wait for the tasks to finish, merging them as they complete.
         while unfinished:
-            finished, unfinished = ray.wait(unfinished, num_returns=len(unfinished), timeout=10)
+            finished, unfinished = ray.wait(unfinished, timeout=10)
             for task in finished:
                 # Remove task from task_start_times
                 del task_start_times[task]
@@ -187,8 +195,9 @@ class RayPipelineExecutor(PipelineExecutor):
                         # No mercy :) -> should call SIGKILL
                         ray.kill(task, force=True)
                         del task_start_times[task]
-                        unfinished.remove(task)
                         logger.warning(f"Task {task} timed out after {self.time} seconds and was killed.")
+                        unfinished.remove(task)
+                        del task
         logger.info("All Ray tasks have finished.")
 
         # 8) Merge stats of all ranks
