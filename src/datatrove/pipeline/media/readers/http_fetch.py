@@ -6,14 +6,13 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from threading import local
 from time import sleep
 
-import dns.resolver
 import requests
-from dns.rdatatype import RdataType
 from loguru import logger
 from urllib3.exceptions import InsecureRequestWarning
 
 from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.pipeline.base import PipelineStep
+from datatrove.utils._import_utils import is_dnspython_available
 
 
 class HTTPFetchReader(PipelineStep):
@@ -259,6 +258,47 @@ class HTTPFetchReader(PipelineStep):
             )
             self.last_log_time = time.time()
 
+    def setup_dns_resolution(self):
+        import dns.resolver
+        from dns.rdatatype import RdataType
+
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = ["127.0.0.1"]
+        resolver.port = self.dns_port
+        original_getaddrinfo = socket.getaddrinfo
+
+        def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
+            addresses = []
+            try:
+                addresses.extend(
+                    [
+                        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (rdata.address, port))
+                        for rdata in resolver.resolve(host, rdtype=RdataType.A)
+                    ]
+                )
+            except dns.resolver.LifetimeTimeout:
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                pass
+
+            try:
+                addresses.extend(
+                    [
+                        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (rdata.address, port))
+                        for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)
+                    ]
+                )
+            except dns.resolver.LifetimeTimeout:
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                pass
+
+            if len(addresses) == 0:
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+
+            socket.getaddrinfo = getaddrinfo_patched
+            logger.debug(f"Custom DNS resolution enabled on port {self.dns_port}")
+
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         self.start_time = time.time()
         self.processed_documents = 0
@@ -268,45 +308,9 @@ class HTTPFetchReader(PipelineStep):
             return
 
         if self.dns_port is not None:
-            from dns.resolver import Resolver
-
-            resolver = Resolver()
-            resolver.nameservers = ["127.0.0.1"]
-            resolver.port = self.dns_port
-            original_getaddrinfo = socket.getaddrinfo
-
-            def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
-                addresses = []
-                try:
-                    addresses.extend(
-                        [
-                            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (rdata.address, port))
-                            for rdata in resolver.resolve(host, rdtype=RdataType.A)
-                        ]
-                    )
-                except dns.resolver.LifetimeTimeout:
-                    return original_getaddrinfo(host, port, family, type, proto, flags)
-                except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-                    pass
-
-                try:
-                    addresses.extend(
-                        [
-                            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (rdata.address, port))
-                            for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)
-                        ]
-                    )
-                except dns.resolver.LifetimeTimeout:
-                    return original_getaddrinfo(host, port, family, type, proto, flags)
-                except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-                    pass
-
-                if len(addresses) == 0:
-                    return original_getaddrinfo(host, port, family, type, proto, flags)
-
-                return addresses
-
-            socket.getaddrinfo = getaddrinfo_patched
+            if not is_dnspython_available():
+                raise ValueError("dnspython not installed, custom DNS resolution disabled.")
+            self.setup_dns_resolution()
 
         # disable warnings
         import warnings

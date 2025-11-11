@@ -61,7 +61,9 @@ processing = [
     "regex",
     "xxhash",
 #    "kenlm",
-    "pyahocorasick"
+    "pyahocorasick",
+    "aiofiles"
+    
 ]
 decont = [
     "lighteval>=0.3.0"
