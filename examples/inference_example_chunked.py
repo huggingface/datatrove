@@ -13,7 +13,7 @@ from typing import Any, Awaitable, Callable
 
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner, InferenceResult
+from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceResult, InferenceRunner
 from datatrove.pipeline.writers import JsonlWriter
 
 
@@ -101,6 +101,7 @@ def cpu_heavy_build_payload(doc: Document, page: int) -> dict[str, Any]:
         ],
         "max_tokens": 4096,
     }
+
 
 async def heavy_cpu_rollout(
     runner: InferenceRunner,

@@ -11,14 +11,13 @@ Parts of this implementation are adapted from https://github.com/allenai/olmocr
 from __future__ import annotations
 
 import asyncio
-import inspect
 import dataclasses
 import json
 import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import AsyncGenerator, Awaitable, Callable, Iterable, Literal
 from functools import partial
+from typing import Awaitable, Callable, Iterable, Literal
 
 from loguru import logger
 
@@ -51,6 +50,7 @@ class InferenceResult:
     finish_reason: str
     usage: dict
 
+
 class InferenceError(Exception):
     """
     Exception raised when document inference processing fails.
@@ -64,7 +64,9 @@ class InferenceError(Exception):
         self.document = document
         self.error = error
         self.payload = payload
-        super().__init__(f"Failed to process document {document.id if document is not None else '?'}: {error}. Payload: {payload if payload is not None else '?'}")
+        super().__init__(
+            f"Failed to process document {document.id if document is not None else '?'}: {error}. Payload: {payload if payload is not None else '?'}"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -346,7 +348,7 @@ class InferenceRunner(PipelineStep):
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
-        metadata_key: str = "rollout_results"
+        metadata_key: str = "rollout_results",
     ):
         """
         Initialize the inference runner.
@@ -453,7 +455,7 @@ class InferenceRunner(PipelineStep):
         payload["model"] = self.config.model_name_or_path
         for key, value in self.config.default_generation_params.items():
             payload.setdefault(key, value)
-        
+
         # Choose endpoint based on use_chat setting
         if self.config.use_chat:
             endpoint = "/v1/chat/completions"
@@ -476,12 +478,16 @@ class InferenceRunner(PipelineStep):
                         self.queue_sizes.change_queues({"running_requests": -1})
                         self.metrics.add_metrics(failed_requests=1, requests=1)
                         self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(payload=payload, error=f"Got BadRequestError from server: {body.decode()}")
+                        raise InferenceError(
+                            payload=payload, error=f"Got BadRequestError from server: {body.decode()}"
+                        )
                     elif status == 500:
                         self.queue_sizes.change_queues({"running_requests": -1})
                         self.metrics.add_metrics(failed_requests=1, requests=1)
                         self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(payload=payload, error=f"Got InternalServerError from server: {body.decode()}")
+                        raise InferenceError(
+                            payload=payload, error=f"Got InternalServerError from server: {body.decode()}"
+                        )
                     elif status != 200:
                         self.queue_sizes.change_queues({"running_requests": -1})
                         self.metrics.add_metrics(failed_requests=1, requests=1)
@@ -632,7 +638,11 @@ class InferenceRunner(PipelineStep):
                     rollout_result for rollout_result in rollout_results if rollout_result is not None
                 ]
                 self.stat_update("successful_rollouts", value=len(doc.metadata[self.metadata_key]), unit="document")
-                self.stat_update("failed_rollouts", value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]), unit="document")
+                self.stat_update(
+                    "failed_rollouts",
+                    value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]),
+                    unit="document",
+                )
 
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
             except InferenceError as e:

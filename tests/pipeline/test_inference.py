@@ -1,3 +1,54 @@
+import asyncio
+import json
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from datatrove.data import Document
+from datatrove.executor.local import LocalPipelineExecutor
+from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
+from datatrove.pipeline.writers import JsonlWriter
+
+
+class ControlledRollout:
+    """Rollout function that can be configured to fail at specific document IDs or after a certain count."""
+
+    def __init__(self, fail_at_ids=None, fail_after_count=None):
+        self.fail_at_ids = fail_at_ids or set()
+        self.fail_after_count = fail_after_count
+        self.processed_count = 0
+
+    async def __call__(self, runner, document, generate):
+        self.processed_count += 1
+
+        if self.fail_after_count and self.processed_count > self.fail_after_count:
+            raise RuntimeError(f"Simulated failure after processing {self.fail_after_count} documents")
+
+        if document.id in self.fail_at_ids:
+            raise RuntimeError(f"Simulated failure for document {document.id}")
+
+        result = await generate(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": document.text},
+                        ],
+                    }
+                ],
+                "max_tokens": 100,
+            }
+        )
+
+        return {
+            "text": result.text,
+            "finish_reason": result.finish_reason,
+            "usage": result.usage,
+        }
+
+
 def test_inference_config_sets_default_concurrency():
     config = InferenceConfig(
         server_type="dummy",
@@ -82,56 +133,6 @@ def test_custom_metadata_key(tmp_path):
     saved = json.loads(output_file.read_text().strip())
     assert "rollout_results" not in saved["metadata"]
     assert saved["metadata"]["custom_results"] == [{"value": "custom-1"}]
-
-import asyncio
-import json
-import tempfile
-from pathlib import Path
-
-import pytest
-
-from datatrove.data import Document
-from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
-from datatrove.pipeline.writers import JsonlWriter
-
-
-class ControlledRollout:
-    """Rollout function that can be configured to fail at specific document IDs or after a certain count."""
-
-    def __init__(self, fail_at_ids=None, fail_after_count=None):
-        self.fail_at_ids = fail_at_ids or set()
-        self.fail_after_count = fail_after_count
-        self.processed_count = 0
-
-    async def __call__(self, runner, document, generate):
-        self.processed_count += 1
-
-        if self.fail_after_count and self.processed_count > self.fail_after_count:
-            raise RuntimeError(f"Simulated failure after processing {self.fail_after_count} documents")
-
-        if document.id in self.fail_at_ids:
-            raise RuntimeError(f"Simulated failure for document {document.id}")
-
-        result = await generate(
-            {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": document.text},
-                        ],
-                    }
-                ],
-                "max_tokens": 100,
-            }
-        )
-
-        return {
-            "text": result.text,
-            "finish_reason": result.finish_reason,
-            "usage": result.usage,
-        }
 
 
 def test_chunked_checkpoint_requires_chunk_index(tmp_path):
@@ -265,7 +266,9 @@ def test_query_builder_none_payload_skips_document(tmp_path):
     asyncio.run(runner.run_async(documents, rank=0, world_size=1))
 
     doc = documents[0]
-    assert doc.metadata.get("rollout_results") == [], "Document should have no rollout results when rollout returns None"
+    assert doc.metadata.get("rollout_results") == [], (
+        "Document should have no rollout results when rollout returns None"
+    )
     output_file = output_dir / "00000.jsonl"
     assert output_file.exists(), "Document should still be written even when rollout returns None"
 
