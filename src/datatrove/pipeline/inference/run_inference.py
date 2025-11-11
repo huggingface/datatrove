@@ -11,12 +11,14 @@ Parts of this implementation are adapted from https://github.com/allenai/olmocr
 from __future__ import annotations
 
 import asyncio
+import inspect
 import dataclasses
 import json
 import os
 from collections import Counter, defaultdict
-from dataclasses import dataclass
-from typing import AsyncGenerator, Callable, Iterable, Literal
+from dataclasses import dataclass, field
+from typing import AsyncGenerator, Awaitable, Callable, Iterable, Literal
+from functools import partial
 
 from loguru import logger
 
@@ -35,7 +37,7 @@ from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 @dataclass
-class InferenceSuccess:
+class InferenceResult:
     """
     Successful inference result.
 
@@ -49,20 +51,7 @@ class InferenceSuccess:
     finish_reason: str
     usage: dict
 
-
-@dataclass
-class InferenceError:
-    """
-    Failed inference result.
-
-    Attributes:
-        error: Error message describing what went wrong
-    """
-
-    error: str
-
-
-class InferenceProcessingError(Exception):
+class InferenceError(Exception):
     """
     Exception raised when document inference processing fails.
 
@@ -71,10 +60,11 @@ class InferenceProcessingError(Exception):
         error: The underlying error that caused the failure
     """
 
-    def __init__(self, document: Document, error: str | Exception):
+    def __init__(self, document: Document, error: str | Exception, payload: dict | None = None):
         self.document = document
         self.error = error
-        super().__init__(f"Failed to process document {document.id}: {error}")
+        self.payload = payload
+        super().__init__(f"Failed to process document {document.id if document is not None else '?'}: {error}. Payload: {payload if payload is not None else '?'}")
 
 
 # --------------------------------------------------------------------------- #
@@ -140,49 +130,47 @@ class InferenceConfig:
     Configuration for inference server and processing parameters.
 
     Attributes:
-        server_type: Type of inference server to use
-        model_name_or_path: Path or name of the model to load
-        temperature: Sampling temperature for generation
-        model_max_context: Maximum context length for the model
-        max_concurrent_requests: Maximum number of concurrent requests to server
-        max_concurrent_tasks: Maximum number of concurrent processing tasks
-            If your query_builder is slow, it's better to provide higher value than concurrent requests
-            to ensure that there are always enough requests to keep the server busy.
-            If not provided, will be set to max_concurrent_requests.
-        metric_interval: Interval for metrics reporting in seconds
-        tp: Tensor parallelism size (number of GPUs to use). Automatically converted to
-            --tensor-parallel-size for VLLM or --tp-size for SGLang. Default is 1 (no parallelism)
-        dp: Data parallelism size (number of full model replicas). Each replica can span multiple GPUs
-            if tensor parallelism is also used. Automatically converted to --data-parallel-size for VLLM
-            or --dp-size for SGLang. Default is 1 (no parallelism)
-        pp: Pipeline parallelism size (number of pipeline stages). Model layers are distributed across
-            pipeline stages for processing in sequence. Automatically converted to --pipeline-parallel-size
-            for VLLM or --pp-size for SGLang. Default is 1 (no parallelism)
-        use_chat: Whether to use chat format (/v1/chat/completions) or completion format (/v1/completions).
-            Set to False for models without chat templates. Default is True.
-        model_kwargs: Additional keyword arguments for model initialization (Will be provided as --key=value to the model)
-        server_log_folder: Optional directory path where server logs will be stored.
-            If provided, creates one log file per rank (e.g., server_rank_0.log). If None, server output
-            is muted after startup completion.
+        server_type: Type of inference server to use.
+        model_name_or_path: Path or name of the model to load.
+        model_max_context: Maximum context length for the model.
+        use_chat: Whether to call the chat endpoint (/v1/chat/completions) instead of the completion endpoint.
+        metric_interval: Interval for metrics reporting in seconds.
+        tp: Tensor parallelism size (number of GPUs). Converted to the backend-specific flag.
+        dp: Data parallelism size (number of model replicas). Converted to the backend-specific flag.
+        pp: Pipeline parallelism size (number of pipeline stages). Converted to the backend-specific flag.
+        default_generation_params: Default payload parameters for requests sent via the generate callback.
+            Callers can override individual keys when building a payload.
+        rollouts_per_document: Number of rollouts to perform for each document. Results will be automatically aggregated in the document metadata.
+        max_concurrent_generations: Maximum number of generation requests to have in flight at once.
+        max_concurrent_documents: Maximum number of documents to process concurrently.
+            Defaults to max_concurrent_generations // rollouts_per_document when not provided.
+        model_kwargs: Additional keyword arguments passed to model initialization.
+        server_log_folder: Optional directory for server logs. Creates one log per rank when set.
     """
 
+    # server and model
     server_type: Literal["sglang", "vllm", "dummy"]
     model_name_or_path: str
-    temperature: float = 0.0
     model_max_context: int = 8192
-    max_concurrent_requests: int = 500
+    use_chat: bool = True
+    # metrics
     metric_interval: int = 120
+    # parallelism
     tp: int = 1
     dp: int = 1
     pp: int = 1
-    max_concurrent_tasks: int | None = None
-    use_chat: bool = True
+    # rollouts and generation
+    default_generation_params: dict = field(default_factory=lambda: {"temperature": 0.0})
+    rollouts_per_document: int = 1
+    max_concurrent_generations: int = 500
+    max_concurrent_documents: int | None = None
+    # other
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
 
     def __post_init__(self):
-        if self.max_concurrent_tasks is None:
-            self.max_concurrent_tasks = self.max_concurrent_requests
+        if self.max_concurrent_documents is None:
+            self.max_concurrent_documents = max(1, self.max_concurrent_generations // self.rollouts_per_document)
 
 
 # --------------------------------------------------------------------------- #
@@ -338,14 +326,11 @@ class CheckpointManager:
 # --------------------------------------------------------------------------- #
 class InferenceRunner(PipelineStep):
     """
-    Pipeline step for running inference on documents using various inference servers.
+    Pipeline step for running rollouts on documents using inference servers.
 
-    This runner pulls documents from readers, converts them to LLM requests via a query builder,
-    sends requests to a locally spawned inference server, and processes the responses through
-    post-processing steps.
-
-    Inference results are saved in document metadata as "inference_results" list.
-    Each inference result is either InferenceSuccess or InferenceError.
+    The runner pulls documents from readers, hands them to a user-provided rollout function,
+    and issues generation requests through a locally spawned inference server.
+    Rollout outputs are written to document metadata under the configured metadata key.
     """
 
     name = "Inference 🔍"
@@ -353,36 +338,36 @@ class InferenceRunner(PipelineStep):
 
     def __init__(
         self,
-        query_builder: Callable[[InferenceRunner, Document], AsyncGenerator[dict, None] | dict | None],
+        rollout_fn: Callable[
+            [InferenceRunner, Document, Callable[[dict], Awaitable[InferenceResult]]],
+            Awaitable[InferenceResult | dict | list | str | float | int | bool | None],
+        ],
         config: InferenceConfig,
         output_writer: DiskWriter,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
-        postprocess_fn: Callable[[InferenceRunner, Document], Document | None] | None = None,
-        skip_bad_requests: bool = False,
+        metadata_key: str = "rollout_results"
     ):
         """
         Initialize the inference runner.
 
         Args:
-            query_builder: Function that returns inference request payload(s) for a document.
-                          Can return either:
-                          - AsyncGenerator[dict, None]: async generator yielding dicts
-                          - dict: single payload dict
-                          - None: skip the document
+            rollout_fn: Function to perform a single rollout for a document.
+                Takes the InferenceRunner instance, the document, and a callback that sends a request to the server.
+                Should return either an InferenceResult, a JSON-serializable value (dict, list, string, number, or bool),
+                or None if nothing should be stored for this rollout. The callback returns an InferenceResult and may raise
+                InferenceError if the request fails.
             config: Configuration for the inference server and processing
             output_writer: Writer for saving inference results
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
-            skip_bad_requests: If True, will skip documents that cause BadRequestError from the server. Default: False.
-            postprocess_fn: Function that post-processes the document after inference. Takes the InferenceRunner instance and document as arguments. If it returns None, the document is not saved to output_writer.
+            metadata_key: Key to use for storing the rollout results in the document metadata. Default: "rollout_results".
         """
         super().__init__()
 
-        self.query_builder = query_builder
         self.config = config
-        self.postprocess_fn = postprocess_fn
-        self.skip_bad_requests = skip_bad_requests
+        self.rollout_fn = rollout_fn
+        self.metadata_key = metadata_key
 
         self.output_writer = output_writer
 
@@ -452,17 +437,23 @@ class InferenceRunner(PipelineStep):
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
-    async def _send_request(self, payload: dict, semaphore: asyncio.Semaphore) -> InferenceSuccess | InferenceError:
+    async def _send_request(self, payload: dict, semaphore: asyncio.Semaphore) -> InferenceResult:
         """
         POST payload to the local server and return the parsed result.
 
         Args:
             payload: The request payload to send
             semaphore: Semaphore for controlling concurrent requests
-
         Returns:
-            InferenceSuccess with response data or InferenceError with error message
+            InferenceResult with response data
+
+        Raises:
+            InferenceError: If the request fails
         """
+        payload["model"] = self.config.model_name_or_path
+        for key, value in self.config.default_generation_params.items():
+            payload.setdefault(key, value)
+        
         # Choose endpoint based on use_chat setting
         if self.config.use_chat:
             endpoint = "/v1/chat/completions"
@@ -483,23 +474,36 @@ class InferenceRunner(PipelineStep):
                     status, body = await _raw_post(url, json_data=payload)
                     if status == 400:
                         self.queue_sizes.change_queues({"running_requests": -1})
-                        return InferenceError(error=f"Got BadRequestError from server: {body.decode()}")
+                        self.metrics.add_metrics(failed_requests=1, requests=1)
+                        self.stat_update("failed_requests", value=1, unit="request")
+                        raise InferenceError(payload=payload, error=f"Got BadRequestError from server: {body.decode()}")
                     elif status == 500:
                         self.queue_sizes.change_queues({"running_requests": -1})
-                        return InferenceError(error=f"Got InternalServerError from server: {body.decode()}")
+                        self.metrics.add_metrics(failed_requests=1, requests=1)
+                        self.stat_update("failed_requests", value=1, unit="request")
+                        raise InferenceError(payload=payload, error=f"Got InternalServerError from server: {body.decode()}")
                     elif status != 200:
                         self.queue_sizes.change_queues({"running_requests": -1})
-                        return InferenceError(error=f"Error http status {status}")
+                        self.metrics.add_metrics(failed_requests=1, requests=1)
+                        self.stat_update("failed_requests", value=1, unit="request")
+                        raise InferenceError(payload=payload, error=f"Error http status {status}")
 
                     response = json.loads(body)
                     choice = response["choices"][0]
 
                     # Track metrics
                     usage = response.get("usage", {})
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                    completion_tokens = usage.get("completion_tokens", 0)
                     self.metrics.add_metrics(
-                        tokens_input=usage.get("prompt_tokens", 0),
-                        tokens_output=usage.get("completion_tokens", 0),
+                        tokens_input=prompt_tokens,
+                        tokens_output=completion_tokens,
+                        requests=1,
+                        successful_requests=1,
                     )
+                    self.stat_update("prompt_tokens", value=prompt_tokens, unit="request")
+                    self.stat_update("completion_tokens", value=completion_tokens, unit="request")
+                    self.stat_update("successful_requests", value=1, unit="request")
 
                     # Parse response based on endpoint type
                     if self.config.use_chat:
@@ -508,7 +512,7 @@ class InferenceRunner(PipelineStep):
                         text = choice["text"]
 
                     self.queue_sizes.change_queues({"running_requests": -1})
-                    return InferenceSuccess(text=text, finish_reason=choice["finish_reason"], usage=usage)
+                    return InferenceResult(text=text, finish_reason=choice["finish_reason"], usage=usage)
                 except (ConnectionError, OSError, asyncio.TimeoutError) as e:
                     # This means the server is dead likely, so we need to wait for restart
                     logger.warning(f"Client error: {type(e)} {e}")
@@ -523,10 +527,14 @@ class InferenceRunner(PipelineStep):
                 except Exception as e:
                     logger.warning(f"Unexpected error: {type(e)} {e}")
                     self.queue_sizes.change_queues({"running_requests": -1})
-                    return InferenceError(error=str(e))
+                    self.metrics.add_metrics(failed_requests=1, requests=1)
+                    self.stat_update("failed_requests", value=1, unit="request")
+                    raise InferenceError(payload=payload, error=str(e))
 
             self.queue_sizes.change_queues({"running_requests": -1})
-            return InferenceError(error=f"Failed to process request after {max_retries} attempts")
+            self.metrics.add_metrics(failed_requests=1, requests=1)
+            self.stat_update("failed_requests", value=1, unit="request")
+            raise InferenceError(payload=payload, error=f"Failed to process request after {max_retries} attempts")
 
     async def _save_document(self, document: Document, output_writer_context: DiskWriter, rank: int, chunk_index: int):
         """
@@ -538,45 +546,14 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier
             chunk_index: Chunk index to save the document to
         """
-        # Track document metrics
         try:
-            inference_results = document.metadata.get("inference_results", [])  # type: ignore
-            successful_requests = sum(1 for result in inference_results if isinstance(result, InferenceSuccess))  # type: ignore
-            failed_requests = sum(1 for result in inference_results if isinstance(result, InferenceError))  # type: ignore
-            skipped_requests = 1 if document.metadata.pop("_inference_skipped", False) else 0
-
-            # Track tokens for each inference result
-            total_input_tokens = 0
-            total_output_tokens = 0
-            for result in inference_results:
-                if isinstance(result, InferenceSuccess):
-                    prompt_tokens = result.usage.get("prompt_tokens", 0)  # type: ignore
-                    completion_tokens = result.usage.get("completion_tokens", 0)  # type: ignore
-                    total_input_tokens += prompt_tokens
-                    total_output_tokens += completion_tokens
-
-                    # Update stats for each individual request
-                    self.stat_update("prompt_tokens", value=prompt_tokens, unit="request")
-                    self.stat_update("completion_tokens", value=completion_tokens, unit="request")
-
-            self.metrics.add_metrics(
-                tokens_finished_input=total_input_tokens,
-                tokens_finished_output=total_output_tokens,
-                requests=len(inference_results),  # type: ignore
-                skipped_requests=skipped_requests,
-            )
-
-            self.stat_update("successful_requests", value=successful_requests, unit="document")
-            self.stat_update("failed_requests", value=failed_requests, unit="document")
-            if skipped_requests:
-                self.stat_update("skipped_requests", value=skipped_requests)
-            self.stat_update("successful_documents", value=1)
+            self.stat_update("documents_processed", value=1, unit="document")
 
             await self.checkpoint_manager.write_document(document, rank, chunk_index, output_writer_context)
 
         except Exception as e:
-            logger.warning(f"Failed to process inference results for metrics: {e}")
-            self.stat_update("failed_documents", value=1)
+            logger.warning(f"Failed to save document: {e}")
+            self.stat_update("failed_documents", value=1, unit="document")
 
     async def _async_data_gen(self, sync_gen: Iterable[Document]):
         """
@@ -619,7 +596,7 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier for distributed processing
             world_size: Total number of processes in distributed setup
         """
-        semaphore = asyncio.Semaphore(self.config.max_concurrent_requests)
+        semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
         server_task = asyncio.create_task(self.server.host_server(rank=rank))
         await self.server.wait_until_ready()
         logger.info(f"Inference server up on port {self.server.port}")
@@ -641,82 +618,28 @@ class InferenceRunner(PipelineStep):
                 output_writer_context: Output writer context for saving documents
 
             Raises:
-                InferenceProcessingError: If document processing fails
+                InferenceError: If document processing fails
             """
             try:
-                # Get payloads from query_builder
-                payloads_result = self.query_builder(self, doc)
+                generate_callback = partial(self._send_request, semaphore=semaphore)
+                rollout_tasks = [
+                    asyncio.create_task(self.rollout_fn(self, doc, generate_callback))
+                    for _ in range(self.config.rollouts_per_document)
+                ]
+                rollout_results = await asyncio.gather(*rollout_tasks)
 
-                # Handle different return types
-                request_tasks = []
-                callback_requested = False
-                run_request = True
-
-                # Check if it's an async generator
-                if isinstance(payloads_result, AsyncGenerator):
-                    # It's an async generator - process each payload as soon as it's yielded
-                    async for payload in payloads_result:
-                        if payload is None:
-                            continue
-                        callback_requested = callback_requested or payload.pop("callback", False) is True
-                        # Set default values for payload
-                        payload.setdefault("model", self.config.model_name_or_path)
-                        payload.setdefault("temperature", self.config.temperature)
-
-                        # Start request immediately
-                        task = asyncio.create_task(self._send_request(payload, semaphore))
-                        request_tasks.append(task)
-                    if not request_tasks:
-                        run_request = False
-
-                elif isinstance(payloads_result, dict):
-                    # Single dict
-                    payload = payloads_result
-                    callback_requested = callback_requested or payload.pop("callback", False) is True
-                    payload.setdefault("model", self.config.model_name_or_path)
-                    payload.setdefault("temperature", self.config.temperature)
-                    task = asyncio.create_task(self._send_request(payload, semaphore))
-                    request_tasks.append(task)
-                elif payloads_result is None:
-                    run_request = False
-
-                if not request_tasks and run_request:
-                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
-
-                # Wait for all requests to complete and collect results in order
-                if run_request:
-                    results = await asyncio.gather(*request_tasks)
-
-                    for result in results:
-                        if isinstance(result, InferenceError) and (
-                            not self.skip_bad_requests or "BadRequestError" not in result.error
-                        ):
-                            # re-raise any non-skippable errors
-                            raise InferenceProcessingError(doc, result.error)
-
-                    # Store results directly in document metadata
-                    doc.metadata.setdefault("inference_results", []).extend(results)
-
-                    # Post-process the document if a function is provided. We still want the actual document for checkpointing purposes.
-                    if self.postprocess_fn:
-                        postprocess_result = self.postprocess_fn(self, doc)
-                        if postprocess_result is None:
-                            doc.metadata["postprocess_remove"] = True
-                        else:
-                            doc = postprocess_result
-
-                    if callback_requested:
-                        await _handle_record(doc, rank, chunk_index, output_writer_context)
-                        return
-                else:
-                    doc.metadata["_inference_skipped"] = True
+                doc.metadata[self.metadata_key] = [
+                    rollout_result for rollout_result in rollout_results if rollout_result is not None
+                ]
+                self.stat_update("successful_rollouts", value=len(doc.metadata[self.metadata_key]), unit="document")
+                self.stat_update("failed_rollouts", value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]), unit="document")
 
                 await self._save_document(doc, output_writer_context, rank, chunk_index)
-            except InferenceProcessingError as e:
+            except InferenceError as e:
                 raise e
             except Exception as e:
                 # let's propagate it
-                raise InferenceProcessingError(doc, e)
+                raise InferenceError(doc, e)
 
         # 2. Main processing loop
         tasks_pool: set[asyncio.Task] = set()
@@ -748,7 +671,7 @@ class InferenceRunner(PipelineStep):
                     continue
 
                 # Throttle by task pool size
-                while len(tasks_pool) >= self.config.max_concurrent_tasks:
+                while len(tasks_pool) >= self.config.max_concurrent_documents:
                     done, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
                     for task in done:
                         await task  # Re-raises any unhandled exception

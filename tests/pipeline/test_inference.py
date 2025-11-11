@@ -1,3 +1,88 @@
+def test_inference_config_sets_default_concurrency():
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=4096,
+        metric_interval=60,
+        rollouts_per_document=3,
+        max_concurrent_generations=8,
+        max_concurrent_documents=None,
+    )
+
+    assert config.max_concurrent_documents == 2
+
+
+def test_multiple_rollouts_collect_results(tmp_path):
+    output_dir = tmp_path / "multi_rollouts"
+    documents = [Document(text="hello world", id="multi-1")]
+
+    async def multi_rollout(runner, document, generate):
+        await asyncio.sleep(0)
+        return "multi-result"
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=3,
+        max_concurrent_generations=3,
+        max_concurrent_documents=None,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=multi_rollout,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+
+    doc = documents[0]
+    assert doc.metadata["rollout_results"] == ["multi-result", "multi-result", "multi-result"]
+
+    output_file = output_dir / "00000.jsonl"
+    assert output_file.exists()
+    saved = json.loads(output_file.read_text().strip())
+    assert saved["metadata"]["rollout_results"] == ["multi-result", "multi-result", "multi-result"]
+
+
+def test_custom_metadata_key(tmp_path):
+    output_dir = tmp_path / "custom_metadata"
+    documents = [Document(text="hello", id="custom-1")]
+
+    async def custom_rollout(runner, document, generate):
+        return {"value": document.id}
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=None,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=custom_rollout,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        metadata_key="custom_results",
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+
+    doc = documents[0]
+    assert "rollout_results" not in doc.metadata
+    assert doc.metadata["custom_results"] == [{"value": "custom-1"}]
+
+    output_file = output_dir / "00000.jsonl"
+    assert output_file.exists()
+    saved = json.loads(output_file.read_text().strip())
+    assert "rollout_results" not in saved["metadata"]
+    assert saved["metadata"]["custom_results"] == [{"value": "custom-1"}]
+
 import asyncio
 import json
 import tempfile
@@ -11,15 +96,15 @@ from datatrove.pipeline.inference.run_inference import InferenceConfig, Inferenc
 from datatrove.pipeline.writers import JsonlWriter
 
 
-class ControlledQueryBuilder:
-    """Query builder that can be configured to fail at specific document IDs or after a certain count"""
+class ControlledRollout:
+    """Rollout function that can be configured to fail at specific document IDs or after a certain count."""
 
     def __init__(self, fail_at_ids=None, fail_after_count=None):
         self.fail_at_ids = fail_at_ids or set()
         self.fail_after_count = fail_after_count
         self.processed_count = 0
 
-    def __call__(self, runner, document):
+    async def __call__(self, runner, document, generate):
         self.processed_count += 1
 
         if self.fail_after_count and self.processed_count > self.fail_after_count:
@@ -28,16 +113,24 @@ class ControlledQueryBuilder:
         if document.id in self.fail_at_ids:
             raise RuntimeError(f"Simulated failure for document {document.id}")
 
+        result = await generate(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": document.text},
+                        ],
+                    }
+                ],
+                "max_tokens": 100,
+            }
+        )
+
         return {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": document.text},
-                    ],
-                }
-            ],
-            "max_tokens": 100,
+            "text": result.text,
+            "finish_reason": result.finish_reason,
+            "usage": result.usage,
         }
 
 
@@ -45,16 +138,16 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
     config = InferenceConfig(
         server_type="dummy",
         model_name_or_path="test-model",
-        temperature=0.0,
         model_max_context=2048,
-        max_concurrent_requests=1,
-        max_concurrent_tasks=1,
         metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
     )
 
     with pytest.raises(ValueError, match="chunk_index"):
         InferenceRunner(
-            query_builder=lambda runner, document: {},
+            rollout_fn=lambda runner, document, generate: generate({}),
             config=config,
             output_writer=JsonlWriter(
                 str(tmp_path / "no_chunk"),
@@ -67,7 +160,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 
     try:
         InferenceRunner(
-            query_builder=lambda runner, document: {},
+            rollout_fn=lambda runner, document, generate: generate({}),
             config=config,
             output_writer=JsonlWriter(
                 str(tmp_path / "with_chunk"),
@@ -81,33 +174,32 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
         pytest.fail(f"InferenceRunner should allow chunk_index templates: {exc}")
 
 
-def test_callback_recursion_processes_all_parts(tmp_path):
+def test_rollout_handles_multiple_parts(tmp_path):
     parts = ["first chunk", "second chunk", "third chunk"]
 
-    def callback_query_builder(runner, document):
-        inference_results = document.metadata.get("inference_results") or []
-        part_index = min(len(inference_results), len(parts) - 1)
-        callback_flag = len(inference_results) < len(parts) - 1
+    async def chunked_rollout(runner, document, generate):
+        document.metadata["rollout_calls"] = document.metadata.get("rollout_calls", 0) + 1
+        document.metadata.setdefault("parts_served", [])
 
-        document.metadata["builder_calls"] = document.metadata.get("builder_calls", 0) + 1
-        document.metadata.setdefault("parts_served", []).append(part_index)
-        document.metadata.setdefault("callback_flags", []).append(callback_flag)
+        generations = []
+        previous_generation = ""
 
-        return {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Process part {part_index}: {parts[part_index]}",
-                        }
-                    ],
-                }
-            ],
-            "max_tokens": 128,
-            "callback": callback_flag,
-        }
+        for index, part in enumerate(parts):
+            document.metadata["parts_served"].append(index)
+            payload = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"Process part {index}: {part}\nPrevious: {previous_generation}",
+                    }
+                ],
+                "max_tokens": 128,
+            }
+            result = await generate(payload)
+            previous_generation = result.text
+            generations.append(result.text)
+
+        return {"parts": generations}
 
     output_dir = tmp_path / "callback_output"
     documents = [Document(text="dummy", id="callback-doc")]
@@ -115,15 +207,15 @@ def test_callback_recursion_processes_all_parts(tmp_path):
     config = InferenceConfig(
         server_type="dummy",
         model_name_or_path="test-model",
-        temperature=0.0,
         model_max_context=4096,
-        max_concurrent_requests=1,
-        max_concurrent_tasks=1,
         metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
     )
 
     runner = InferenceRunner(
-        query_builder=callback_query_builder,
+        rollout_fn=chunked_rollout,
         config=config,
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
@@ -131,10 +223,10 @@ def test_callback_recursion_processes_all_parts(tmp_path):
     asyncio.run(runner.run_async(documents, rank=0, world_size=1))
 
     doc = documents[0]
-    assert doc.metadata["builder_calls"] == len(parts)
+    assert doc.metadata["rollout_calls"] == 1
     assert doc.metadata["parts_served"] == [0, 1, 2]
-    assert doc.metadata["callback_flags"] == [True, True, False]
-    assert len(doc.metadata["inference_results"]) == len(parts)
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert len(doc.metadata["rollout_results"][0]["parts"]) == len(parts)
 
     output_file = output_dir / "00000.jsonl"
     assert output_file.exists(), "Expected output document to be saved"
@@ -144,28 +236,28 @@ def test_callback_recursion_processes_all_parts(tmp_path):
     assert len(lines) == 1, "Document should be written once after callbacks finish"
     saved_doc = json.loads(lines[0])
     assert saved_doc["id"] == "callback-doc"
-    assert len(saved_doc["metadata"]["inference_results"]) == len(parts)
+    assert len(saved_doc["metadata"]["rollout_results"][0]["parts"]) == len(parts)
 
 
 def test_query_builder_none_payload_skips_document(tmp_path):
     output_dir = tmp_path / "none_payload_output"
     documents = [Document(text="skip me", id="skip-none")]
 
-    def none_query_builder(runner, document):
+    async def none_rollout(runner, document, generate):
         return None
 
     config = InferenceConfig(
         server_type="dummy",
         model_name_or_path="test-model",
-        temperature=0.0,
         model_max_context=2048,
-        max_concurrent_requests=1,
-        max_concurrent_tasks=1,
         metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
     )
 
     runner = InferenceRunner(
-        query_builder=none_query_builder,
+        rollout_fn=none_rollout,
         config=config,
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
@@ -173,32 +265,31 @@ def test_query_builder_none_payload_skips_document(tmp_path):
     asyncio.run(runner.run_async(documents, rank=0, world_size=1))
 
     doc = documents[0]
-    assert not doc.metadata.get("inference_results"), "Document should have no inference results when payload is None"
+    assert doc.metadata.get("rollout_results") == [], "Document should have no rollout results when rollout returns None"
     output_file = output_dir / "00000.jsonl"
-    assert not output_file.exists() or output_file.read_text().strip() == "", (
-        "No output should be written for skipped document"
-    )
+    assert output_file.exists(), "Document should still be written even when rollout returns None"
 
 
 def test_async_query_builder_none_payload_skips_document(tmp_path):
     output_dir = tmp_path / "none_async_output"
     documents = [Document(text="skip me async", id="skip-async")]
 
-    async def none_async_builder(runner, document):
-        yield None
+    async def none_async_rollout(runner, document, generate):
+        await asyncio.sleep(0)
+        return None
 
     config = InferenceConfig(
         server_type="dummy",
         model_name_or_path="test-model",
-        temperature=0.0,
         model_max_context=2048,
-        max_concurrent_requests=1,
-        max_concurrent_tasks=1,
         metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
     )
 
     runner = InferenceRunner(
-        query_builder=none_async_builder,
+        rollout_fn=none_async_rollout,
         config=config,
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
@@ -206,13 +297,11 @@ def test_async_query_builder_none_payload_skips_document(tmp_path):
     asyncio.run(runner.run_async(documents, rank=0, world_size=1))
 
     doc = documents[0]
-    assert not doc.metadata.get("inference_results"), (
-        "Document should have no inference results when async payload is None"
+    assert doc.metadata.get("rollout_results") == [], (
+        "Document should have no rollout results when async rollout returns None"
     )
     output_file = output_dir / "00000.jsonl"
-    assert not output_file.exists() or output_file.read_text().strip() == "", (
-        "No output should be written for skipped document"
-    )
+    assert output_file.exists(), "Document should still be written even when rollout returns None"
 
 
 def read_output_files(output_path):
@@ -255,21 +344,21 @@ def test_checkpoint_recovery_and_completeness():
         config = InferenceConfig(
             server_type="dummy",
             model_name_or_path="test-model",
-            temperature=0.0,
             model_max_context=8192,
-            max_concurrent_requests=2,  # Low concurrency to ensure predictable chunk completion
-            max_concurrent_tasks=2,
             metric_interval=120,
+            rollouts_per_document=1,
+            max_concurrent_generations=2,  # Low concurrency to ensure predictable chunk completion
+            max_concurrent_documents=2,
         )
 
         # === FIRST RUN: Should fail partway through ===
-        failing_query_builder = ControlledQueryBuilder(fail_after_count=fail_after_docs)
+        failing_rollout = ControlledRollout(fail_after_count=fail_after_docs)
 
         pipeline_executor_1 = LocalPipelineExecutor(
             pipeline=[
                 documents,
                 InferenceRunner(
-                    query_builder=failing_query_builder,
+                    rollout_fn=failing_rollout,
                     config=config,
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
@@ -312,13 +401,13 @@ def test_checkpoint_recovery_and_completeness():
         assert len(partial_docs) <= fail_after_docs, f"Should not have more than {fail_after_docs} docs from first run"
 
         # === SECOND RUN: Should resume from checkpoint ===
-        success_query_builder = ControlledQueryBuilder()  # No failures this time
+        success_rollout = ControlledRollout()  # No failures this time
 
         pipeline_executor_2 = LocalPipelineExecutor(
             pipeline=[
                 documents,  # Same document list
                 InferenceRunner(
-                    query_builder=success_query_builder,
+                    rollout_fn=success_rollout,
                     config=config,
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
@@ -375,16 +464,16 @@ def test_checkpoint_recovery_and_completeness():
         # === VERIFY INFERENCE RESULTS ===
         for doc in final_docs:
             assert "metadata" in doc, f"Document {doc['id']} missing metadata"
-            assert "inference_results" in doc["metadata"], f"Document {doc['id']} missing inference_results"
+            assert "rollout_results" in doc["metadata"], f"Document {doc['id']} missing rollout_results"
 
-            inference_results = doc["metadata"]["inference_results"]
-            assert len(inference_results) > 0, f"Document {doc['id']} has no inference results"
+            rollout_results = doc["metadata"]["rollout_results"]
+            assert len(rollout_results) > 0, f"Document {doc['id']} has no rollout results"
 
-            # Verify inference result structure (dummy server should return success)
-            for result in inference_results:
-                assert "text" in result, f"Inference result missing 'text' field for doc {doc['id']}"
-                assert "finish_reason" in result, f"Inference result missing 'finish_reason' field for doc {doc['id']}"
-                assert "usage" in result, f"Inference result missing 'usage' field for doc {doc['id']}"
+            # Verify rollout result structure (dummy server should return success)
+            for result in rollout_results:
+                assert "text" in result, f"Rollout result missing 'text' field for doc {doc['id']}"
+                assert "finish_reason" in result, f"Rollout result missing 'finish_reason' field for doc {doc['id']}"
+                assert "usage" in result, f"Rollout result missing 'usage' field for doc {doc['id']}"
 
 
 def test_complete_pipeline_with_various_scenarios():
@@ -407,34 +496,41 @@ def test_complete_pipeline_with_various_scenarios():
         documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(num_docs)]
 
         # Normal query builder that doesn't cause pipeline failures
-        def normal_query_builder(runner, document):
+        async def normal_rollout(runner, document, generate):
+            result = await generate(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": document.text},
+                            ],
+                        }
+                    ],
+                    "max_tokens": 4096,
+                }
+            )
             return {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": document.text},
-                        ],
-                    }
-                ],
-                "max_tokens": 4096,
+                "text": result.text,
+                "finish_reason": result.finish_reason,
+                "usage": result.usage,
             }
 
         config = InferenceConfig(
             server_type="dummy",
             model_name_or_path="reducto/RolmOCR",
-            temperature=0.0,
             model_max_context=8192,
-            max_concurrent_requests=500,
-            max_concurrent_tasks=500,
             metric_interval=120,
+            rollouts_per_document=1,
+            max_concurrent_generations=500,
+            max_concurrent_documents=500,
         )
 
         pipeline_executor = LocalPipelineExecutor(
             pipeline=[
                 documents,
                 InferenceRunner(
-                    query_builder=normal_query_builder,
+                    rollout_fn=normal_rollout,
                     config=config,
                     records_per_chunk=records_per_chunk,
                     checkpoints_local_dir=str(checkpoint_path),
@@ -465,11 +561,11 @@ def test_complete_pipeline_with_various_scenarios():
 
         # === VERIFY SUCCESSFUL RESULTS ===
         for doc in final_docs:
-            inference_results = doc["metadata"]["inference_results"]
-            assert len(inference_results) > 0, f"Document {doc['id']} has no inference results"
+            rollout_results = doc["metadata"]["rollout_results"]
+            assert len(rollout_results) > 0, f"Document {doc['id']} has no rollout results"
 
             # All results should be successful (dummy server always succeeds)
-            for result in inference_results:
+            for result in rollout_results:
                 assert "text" in result, "Success result should have text"
                 assert "finish_reason" in result, "Success result should have finish_reason"
                 assert "usage" in result, "Success result should have usage stats"
