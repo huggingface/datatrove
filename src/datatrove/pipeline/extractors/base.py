@@ -87,7 +87,7 @@ class ExtractorSandbox:
         self.timeout = timeout
         self.process = None
         self.parent_conn = None
-        self.wamup_text = wamup_text
+        self.warmup_text = wamup_text
         self.child_conn = None
         self.all_processes = []
 
@@ -114,10 +114,10 @@ class ExtractorSandbox:
         if platform.system() == "Linux":
             self.set_oom_score_adj(1000)
 
-        if isinstance(self.wamup_text, tuple):
-            extract_fn(*self.wamup_text)  # "warmup"
+        if isinstance(self.warmup_text, tuple):
+            extract_fn(*self.warmup_text)  # "warmup"
         else:
-            extract_fn(self.wamup_text)  # "warmup"
+            extract_fn(self.warmup_text)  # "warmup"
         conn.send(None)  # ready
         while True:
             try:

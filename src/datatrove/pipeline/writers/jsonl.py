@@ -45,6 +45,6 @@ class JsonlWriter(DiskWriter):
         import orjson
 
         for media in document.get("media", []):
-            if media["media_bytes"]:
+            if media["media_bytes"] is not None:
                 media["media_bytes"] = base64.b64encode(media["media_bytes"]).decode("ascii")
         file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))

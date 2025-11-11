@@ -6,7 +6,6 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from threading import local
 from time import sleep
 
-import dns.rdatatype
 import dns.resolver
 import requests
 from dns.rdatatype import RdataType

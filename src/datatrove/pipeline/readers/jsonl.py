@@ -78,7 +78,7 @@ class JsonlReader(BaseDiskReader):
                         try:
                             line = orjson.loads(line)
                             for media in line.get("media", []):
-                                if media["media_bytes"]:
+                                if media["media_bytes"] is not None:
                                     media["media_bytes"] = base64.decodebytes(media["media_bytes"].encode("ascii"))
                             document = self.get_document_from_dict(line, filepath, li)
                             if not document:
