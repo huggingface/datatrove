@@ -1,12 +1,13 @@
 """Tests for media writer and reader integration"""
-from copy import deepcopy
+
 import shutil
 import tempfile
 import unittest
-from datatrove.pipeline.media.media_writers.zstd import BinaryZstdWriter
-from datatrove.pipeline.media.media_readers.zstd import ZstdThreadedReader
+from copy import deepcopy
 
 from datatrove.data import Document, Media, MediaType
+from datatrove.pipeline.media.media_readers.zstd import ZstdThreadedReader
+from datatrove.pipeline.media.media_writers.zstd import BinaryZstdWriter
 
 
 class TestMediaWriterReader(unittest.TestCase):
@@ -33,9 +34,9 @@ class TestMediaWriterReader(unittest.TestCase):
                         id="media1",
                         type=MediaType.IMAGE,
                         url="https://example.com/image1.jpg",
-                        media_bytes=test_bytes_1
+                        media_bytes=test_bytes_1,
                     )
-                ]
+                ],
             ),
             Document(
                 text="Document 2",
@@ -45,33 +46,27 @@ class TestMediaWriterReader(unittest.TestCase):
                         id="media2",
                         type=MediaType.IMAGE,
                         url="https://example.com/image2.jpg",
-                        media_bytes=test_bytes_2
+                        media_bytes=test_bytes_2,
                     ),
                     Media(
                         id="media3",
                         type=MediaType.VIDEO,
                         url="https://example.com/video.mp4",
-                        media_bytes=test_bytes_3
-                    )
-                ]
-            )
+                        media_bytes=test_bytes_3,
+                    ),
+                ],
+            ),
         ]
 
         # Write media
-        writer = BinaryZstdWriter(
-            output_folder=self.tmp_dir,
-            compression_level=3
-        )
+        writer = BinaryZstdWriter(output_folder=self.tmp_dir, compression_level=3)
         written_docs = deepcopy(list(writer.run(iter(docs), rank=0, world_size=1)))
 
         # Verify media fields are populated
         self.assertEqual(len(written_docs), 2)
-        
+
         # Read media back
-        reader = ZstdThreadedReader(
-            data_folder=self.tmp_dir,
-            workers=2
-        )
+        reader = ZstdThreadedReader(data_folder=self.tmp_dir, workers=2)
 
         # Null the media bytes to simulate a reader that doesn't have the media bytes
         for doc in docs:
@@ -92,7 +87,6 @@ class TestMediaWriterReader(unittest.TestCase):
             for i in range(len(read_doc.media)):
                 self.assertEqual(read_doc.media[i].media_bytes, written_doc.media[i].media_bytes)
 
-
     def test_binary_zstd_writer_preserves_order(self):
         """Test that media is written in order"""
         # Create documents with different sized media
@@ -110,9 +104,9 @@ class TestMediaWriterReader(unittest.TestCase):
                             id=f"media{i}",
                             type=MediaType.DOCUMENT,
                             url=f"https://example.com/doc{i}.pdf",
-                            media_bytes=test_bytes
+                            media_bytes=test_bytes,
                         )
-                    ]
+                    ],
                 )
             )
 
@@ -126,11 +120,7 @@ class TestMediaWriterReader(unittest.TestCase):
                 media.media_bytes = None
 
         # Read with preserve_order=True
-        reader = ZstdThreadedReader(
-            data_folder=self.tmp_dir,
-            workers=3,
-            preserve_order=True
-        )
+        reader = ZstdThreadedReader(data_folder=self.tmp_dir, workers=3, preserve_order=True)
         read_docs = list(reader.run(iter(docs), rank=0, world_size=1))
 
         # Verify order is preserved
@@ -139,6 +129,3 @@ class TestMediaWriterReader(unittest.TestCase):
             for i in range(len(read_doc.media)):
                 self.assertEqual(read_doc.media[i].id, written_doc.media[i].id)
                 self.assertEqual(read_doc.media[i].media_bytes, written_doc.media[i].media_bytes)
-
-
-

@@ -1,14 +1,13 @@
-from abc import abstractmethod
-import gzip
 import heapq
 import threading
-import time
+from abc import abstractmethod
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+from loguru import logger
 
 from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from loguru import logger
 
 
 class BinaryReaderThreaded(PipelineStep):
@@ -53,21 +52,21 @@ class BinaryReaderThreaded(PipelineStep):
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             futures = set()
             for document in data:
-                    # Keep the futures queue size manageable
-                    while len(futures) >= 2*self.workers or (len(processed_task_heap) >= 2*self.workers):
-                        done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=None)
-                        for future in done:
-                            processed_document, processed_task_index = future.result()
-                            # push to heap
-                            heapq.heappush(processed_task_heap, (processed_task_index, processed_document))
-                        
-                        while processed_task_heap and (not self.preserve_order or processed_task_heap[0][0] == next_index):
-                            yield heapq.heappop(processed_task_heap)[1]
-                            next_index += 1
+                # Keep the futures queue size manageable
+                while len(futures) >= 2 * self.workers or (len(processed_task_heap) >= 2 * self.workers):
+                    done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=None)
+                    for future in done:
+                        processed_document, processed_task_index = future.result()
+                        # push to heap
+                        heapq.heappush(processed_task_heap, (processed_task_index, processed_document))
 
-                    new_future = executor.submit(self._read_media_record_wrapper, document, task_index)
-                    futures.add(new_future)
-                    task_index += 1
+                    while processed_task_heap and (not self.preserve_order or processed_task_heap[0][0] == next_index):
+                        yield heapq.heappop(processed_task_heap)[1]
+                        next_index += 1
+
+                new_future = executor.submit(self._read_media_record_wrapper, document, task_index)
+                futures.add(new_future)
+                task_index += 1
 
         # Process remaining futures after input data is exhausted
         logger.info(f"Input data exhausted. Waiting for {len(futures)} remaining tasks.")
@@ -81,5 +80,3 @@ class BinaryReaderThreaded(PipelineStep):
                 while processed_task_heap and (not self.preserve_order or processed_task_heap[0][0] == next_index):
                     yield heapq.heappop(processed_task_heap)[1]
                     next_index += 1
-
-

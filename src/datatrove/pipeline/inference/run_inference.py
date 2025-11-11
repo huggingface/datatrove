@@ -25,11 +25,11 @@ from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
+    CustomServer,
     DummyServer,
     InferenceServer,
     SGLangServer,
     VLLMServer,
-    CustomServer,
 )
 from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers.disk_base import DiskWriter
@@ -677,7 +677,6 @@ class InferenceRunner(PipelineStep):
                     request_tasks.append(task)
                 elif payloads_result is None:
                     return
-
 
                 # Wait for all requests to complete and collect results in order
                 if request_tasks:

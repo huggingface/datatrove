@@ -1,5 +1,6 @@
 from datatrove.data import Document
 
+
 def iter_pages(document: Document):
     start = 0
     for media in document.media:

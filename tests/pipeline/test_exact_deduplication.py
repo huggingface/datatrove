@@ -60,8 +60,7 @@ class UrlDedup(unittest.TestCase):
 
     def test_url_deduplication_with_priority_highest_id(self):
         config = ExactDedupConfig(
-            content_getter=lambda doc: doc.metadata.get("url", ""),
-            document_priority=lambda x: int(x.id)
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: int(x.id)
         )
 
         signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
@@ -82,8 +81,7 @@ class UrlDedup(unittest.TestCase):
 
     def test_url_deduplication_with_priority_lowest_id(self):
         config = ExactDedupConfig(
-            content_getter=lambda doc: doc.metadata.get("url", ""),
-            document_priority=lambda x: 5 - int(x.id) + 1
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: 5 - int(x.id) + 1
         )
 
         signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
@@ -103,9 +101,7 @@ class UrlDedup(unittest.TestCase):
         self.assertEqual({int(doc.id) for doc in docs}, set(expected_ids))
 
     def test_url_deduplication_with_normalization(self):
-        config = ExactDedupConfig(
-            content_getter=lambda doc: doc.metadata.get("url", "").replace("2", "")
-        )
+        config = ExactDedupConfig(content_getter=lambda doc: doc.metadata.get("url", "").replace("2", ""))
 
         signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
         find_duplicates = ExactFindDedups(
@@ -158,8 +154,7 @@ class UrlDedup(unittest.TestCase):
 
     def test_sd_worker(self):
         config = ExactDedupConfig(
-            content_getter=lambda doc: doc.metadata.get("url", ""),
-            document_priority=lambda x: int(x.id)
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: int(x.id)
         )
         signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
 
@@ -189,10 +184,12 @@ class UrlDedup(unittest.TestCase):
         config = ExactDedupConfig(
             content_getter=lambda doc: doc.metadata.get("url", ""),
             document_priority=lambda x: int(x.id),
-            hash_config=hash_config
+            hash_config=hash_config,
         )
 
-        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config)
+        signature_creation = ExactDedupSignature(
+            output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config
+        )
 
         find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
@@ -219,8 +216,7 @@ class UrlDedup(unittest.TestCase):
     def test_cluster_size(self):
         """Test that duplicate_count metadata is correctly added to kept documents"""
         config = ExactDedupConfig(
-            content_getter=lambda doc: doc.metadata.get("url", ""),
-            document_priority=lambda x: int(x.id)
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: int(x.id)
         )
 
         signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)

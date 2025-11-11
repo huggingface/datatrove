@@ -1,5 +1,5 @@
-from typing import Callable, Literal
 import base64
+from typing import Callable, Literal
 
 from datatrove.io import DataFileLike, DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader

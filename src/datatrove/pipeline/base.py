@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from itertools import chain
 
-from datatrove.data import Document, DocumentsPipeline
+from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.stats import Stats
-from datatrove.data import Media
 
 
 class PipelineStep(ABC):

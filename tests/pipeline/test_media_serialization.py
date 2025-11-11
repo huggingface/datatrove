@@ -1,8 +1,9 @@
 """Tests for Media serialization/deserialization in JSONL reader/writer"""
-from copy import deepcopy
+
 import shutil
 import tempfile
 import unittest
+from copy import deepcopy
 
 from datatrove.data import Document, Media, MediaType
 from datatrove.pipeline.readers.jsonl import JsonlReader
@@ -31,10 +32,10 @@ class TestMediaSerialization(unittest.TestCase):
                         type=MediaType.IMAGE,
                         url="https://example.com/image.jpg",
                         media_bytes=test_bytes,
-                        metadata={"width": 100, "height": 200}
+                        metadata={"width": 100, "height": 200},
                     )
                 ],
-                metadata={"source": "test"}
+                metadata={"source": "test"},
             ),
             Document(
                 text="Document with multiple media",
@@ -45,30 +46,22 @@ class TestMediaSerialization(unittest.TestCase):
                         type=MediaType.VIDEO,
                         url="https://example.com/video.mp4",
                         media_bytes=b"video data",
-                        alt="Test video"
+                        alt="Test video",
                     ),
                     Media(
                         id="media3",
                         type=MediaType.AUDIO,
                         url="https://example.com/audio.mp3",
                         media_bytes=b"audio data",
-                    )
+                    ),
                 ],
-                metadata={"source": "test2"}
+                metadata={"source": "test2"},
             ),
-            Document(
-                text="Document without media",
-                id="doc3",
-                metadata={"source": "test3"}
-            ),
+            Document(text="Document without media", id="doc3", metadata={"source": "test3"}),
         ]
 
         # Write documents
-        writer = JsonlWriter(
-            output_folder=self.tmp_dir,
-            compression=None,
-            save_media_bytes=True
-        )
+        writer = JsonlWriter(output_folder=self.tmp_dir, compression=None, save_media_bytes=True)
         written_docs = deepcopy(list(writer.run(iter(docs), rank=0, world_size=1)))
 
         # Null the media bytes to simulate a reader that doesn't have the media bytes
@@ -77,10 +70,7 @@ class TestMediaSerialization(unittest.TestCase):
                 media.media_bytes = None
 
         # Read documents back
-        reader = JsonlReader(
-            data_folder=self.tmp_dir,
-            compression=None
-        )
+        reader = JsonlReader(data_folder=self.tmp_dir, compression=None)
         read_docs = list(reader.run(rank=0, world_size=1))
 
         for read_doc, written_doc in zip(read_docs, written_docs):

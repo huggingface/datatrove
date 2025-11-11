@@ -1,24 +1,40 @@
-from time import sleep
-import time
-from loguru import logger
-import dns.rdatatype
-from datatrove.data import Document, DocumentsPipeline, Media
-from dns.rdatatype import RdataType
-import socket
-from datatrove.pipeline.base import PipelineStep
-from threading import local
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
-import requests
-import ssl
-import dns.resolver
 import random
+import socket
+import ssl
+import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from threading import local
+from time import sleep
+
+import dns.rdatatype
+import dns.resolver
+import requests
+from dns.rdatatype import RdataType
+from loguru import logger
 from urllib3.exceptions import InsecureRequestWarning
+
+from datatrove.data import Document, DocumentsPipeline, Media
+from datatrove.pipeline.base import PipelineStep
+
 
 class HTTPFetchReader(PipelineStep):
     type = "📖 - READER"
     name = "🌐 HTTP Fetch Reader"
-    def __init__(self, retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504], timeout: tuple[int, int] = (60,600), workers: int = 10, retry_delay: int = 2, max_retries: int = 3, download_timeout: int = 10, max_size: int = 1024 * 1024 * 1024, dns_port: int | None = None,
-                 pool_size: int = 5, pool_connections: int = 5, custom_agent: str = "HF-Research/1.0"):
+
+    def __init__(
+        self,
+        retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504],
+        timeout: tuple[int, int] = (60, 600),
+        workers: int = 10,
+        retry_delay: int = 2,
+        max_retries: int = 3,
+        download_timeout: int = 10,
+        max_size: int = 1024 * 1024 * 1024,
+        dns_port: int | None = None,
+        pool_size: int = 5,
+        pool_connections: int = 5,
+        custom_agent: str = "HF-Research/1.0",
+    ):
         self._retry_delay = retry_delay
         self._max_retries = max_retries
         self._retry_codes = retry_codes
@@ -38,7 +54,7 @@ class HTTPFetchReader(PipelineStep):
         self.pool_connections = pool_connections
         self.custom_agent = custom_agent
 
-        max_timeout = sum(self._retry_delay * (2 ** attempt) for attempt in range(self._max_retries))
+        max_timeout = sum(self._retry_delay * (2**attempt) for attempt in range(self._max_retries))
         logger.debug(f"Initializing HTTPFetchReader with {self.workers} workers, max timeout: {max_timeout} seconds")
         super().__init__()
 
@@ -57,42 +73,55 @@ class HTTPFetchReader(PipelineStep):
                 ssl_context.options |= ssl.OP_LEGACY_SERVER_CONNECT  # Allows unsafe renegotiation
             except AttributeError:
                 pass
-            ssl_context.set_ciphers('ALL:@SECLEVEL=0')  # allows all cipher suites including weak ones
+            ssl_context.set_ciphers("ALL:@SECLEVEL=0")  # allows all cipher suites including weak ones
 
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
             import requests.adapters
+
             class CustomHTTPAdapter(requests.adapters.HTTPAdapter):
                 def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
                     pool_kwargs["ssl_context"] = ssl_context
-                    logger.debug(f"init_poolmanager: {pool_kwargs} with connections: {connections} and maxsize: {maxsize}")
+                    logger.debug(
+                        f"init_poolmanager: {pool_kwargs} with connections: {connections} and maxsize: {maxsize}"
+                    )
                     super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
 
             self._thread_local.scrapers = [requests.Session()]
             for scraper in self._thread_local.scrapers:
-                scraper.mount("https://", CustomHTTPAdapter(pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True))
-                scraper.mount("http://", CustomHTTPAdapter(pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True))
+                scraper.mount(
+                    "https://",
+                    CustomHTTPAdapter(
+                        pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True
+                    ),
+                )
+                scraper.mount(
+                    "http://",
+                    CustomHTTPAdapter(
+                        pool_maxsize=self.pool_size, pool_connections=self.pool_connections, pool_block=True
+                    ),
+                )
 
         return random.choice(self._thread_local.scrapers)
 
     def check_robots_txt(self, url: str) -> bool:
         """Check if the URL is allowed by robots.txt. Returns True if allowed, False if disallowed."""
         try:
-            from urllib.robotparser import RobotFileParser
             from urllib.parse import urlparse
-            
+            from urllib.robotparser import RobotFileParser
+
             parsed_url = urlparse(url)
             robots_url = f"{parsed_url.scheme}://{parsed_url.netloc}/robots.txt"
-            
+
             rp = RobotFileParser()
             rp.set_url(robots_url)
             rp.read()
             if not rp.can_fetch(self.custom_agent, url):
                 logger.debug(f"Robots.txt disallows fetching {url}")
                 return False
-        except Exception as e:
+        except Exception:
             logger.error(f"Error checking robots.txt for {url}, skipping")
-        
+
         return True
 
     def fetch_media(self, media: Media) -> tuple[bytes | None, dict | None]:
@@ -112,7 +141,9 @@ class HTTPFetchReader(PipelineStep):
             try:
                 custom_headers = {"User-Agent": self.custom_agent}
 
-                with scraper.get(url, timeout=self.timeout, verify=False, headers=custom_headers, stream=True) as response:
+                with scraper.get(
+                    url, timeout=self.timeout, verify=False, headers=custom_headers, stream=True
+                ) as response:
                     last_status_code = response.status_code
                     last_reason = response.reason
                     if response.status_code == 200:
@@ -120,17 +151,20 @@ class HTTPFetchReader(PipelineStep):
                         metadata["fetched_url"] = url
                         response_content = b""
                         download_start_time = time.time()
-                        for chunk in response.iter_content(chunk_size=1024*1024):
+                        for chunk in response.iter_content(chunk_size=1024 * 1024):
                             if time.time() - download_start_time > self.download_timeout:
                                 raise TimeoutError(f"Timeout fetching media from {url}")
                             response_content += chunk
 
                             # If we get anything over 100MB, we report every 10MB that we are still downloading
-                            if len(response_content) >= 100*1024*1024 and len(response_content) % (10*1024*1024) == 0:
+                            if (
+                                len(response_content) >= 100 * 1024 * 1024
+                                and len(response_content) % (10 * 1024 * 1024) == 0
+                            ):
                                 logger.warning(f"Downloading {len(response_content)} bytes from {url}")
 
                             if len(response_content) >= self.max_size:
-                                response_content = response_content[:self.max_size]
+                                response_content = response_content[: self.max_size]
                                 metadata["reason"] = "length"
                                 break
                         return response_content, metadata
@@ -165,12 +199,11 @@ class HTTPFetchReader(PipelineStep):
                 last_reason = str(e)
                 break
 
-            sleep_time = self._retry_delay * (2 ** attempt) + random.uniform(0, 1)
+            sleep_time = self._retry_delay * (2**attempt) + random.uniform(0, 1)
             sleep(sleep_time)
 
         return response_content, {"status_code": last_status_code, "reason": last_reason, "url": url}
-        
-        
+
     def process_record_result(self, record: Document, media_results: list[tuple[Media, bytes | None, dict | None]]):
         updated_media = []
         for media, response, metadata in media_results:
@@ -235,29 +268,39 @@ class HTTPFetchReader(PipelineStep):
         if data is None:
             return
 
-
         if self.dns_port is not None:
             from dns.resolver import Resolver
+
             resolver = Resolver()
-            resolver.nameservers = ['127.0.0.1']
+            resolver.nameservers = ["127.0.0.1"]
             resolver.port = self.dns_port
             original_getaddrinfo = socket.getaddrinfo
+
             def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
                 addresses = []
                 try:
-                    addresses.extend([(socket.AF_INET, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.A)])
+                    addresses.extend(
+                        [
+                            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (rdata.address, port))
+                            for rdata in resolver.resolve(host, rdtype=RdataType.A)
+                        ]
+                    )
                 except dns.resolver.LifetimeTimeout:
                     return original_getaddrinfo(host, port, family, type, proto, flags)
                 except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
                     pass
 
                 try:
-                    addresses.extend([(socket.AF_INET6, socket.SOCK_STREAM, 6, '', (rdata.address, port)) for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)])
+                    addresses.extend(
+                        [
+                            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", (rdata.address, port))
+                            for rdata in resolver.resolve(host, rdtype=RdataType.AAAA)
+                        ]
+                    )
                 except dns.resolver.LifetimeTimeout:
                     return original_getaddrinfo(host, port, family, type, proto, flags)
                 except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
                     pass
-
 
                 if len(addresses) == 0:
                     return original_getaddrinfo(host, port, family, type, proto, flags)
@@ -268,6 +311,7 @@ class HTTPFetchReader(PipelineStep):
 
         # disable warnings
         import warnings
+
         warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 
         def fetch_document_media(record: Document):

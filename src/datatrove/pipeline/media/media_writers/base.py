@@ -1,12 +1,13 @@
-from collections import Counter
 import os
+from abc import ABC, abstractmethod
+from collections import Counter
 from string import Template
-from typing import IO, Callable
-from datatrove.data import Document, DocumentsPipeline, Media
+from typing import IO
+
+from datatrove.data import DocumentsPipeline, Media
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.typeshelper import StatHints
-from abc import ABC, abstractmethod
 
 
 class BaseMediaWriter(PipelineStep, ABC):
@@ -37,6 +38,7 @@ class BaseMediaWriter(PipelineStep, ABC):
             raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
         self.output_filename = Template(output_filename)
         self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=None)
+
     def __enter__(self):
         return self
 
@@ -63,9 +65,7 @@ class BaseMediaWriter(PipelineStep, ABC):
         Returns: the final replaced path for this document
 
         """
-        return self.output_filename.substitute(
-            {"rank": str(rank).zfill(5), **kwargs}
-        )
+        return self.output_filename.substitute({"rank": str(rank).zfill(5), **kwargs})
 
     @abstractmethod
     def _write(self, media: Media, file_handler: IO, filename: str) -> tuple[str, int, int]:
@@ -128,7 +128,9 @@ class BaseMediaWriter(PipelineStep, ABC):
                 self._on_file_switch(original_name, output_filename, new_output_filename)
                 output_filename = new_output_filename
         # actually write
-        filename, offset, compressed_size = self._write(media, self.output_mg.get_file(output_filename), output_filename)
+        filename, offset, compressed_size = self._write(
+            media, self.output_mg.get_file(output_filename), output_filename
+        )
         self.stat_update(self._get_output_filename(media, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
         self.update_media_stats(media)
@@ -146,13 +148,13 @@ class BaseMediaWriter(PipelineStep, ABC):
 
         """
         with self:
-                for document in data:
-                    with self.track_time():
-                        for media in document.media:
-                            if media.media_bytes is not None:
-                                filename, offset, compressed_size = self.write(media, rank)
-                                media.path = filename
-                                media.offset = offset
-                                media.length = compressed_size
-                                self.stat_update(StatHints.total)
-                    yield document
+            for document in data:
+                with self.track_time():
+                    for media in document.media:
+                        if media.media_bytes is not None:
+                            filename, offset, compressed_size = self.write(media, rank)
+                            media.path = filename
+                            media.offset = offset
+                            media.length = compressed_size
+                            self.stat_update(StatHints.total)
+                yield document

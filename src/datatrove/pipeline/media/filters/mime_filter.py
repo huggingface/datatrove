@@ -1,10 +1,12 @@
 import magic
+
 from datatrove.data import Media
 from datatrove.pipeline.media.filters.base_filter import BaseMediaContentFilter
 
 
 class MimeTypeFilter(BaseMediaContentFilter):
     name = "🔍 Mime Type Filter"
+
     def __init__(self, mime_types: list[str]):
         super().__init__()
         self.mime_types = mime_types

@@ -1,4 +1,5 @@
 from .bloom_filter import SingleBloomFilter
+from .exact_dedup import ExactDedupConfig, ExactDedupFilter, ExactDedupSignature, ExactFindDedups
 from .exact_substrings import ESDatasetToSequence, ESMergeSequences, ESRangeRemover
 from .minhash import (
     MinhashBuildIndex,
@@ -9,4 +10,3 @@ from .minhash import (
     MinhashDedupSignature,
 )
 from .sentence_dedup import SentDedupConfig, SentenceDedupFilter, SentenceDedupSignature, SentenceFindDedups
-from .exact_dedup import ExactDedupConfig, ExactDedupFilter, ExactDedupSignature, ExactFindDedups

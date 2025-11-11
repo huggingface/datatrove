@@ -1,14 +1,17 @@
 import asyncio
 import atexit
-import logging
-import sys
 import os
+import sys
 from typing import TYPE_CHECKING
-from datatrove.pipeline.inference.servers import InferenceServer
+
 from loguru import logger
+
+from datatrove.pipeline.inference.servers import InferenceServer
+
 
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
+
 
 class CustomServer(InferenceServer):
     """Custom inference server implementation."""
@@ -50,7 +53,7 @@ class CustomServer(InferenceServer):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=os.path.dirname(os.path.abspath(__file__))  # Run from the servers directory
+            cwd=os.path.dirname(os.path.abspath(__file__)),  # Run from the servers directory
         )
 
         # Ensure the subprocess is terminated on exit
@@ -61,9 +64,9 @@ class CustomServer(InferenceServer):
         atexit.register(_kill_proc)
 
         server_printed_ready_message = False
-        
+
         # Create dedicated logger for server output
-        server_logger = self._create_server_logger(getattr(self, 'rank', 0))
+        server_logger = self._create_server_logger(getattr(self, "rank", 0))
 
         async def process_line(line):
             nonlocal server_printed_ready_message
@@ -116,4 +119,4 @@ class CustomServer(InferenceServer):
                 self.server_process.terminate()
             raise
 
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True) 
+        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)

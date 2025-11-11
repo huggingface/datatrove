@@ -1,12 +1,10 @@
-import gzip
 from typing import IO
 
-
 import zstandard as zstd
+
 from datatrove.data import Media
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.media.media_writers.base import BaseMediaWriter
-from typing import Literal
 
 
 class BinaryZstdWriter(BaseMediaWriter):
@@ -31,8 +29,11 @@ class BinaryZstdWriter(BaseMediaWriter):
     @property
     def compressor(self):
         if not hasattr(self, "_compressor"):
-            self._compressor = zstd.ZstdCompressor(compression_params=zstd.ZstdCompressionParameters.from_level(self.compression_level, format=zstd.FORMAT_ZSTD1_MAGICLESS,
-                    write_checksum=0, write_content_size=0))
+            self._compressor = zstd.ZstdCompressor(
+                compression_params=zstd.ZstdCompressionParameters.from_level(
+                    self.compression_level, format=zstd.FORMAT_ZSTD1_MAGICLESS, write_checksum=0, write_content_size=0
+                )
+            )
         return self._compressor
 
     def _write(self, media: Media, file_handler: IO, filename: str):

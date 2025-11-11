@@ -22,6 +22,7 @@ class Media:
 
     For future uses, currently not used.
     """
+
     id: str
     type: int
     url: str
@@ -31,6 +32,7 @@ class Media:
     length: int | None = None
     media_bytes: bytes | None = None
     metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
+
 
 @dataclass
 class Document:

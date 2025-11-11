@@ -73,7 +73,7 @@ class DiskWriter(PipelineStep, ABC):
         data = {key: val for key, val in dataclasses.asdict(document).items() if val}
         if self.expand_metadata and "metadata" in data:
             data |= data.pop("metadata")
-        
+
         if not self.save_media_bytes and "media" in data:
             data["media"] = [
                 {

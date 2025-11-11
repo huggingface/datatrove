@@ -5,7 +5,7 @@ from typing import Callable, Literal, Type
 import numpy as np
 
 from datatrove.utils._import_utils import check_required_dependencies
-from datatrove.utils.hashes.sha1 import sha1_hash32, sha1_hash64, sha1_hash32_bytes, sha1_hash64_bytes
+from datatrove.utils.hashes.sha1 import sha1_hash32, sha1_hash32_bytes, sha1_hash64, sha1_hash64_bytes
 
 
 @dataclass(frozen=True)
@@ -41,16 +41,18 @@ class HashConfig:
         return f"HashConfig(precision={self.precision}, hash_fc={self.hash_fc})"
 
 
-def create_hash_func(config: HashConfig, input_type: Type[str] | Type[bytes] = str) -> Callable[[str], int] | Callable[[bytes], int]:
+def create_hash_func(
+    config: HashConfig, input_type: Type[str] | Type[bytes] = str
+) -> Callable[[str], int] | Callable[[bytes], int]:
     if config.hash_fc == "sha1":
-        if input_type == bytes:
+        if input_type is bytes:
             return sha1_hash32_bytes if config.precision == 32 else sha1_hash64_bytes
         else:
             return sha1_hash32 if config.precision == 32 else sha1_hash64
     elif config.hash_fc == "xxhash":
-        from datatrove.utils.hashes.xxhash import xxhash32, xxhash64, xxhash32_bytes, xxhash64_bytes
+        from datatrove.utils.hashes.xxhash import xxhash32, xxhash32_bytes, xxhash64, xxhash64_bytes
 
-        if input_type == bytes:
+        if input_type is bytes:
             return xxhash32_bytes if config.precision == 32 else xxhash64_bytes
         else:
             return xxhash32 if config.precision == 32 else xxhash64

@@ -1,18 +1,19 @@
-import io
-from datatrove.data import Document, DocumentsPipeline, Media, MediaType
+import heapq
+import threading
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+from loguru import logger
+from warcio.archiveiterator import ArchiveIterator
+
+from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from warcio.archiveiterator import ArchiveIterator
-from warcio.utils import BUFF_SIZE
-import threading
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
-from datatrove.pipeline.media.media_readers.zstd import LimitedReader
-import heapq
-from loguru import logger
+
 
 class WarcReaderFast(PipelineStep):
     type = "Media Reader"
     name = "🌐 - Warc Reader Fast"
+
     def __init__(self, data_folder: DataFolderLike, workers: int = 5, preserve_order: bool = False):
         self.data_folder = get_datafolder(data_folder)
         self.workers = workers
@@ -31,10 +32,11 @@ class WarcReaderFast(PipelineStep):
             try:
                 self.thread_local.current_fp.close()
             except Exception as e:
-                logger.warning(f"Error closing thread-local file pointer for {self.thread_local.current_filename}: {e}")
-        self._init_thread_local() # Reset state after closing
+                logger.warning(
+                    f"Error closing thread-local file pointer for {self.thread_local.current_filename}: {e}"
+                )
+        self._init_thread_local()  # Reset state after closing
 
-        
     def _read_warc_record_wrapper(self, record: Document, record_index: int):
         for media in record.media:
             media.media_bytes = self.read_warc_record(media)
@@ -47,11 +49,11 @@ class WarcReaderFast(PipelineStep):
                 f"Thread {threading.current_thread().name}: Media {media.id} is missing offset or path, skipping."
             )
             return None
-        
+
         # Ensures each thread handles its own file operations independently, reusing fp if possible.
         warc_file = media.path
         warc_record_offset = media.offset
-        buff_size = media.length if media.length is not None else 1024*128
+        buff_size = media.length if media.length is not None else 1024 * 128
 
         # Initialize thread-local storage if this is the first time the thread uses it
         if not hasattr(self.thread_local, "current_filename"):
@@ -81,6 +83,7 @@ class WarcReaderFast(PipelineStep):
 
         content = warc_record.content_stream().read()
         return content
+
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         if data is None:
             return
@@ -93,14 +96,18 @@ class WarcReaderFast(PipelineStep):
                 futures = set()
                 for record_index, record in enumerate(data):
                     # Keep the futures queue size manageable
-                    while len(futures) >= self.workers * 2 or (len(processed_record_heap) >= self.workers * 2): # Keep queue size reasonable
-                        done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=None) # Short timeout
+                    while len(futures) >= self.workers * 2 or (
+                        len(processed_record_heap) >= self.workers * 2
+                    ):  # Keep queue size reasonable
+                        done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=None)  # Short timeout
                         for future in done:
                             processed_record, processed_record_index = future.result()
                             # push to heap
                             heapq.heappush(processed_record_heap, (processed_record_index, processed_record))
-                        
-                        while processed_record_heap and (not self.preserve_order or processed_record_heap[0][0] == next_index):
+
+                        while processed_record_heap and (
+                            not self.preserve_order or processed_record_heap[0][0] == next_index
+                        ):
                             yield heapq.heappop(processed_record_heap)[1]
                             next_index += 1
 
@@ -111,13 +118,17 @@ class WarcReaderFast(PipelineStep):
                 # Process remaining futures after input data is exhausted
                 logger.info(f"Input data exhausted. Waiting for {len(futures)} remaining tasks.")
                 while futures:
-                    done, futures = wait(futures, return_when=FIRST_COMPLETED, timeout=None) # Longer timeout when waiting
+                    done, futures = wait(
+                        futures, return_when=FIRST_COMPLETED, timeout=None
+                    )  # Longer timeout when waiting
                     for future in done:
                         processed_record, processed_record_index = future.result()
                         heapq.heappush(processed_record_heap, (processed_record_index, processed_record))
 
                         # pop from heap while if index == next_index
-                        while processed_record_heap and (not self.preserve_order or processed_record_heap[0][0] == next_index):
+                        while processed_record_heap and (
+                            not self.preserve_order or processed_record_heap[0][0] == next_index
+                        ):
                             yield heapq.heappop(processed_record_heap)[1]
                             next_index += 1
         finally:

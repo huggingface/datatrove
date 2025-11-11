@@ -1,19 +1,19 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-from datatrove.data import Media
+from datatrove.data import DocumentsPipeline, Media
 from datatrove.pipeline.base import PipelineStep
-from datatrove.data import DocumentsPipeline
-
 from datatrove.utils.typeshelper import StatHints
 
+
 class BaseMediaContentFilter(PipelineStep, ABC):
-    """Base module for Media Filters
-    """
+    """Base module for Media Filters"""
+
     type = "🔻️ - MEDIA FILTER"
 
     def __init__(self):
         super().__init__()
+
     @abstractmethod
     def filter(self, media: Media) -> bool | Tuple[bool, str]:
         """Filter modules main method, for a single media

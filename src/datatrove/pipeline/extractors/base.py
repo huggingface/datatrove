@@ -1,3 +1,4 @@
+import platform
 import time
 from abc import abstractmethod
 from multiprocessing import Pipe, Process
@@ -6,7 +7,6 @@ from datatrove.data import DocumentsPipeline
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import StatHints
-import platform
 
 
 class BaseExtractor(PipelineStep):
@@ -129,7 +129,6 @@ class ExtractorSandbox:
                 conn.send(result)
             except EOFError:
                 break
-
 
     def process_document(self, text, extract_fn):
         self._ensure_process(extract_fn)

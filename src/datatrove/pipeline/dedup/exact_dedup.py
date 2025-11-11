@@ -4,6 +4,7 @@ Exact deduplication.
 
 import contextlib
 import heapq
+import inspect
 import struct
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -18,13 +19,11 @@ from tqdm import tqdm
 from datatrove.data import Document, DocumentsPipeline
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
+from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils.binaryio import read_np_from_file, read_tuples_from_file
 from datatrove.utils.hashing import HashConfig, create_hash_func
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import ExtensionHelperSD, StatHints
-import inspect
-
-from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
 @dataclass
@@ -100,15 +99,14 @@ class ExactDedupSignature(PipelineStep):
         hash_fc_type = inspect.signature(self.config.content_getter).return_annotation
         self.hash_fc = create_hash_func(self.config.hash_config, hash_fc_type)
 
-
     def save_hashes(self, rank: int, signatures):
         sig_dtype = get_sig_dtype(self.config.hash_config)
         priority_max = np.iinfo(sig_dtype["priority"]).max
 
         # 0 will stay as is, so we can't use 0 as a priority
-        assert all(
-            sig[1] >= 1 and sig[1] <= priority_max for sig in signatures
-        ), f"priority must be between 1 and {priority_max}"
+        assert all(sig[1] >= 1 and sig[1] <= priority_max for sig in signatures), (
+            f"priority must be between 1 and {priority_max}"
+        )
         signatures = np.array(signatures, dtype=sig_dtype)
 
         # Ensure that the highest priority is always first
@@ -141,11 +139,9 @@ class ExactDedupSignature(PipelineStep):
                     break
 
     def get_hashes(self, doc: Document, doc_idx: int) -> list[None] | list[tuple[int, int, int]]:
-        content_to_hash: bytes | str = (
-            self.config.content_getter(doc)
-        )
+        content_to_hash: bytes | str = self.config.content_getter(doc)
         priority = self.config.document_priority(doc) if self.config.document_priority else 1
-        hashes = [(self.hash_fc(content_to_hash), priority, doc_idx)] # type: ignore
+        hashes = [(self.hash_fc(content_to_hash), priority, doc_idx)]  # type: ignore
 
         return hashes
 
@@ -291,7 +287,10 @@ class ExactFindDedups(PipelineStep):
                 if last is None or last.hash_value != v.hash_value:
                     # Save the duplicate count for v since we are switching to a new hash
                     if last is not None and not last.is_from_index() and duplicate_count > 0:
-                        cluster_size_mg.write(f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}", cluster_size_packer.pack(last.doc_id, duplicate_count))
+                        cluster_size_mg.write(
+                            f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}",
+                            cluster_size_packer.pack(last.doc_id, duplicate_count),
+                        )
                     last = v
                     duplicate_count = 0
 
@@ -302,10 +301,12 @@ class ExactFindDedups(PipelineStep):
 
         # Save the duplicate count for the last hash
         if last is not None and not last.is_from_index() and duplicate_count > 0:
-            cluster_size_mg.write(f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}", cluster_size_packer.pack(last.doc_id, duplicate_count))
+            cluster_size_mg.write(
+                f"{rank:05d}/{last.file_stem}{ExtensionHelperSD.stage_2_counts}",
+                cluster_size_packer.pack(last.doc_id, duplicate_count),
+            )
         output_mg.close()
         cluster_size_mg.close()
-
 
 
 class ExactDedupFilter(PipelineStep):
@@ -356,8 +357,6 @@ class ExactDedupFilter(PipelineStep):
             if self.data_folder.exists(f)
         ]
 
-
-
         logger.info(f"Loading duplicate indexes from {len(dup_files)} results files.")
 
         dup_dtype = get_sig_dtype(self.config.hash_config)[2]
@@ -377,7 +376,6 @@ class ExactDedupFilter(PipelineStep):
                     axis=0,
                 )
                 all_dups.sort()
-        
 
         if dup_count_files:
             with ThreadPoolExecutor() as pool:
@@ -391,7 +389,7 @@ class ExactDedupFilter(PipelineStep):
                     ),
                     axis=0,
                 )
-                all_dup_counts.sort(order='doc')
+                all_dup_counts.sort(order="doc")
 
         logger.info("Loaded duplicate indexes.")
         dups_doc_i = 0
@@ -408,7 +406,10 @@ class ExactDedupFilter(PipelineStep):
                             dups_doc_i += 1
                         else:
                             dups_count = 0
-                            if dups_count_i < all_dup_counts.shape[0] and all_dup_counts[dups_count_i]["doc"]== doc_idx:
+                            if (
+                                dups_count_i < all_dup_counts.shape[0]
+                                and all_dup_counts[dups_count_i]["doc"] == doc_idx
+                            ):
                                 dups_count = all_dup_counts[dups_count_i]["count"]
                                 dups_count_i += 1
                             doc.metadata["duplicate_count"] = int(dups_count)
@@ -416,10 +417,12 @@ class ExactDedupFilter(PipelineStep):
                             self.update_doc_stats(doc)
                             yield doc
         # Ensure that both arrays are exhausted
-        assert dups_doc_i == all_dups.shape[0], f"Duplicates doc index not exhausted. {dups_doc_i=}, {all_dups.shape[0]=}"
-        assert dups_count_i == all_dup_counts.shape[0], f"Duplicates count index not exhausted. {dups_count_i=}, {all_dup_counts.shape[0]=}"
-
-
+        assert dups_doc_i == all_dups.shape[0], (
+            f"Duplicates doc index not exhausted. {dups_doc_i=}, {all_dups.shape[0]=}"
+        )
+        assert dups_count_i == all_dup_counts.shape[0], (
+            f"Duplicates count index not exhausted. {dups_count_i=}, {all_dup_counts.shape[0]=}"
+        )
 
 
 class ExactDedupBuildIndex(PipelineStep):
