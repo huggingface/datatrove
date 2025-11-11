@@ -7,7 +7,7 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.media.media_writers.base import BaseMediaWriter
 
 
-class BinaryZstdWriter(BaseMediaWriter):
+class ZstdWriter(BaseMediaWriter):
     default_output_filename: str = "${rank}.bin.zst"
     name = "️️🗜️ - Binary Zstd"
 

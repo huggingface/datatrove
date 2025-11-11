@@ -51,7 +51,7 @@ class LimitedReader(IO):
         return self.fp.tell()
 
 
-class ZstdThreadedReader(BinaryReaderThreaded):
+class ZstdReader(BinaryReaderThreaded):
     name = "📒⚡ Zstd Media Reader (Streaming/Threaded)"
     type = "Media Reader"
 

@@ -6,8 +6,8 @@ import unittest
 from copy import deepcopy
 
 from datatrove.data import Document, Media, MediaType
-from datatrove.pipeline.media.media_readers.zstd import ZstdThreadedReader
-from datatrove.pipeline.media.media_writers.zstd import BinaryZstdWriter
+from datatrove.pipeline.media.media_readers.zstd import ZstdReader
+from datatrove.pipeline.media.media_writers.zstd import ZstdWriter
 
 
 class TestMediaWriterReader(unittest.TestCase):
@@ -59,14 +59,14 @@ class TestMediaWriterReader(unittest.TestCase):
         ]
 
         # Write media
-        writer = BinaryZstdWriter(output_folder=self.tmp_dir, compression_level=3)
+        writer = ZstdWriter(output_folder=self.tmp_dir, compression_level=3)
         written_docs = deepcopy(list(writer.run(iter(docs), rank=0, world_size=1)))
 
         # Verify media fields are populated
         self.assertEqual(len(written_docs), 2)
 
         # Read media back
-        reader = ZstdThreadedReader(data_folder=self.tmp_dir, workers=2)
+        reader = ZstdReader(data_folder=self.tmp_dir, workers=2)
 
         # Null the media bytes to simulate a reader that doesn't have the media bytes
         for doc in docs:
@@ -111,7 +111,7 @@ class TestMediaWriterReader(unittest.TestCase):
             )
 
         # Write
-        writer = BinaryZstdWriter(output_folder=self.tmp_dir)
+        writer = ZstdWriter(output_folder=self.tmp_dir)
         written_docs = deepcopy(list(writer.run(iter(docs), rank=0, world_size=1)))
 
         # Null the media bytes to simulate a reader that doesn't have the media bytes
@@ -120,7 +120,7 @@ class TestMediaWriterReader(unittest.TestCase):
                 media.media_bytes = None
 
         # Read with preserve_order=True
-        reader = ZstdThreadedReader(data_folder=self.tmp_dir, workers=3, preserve_order=True)
+        reader = ZstdReader(data_folder=self.tmp_dir, workers=3, preserve_order=True)
         read_docs = list(reader.run(iter(docs), rank=0, world_size=1))
 
         # Verify order is preserved

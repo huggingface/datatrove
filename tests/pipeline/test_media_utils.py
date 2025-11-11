@@ -1,4 +1,5 @@
 """Tests for media utility functions"""
+
 import unittest
 
 from datatrove.data import Document, Media, MediaType
@@ -19,9 +20,9 @@ class TestMediaUtils(unittest.TestCase):
                     id="media1",
                     type=MediaType.DOCUMENT,
                     url="https://example.com/doc.pdf",
-                    metadata={"page_offsets": [15, 31, 47]}
+                    metadata={"page_offsets": [15, 31, 47]},
                 )
-            ]
+            ],
         )
 
         pages = list(iter_pages(doc))
@@ -41,15 +42,15 @@ class TestMediaUtils(unittest.TestCase):
                     id="media1",
                     type=MediaType.DOCUMENT,
                     url="https://example.com/doc1.pdf",
-                    metadata={"page_offsets": [16]}
+                    metadata={"page_offsets": [16]},
                 ),
                 Media(
                     id="media2",
                     type=MediaType.DOCUMENT,
                     url="https://example.com/doc2.pdf",
-                    metadata={"page_offsets": [32, 48]}
-                )
-            ]
+                    metadata={"page_offsets": [32, 48]},
+                ),
+            ],
         )
 
         pages = list(iter_pages(doc))
@@ -58,15 +59,10 @@ class TestMediaUtils(unittest.TestCase):
         self.assertEqual(pages[1], "Section B text. ")
         self.assertEqual(pages[2], "Section C text.")
 
-
     def test_iter_pages_empty_media(self):
         """Test iter_pages with no media"""
         text = "Some text content."
-        doc = Document(
-            text=text,
-            id="doc1",
-            media=[]
-        )
+        doc = Document(text=text, id="doc1", media=[])
 
         pages = list(iter_pages(doc))
         self.assertEqual(len(pages), 0)
