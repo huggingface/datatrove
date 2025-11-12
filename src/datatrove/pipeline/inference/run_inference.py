@@ -408,7 +408,10 @@ class InferenceRunner(PipelineStep):
         if not self.request_cache.enabled:
             return await self._send_request(payload, semaphore)
 
-        cached_result, cached_error = await self.request_cache.get_cached_response(doc_id, rollout_idx, payload)
+        payload_hash = self.request_cache.prepare_payload(payload)
+        cached_result, cached_error = await self.request_cache.get_cached_response(
+            doc_id, rollout_idx, payload_hash=payload_hash
+        )
         if cached_result is not None or cached_error is not None:
             if cached_error is not None:
                 raise InferenceError(None, cached_error, payload=payload)
@@ -419,15 +422,21 @@ class InferenceRunner(PipelineStep):
         try:
             result = await self._send_request(payload, semaphore)
         except InferenceError as e:
-            await self.request_cache.store_error(chunk_index, doc_id, rollout_idx, payload, str(e))
+            await self.request_cache.store_error(
+                chunk_index=chunk_index,
+                doc_id=doc_id,
+                rollout_idx=rollout_idx,
+                error_message=str(e),
+                payload_hash=payload_hash,
+            )
             raise
 
         await self.request_cache.store_result(
-            chunk_index,
-            doc_id,
-            rollout_idx,
-            payload,
-            {"text": result.text, "finish_reason": result.finish_reason, "usage": result.usage},
+            chunk_index=chunk_index,
+            doc_id=doc_id,
+            rollout_idx=rollout_idx,
+            result={"text": result.text, "finish_reason": result.finish_reason, "usage": result.usage},
+            payload_hash=payload_hash,
         )
         return result
 
