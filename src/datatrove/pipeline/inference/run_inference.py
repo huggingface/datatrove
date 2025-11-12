@@ -523,7 +523,7 @@ class InferenceRunner(PipelineStep):
                     generate_callback = partial(
                         self._cached_request,
                         semaphore=semaphore,
-                        doc_id=doc.id,
+                        doc_id=str(doc.id),
                         rollout_idx=rollout_idx,
                         chunk_index=chunk_index,
                     )
