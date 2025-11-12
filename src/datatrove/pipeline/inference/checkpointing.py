@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import os
-import sqlite3
 from collections import Counter, defaultdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import orjson
 from loguru import logger
@@ -15,6 +14,10 @@ from datatrove.io import get_datafolder
 from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers.disk_base import DiskWriter
 from datatrove.utils._import_utils import check_required_dependencies
+
+
+if TYPE_CHECKING:
+    import aiosqlite
 
 
 try:
@@ -42,25 +45,23 @@ class RequestCache:
         self.enabled = checkpoints_local_dir is not None
         _ensure_xxhash(checkpoints_local_dir)
         self.db_path: str | None = None
-        self._conn: sqlite3.Connection | None = None
-        self._lock = asyncio.Lock()
+        self._conn: aiosqlite.Connection | None = None
         self._doc_ids_in_cache: set[str] = set()
-        self._select_stmt: sqlite3.Cursor | None = None
-        self._insert_result_stmt: sqlite3.Cursor | None = None
-        self._insert_error_stmt: sqlite3.Cursor | None = None
-        self._delete_chunk_stmt: sqlite3.Cursor | None = None
         self._queue: asyncio.Queue | None = None
         self._writer_task: asyncio.Task | None = None
 
     async def initialize(self, rank: int) -> None:
         if not self.enabled:
             return
+        check_required_dependencies("Inference request cache", ["aiosqlite"])
+        import aiosqlite
+
         os.makedirs(self.base_dir, exist_ok=True)
         self.db_path = os.path.join(self.base_dir, f"{rank:05d}_replay.sqlite3")
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL;")
-        self._conn.execute("PRAGMA synchronous=NORMAL;")
-        self._conn.execute(
+        self._conn = await aiosqlite.connect(self.db_path)
+        await self._conn.execute("PRAGMA journal_mode=WAL;")
+        await self._conn.execute("PRAGMA synchronous=NORMAL;")
+        await self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS request_cache (
                 chunk_index INTEGER NOT NULL,
@@ -73,15 +74,11 @@ class RequestCache:
             )
         """
         )
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_request_cache_chunk ON request_cache(chunk_index)")
-        self._conn.commit()
-        self._select_stmt = self._conn.cursor()
-        self._insert_result_stmt = self._conn.cursor()
-        self._insert_error_stmt = self._conn.cursor()
-        self._delete_chunk_stmt = self._conn.cursor()
+        await self._conn.execute("CREATE INDEX IF NOT EXISTS idx_request_cache_chunk ON request_cache(chunk_index)")
+        await self._conn.commit()
         self._queue = asyncio.Queue()
         self._writer_task = asyncio.create_task(self._writer_loop())
-        self._doc_ids_in_cache = self._load_cached_doc_ids()
+        self._doc_ids_in_cache = await self._load_cached_doc_ids()
 
     async def close(self, delete_file: bool = False) -> None:
         if self._conn is None:
@@ -92,28 +89,20 @@ class RequestCache:
             await self._writer_task
             self._writer_task = None
             self._queue = None
-        conn = self._conn
+        await self._conn.close()
         self._conn = None
-        for cursor in (
-            self._select_stmt,
-            self._insert_result_stmt,
-            self._insert_error_stmt,
-            self._delete_chunk_stmt,
-        ):
-            if cursor is not None:
-                cursor.close()
-        self._select_stmt = self._insert_result_stmt = self._insert_error_stmt = self._delete_chunk_stmt = None
-        conn.close()
         if delete_file and self.db_path and os.path.exists(self.db_path):
             os.remove(self.db_path)
         self.db_path = None
         self._doc_ids_in_cache.clear()
 
-    def _load_cached_doc_ids(self) -> set[str]:
+    async def _load_cached_doc_ids(self) -> set[str]:
         if self._conn is None:
             return set()
-        cursor = self._conn.execute("SELECT DISTINCT doc_id FROM request_cache")
-        return {row[0] for row in cursor.fetchall()}
+        cursor = await self._conn.execute("SELECT DISTINCT doc_id FROM request_cache")
+        rows = await cursor.fetchall()
+        await cursor.close()
+        return {row[0] for row in rows}
 
     def prepare_payload(self, payload: dict[str, Any]) -> str:
         payload_bytes = orjson.dumps(payload, option=orjson.OPT_SORT_KEYS)
@@ -130,27 +119,22 @@ class RequestCache:
                 break
             try:
                 op_type, data = item
+                if self._conn is None:
+                    continue
                 if op_type == "result":
                     chunk_index, doc_id, rollout_idx, payload_hash, result = data
-                    result_blob = orjson.dumps(result)
-                    async with self._lock:
-                        if self._conn is None:
-                            continue
-                        self._insert_result_stmt.execute(
-                            "INSERT OR REPLACE INTO request_cache (chunk_index, doc_id, rollout_idx, payload_hash, result, error_message) VALUES (?, ?, ?, ?, ?, NULL)",
-                            (chunk_index, doc_id, rollout_idx, payload_hash, result_blob),
-                        )
-                        self._conn.commit()
+                    result_blob = await asyncio.to_thread(orjson.dumps, result)
+                    await self._conn.execute(
+                        "INSERT OR REPLACE INTO request_cache (chunk_index, doc_id, rollout_idx, payload_hash, result, error_message) VALUES (?, ?, ?, ?, ?, NULL)",
+                        (chunk_index, doc_id, rollout_idx, payload_hash, result_blob),
+                    )
                 elif op_type == "error":
                     chunk_index, doc_id, rollout_idx, payload_hash, error_message = data
-                    async with self._lock:
-                        if self._conn is None:
-                            continue
-                        self._insert_error_stmt.execute(
-                            "INSERT OR REPLACE INTO request_cache (chunk_index, doc_id, rollout_idx, payload_hash, result, error_message) VALUES (?, ?, ?, ?, NULL, ?)",
-                            (chunk_index, doc_id, rollout_idx, payload_hash, error_message),
-                        )
-                        self._conn.commit()
+                    await self._conn.execute(
+                        "INSERT OR REPLACE INTO request_cache (chunk_index, doc_id, rollout_idx, payload_hash, result, error_message) VALUES (?, ?, ?, ?, NULL, ?)",
+                        (chunk_index, doc_id, rollout_idx, payload_hash, error_message),
+                    )
+                await self._conn.commit()
             except Exception as exc:
                 logger.error(f"Failed to write request cache entry: {exc}")
             finally:
@@ -171,19 +155,16 @@ class RequestCache:
         if not self.enabled or self._conn is None or doc_id not in self._doc_ids_in_cache:
             return None, None
 
-        async with self._lock:
-            if self._conn is None:
-                return None, None
-
-            self._select_stmt.execute(
-                "SELECT result, error_message FROM request_cache WHERE doc_id = ? AND rollout_idx = ? AND payload_hash = ?",
-                (doc_id, rollout_idx, payload_hash),
-            )
-            row = self._select_stmt.fetchone()
-            if row is None:
-                return None, None
-            result_blob, error_message = row
-            return (orjson.loads(result_blob) if result_blob is not None else None, error_message)
+        cursor = await self._conn.execute(
+            "SELECT result, error_message FROM request_cache WHERE doc_id = ? AND rollout_idx = ? AND payload_hash = ?",
+            (doc_id, rollout_idx, payload_hash),
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        if row is None:
+            return None, None
+        result_blob, error_message = row
+        return (orjson.loads(result_blob) if result_blob is not None else None, error_message)
 
     async def store_result(
         self,
@@ -215,11 +196,8 @@ class RequestCache:
         if not self.enabled or self._conn is None:
             return
         await self.flush()
-        async with self._lock:
-            if self._conn is None:
-                return
-            self._delete_chunk_stmt.execute("DELETE FROM request_cache WHERE chunk_index = ?", (chunk_index,))
-            self._conn.commit()
+        await self._conn.execute("DELETE FROM request_cache WHERE chunk_index = ?", (chunk_index,))
+        await self._conn.commit()
 
     async def mark_document_complete(self, doc_id: str) -> None:
         if not self.enabled:

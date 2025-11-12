@@ -86,6 +86,7 @@ inference = [
   "aiofiles",
   "orjson",
   "httpx",
+  "aiosqlite",
 ]
 ray = [
   "ray"
@@ -166,4 +167,3 @@ lines-after-imports = 2
 known-first-party = [
   "datatrove"
 ]
-
