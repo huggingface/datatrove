@@ -270,7 +270,9 @@ def test_query_builder_none_payload_skips_document(tmp_path):
         "Document should have no rollout results when rollout returns None"
     )
     output_file = output_dir / "00000.jsonl"
-    assert output_file.exists(), "Document should still be written even when rollout returns None"
+    assert not output_file.exists() or output_file.read_text().strip() == "", (
+        "No output should be written when rollout returns None"
+    )
 
 
 def test_async_query_builder_none_payload_skips_document(tmp_path):
@@ -304,7 +306,9 @@ def test_async_query_builder_none_payload_skips_document(tmp_path):
         "Document should have no rollout results when async rollout returns None"
     )
     output_file = output_dir / "00000.jsonl"
-    assert output_file.exists(), "Document should still be written even when rollout returns None"
+    assert not output_file.exists() or output_file.read_text().strip() == "", (
+        "No output should be written when rollout returns None"
+    )
 
 
 def read_output_files(output_path):
@@ -339,10 +343,10 @@ def test_checkpoint_recovery_and_completeness():
     with tempfile.TemporaryDirectory() as temp_dir:
         output_path = Path(temp_dir) / "output"
         checkpoint_path = Path(temp_dir) / "checkpoints"
-        logs_path = Path(temp_dir) / "logs"
 
         # Create test documents
-        documents = [Document(text=f"Test document {i}", id=str(i)) for i in range(num_docs)]
+        def make_documents():
+            return [Document(text=f"Test document {i}", id=str(i)) for i in range(num_docs)]
 
         config = InferenceConfig(
             server_type="dummy",
@@ -357,28 +361,24 @@ def test_checkpoint_recovery_and_completeness():
         # === FIRST RUN: Should fail partway through ===
         failing_rollout = ControlledRollout(fail_after_count=fail_after_docs)
 
-        pipeline_executor_1 = LocalPipelineExecutor(
-            pipeline=[
-                documents,
-                InferenceRunner(
-                    rollout_fn=failing_rollout,
-                    config=config,
-                    records_per_chunk=records_per_chunk,
-                    checkpoints_local_dir=str(checkpoint_path),
-                    output_writer=JsonlWriter(
-                        str(output_path),
-                        output_filename="${rank}_chunk_${chunk_index}.jsonl",
-                        compression=None,
-                    ),
+        def make_runner(rollout_fn):
+            return InferenceRunner(
+                rollout_fn=rollout_fn,
+                config=config,
+                records_per_chunk=records_per_chunk,
+                checkpoints_local_dir=str(checkpoint_path),
+                output_writer=JsonlWriter(
+                    str(output_path),
+                    output_filename="${rank}_chunk_${chunk_index}.jsonl",
+                    compression=None,
                 ),
-            ],
-            logging_dir=str(logs_path / "checkpoint_test_run1"),
-            tasks=1,
-        )
+            )
 
-        # Run first pipeline - should fail due to query_builder exception
+        failing_runner = make_runner(failing_rollout)
+
+        # Run first pass - should fail due to rollout exception
         try:
-            pipeline_executor_1.run()
+            failing_runner.run(make_documents(), rank=0, world_size=1)
             assert False, "Expected pipeline to fail, but it completed successfully"
         except Exception as e:
             # Pipeline should fail when query_builder raises exceptions
@@ -406,27 +406,10 @@ def test_checkpoint_recovery_and_completeness():
         # === SECOND RUN: Should resume from checkpoint ===
         success_rollout = ControlledRollout()  # No failures this time
 
-        pipeline_executor_2 = LocalPipelineExecutor(
-            pipeline=[
-                documents,  # Same document list
-                InferenceRunner(
-                    rollout_fn=success_rollout,
-                    config=config,
-                    records_per_chunk=records_per_chunk,
-                    checkpoints_local_dir=str(checkpoint_path),
-                    output_writer=JsonlWriter(
-                        str(output_path),
-                        output_filename="${rank}_chunk_${chunk_index}.jsonl",
-                        compression=None,
-                    ),
-                ),
-            ],
-            logging_dir=str(logs_path / "checkpoint_test_run2"),
-            tasks=1,
-        )
+        success_runner = make_runner(success_rollout)
 
-        # Run second pipeline - should complete successfully
-        pipeline_executor_2.run()
+        # Run second pass - should complete successfully
+        success_runner.run(make_documents(), rank=0, world_size=1)
 
         # === VERIFY COMPLETE OUTPUT ===
         final_docs, final_files = read_output_files(output_path)
