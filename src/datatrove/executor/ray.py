@@ -98,13 +98,13 @@ class RayPipelineExecutor(PipelineExecutor):
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.depends = depends
-        # track whether run() has been called
         self.cpus_per_task = cpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.ray_remote_kwargs = ray_remote_kwargs
         self.tasks_per_job = tasks_per_job
         self.log_first = log_first
         self.time = time
+        self._launched = False
 
     @property
     def world_size(self) -> int:
@@ -118,11 +118,21 @@ class RayPipelineExecutor(PipelineExecutor):
         check_required_dependencies("ray", ["ray"])
         import ray
 
-        # 1) If there is a depends=, ensure it has run and is finished
+        assert not self.depends or (isinstance(self.depends, RayPipelineExecutor)), (
+            "depends= must be a RayPipelineExecutor"
+        )
         if self.depends:
-            logger.info(f'Launching dependency job "{self.depends}"')
-            self.depends.run()
+            # take care of launching any unlaunched dependencies
+            if not self.depends._launched:
+                logger.info(f'Launching dependency job "{self.depends}"')
+                self.depends.run()
+            while (
+                incomplete := len(self.depends.get_incomplete_ranks(skip_completed=True))
+            ) > 0:  # set skip_completed=True to get *real* incomplete task count
+                logger.info(f"Dependency job still has {incomplete}/{self.depends.world_size} tasks. Waiting...")
+                time.sleep(2 * 60)
 
+        self._launched = True
         # 3) Check if all tasks are already completed
         incomplete_ranks = self.get_incomplete_ranks(range(self.world_size))
         if not incomplete_ranks:
