@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextlib import suppress
 from dataclasses import dataclass, field
 from functools import partial
@@ -137,6 +138,7 @@ class InferenceConfig:
         tp: Tensor parallelism size (number of GPUs). Converted to the backend-specific flag.
         dp: Data parallelism size (number of model replicas). Converted to the backend-specific flag.
         pp: Pipeline parallelism size (number of pipeline stages). Converted to the backend-specific flag.
+        multi_node: Whether the inference is expected to run on multiple nodes setting.
         default_generation_params: Default payload parameters for requests sent via the generate callback.
             Callers can override individual keys when building a payload.
         rollouts_per_document: Number of rollouts to perform for each document. Results will be automatically aggregated in the document metadata.
@@ -266,6 +268,27 @@ class InferenceRunner(PipelineStep):
         # At this point _server is guaranteed to be not None after _init_server()
         assert self._server is not None
         return self._server
+
+    def is_master_node(self) -> bool:
+        if "SLURM_NODEID" in os.environ:
+            return int(os.environ.get("SLURM_NODEID", 0)) == 0
+
+        elif "RAY_NODEID" in os.environ:
+            return int(os.environ.get("RAY_NODEID", 0)) == 0
+
+        # We assume non-multi-node inference
+        return True
+
+    def get_master_node_ip(self) -> str:
+        """Get the IP address of the master node."""
+        if "SLURM_NODELIST" in os.environ:
+            return os.environ.get("SLURM_NODELIST", "127.0.0.1").split(" ")[0]
+
+        elif "RAY_NODELIST" in os.environ:
+            return os.environ.get("RAY_NODELIST", "127.0.0.1").split(" ")[0]
+
+        # We assume non-multi-node inference
+        return "127.0.0.1"
 
     # --------------------------------------------------------------------- #
     # Helpers
