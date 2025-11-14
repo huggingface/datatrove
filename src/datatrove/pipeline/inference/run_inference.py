@@ -25,6 +25,7 @@ from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
+    CustomServer,
     DummyServer,
     InferenceServer,
     SGLangServer,
@@ -449,6 +450,8 @@ class InferenceRunner(PipelineStep):
             return VLLMServer(self.config)
         elif stype == "dummy":
             return DummyServer(self.config)
+        elif stype == "custom":
+            return CustomServer(self.config)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
@@ -675,11 +678,11 @@ class InferenceRunner(PipelineStep):
                 elif payloads_result is None:
                     return
 
-                if not request_tasks:
-                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
-
                 # Wait for all requests to complete and collect results in order
-                results = await asyncio.gather(*request_tasks)
+                if request_tasks:
+                    results = await asyncio.gather(*request_tasks)
+                else:
+                    results = []
 
                 for result in results:
                     if isinstance(result, InferenceError) and (

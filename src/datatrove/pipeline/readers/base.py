@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from datatrove.data import Document, DocumentsPipeline
+from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.io import DataFileLike, DataFolderLike, get_datafolder, get_shard_from_paths_file
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
@@ -95,6 +95,8 @@ class BaseReader(PipelineStep):
                     f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
                 )
             return None
+        if parsed_data.get("media", None):
+            parsed_data["media"] = [Media(**media) for media in parsed_data["media"]]
         document = Document(**parsed_data)
         if self.default_metadata:
             document.metadata = self.default_metadata | document.metadata

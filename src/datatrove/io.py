@@ -312,7 +312,7 @@ def open_file(file: IO | str, mode="rt", **kwargs):
         if kwargs:
             file = (file, kwargs)
         fs, path = get_fs_with_filepath(file)
-        return fs.open(path, mode)
+        return fs.open(path, mode, **kwargs)
     except ValueError:
         return file
 
@@ -402,7 +402,7 @@ def cached_asset_path_or_download(
 
 
 def get_shard_from_paths_file(paths_file: DataFileLike, rank: int, world_size):
-    with open_file(paths_file, mode="rt") as f:
+    with open_file(paths_file, mode="rt", compression="infer") as f:
         for pathi, path in enumerate(f):
             if (pathi - rank) % world_size == 0:
                 yield path.strip()

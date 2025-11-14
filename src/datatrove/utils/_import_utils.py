@@ -112,3 +112,7 @@ def is_moto_available():
 
 def is_torch_available():
     return _is_package_available("torch")
+
+
+def is_dnspython_available():
+    return _is_package_available("dnspython")
