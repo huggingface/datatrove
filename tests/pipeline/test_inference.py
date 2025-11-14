@@ -1,8 +1,11 @@
 import asyncio
 import json
+import socket
 import tempfile
+import threading
 from contextlib import contextmanager
 from functools import partial
+from http.server import HTTPServer
 from pathlib import Path
 
 import pytest
@@ -10,6 +13,7 @@ import pytest
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
+from datatrove.pipeline.inference.servers.dummy_server import DummyHandler
 from datatrove.pipeline.writers import JsonlWriter
 
 
@@ -830,6 +834,76 @@ def test_shared_context_callable_returns_context_manager(tmp_path):
     assert len(doc.metadata["rollout_results"]) == 1
     assert doc.metadata["rollout_results"][0]["test_value"] == "test_value"
     assert cleanup_called["called"], "Context manager cleanup should have been called (direct version)"
+
+
+def test_endpoint_server(tmp_path):
+    """Test EndpointServer with a mock HTTP server."""
+    output_dir = tmp_path / "endpoint_test"
+    documents = [Document(text="hello endpoint", id="endpoint-1")]
+
+    # Find an available port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        port = s.getsockname()[1]
+
+    # Start a simple HTTP server with DummyHandler
+    server = HTTPServer(("localhost", port), DummyHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    # Give the server a moment to start
+    asyncio.run(asyncio.sleep(0.1))
+
+    try:
+
+        async def endpoint_rollout(document, generate):
+            result = await generate(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": document.text}],
+                        }
+                    ],
+                    "max_tokens": 100,
+                }
+            )
+            return {
+                "text": result.text,
+                "finish_reason": result.finish_reason,
+                "usage": result.usage,
+            }
+
+        config = InferenceConfig(
+            server_type="endpoint",
+            model_name_or_path="test-model",
+            model_max_context=2048,
+            endpoint_url=f"http://localhost:{port}",
+            metric_interval=60,
+            rollouts_per_document=1,
+            max_concurrent_generations=1,
+            max_concurrent_documents=None,
+        )
+
+        runner = InferenceRunner(
+            rollout_fn=endpoint_rollout,
+            config=config,
+            output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        )
+
+        asyncio.run(runner.run_async(documents, rank=0))
+
+        doc = documents[0]
+        assert "rollout_results" in doc.metadata
+        assert len(doc.metadata["rollout_results"]) == 1
+        assert "text" in doc.metadata["rollout_results"][0]
+
+        output_file = output_dir / "00000.jsonl"
+        assert output_file.exists()
+        saved = json.loads(output_file.read_text().strip())
+        assert saved["metadata"]["rollout_results"][0]["text"] == doc.metadata["rollout_results"][0]["text"]
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 if __name__ == "__main__":

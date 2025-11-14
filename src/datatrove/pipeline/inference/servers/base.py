@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import random
 import socket
@@ -6,6 +7,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
+
+from datatrove.pipeline.inference.utils import _raw_post
 
 
 if TYPE_CHECKING:
@@ -114,11 +117,15 @@ class InferenceServer(ABC):
         """Start the server process."""
         pass
 
+    def get_base_url(self) -> str:
+        """Get the base URL for making requests. Defaults to localhost with port."""
+        return f"http://localhost:{self.port}"
+
     async def is_ready(self) -> bool:
         """Check if the server is ready to accept requests."""
         import httpx
 
-        url = f"http://localhost:{self.port}/v1/models"
+        url = f"{self.get_base_url()}/v1/models"
         try:
             async with httpx.AsyncClient() as session:
                 response = await session.get(url, timeout=5.0)
@@ -165,3 +172,36 @@ class InferenceServer(ABC):
         """Cancel the server task."""
         if self._server_task:
             self._server_task.cancel()
+
+    async def _make_request(self, payload: dict) -> dict:
+        """
+        Make HTTP request to the server and return the parsed JSON response.
+
+        Args:
+            payload: The request payload to send (should already have model and default params)
+
+        Returns:
+            Parsed JSON response dict
+
+        Raises:
+            InferenceError: If the request fails
+        """
+        from datatrove.pipeline.inference.run_inference import InferenceError
+
+        # Choose endpoint based on use_chat setting
+        if self.config.use_chat:
+            endpoint = "/v1/chat/completions"
+        else:
+            endpoint = "/v1/completions"
+
+        url = f"{self.get_base_url()}{endpoint}"
+        status, body = await _raw_post(url, json_data=payload, timeout=self.config.request_timeout)
+
+        if status == 400:
+            raise InferenceError(None, f"Got BadRequestError from server: {body.decode()}", payload=payload)
+        elif status == 500:
+            raise InferenceError(None, f"Got InternalServerError from server: {body.decode()}", payload=payload)
+        elif status != 200:
+            raise InferenceError(None, f"Error http status {status}", payload=payload)
+
+        return json.loads(body)

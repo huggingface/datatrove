@@ -11,7 +11,6 @@ Parts of this implementation are adapted from https://github.com/allenai/olmocr
 from __future__ import annotations
 
 import asyncio
-import json
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from functools import partial
@@ -25,6 +24,7 @@ from datatrove.pipeline.inference.checkpointing import CheckpointManager, Reques
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
+    EndpointServer,
     InferenceServer,
     SGLangServer,
     VLLMServer,
@@ -97,60 +97,6 @@ class RolloutFunction(Protocol):
 
 
 # --------------------------------------------------------------------------- #
-# Low-level, dependency-free HTTP POST helper (kept from the original file)
-# --------------------------------------------------------------------------- #
-async def _raw_post(url: str, json_data: dict) -> tuple[int, bytes]:
-    """
-    Very small HTTP/1.1 POST helper using the std-lib socket machinery.
-
-    Args:
-        url: The target URL for the POST request
-        json_data: Dictionary to be sent as JSON payload
-
-    Returns:
-        Tuple of (status_code, response_body)
-    """
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    host, port = parsed.hostname, parsed.port or 80
-    path = parsed.path or "/"
-
-    reader: asyncio.StreamReader
-    writer: asyncio.StreamWriter
-
-    reader, writer = await asyncio.open_connection(host, port)
-    try:
-        payload = json.dumps(json_data).encode()
-        request = (
-            f"POST {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"Content-Type: application/json\r\n"
-            f"Content-Length: {len(payload)}\r\n"
-            f"Connection: close\r\n\r\n"
-        ).encode()
-        writer.write(request + payload)
-        await writer.drain()
-
-        # Status line
-        status_parts = (await reader.readline()).decode().split(" ", 2)
-        status_code = int(status_parts[1]) if len(status_parts) >= 2 else 500
-
-        # Headers (ignored – we rely on Content-Length only)
-        while True:
-            line = await reader.readline()
-            if line in (b"\r\n", b"\n", b""):
-                break
-
-        # Body
-        body = await reader.read()  # connection closes -> EOF
-        return status_code, body
-    finally:
-        writer.close()
-        await writer.wait_closed()
-
-
-# --------------------------------------------------------------------------- #
 # Public, simplified configuration
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -178,10 +124,12 @@ class InferenceConfig:
     """
 
     # server and model
-    server_type: Literal["sglang", "vllm", "dummy"]
+    server_type: Literal["sglang", "vllm", "dummy", "endpoint"]
     model_name_or_path: str
     model_max_context: int = 8192
     use_chat: bool = True
+    endpoint_url: str | None = None  # Required when server_type is "endpoint"
+    api_key: str | None = None  # API key for endpoint authentication (Bearer token)
     # metrics
     metric_interval: int = 120
     # parallelism
@@ -193,6 +141,7 @@ class InferenceConfig:
     rollouts_per_document: int = 1
     max_concurrent_generations: int = 500
     max_concurrent_documents: int | None = None
+    request_timeout: float | None = None  # Timeout for HTTP requests in seconds (None means no timeout)
     # other
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
@@ -319,12 +268,14 @@ class InferenceRunner(PipelineStep):
             return VLLMServer(self.config)
         elif stype == "dummy":
             return DummyServer(self.config)
+        elif stype == "endpoint":
+            return EndpointServer(self.config)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
     async def _send_request(self, payload: dict, semaphore: asyncio.Semaphore) -> InferenceResult:
         """
-        POST payload to the local server and return the parsed result.
+        POST payload to the server and return the parsed result.
 
         Args:
             payload: The request payload to send
@@ -339,13 +290,6 @@ class InferenceRunner(PipelineStep):
         for key, value in self.config.default_generation_params.items():
             payload.setdefault(key, value)
 
-        # Choose endpoint based on use_chat setting
-        if self.config.use_chat:
-            endpoint = "/v1/chat/completions"
-        else:
-            endpoint = "/v1/completions"
-
-        url = f"http://localhost:{self.server.port}{endpoint}"
         max_retries = 6
         attempt = 0
 
@@ -356,28 +300,7 @@ class InferenceRunner(PipelineStep):
 
             while attempt < max_retries:
                 try:
-                    status, body = await _raw_post(url, json_data=payload)
-                    if status == 400:
-                        self.queue_sizes.change_queues({"running_requests": -1})
-                        self.metrics.add_metrics(failed_requests=1, requests=1)
-                        self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(
-                            payload=payload, error=f"Got BadRequestError from server: {body.decode()}"
-                        )
-                    elif status == 500:
-                        self.queue_sizes.change_queues({"running_requests": -1})
-                        self.metrics.add_metrics(failed_requests=1, requests=1)
-                        self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(
-                            payload=payload, error=f"Got InternalServerError from server: {body.decode()}"
-                        )
-                    elif status != 200:
-                        self.queue_sizes.change_queues({"running_requests": -1})
-                        self.metrics.add_metrics(failed_requests=1, requests=1)
-                        self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(payload=payload, error=f"Error http status {status}")
-
-                    response = json.loads(body)
+                    response = await self.server._make_request(payload)
                     choice = response["choices"][0]
 
                     # Track metrics
@@ -413,17 +336,23 @@ class InferenceRunner(PipelineStep):
                     logger.info("Request cancelled")
                     self.queue_sizes.change_queues({"running_requests": -1})
                     raise
+                except InferenceError:
+                    # Re-raise InferenceError as-is
+                    self.queue_sizes.change_queues({"running_requests": -1})
+                    self.metrics.add_metrics(failed_requests=1, requests=1)
+                    self.stat_update("failed_requests", value=1, unit="request")
+                    raise
                 except Exception as e:
                     logger.warning(f"Unexpected error: {type(e)} {e}")
                     self.queue_sizes.change_queues({"running_requests": -1})
                     self.metrics.add_metrics(failed_requests=1, requests=1)
                     self.stat_update("failed_requests", value=1, unit="request")
-                    raise InferenceError(payload=payload, error=str(e))
+                    raise InferenceError(None, str(e), payload=payload)
 
             self.queue_sizes.change_queues({"running_requests": -1})
             self.metrics.add_metrics(failed_requests=1, requests=1)
             self.stat_update("failed_requests", value=1, unit="request")
-            raise InferenceError(payload=payload, error=f"Failed to process request after {max_retries} attempts")
+            raise InferenceError(None, f"Failed to process request after {max_retries} attempts", payload=payload)
 
     async def _cached_request(
         self,
@@ -554,9 +483,15 @@ class InferenceRunner(PipelineStep):
             world_size: Total number of processes in distributed setup
         """
         semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
-        server_task = asyncio.create_task(self.server.host_server(rank=rank))
+        # Endpoint servers don't need a server task - they just use external endpoints
+        is_endpoint_server = hasattr(self.server, "endpoint_url")
+        if not is_endpoint_server:
+            server_task = asyncio.create_task(self.server.host_server(rank=rank))
         await self.server.wait_until_ready()
-        logger.info(f"Inference server up on port {self.server.port}")
+        if is_endpoint_server:
+            logger.info(f"Inference server using endpoint {self.server.endpoint_url}")
+        else:
+            logger.info(f"Inference server up on port {self.server.port}")
 
         # Start metrics reporting
         self.metrics.reset()
@@ -671,9 +606,13 @@ class InferenceRunner(PipelineStep):
             completed_successfully = True
         finally:
             # 4. shutdown inference server and metrics
-            server_task.cancel()
+            if not is_endpoint_server:
+                server_task.cancel()
             metrics_task.cancel()
-            await asyncio.gather(server_task, metrics_task, return_exceptions=True)
+            tasks_to_cancel = [metrics_task]
+            if not is_endpoint_server:
+                tasks_to_cancel.append(server_task)
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
             with suppress(Exception):
                 await self.request_cache.close(delete_file=completed_successfully)
 
