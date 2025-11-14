@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import heapq
 import os
 import re
@@ -108,7 +109,7 @@ def read_sigs(
         for data in read_tuples_from_file(f, line_format, lines_to_buffer=lines_to_buffer):
             sigdata = data if index_file else data[:-1]
             assert sigdata[0] >= min_hash and (ensure_order is False or last is None or sigdata >= last), (
-                f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}"
+                f"Hash order error. {f.tell()=}, {min_hash=}, {sigdata=}, {last=}. Try re-running {file_stem=}"
             )
             if sigdata[0] >= max_hash:
                 break
@@ -210,34 +211,36 @@ class MinhashDedupSignature(PipelineStep):
 
     def check_can_skip_sig_writing(self, rank):
         if not self.skip_existing_sigs:
-            return False
+            return False, None
 
         # check if the files exist
         if any(
             not self.output_folder.exists(f"bucket_{bi:03d}/{rank:05d}.minhash.sig")
             for bi in range(self.config.num_buckets)
         ):
-            return False
+            return False, None
 
         # check if they all have the same size (same nb of docs)
         fsizes = [
             self.output_folder.size(f"bucket_{bi:03d}/{rank:05d}.minhash.sig") for bi in range(self.config.num_buckets)
         ]
         if any(fsize != fsizes[0] for fsize in fsizes):
-            return False
+            return False, None
 
         # check if they aren't empty and if they have a multiple of a full sig
         sig_doc_size = struct.calcsize(f"<{self.config.hashes_per_bucket}{self.config.hash_config.struct_format}I")
         if fsizes[0] == 0 or fsizes[0] % sig_doc_size != 0:
-            return False
+            return False, None
 
-        logger.info(f"Found existing sig files with {fsizes[0] // sig_doc_size} entries. Skipping sig writing step.")
-        return True
+        doc_count = fsizes[0] // sig_doc_size
+        logger.info(f"Found existing sig files with {doc_count} entries. Skipping sig writing step.")
+        return True, doc_count
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.track_time():
-            # check if we can skip the sig writing step
-            if not self.check_can_skip_sig_writing(rank):
+            can_skip, expected_docs = self.check_can_skip_sig_writing(rank)
+            if not can_skip:
+                expected_docs = 0
                 buckets = [
                     self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb")
                     for bi in range(self.config.num_buckets)
@@ -256,6 +259,7 @@ class MinhashDedupSignature(PipelineStep):
                                     doc_idx,
                                 )
                             )
+                        expected_docs += 1
                 for file in buckets:
                     file.close()
 
@@ -269,14 +273,52 @@ class MinhashDedupSignature(PipelineStep):
                     ]
                     + [(f"field{self.config.hashes_per_bucket + 1}", "<I")]
                 )
-                with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="rb") as fi:
-                    records = np.frombuffer(fi.read(), dtype=dtype)
+                file_path = f"bucket_{bi:03d}/{rank:05d}.minhash.sig"
+                record_size = dtype.itemsize
+                expected_len = expected_docs * record_size
 
-                indices = np.argsort(records, order=dtype.names)
+                with self.output_folder.open(file_path, mode="rb") as fi:
+                    buffer = bytearray(expected_len)
+                    read_bytes = fi.readinto(buffer)
+                    if read_bytes != expected_len:
+                        raise ValueError(
+                            f"Corrupted minhash signature detected for bucket {bi} rank {rank}. "
+                            f"Expected {expected_len} bytes, got {read_bytes}"
+                        )
+                    records = np.frombuffer(buffer, dtype=dtype)
 
-                with self.output_folder.open(f"bucket_{bi:03d}/{rank:05d}.minhash.sig", mode="wb") as fo:
-                    for idx in indices:
-                        fo.write(records[idx].tobytes())
+                records.sort(order=dtype.names)
+                records_bytes = memoryview(records.view(np.uint8))
+                # for verification, as unsorted records are the #1 issue around MinHash
+                expected_hash = hashlib.blake2b(records_bytes, digest_size=16).digest()
+
+                # write sorted records
+                with self.output_folder.open(file_path, mode="wb") as fo:
+                    fo.write(records_bytes)
+
+                records_bytes.release()
+                records_bytes = None
+                records = None
+
+                # verify if it was written properly
+                with self.output_folder.open(file_path, mode="rb") as verify_fi:
+                    total_read = 0
+                    verify_hash = hashlib.blake2b(digest_size=16)
+                    chunk_size = 1024 * 1024
+                    while True:
+                        chunk = verify_fi.read(chunk_size)
+                        if not chunk:
+                            break
+                        verify_hash.update(chunk)
+                        total_read += len(chunk)
+
+                    verify_digest = verify_hash.digest()
+                    if total_read != expected_len or verify_digest != expected_hash:
+                        raise ValueError(
+                            f"Corrupted minhash signature detected for bucket {bi} rank {rank}. "
+                            f"Expected {expected_len} bytes, got {total_read} bytes. "
+                            f"Expected hash {expected_hash}, got {verify_digest}"
+                        )
 
 
 class MinhashDedupBuckets(PipelineStep):
