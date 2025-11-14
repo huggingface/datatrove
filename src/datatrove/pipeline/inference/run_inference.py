@@ -523,17 +523,17 @@ class InferenceRunner(PipelineStep):
         elif hasattr(self.shared_context, "__enter__") and hasattr(self.shared_context, "__exit__"):
             # Check for context manager before callable, since @contextmanager objects are also callable
             with self.shared_context as shared_context:
-                yield shared_context
+                yield shared_context or {}
         elif callable(self.shared_context):
             # Check if it's a context manager factory by seeing if calling it returns one
             result = self.shared_context()
             if hasattr(result, "__enter__") and hasattr(result, "__exit__"):
                 # It's a context manager factory (like @contextmanager decorated function)
                 with result as shared_context:
-                    yield shared_context
+                    yield shared_context or {}
             else:
                 # It's a regular callable that returns a dict
-                yield result
+                yield result or {}
         else:
             raise ValueError(f"Invalid shared context type: {type(self.shared_context)}")
 
