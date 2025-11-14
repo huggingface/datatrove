@@ -1,6 +1,8 @@
 import asyncio
 import json
 import tempfile
+from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -19,7 +21,7 @@ class ControlledRollout:
         self.fail_after_count = fail_after_count
         self.processed_count = 0
 
-    async def __call__(self, runner, document, generate):
+    async def __call__(self, document, generate):
         self.processed_count += 1
 
         if self.fail_after_count and self.processed_count > self.fail_after_count:
@@ -67,7 +69,7 @@ def test_multiple_rollouts_collect_results(tmp_path):
     output_dir = tmp_path / "multi_rollouts"
     documents = [Document(text="hello world", id="multi-1")]
 
-    async def multi_rollout(runner, document, generate):
+    async def multi_rollout(document, generate):
         await asyncio.sleep(0)
         return "multi-result"
 
@@ -87,7 +89,7 @@ def test_multiple_rollouts_collect_results(tmp_path):
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
 
-    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+    asyncio.run(runner.run_async(documents, rank=0))
 
     doc = documents[0]
     assert doc.metadata["rollout_results"] == ["multi-result", "multi-result", "multi-result"]
@@ -102,7 +104,7 @@ def test_custom_metadata_key(tmp_path):
     output_dir = tmp_path / "custom_metadata"
     documents = [Document(text="hello", id="custom-1")]
 
-    async def custom_rollout(runner, document, generate):
+    async def custom_rollout(document, generate):
         return {"value": document.id}
 
     config = InferenceConfig(
@@ -122,7 +124,7 @@ def test_custom_metadata_key(tmp_path):
         metadata_key="custom_results",
     )
 
-    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+    asyncio.run(runner.run_async(documents, rank=0))
 
     doc = documents[0]
     assert "rollout_results" not in doc.metadata
@@ -148,7 +150,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 
     with pytest.raises(ValueError, match="chunk_index"):
         InferenceRunner(
-            rollout_fn=lambda runner, document, generate: generate({}),
+            rollout_fn=lambda document, generate: generate({}),
             config=config,
             output_writer=JsonlWriter(
                 str(tmp_path / "no_chunk"),
@@ -161,7 +163,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 
     try:
         InferenceRunner(
-            rollout_fn=lambda runner, document, generate: generate({}),
+            rollout_fn=lambda document, generate: generate({}),
             config=config,
             output_writer=JsonlWriter(
                 str(tmp_path / "with_chunk"),
@@ -178,7 +180,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 def test_rollout_handles_multiple_parts(tmp_path):
     parts = ["first chunk", "second chunk", "third chunk"]
 
-    async def chunked_rollout(runner, document, generate):
+    async def chunked_rollout(document, generate):
         document.metadata["rollout_calls"] = document.metadata.get("rollout_calls", 0) + 1
         document.metadata.setdefault("parts_served", [])
 
@@ -221,7 +223,7 @@ def test_rollout_handles_multiple_parts(tmp_path):
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
 
-    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+    asyncio.run(runner.run_async(documents, rank=0))
 
     doc = documents[0]
     assert doc.metadata["rollout_calls"] == 1
@@ -244,7 +246,7 @@ def test_query_builder_none_payload_skips_document(tmp_path):
     output_dir = tmp_path / "none_payload_output"
     documents = [Document(text="skip me", id="skip-none")]
 
-    async def none_rollout(runner, document, generate):
+    async def none_rollout(document, generate):
         return None
 
     config = InferenceConfig(
@@ -263,7 +265,7 @@ def test_query_builder_none_payload_skips_document(tmp_path):
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
 
-    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+    asyncio.run(runner.run_async(documents, rank=0))
 
     doc = documents[0]
     assert doc.metadata.get("rollout_results") == [], (
@@ -279,7 +281,7 @@ def test_async_query_builder_none_payload_skips_document(tmp_path):
     output_dir = tmp_path / "none_async_output"
     documents = [Document(text="skip me async", id="skip-async")]
 
-    async def none_async_rollout(runner, document, generate):
+    async def none_async_rollout(document, generate):
         await asyncio.sleep(0)
         return None
 
@@ -299,7 +301,7 @@ def test_async_query_builder_none_payload_skips_document(tmp_path):
         output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
     )
 
-    asyncio.run(runner.run_async(documents, rank=0, world_size=1))
+    asyncio.run(runner.run_async(documents, rank=0))
 
     doc = documents[0]
     assert doc.metadata.get("rollout_results") == [], (
@@ -482,7 +484,7 @@ def test_complete_pipeline_with_various_scenarios():
         documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(num_docs)]
 
         # Normal query builder that doesn't cause pipeline failures
-        async def normal_rollout(runner, document, generate):
+        async def normal_rollout(document, generate):
             result = await generate(
                 {
                     "messages": [
@@ -577,6 +579,257 @@ def test_complete_pipeline_with_various_scenarios():
         assert chunk_doc_counts[-1] == expected_last_count, (
             f"Last chunk should have {expected_last_count} docs, got {chunk_doc_counts[-1]}"
         )
+
+
+def test_shared_context_as_dict(tmp_path):
+    """Test that shared_context as a dict passes kwargs to rollout_fn."""
+    output_dir = tmp_path / "shared_context_dict"
+    documents = [Document(text="test", id="shared-1")]
+
+    async def rollout_with_context(document, generate, custom_value=None, another_param=None):
+        assert custom_value == "test_value", "custom_value should be passed from shared_context"
+        assert another_param == 42, "another_param should be passed from shared_context"
+        result = await generate(
+            {
+                "messages": [{"role": "user", "content": [{"type": "text", "text": document.text}]}],
+                "max_tokens": 100,
+            }
+        )
+        return {"custom_value": custom_value, "another_param": another_param, "result": result.text}
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=rollout_with_context,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        shared_context={"custom_value": "test_value", "another_param": 42},
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    doc = documents[0]
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert doc.metadata["rollout_results"][0]["custom_value"] == "test_value"
+    assert doc.metadata["rollout_results"][0]["another_param"] == 42
+
+
+def test_shared_context_as_callable(tmp_path):
+    """Test that shared_context as a callable passes kwargs to rollout_fn."""
+    output_dir = tmp_path / "shared_context_callable"
+    documents = [Document(text="test", id="shared-2")]
+
+    call_count = {"count": 0}
+
+    def make_shared_context():
+        call_count["count"] += 1
+        return {"dynamic_value": f"value_{call_count['count']}"}
+
+    async def rollout_with_context(document, generate, dynamic_value=None):
+        assert dynamic_value is not None, "dynamic_value should be passed from shared_context"
+        await generate(
+            {
+                "messages": [{"role": "user", "content": [{"type": "text", "text": document.text}]}],
+                "max_tokens": 100,
+            }
+        )
+        return {"dynamic_value": dynamic_value}
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=rollout_with_context,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        shared_context=make_shared_context,
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    doc = documents[0]
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert doc.metadata["rollout_results"][0]["dynamic_value"] == "value_1"
+    assert call_count["count"] == 1, "shared_context callable should be called once"
+
+
+def test_shared_context_as_context_manager(tmp_path):
+    """Test that shared_context as a context manager properly manages resources."""
+    output_dir = tmp_path / "shared_context_cm"
+    documents = [Document(text="test", id="shared-3")]
+
+    cleanup_called = {"called": False}
+
+    class TestContextManager:
+        def __init__(self):
+            self.value = "context_value"
+            self.entered = False
+
+        def __enter__(self):
+            self.entered = True
+            return {"context_value": self.value}
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            cleanup_called["called"] = True
+            return False
+
+    async def rollout_with_context(document, generate, context_value=None):
+        assert context_value == "context_value", "context_value should be passed from shared_context"
+        await generate(
+            {
+                "messages": [{"role": "user", "content": [{"type": "text", "text": document.text}]}],
+                "max_tokens": 100,
+            }
+        )
+        return {"context_value": context_value}
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    cm = TestContextManager()
+    runner = InferenceRunner(
+        rollout_fn=rollout_with_context,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        shared_context=cm,
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    doc = documents[0]
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert doc.metadata["rollout_results"][0]["context_value"] == "context_value"
+    assert cm.entered, "Context manager should have been entered"
+    assert cleanup_called["called"], "Context manager cleanup should have been called"
+
+
+def test_shared_context_none(tmp_path):
+    """Test that rollout_fn works without shared_context (no kwargs passed)."""
+    output_dir = tmp_path / "shared_context_none"
+    documents = [Document(text="test", id="shared-4")]
+
+    async def rollout_no_context(document, generate):
+        # This should work fine without any kwargs
+        result = await generate(
+            {
+                "messages": [{"role": "user", "content": [{"type": "text", "text": document.text}]}],
+                "max_tokens": 100,
+            }
+        )
+        return {"result": result.text}
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=rollout_no_context,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        shared_context=None,  # Explicitly None
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    doc = documents[0]
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert "result" in doc.metadata["rollout_results"][0]
+
+
+def test_shared_context_callable_returns_context_manager(tmp_path):
+    """Test that a callable that returns a context manager works correctly."""
+    output_dir = tmp_path / "shared_context_callable_cm"
+    documents = [Document(text="test", id="shared-5")]
+
+    cleanup_called = {"called": False}
+
+    @contextmanager
+    def test_context_manager(value: str):
+        cleanup_called["called"] = False
+        try:
+            yield {"test_value": value}
+        finally:
+            cleanup_called["called"] = True
+
+    async def rollout_with_context(document, generate, test_value=None):
+        assert test_value == "test_value", "test_value should be passed from shared_context"
+        await generate(
+            {
+                "messages": [{"role": "user", "content": [{"type": "text", "text": document.text}]}],
+                "max_tokens": 100,
+            }
+        )
+        return {"test_value": test_value}
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    # Test 1: Callable that returns a context manager (using partial)
+    cleanup_called["called"] = False
+    runner1 = InferenceRunner(
+        rollout_fn=rollout_with_context,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir / "test1"), output_filename="${rank}.jsonl", compression=None),
+        shared_context=partial(test_context_manager, "test_value"),
+    )
+
+    asyncio.run(runner1.run_async(documents, rank=0))
+
+    doc = documents[0]
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert doc.metadata["rollout_results"][0]["test_value"] == "test_value"
+    assert cleanup_called["called"], "Context manager cleanup should have been called (callable version)"
+
+    # Test 2: Direct context manager (calling the function and passing the result)
+    cleanup_called["called"] = False
+    runner2 = InferenceRunner(
+        rollout_fn=rollout_with_context,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir / "test2"), output_filename="${rank}.jsonl", compression=None),
+        shared_context=test_context_manager("test_value"),
+    )
+
+    asyncio.run(runner2.run_async(documents, rank=0))
+
+    doc = documents[0]
+    assert len(doc.metadata["rollout_results"]) == 1
+    assert doc.metadata["rollout_results"][0]["test_value"] == "test_value"
+    assert cleanup_called["called"], "Context manager cleanup should have been called (direct version)"
 
 
 if __name__ == "__main__":

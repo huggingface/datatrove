@@ -7,8 +7,9 @@ can perform multiple generations per document before the results are written.
 """
 
 import asyncio
-import atexit
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import contextmanager
+from functools import partial
 from typing import Any, Awaitable, Callable
 
 from datatrove.data import Document
@@ -18,7 +19,6 @@ from datatrove.pipeline.writers import JsonlWriter
 
 
 async def simple_rollout(
-    runner: InferenceRunner,
     document: Document,
     generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
 ) -> InferenceResult:
@@ -44,7 +44,6 @@ async def simple_rollout(
 
 
 async def chunked_rollout(
-    runner: InferenceRunner,
     document: Document,
     generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
 ) -> str:
@@ -103,23 +102,31 @@ def cpu_heavy_build_payload(doc: Document, page: int) -> dict[str, Any]:
     }
 
 
+@contextmanager
+def process_pool_context(max_workers: int = 100):
+    """Context manager for ProcessPoolExecutor that ensures proper cleanup."""
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        # This resource will be accessible in the rollout function as a keyword argument
+        # (and shared for all rollout invocations). try/finally syntax works too
+        yield {"process_pool": pool}
+
+
 async def heavy_cpu_rollout(
-    runner: InferenceRunner,
     document: Document,
     generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
+    process_pool: ProcessPoolExecutor,
 ) -> list[InferenceResult]:
     """
     Example rollout that offloads heavy preprocessing to a process pool.
-    """
 
-    if not hasattr(runner, "process_pool"):
-        runner.process_pool = ProcessPoolExecutor(max_workers=100)
-        atexit.register(runner.process_pool.shutdown, wait=False, cancel_futures=True)
+    The process_pool should be provided via shared_context when creating the InferenceRunner.
+    See example usage below.
+    """
 
     loop = asyncio.get_running_loop()
 
     async def process_page(page: int) -> InferenceResult:
-        payload = await loop.run_in_executor(runner.process_pool, cpu_heavy_build_payload, document, page)
+        payload = await loop.run_in_executor(process_pool, cpu_heavy_build_payload, document, page)
         return await generate(payload)
 
     page_results = await asyncio.gather(*[process_page(page) for page in [1, 2]], return_exceptions=True)
@@ -148,6 +155,7 @@ config: InferenceConfig = InferenceConfig(
 )
 
 # Create the pipeline with chunking
+# Example 1: Simple rollout without shared context
 pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
     pipeline=[
         documents,
@@ -161,6 +169,24 @@ pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
     ],
     logging_dir=LOGS_PATH,
     tasks=1,  # Number of parallel tasks
+)
+
+# Example 2: Rollout with shared context (process pool)
+pipeline_executor_with_pool = LocalPipelineExecutor(
+    pipeline=[
+        documents,
+        InferenceRunner(
+            rollout_fn=heavy_cpu_rollout,
+            config=config,
+            records_per_chunk=500,
+            checkpoints_local_dir=CHECKPOINTS_PATH,
+            output_writer=JsonlWriter(OUTPUT_PATH, output_filename="${rank}_chunk_${chunk_index}.jsonl"),
+            # we could call it without partial, but this way the pool is initialized lazily and not before the job starts
+            shared_context=partial(process_pool_context, max_workers=100),
+        ),
+    ],
+    logging_dir=LOGS_PATH,
+    tasks=1,
 )
 
 if __name__ == "__main__":

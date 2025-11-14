@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Awaitable, Callable, Iterable, Literal
+from typing import Any, Awaitable, Callable, ContextManager, Iterable, Literal, Protocol
 
 from loguru import logger
 
@@ -64,6 +64,36 @@ class InferenceError(Exception):
         super().__init__(
             f"Failed to process document {document.id if document is not None else '?'}: {error}. Payload: {payload if payload is not None else '?'}"
         )
+
+
+# Type alias for the generate callback function
+# Takes a payload dictionary and returns an awaitable InferenceResult
+# May raise InferenceError if the request fails
+GenerateFunction = Callable[[dict], Awaitable[InferenceResult]]
+
+# Type alias for rollout function return values
+# Rollout functions can return InferenceResult or any JSON-serializable value
+RolloutResult = InferenceResult | dict | list | str | float | int | bool | None
+
+
+class RolloutFunction(Protocol):
+    """
+    Type for rollout functions that process documents.
+
+    Rollout functions receive:
+    - document: The document to process
+    - generate: A callback function to send requests to the inference server
+    - **kwargs: Arbitrary keyword arguments from shared_context (e.g., process_pool, coding_env, etc.)
+
+    Returns an awaitable that resolves to InferenceResult or a JSON-serializable value.
+    """
+
+    def __call__(
+        self,
+        document: Document,
+        generate: GenerateFunction,
+        **kwargs: Any,
+    ) -> Awaitable[RolloutResult]: ...
 
 
 # --------------------------------------------------------------------------- #
@@ -189,12 +219,10 @@ class InferenceRunner(PipelineStep):
 
     def __init__(
         self,
-        rollout_fn: Callable[
-            [InferenceRunner, Document, Callable[[dict], Awaitable[InferenceResult]]],
-            Awaitable[InferenceResult | dict | list | str | float | int | bool | None],
-        ],
+        rollout_fn: RolloutFunction,
         config: InferenceConfig,
         output_writer: DiskWriter,
+        shared_context: (dict | Callable[[], dict] | ContextManager[dict] | None) = None,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
         metadata_key: str = "rollout_results",
@@ -204,12 +232,14 @@ class InferenceRunner(PipelineStep):
 
         Args:
             rollout_fn: Function to perform a single rollout for a document.
-                Takes the InferenceRunner instance, the document, and a callback that sends a request to the server.
+                Takes the document and a callback that sends a request to the server.
+                Additionally receives keyword arguments from shared_context.
                 Should return either an InferenceResult, a JSON-serializable value (dict, list, string, number, or bool),
                 or None (if all rollouts return None, the document will be removed). The callback returns an InferenceResult and may raise
                 InferenceError if the request fails.
             config: Configuration for the inference server and processing
             output_writer: Writer for saving inference results
+            shared_context: Shared context to be used by the rollout function. Can be a dict, a callable that returns a dict, or a context manager that returns a dict. The dict items will be passed as keyword arguments to the rollout_fn.
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             metadata_key: Key to use for storing the rollout results in the document metadata. Default: "rollout_results".
@@ -218,6 +248,7 @@ class InferenceRunner(PipelineStep):
 
         self.config = config
         self.rollout_fn = rollout_fn
+        self.shared_context = shared_context
         self.metadata_key = metadata_key
 
         self.output_writer = output_writer
@@ -483,6 +514,29 @@ class InferenceRunner(PipelineStep):
                 break
             yield item
 
+    @contextmanager
+    def get_shared_context_cm(self) -> dict:
+        if self.shared_context is None:
+            yield {}
+        elif isinstance(self.shared_context, dict):
+            yield self.shared_context
+        elif hasattr(self.shared_context, "__enter__") and hasattr(self.shared_context, "__exit__"):
+            # Check for context manager before callable, since @contextmanager objects are also callable
+            with self.shared_context as shared_context:
+                yield shared_context
+        elif callable(self.shared_context):
+            # Check if it's a context manager factory by seeing if calling it returns one
+            result = self.shared_context()
+            if hasattr(result, "__enter__") and hasattr(result, "__exit__"):
+                # It's a context manager factory (like @contextmanager decorated function)
+                with result as shared_context:
+                    yield shared_context
+            else:
+                # It's a regular callable that returns a dict
+                yield result
+        else:
+            raise ValueError(f"Invalid shared context type: {type(self.shared_context)}")
+
     # --------------------------------------------------------------------- #
     # Async processing
     # --------------------------------------------------------------------- #
@@ -490,7 +544,6 @@ class InferenceRunner(PipelineStep):
         self,
         data_gen: Iterable[Document],
         rank: int = 0,
-        world_size: int = 1,
     ) -> None:
         """
         Run asynchronous inference processing on the provided data.
@@ -512,7 +565,11 @@ class InferenceRunner(PipelineStep):
         await self.request_cache.initialize(rank)
 
         async def _handle_record(
-            doc: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter
+            doc: Document,
+            rank: int,
+            chunk_index: int,
+            rollout_fn: RolloutFunction,
+            output_writer_context: DiskWriter,
         ) -> None:
             """
             Process a single document through the inference pipeline.
@@ -536,7 +593,7 @@ class InferenceRunner(PipelineStep):
                         rollout_idx=rollout_idx,
                         chunk_index=chunk_index,
                     )
-                    rollout_tasks.append(asyncio.create_task(self.rollout_fn(self, doc, generate_callback)))
+                    rollout_tasks.append(asyncio.create_task(rollout_fn(doc, generate_callback)))
                 rollout_results = await asyncio.gather(*rollout_tasks)
 
                 doc.metadata[self.metadata_key] = [
@@ -565,7 +622,9 @@ class InferenceRunner(PipelineStep):
         chunk_index: int | None = None
         completed_successfully = False
         try:
-            with self.output_writer as output_writer_context:
+            with self.output_writer as output_writer_context, self.get_shared_context_cm() as shared_context_data:
+                rollout_fn: RolloutFunction = partial(self.rollout_fn, **shared_context_data)
+
                 # this will also upload locally cached documents to the output writer
                 documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
                     rank, output_writer_context
@@ -599,7 +658,9 @@ class InferenceRunner(PipelineStep):
                             await task  # Re-raises any unhandled exception
 
                     # Add task for current record
-                    task = asyncio.create_task(_handle_record(record, rank, chunk_index, output_writer_context))
+                    task = asyncio.create_task(
+                        _handle_record(record, rank, chunk_index, rollout_fn, output_writer_context)
+                    )
                     tasks_pool.add(task)
 
                 # 3. Wait for all remaining tasks to complete
@@ -634,4 +695,4 @@ class InferenceRunner(PipelineStep):
             world_size: Total number of processes in distributed setup
         """
         with self.track_time(unit="total"):
-            asyncio.run(self.run_async(data, rank, world_size))
+            asyncio.run(self.run_async(data, rank))

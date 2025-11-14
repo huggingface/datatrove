@@ -103,8 +103,8 @@ class DummyServer(InferenceServer):
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
 
-        # Wait a bit for the server to start
-        await asyncio.sleep(1)
+        # Wait a tiny bit for the server thread to start (dummy server starts instantly)
+        await asyncio.sleep(0.01)
         logger.info("Dummy server is ready!")
 
         # Keep the task alive
@@ -115,3 +115,7 @@ class DummyServer(InferenceServer):
             if self.server:
                 self.server.shutdown()
             raise
+
+    async def wait_until_ready(self, max_attempts: int = 10, delay_sec: float = 0.1) -> None:
+        """Wait until the dummy server is ready. Uses much shorter delays since dummy server starts instantly."""
+        await super().wait_until_ready(max_attempts=max_attempts, delay_sec=delay_sec)
