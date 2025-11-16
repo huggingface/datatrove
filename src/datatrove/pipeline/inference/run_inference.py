@@ -361,11 +361,14 @@ class InferenceRunner(PipelineStep):
         doc_id: str,
         rollout_idx: int,
         chunk_index: int,
+        request_counters: list[int] | None = None,
     ) -> InferenceResult:
         """
         Return cached inference result when available, otherwise fetch from server and persist it.
         """
         if not self.request_cache.enabled:
+            if request_counters is not None:
+                request_counters[rollout_idx] += 1
             return await self._send_request(payload, semaphore)
 
         payload_hash = self.request_cache.prepare_payload(payload)
@@ -380,6 +383,8 @@ class InferenceRunner(PipelineStep):
             )
 
         try:
+            if request_counters is not None:
+                request_counters[rollout_idx] += 1
             result = await self._send_request(payload, semaphore)
         except InferenceError as e:
             await self.request_cache.store_error(
@@ -519,6 +524,7 @@ class InferenceRunner(PipelineStep):
                 InferenceError: If document processing fails
             """
             try:
+                request_counters = [0] * self.config.rollouts_per_document
                 rollout_tasks = []
                 for rollout_idx in range(self.config.rollouts_per_document):
                     generate_callback = partial(
@@ -527,9 +533,13 @@ class InferenceRunner(PipelineStep):
                         doc_id=str(doc.id),
                         rollout_idx=rollout_idx,
                         chunk_index=chunk_index,
+                        request_counters=request_counters,
                     )
                     rollout_tasks.append(asyncio.create_task(rollout_fn(doc, generate_callback)))
                 rollout_results = await asyncio.gather(*rollout_tasks)
+
+                for count in request_counters:
+                    self.stat_update("requests", value=count, unit="rollout")
 
                 doc.metadata[self.metadata_key] = [
                     rollout_result for rollout_result in rollout_results if rollout_result is not None

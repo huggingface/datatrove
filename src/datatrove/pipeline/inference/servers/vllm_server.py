@@ -1,5 +1,6 @@
 import asyncio
 import atexit
+import os
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -54,10 +55,18 @@ class VLLMServer(InferenceServer):
         if model_kwargs:
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
+        env = os.environ.copy()
+        # transformers pulls in TensorFlow by default, which adds tens of seconds of startup time
+        # (we measured ~70-80s at tp=2 on H100). These env vars keep it in PyTorch-only mode so
+        # vLLM initializes much faster without affecting throughput.
+        env.setdefault("USE_TF", "0")
+        env.setdefault("TRANSFORMERS_NO_TF", "1")
+
         self.server_process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
 
         # Ensure the subprocess is terminated on exit
