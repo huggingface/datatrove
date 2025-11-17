@@ -125,19 +125,14 @@ class SpaCyTokenizer(WordTokenizer):
         if self._tokenizer is None:
             import spacy
 
-            print(f"[SPACY] Lazy loading spaCy model for language: {self.language}")
-
             # Important to hot-fix the memory leak in Japanese Tokenizer
             from datatrove.utils.japanese_tokenizer import JapaneseTokenizer  # noqa: F401
 
-            print(f"[SPACY] About to call spacy.blank('{self.language}')...")
             if self.config is None:
                 self._tokenizer = spacy.blank(self.language)
             else:
                 self._tokenizer = spacy.blank(self.language, config=self.config)
-            print(f"[SPACY] Successfully created spaCy blank model for '{self.language}'")
             self._tokenizer.add_pipe("sentencizer")
-            print(f"[SPACY] Added sentencizer pipe for '{self.language}'")
         return self._tokenizer
 
     def _do_tokenize(self, text: str):
@@ -269,14 +264,9 @@ class KiwiTokenizer(WordTokenizer):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            print(f"[KIWI] Starting KiwiTokenizer initialization, model_type: {self.model_type}")
             from kiwipiepy import Kiwi
 
-            print("[KIWI] Successfully imported kiwipiepy.Kiwi")
-
-            print(f"[KIWI] About to call Kiwi(model_type='{self.model_type}')...")
             self._tokenizer = Kiwi(model_type=self.model_type)
-            print("[KIWI] Successfully initialized Kiwi model")
         return self._tokenizer
 
     def preprocess(self, text):

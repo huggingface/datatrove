@@ -1,11 +1,6 @@
 import unittest
 
-from datatrove.utils.word_tokenizers import (
-    KiwiTokenizer,
-    TibetanTokenizer,
-    load_tokenizer_assignments,
-    load_word_tokenizer,
-)
+from datatrove.utils.word_tokenizers import TibetanTokenizer, load_tokenizer_assignments, load_word_tokenizer
 
 
 SAMPLE_TEXT = (
@@ -18,64 +13,24 @@ SAMPLE_TEXT = (
 def get_unique_tokenizers():
     uniq_toks = set()
     for language in load_tokenizer_assignments().keys():
-        try:
-            tokenizer = load_word_tokenizer(language)
-
-            # ONLY test KiwiTokenizer (Korean) - skip all others
-            if not isinstance(tokenizer, KiwiTokenizer):
-                continue
-
-            print(f"[LOAD] Loading tokenizer for language: {language}")
-            print(
-                f"[LOAD] Successfully loaded tokenizer for language: {language}, type: {tokenizer.__class__.__name__}"
-            )
-        except Exception as e:
-            # Only show errors for KiwiTokenizer
-            if "kiwipiepy" in str(e).lower() or "kiwi" in str(e).lower():
-                print(f"[ERROR] ERROR loading tokenizer for language {language}: {e}")
-                import traceback
-
-                traceback.print_exc()
-            raise
+        tokenizer = load_word_tokenizer(language)
         if (tokenizer.__class__, tokenizer.language) in uniq_toks:
             continue
         uniq_toks.add((tokenizer.__class__, tokenizer.language))
-        print(f"[YIELD] Yielding tokenizer for language: {language}, type: {tokenizer.__class__.__name__}")
         yield language, tokenizer
-        print(f"[YIELD] Returned from yield for language: {language}")
 
 
 class TestWordTokenizers(unittest.TestCase):
     def test_word_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
-            print(f"[TEST] Testing word_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
-            print(f"[TEST] About to call word_tokenize for {language}...")
-            try:
-                tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
-                print(f"[TEST] Successfully called word_tokenize for {language}, got {len(tokens)} tokens")
-            except Exception as e:
-                print(f"[TEST] Exception calling word_tokenize for {language}: {e}")
-                import traceback
-
-                traceback.print_exc()
-                raise
+            tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
             assert len(tokens) >= 1, f"'{language}' tokenizer doesn't output tokens"
             is_stripped = [token == token.strip() for token in tokens]
             assert all(is_stripped), f"'{language}' tokenizer tokens contain whitespaces"
 
     def test_sent_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
-            print(f"[TEST] Testing sent_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
-            print(f"[TEST] About to call sent_tokenize for {language}...")
-            try:
-                sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
-                print(f"[TEST] Successfully called sent_tokenize for {language}, got {len(sents)} sentences")
-            except Exception as e:
-                print(f"[TEST] Exception calling sent_tokenize for {language}: {e}")
-                import traceback
-
-                traceback.print_exc()
-                raise
+            sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
             assert len(sents) >= 1, f"'{language}' tokenizer doesn't output sentences"
             is_stripped = [sent == sent.strip() for sent in sents]
             assert all(is_stripped), f"'{language}' tokenizer sentences contain whitespaces"
