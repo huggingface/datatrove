@@ -93,6 +93,10 @@ class RequestCache:
         self._conn = None
         if delete_file and self.db_path and os.path.exists(self.db_path):
             os.remove(self.db_path)
+            if os.path.exists(self.db_path + "-shm"):
+                os.remove(self.db_path + "-shm")
+            if os.path.exists(self.db_path + "-wal"):
+                os.remove(self.db_path + "-wal")
         self.db_path = None
         self._doc_ids_in_cache.clear()
 
