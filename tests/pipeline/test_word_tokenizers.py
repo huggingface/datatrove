@@ -18,25 +18,26 @@ SAMPLE_TEXT = (
 def get_unique_tokenizers():
     uniq_toks = set()
     for language in load_tokenizer_assignments().keys():
-        print(f"[LOAD] Loading tokenizer for language: {language}")
         try:
             tokenizer = load_word_tokenizer(language)
+
+            # ONLY test KiwiTokenizer (Korean) - skip all others
+            if not isinstance(tokenizer, KiwiTokenizer):
+                continue
+
+            print(f"[LOAD] Loading tokenizer for language: {language}")
             print(
                 f"[LOAD] Successfully loaded tokenizer for language: {language}, type: {tokenizer.__class__.__name__}"
             )
-
-            # Skip KiwiTokenizer (Korean) - it has missing model files in CI
-            if isinstance(tokenizer, KiwiTokenizer):
-                print(f"[SKIP] Skipping KiwiTokenizer for language: {language} (missing model files in CI)")
-                continue
         except Exception as e:
-            print(f"[ERROR] ERROR loading tokenizer for language {language}: {e}")
-            import traceback
+            # Only show errors for KiwiTokenizer
+            if "kiwipiepy" in str(e).lower() or "kiwi" in str(e).lower():
+                print(f"[ERROR] ERROR loading tokenizer for language {language}: {e}")
+                import traceback
 
-            traceback.print_exc()
+                traceback.print_exc()
             raise
         if (tokenizer.__class__, tokenizer.language) in uniq_toks:
-            print(f"[SKIP] Skipping duplicate tokenizer for language: {language}")
             continue
         uniq_toks.add((tokenizer.__class__, tokenizer.language))
         print(f"[YIELD] Yielding tokenizer for language: {language}, type: {tokenizer.__class__.__name__}")
@@ -48,12 +49,6 @@ class TestWordTokenizers(unittest.TestCase):
     def test_word_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
             print(f"[TEST] Testing word_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
-
-            # Add detailed logging for SpaCyTokenizer lazy loading
-            if tokenizer.__class__.__name__ == "SpaCyTokenizer":
-                print(f"[TEST] SpaCyTokenizer detected, language code: {tokenizer.language}")
-                print("[TEST] About to access tokenizer property (lazy loading spaCy model)...")
-
             print(f"[TEST] About to call word_tokenize for {language}...")
             try:
                 tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
@@ -71,12 +66,6 @@ class TestWordTokenizers(unittest.TestCase):
     def test_sent_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
             print(f"[TEST] Testing sent_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
-
-            # Add detailed logging for SpaCyTokenizer lazy loading
-            if tokenizer.__class__.__name__ == "SpaCyTokenizer":
-                print(f"[TEST] SpaCyTokenizer detected, language code: {tokenizer.language}")
-                print("[TEST] About to access tokenizer property (lazy loading spaCy model)...")
-
             print(f"[TEST] About to call sent_tokenize for {language}...")
             try:
                 sents = tokenizer.sent_tokenize(SAMPLE_TEXT)

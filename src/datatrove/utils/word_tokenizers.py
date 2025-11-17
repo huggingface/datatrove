@@ -269,9 +269,14 @@ class KiwiTokenizer(WordTokenizer):
     @property
     def tokenizer(self):
         if self._tokenizer is None:
+            print(f"[KIWI] Starting KiwiTokenizer initialization, model_type: {self.model_type}")
             from kiwipiepy import Kiwi
 
+            print("[KIWI] Successfully imported kiwipiepy.Kiwi")
+
+            print(f"[KIWI] About to call Kiwi(model_type='{self.model_type}')...")
             self._tokenizer = Kiwi(model_type=self.model_type)
+            print("[KIWI] Successfully initialized Kiwi model")
         return self._tokenizer
 
     def preprocess(self, text):
