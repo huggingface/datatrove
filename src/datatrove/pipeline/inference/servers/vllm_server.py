@@ -71,7 +71,7 @@ class VLLMServer(InferenceServer):
 
         # Ensure the subprocess is terminated on exit
         def _kill_proc():
-            if self.server_process:
+            if self.server_process and self.server_process.returncode is None:
                 self.server_process.terminate()
 
         atexit.register(_kill_proc)
@@ -99,12 +99,10 @@ class VLLMServer(InferenceServer):
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
                 logger.error("CUDA out of memory error detected")
-                if self.server_process:
-                    self.server_process.terminate()
+                _kill_proc()
             elif "RuntimeError" in line and "CUDA" in line:
                 logger.error("CUDA runtime error detected")
-                if self.server_process:
-                    self.server_process.terminate()
+                _kill_proc()
 
         async def read_stream(stream):
             while True:
@@ -124,8 +122,16 @@ class VLLMServer(InferenceServer):
         try:
             await self.server_process.wait()
         except asyncio.CancelledError:
-            if self.server_process:
-                self.server_process.terminate()
+            _kill_proc()
             raise
 
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(stdout_task, stderr_task, return_exceptions=True),
+                timeout=5,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Timed out waiting for VLLM server log tasks to finish; cancelling them.")
+            stdout_task.cancel()
+            stderr_task.cancel()
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
