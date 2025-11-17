@@ -35,6 +35,6 @@ def test_request_cache_store_and_fetch(tmp_path):
         await resume_cache.drop_chunk(0)
         await resume_cache.close(delete_file=True)
         await cache.close()
-        assert not list(tmp_path.glob("*_replay.sqlite3"))
+        assert not list(tmp_path.glob("*/replay.sqlite3"))
 
     asyncio.run(_run())

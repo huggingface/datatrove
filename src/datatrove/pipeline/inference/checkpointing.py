@@ -56,8 +56,8 @@ class RequestCache:
         check_required_dependencies("Inference request cache", ["aiosqlite"])
         import aiosqlite
 
-        os.makedirs(self.base_dir, exist_ok=True)
-        self.db_path = os.path.join(self.base_dir, f"{rank:05d}_replay.sqlite3")
+        os.makedirs(os.path.join(self.base_dir, f"{rank:05d}"), exist_ok=True)
+        self.db_path = os.path.join(self.base_dir, f"{rank:05d}", "replay.sqlite3")
         self._conn = await aiosqlite.connect(self.db_path)
         await self._conn.execute("PRAGMA journal_mode=WAL;")
         await self._conn.execute("PRAGMA synchronous=NORMAL;")
