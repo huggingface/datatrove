@@ -14,18 +14,37 @@ def get_unique_tokenizers():
     uniq_toks = set()
     for language in load_tokenizer_assignments().keys():
         print(f"Loading tokenizer for language: {language}")
-        tokenizer = load_word_tokenizer(language)
-        print(f"Successfully loaded tokenizer for language: {language}, type: {tokenizer.__class__.__name__}")
+        try:
+            tokenizer = load_word_tokenizer(language)
+            print(f"Successfully loaded tokenizer for language: {language}, type: {tokenizer.__class__.__name__}")
+        except Exception as e:
+            print(f"ERROR loading tokenizer for language {language}: {e}")
+            import traceback
+
+            traceback.print_exc()
+            raise
         if (tokenizer.__class__, tokenizer.language) in uniq_toks:
             continue
         uniq_toks.add((tokenizer.__class__, tokenizer.language))
+        print(f"Yielding tokenizer for language: {language}")
         yield language, tokenizer
+        print(f"Returned from yield for language: {language}")
 
 
 class TestWordTokenizers(unittest.TestCase):
     def test_word_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
-            tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
+            print(f"Testing word_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
+            print(f"About to call word_tokenize for {language}...")
+            try:
+                tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
+                print(f"Successfully called word_tokenize for {language}, got {len(tokens)} tokens")
+            except Exception as e:
+                print(f"Exception calling word_tokenize for {language}: {e}")
+                import traceback
+
+                traceback.print_exc()
+                raise
             assert len(tokens) >= 1, f"'{language}' tokenizer doesn't output tokens"
             is_stripped = [token == token.strip() for token in tokens]
             assert all(is_stripped), f"'{language}' tokenizer tokens contain whitespaces"
@@ -33,7 +52,16 @@ class TestWordTokenizers(unittest.TestCase):
     def test_sent_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
             print(f"Testing sent_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
-            sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
+            print(f"About to call sent_tokenize for {language}...")
+            try:
+                sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
+                print(f"Successfully called sent_tokenize for {language}, got {len(sents)} sentences")
+            except Exception as e:
+                print(f"Exception calling sent_tokenize for {language}: {e}")
+                import traceback
+
+                traceback.print_exc()
+                raise
             assert len(sents) >= 1, f"'{language}' tokenizer doesn't output sentences"
             is_stripped = [sent == sent.strip() for sent in sents]
             assert all(is_stripped), f"'{language}' tokenizer sentences contain whitespaces"
