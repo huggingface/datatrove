@@ -45,5 +45,7 @@ jobs:
           uv pip install --system .[testing]
           python -m nltk.downloader punkt
       - name: Test with pytest
+        env:
+          PYTHONFAULTHANDLER: 1
         run: |
           python -m pytest -sv ./tests/
