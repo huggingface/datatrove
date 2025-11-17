@@ -13,7 +13,9 @@ SAMPLE_TEXT = (
 def get_unique_tokenizers():
     uniq_toks = set()
     for language in load_tokenizer_assignments().keys():
+        print(f"Loading tokenizer for language: {language}")
         tokenizer = load_word_tokenizer(language)
+        print(f"Successfully loaded tokenizer for language: {language}, type: {tokenizer.__class__.__name__}")
         if (tokenizer.__class__, tokenizer.language) in uniq_toks:
             continue
         uniq_toks.add((tokenizer.__class__, tokenizer.language))
@@ -30,6 +32,7 @@ class TestWordTokenizers(unittest.TestCase):
 
     def test_sent_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
+            print(f"Testing sent_tokenize for language: {language}, tokenizer: {tokenizer.__class__.__name__}")
             sents = tokenizer.sent_tokenize(SAMPLE_TEXT)
             assert len(sents) >= 1, f"'{language}' tokenizer doesn't output sentences"
             is_stripped = [sent == sent.strip() for sent in sents]
