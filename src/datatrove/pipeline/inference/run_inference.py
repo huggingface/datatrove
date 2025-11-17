@@ -22,6 +22,7 @@ from loguru import logger
 from datatrove.data import Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
+from datatrove.pipeline.inference.distributed.utils import is_master_node
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
