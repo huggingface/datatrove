@@ -137,7 +137,7 @@ class InferenceConfig:
     dp: int = 1
     pp: int = 1
     # rollouts and generation
-    default_generation_params: dict = field(default_factory=lambda: {"temperature": 0.0})
+    default_generation_params: dict = field(default_factory=dict)
     rollouts_per_document: int = 1
     max_concurrent_generations: int = 500
     max_concurrent_documents: int | None = None
