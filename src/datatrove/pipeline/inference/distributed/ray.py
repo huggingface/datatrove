@@ -315,7 +315,7 @@ def cleanup_ray() -> None:
     """
     logger.info("Cleaning up Ray cluster")
     try:
-        subprocess.run(["ray", "stop"], timeout=30)
+        subprocess.run(["ray", "stop"], timeout=30, capture_output=True)
         logger.info("Ray cluster stopped")
     except Exception as e:
         logger.warning(f"Error stopping Ray cluster: {e}")
