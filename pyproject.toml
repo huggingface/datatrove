@@ -73,7 +73,7 @@ multilingual = [
     "pythainlp", # thai
     "jieba", # chinese
     "indic-nlp-library", # indic languages
-    "kiwipiepy", # korean
+    "kiwipiepy<0.22.0", # korean - v0.22.0 introduced issues, pin to previous version
     # urduhack has keras and tensorflow as dependencies and requires a specific version to work...
     "urduhack",
     "tensorflow>=2.16",
@@ -86,6 +86,7 @@ inference = [
   "aiofiles",
   "orjson",
   "httpx",
+  "aiosqlite",
 ]
 ray = [
   "ray"
@@ -166,4 +167,3 @@ lines-after-imports = 2
 known-first-party = [
   "datatrove"
 ]
-
