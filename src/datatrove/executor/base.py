@@ -62,14 +62,17 @@ class PipelineExecutor(ABC):
         """
         return 0
 
-    def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
+    def _run_for_rank(self, rank: int, local_rank: int = 0, node_rank: int = 0) -> PipelineStats:
         """
             Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
-            and marks tasks as completed.
+            and marks tasks as completed. We assume node_rank == 0 is the master node.
+            Completion is only marked on the master node, all other nodes are ignored in terms of job completion as we use 1-master, many-workers mode.
+            In this case it's master responsibility to check for workers completion and mark the job as complete.
         Args:
             rank: the rank that we want to run the pipeline for
             local_rank: at the moment this is only used for logging.
             Any task with local_rank != 0 will not print logs to console.
+            node_rank: node rank/ID for logging prefix. Logs will be prefixed with [NODE X], we assume node_rank == 0 is the master node.
 
         Returns: the stats for this task
 
@@ -77,7 +80,8 @@ class PipelineExecutor(ABC):
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
-        logfile = add_task_logger(self.logging_dir, rank, local_rank)
+        
+        logfile = add_task_logger(self.logging_dir, rank, local_rank, node_rank=node_rank)
         log_pipeline(self.pipeline)
 
         if self.randomize_start_duration > 0:
@@ -97,13 +101,13 @@ class PipelineExecutor(ABC):
 
             logger.success(f"Processing done for {rank=}")
 
-            # stats
+            # stats - only save on master node in distributed setting
             stats = PipelineStats(self.pipeline)
-            with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
-                stats.save_to_disk(f)
-            logger.info(stats.get_repr(f"Task {rank}"))
-            # completed
-            self.mark_rank_as_completed(rank)
+            if node_rank == 0:
+                with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
+                    stats.save_to_disk(f)
+                logger.info(stats.get_repr(f"Task {rank}"))
+                self.mark_rank_as_completed(rank)
         except Exception as e:
             logger.exception(e)
             raise e

@@ -1,16 +1,30 @@
 import asyncio
 import atexit
+from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass
+import os
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
+from datatrove.pipeline.inference.distributed.utils import (
+    get_distributed_environment,
+    get_master_node_ip,
+    get_number_of_nodes,
+    is_master_node,
+)
+from datatrove.pipeline.inference.distributed.ray import (
+    init_ray_master,
+    init_ray_worker,
+    monitor_ray_cluster_health,
+    cleanup_ray,
+)
 from datatrove.utils._import_utils import check_required_dependencies
 
 
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
-
 
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
@@ -25,6 +39,46 @@ class VLLMServer(InferenceServer):
         # Check required dependencies for VLLM server
         check_required_dependencies("VLLM server", ["vllm"])
         super().__init__(config)
+
+    @contextmanager
+    def init_distributed_context(self):
+        """Initialize distributed environment for VLLM.
+        
+        If in SLURM environment:
+        - Master node: Initializes Ray cluster
+        - Worker nodes: Connects to Ray cluster in subprocess
+        """
+        
+        n_nodes = get_number_of_nodes()
+        env = get_distributed_environment()
+        if env != "SLURM" or n_nodes <= 1:
+            # Only initialize Ray in SLURM environment with multiple nodes
+            yield; return
+        
+        master_ip = get_master_node_ip()
+        is_master = is_master_node()
+        expected_workers = n_nodes  # We spawn worker on the master as well
+        master_port = self.config.master_port
+        timeout = self.config.distributed_init_timeout
+        
+        try:
+            if is_master:
+                init_ray_master(
+                    master_port=master_port,
+                    timeout=timeout,
+                    expected_workers=expected_workers,
+                )
+            else:
+                init_ray_worker(
+                    master_ip=master_ip,
+                    master_port=master_port,
+                    init_timeout=timeout,
+                )
+                monitor_ray_cluster_health(check_interval=timeout)
+            yield
+        finally:
+            cleanup_ray()
+            
 
     async def start_server_task(self) -> None:
         """Start the VLLM server process."""
@@ -54,6 +108,7 @@ class VLLMServer(InferenceServer):
         if model_kwargs:
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
+        logger.debug(f"Starting VLLM server with command: {' '.join(cmd)}")
         self.server_process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,

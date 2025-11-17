@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import json
 import random
 import time
@@ -24,9 +26,9 @@ class PlacementGroupTaskFuture:
     """Promise for a task in a placement group."""
 
     def __init__(self):
-        self.tasks: list[ray.ObjectRef] | None = None
+        self.tasks: list["ray.ObjectRef"] | None = None
 
-    def get_no_wait(self) -> list[ray.ObjectRef] | None:
+    def get_no_wait(self) -> list["ray.ObjectRef"] | None:
         return self.tasks
 
 
@@ -133,8 +135,8 @@ def convert_remote_options_to_bundle(remote_options: dict) -> dict:
 
 @dataclass
 class TaskGroup:
-    tasks: list[ray.ObjectRef]
-    workers: list[ray.ActorHandle]
+    tasks: list["ray.ObjectRef"]
+    workers: list["ray.ActorHandle"]
     placement_group: PlacementGroup
     tasks_successfully_completed: int = 0
 
@@ -148,10 +150,10 @@ class TimeoutManager:
         self.task_start_times = {}
         self.timeout_seconds = timeout_seconds
 
-    def add_task(self, task: ray.ObjectRef):
+    def add_task(self, task: "ray.ObjectRef"):
         self.task_start_times[task] = time.time()
 
-    def remove_task(self, task: ray.ObjectRef):
+    def remove_task(self, task: "ray.ObjectRef"):
         del self.task_start_times[task]
 
     def check_timeouts(self):
@@ -233,8 +235,8 @@ class RayTaskManager:
         return pg_task_future
 
     def wait(
-        self, tasks: list[ray.ObjectRef | PlacementGroupTaskFuture], timeout: int = 0, num_returns: int = 1
-    ) -> tuple[list[ray.ObjectRef], list[ray.ObjectRef | PlacementGroupTaskFuture]]:
+        self, tasks: list["ray.ObjectRef" | PlacementGroupTaskFuture], timeout: int = 0, num_returns: int = 1
+    ) -> tuple[list["ray.ObjectRef"], list["ray.ObjectRef" | PlacementGroupTaskFuture]]:
         """
         Functions first checks for completions of the placmenetgroup tasks. Then it takes those that are finished, adds the to normal ray objects calls wait on that.
         Finally it returns the list of finished tasks and the (list of tasks that are still running + placement group tasks that hasven't finished yet)
@@ -253,7 +255,7 @@ class RayTaskManager:
         finished, unfinished = ray.wait(ray_tasks, num_returns=num_returns, timeout=timeout)
         return finished, unfinished + unfinished_pg_tasks
 
-    def task_done(self, task: ray.ObjectRef) -> bool:
+    def task_done(self, task: "ray.ObjectRef") -> bool:
         """
         Marks task as done and potentially cleans up the placement group.
         Returns True if all tasks in the group are done and were completed successfully (no errors).
@@ -283,7 +285,7 @@ class RayTaskManager:
 
         return group.tasks_successfully_completed == self.nodes_per_task
 
-    def kill_task_group(self, task: ray.ObjectRef):
+    def kill_task_group(self, task: "ray.ObjectRef"):
         """
         Kills a task and its group siblings
         """

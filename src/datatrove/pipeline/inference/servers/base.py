@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import contextmanager
 import logging
 import random
 import socket
@@ -68,6 +69,10 @@ class InferenceServer(ABC):
             )
 
         return port
+
+    @contextmanager
+    def init_distributed_context(self):
+        yield; return
 
     def _get_log_file_path(self, rank: int) -> str | None:
         """Get the log file path for a given rank, or None if logging is disabled."""
