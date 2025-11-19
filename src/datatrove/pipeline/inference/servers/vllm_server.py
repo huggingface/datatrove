@@ -74,8 +74,7 @@ class VLLMServer(InferenceServer):
     async def start_server_task(self) -> asyncio.subprocess.Process | None:
         """Start the VLLM server process, handling distributed setup if needed."""
         n_nodes = get_number_of_nodes()
-        env = get_distributed_environment()
-        if env != "SLURM" or n_nodes <= 1:
+        if n_nodes <= 1:
             return await self._start_vllm_task()
 
         master_ip = get_master_node_host()

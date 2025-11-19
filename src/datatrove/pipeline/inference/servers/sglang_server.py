@@ -35,7 +35,7 @@ class SGLangServer(InferenceServer):
     async def start_server_task(self):
         n_nodes = get_number_of_nodes()
         env = get_distributed_environment()
-        if env != "SLURM" or n_nodes <= 1:
+        if n_nodes <= 1:
             return await self.create_sglang_task()
 
         # Multi-node setup: configure distributed parameters
