@@ -12,16 +12,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-from contextlib import suppress
+from contextlib import nullcontext, suppress
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Awaitable, Callable, Iterable, Literal
 
 from loguru import logger
+
 from datatrove.data import Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
-from datatrove.pipeline.inference.distributed.utils import get_job_id, get_master_node_host
+from datatrove.pipeline.inference.distributed.coordination_server import CoordinationServer
+from datatrove.pipeline.inference.distributed.utils import get_job_id, get_master_node_host, get_number_of_nodes
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
@@ -30,7 +32,6 @@ from datatrove.pipeline.inference.servers import (
     VLLMServer,
 )
 from datatrove.pipeline.writers.disk_base import DiskWriter
-from datatrove.pipeline.inference.distributed.coordination_server import CoordinationServer
 
 
 @dataclass
@@ -67,7 +68,6 @@ class InferenceError(Exception):
         )
 
 
-
 # --------------------------------------------------------------------------- #
 # Public, simplified configuration
 # --------------------------------------------------------------------------- #
@@ -95,7 +95,7 @@ class InferenceConfig:
         server_log_folder: Optional directory for server logs. Creates one log per rank when set.
         master_port: Port of the master node used for distributed settings. (default: 9810)
         coordination_port: Port of the coordination server used for distributed settings. (default: 9811)
-        distributed_init_timeout: Timeout in seconds for distributed initialization (default: 300). 
+        distributed_init_timeout: Timeout in seconds for distributed initialization (default: 300).
             Applies to both master (waiting for workers) and workers (connecting to cluster).
     """
 
@@ -122,6 +122,7 @@ class InferenceConfig:
     master_port: int = 9810
     distributed_init_timeout: int = 300
     coordination_port: int = 9811
+    auto_restart_server: bool = True
 
     def __post_init__(self):
         if self.max_concurrent_documents is None:
@@ -208,7 +209,6 @@ class InferenceRunner(PipelineStep):
             logger.info(str(self.stats))
             await asyncio.sleep(interval)
 
-
     # --------------------------------------------------------------------- #
     # Helpers
     # --------------------------------------------------------------------- #
@@ -233,7 +233,9 @@ class InferenceRunner(PipelineStep):
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
-    async def _send_request(self, server: InferenceServer, payload: dict, semaphore: asyncio.Semaphore) -> InferenceResult:
+    async def _send_request(
+        self, server: InferenceServer, payload: dict, semaphore: asyncio.Semaphore
+    ) -> InferenceResult:
         """
         POST payload to the local server and return the parsed result.
 
@@ -446,13 +448,21 @@ class InferenceRunner(PipelineStep):
 
         master_node_host = get_master_node_host()
 
+        coordination_server_ctx = (
+            CoordinationServer(master_node_host, self.config.coordination_port, get_job_id())
+            if get_number_of_nodes() > 1
+            else nullcontext()
+        )
 
-        async with (CoordinationServer(master_node_host, self.config.coordination_port, get_job_id()) as coordination_server, self._init_server(rank=rank) as (inference_server, is_master_node)):
+        async with (
+            coordination_server_ctx as coordination_server,
+            self._init_server(rank=rank) as (inference_server, is_master_node),
+        ):
             # In the distributed regime, the participating nodes are excpected to do some sort of weak barrier (ray start/join for vllm, torch.distributed.barrier for sglang) during the init_server..
             # We can thus expect that by this point, the coordination server must be running on master node for all worker nodes.
             # This is not true for the master node, which might not have started the coordination server yet.
             if not is_master_node:
-                while await coordination_server.master_running():
+                while coordination_server is not None and await coordination_server.master_running():
                     await asyncio.sleep(10)
                 else:
                     logger.info("Master node is not running, exiting")
@@ -495,7 +505,9 @@ class InferenceRunner(PipelineStep):
                         doc.metadata[self.metadata_key] = [
                             rollout_result for rollout_result in rollout_results if rollout_result is not None
                         ]
-                        self.stat_update("successful_rollouts", value=len(doc.metadata[self.metadata_key]), unit="document")
+                        self.stat_update(
+                            "successful_rollouts", value=len(doc.metadata[self.metadata_key]), unit="document"
+                        )
                         self.stat_update(
                             "failed_rollouts",
                             value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]),
@@ -538,7 +550,9 @@ class InferenceRunner(PipelineStep):
                             if record_idx < documents_to_skip:
                                 continue
                             elif record_idx == documents_to_skip and documents_to_skip > 0:
-                                logger.info(f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}")
+                                logger.info(
+                                    f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}"
+                                )
 
                             # skip already processed documents from chunks in progress
                             if record.id in processed_ids:
@@ -552,7 +566,9 @@ class InferenceRunner(PipelineStep):
                                     await task  # Re-raises any unhandled exception
 
                             # Add task for current record
-                            task = asyncio.create_task(_handle_record(record, rank, chunk_index, output_writer_context))
+                            task = asyncio.create_task(
+                                _handle_record(record, rank, chunk_index, output_writer_context)
+                            )
                             tasks_pool.add(task)
 
                         # 3. Wait for all remaining tasks to complete

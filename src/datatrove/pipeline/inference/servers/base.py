@@ -15,6 +15,7 @@ from datatrove.pipeline.inference.distributed.utils import is_master_node
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
 
+
 # --------------------------------------------------------------------------- #
 # Low-level, dependency-free HTTP POST helper (kept from the original file)
 # --------------------------------------------------------------------------- #
@@ -117,11 +118,40 @@ def _find_available_port(rank: int = 0) -> int:
 
 
 class InferenceServer(ABC):
-    """Abstract base class for inference servers."""
+    """
+    Abstract base class for inference servers.
+
+    This class provides the infrastructure for managing inference server processes,
+    including automatic startup, health monitoring, restart capabilities, and
+    request handling. Subclasses must implement the abstract methods to define
+    server-specific behavior.
+
+    The server lifecycle is managed through an asyncio Future that tracks the
+    server's readiness state. On errors, the future can be reset to allow retry
+    attempts, or set to an exception if the server cannot be started.
+
+    The responsiblity for the lifetime management is delegated to this server, no
+    other code should be responsible for the server's lifetime.
+
+    Attributes:
+        _requires_dependencies: List of required dependencies for the server.
+        config: The inference configuration object.
+        _rank: The rank/ID of this server instance.
+        _is_master: Whether this is the master node in a distributed setup.
+        _auto_restart: Whether to automatically restart the server on failure.
+    """
 
     _requires_dependencies = ["httpx"]
 
     def __init__(self, config: "InferenceConfig", rank: int):
+        """
+        Initialize the inference server.
+
+        Args:
+            config: The inference configuration containing server settings.
+            rank: The rank/ID of this server instance, used for port selection
+                and logging.
+        """
         self.config = config
 
         # Server state - using Future instead
@@ -140,23 +170,55 @@ class InferenceServer(ABC):
         self._auto_restart_task: Optional[asyncio.Task] = None
         self._is_master = is_master_node()
         self._rank = rank
+        self._auto_restart = config.auto_restart_server
+
+    # --------------------------------------------------------------------------- #
+    # Logging helper methods
+    # --------------------------------------------------------------------------- #
 
     def _get_log_file_path(self, rank: int) -> str | None:
-        """Get the log file path for a given rank, or None if logging is disabled."""
+        """
+        Get the log file path for a given rank.
+
+        Args:
+            rank: The rank/ID of the server instance.
+
+        Returns:
+            The log file path string, or None if logging is disabled.
+        """
         if self.config.server_log_folder is None:
             return None
         return f"{self.config.server_log_folder}/server_rank_{rank}.log"
 
     def _should_log_to_file(self) -> bool:
-        """Check if server output should be logged to file."""
+        """
+        Check if server output should be logged to file.
+
+        Returns:
+            True if server logging is enabled, False otherwise.
+        """
         return self.config.server_log_folder is not None
 
-    def _create_server_logger(self, rank: int):
-        """Create a dedicated logger for server output that writes to file."""
+    def _create_server_logger(self, rank: int) -> Optional[logging.Logger]:
+        """
+        Create a dedicated logger for server output that writes to file.
+
+        The logger is configured to write only the message content (no timestamps)
+        since the server process typically provides its own timestamps.
+
+        Args:
+            rank: The rank/ID of the server instance.
+
+        Returns:
+            A configured Logger instance, or None if logging is disabled.
+        """
         if not self._should_log_to_file():
             return None
 
         log_file_path = self._get_log_file_path(rank)
+        if log_file_path is None:
+            return None
+
         os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
         # Create a dedicated logger for this server instance
@@ -180,19 +242,75 @@ class InferenceServer(ABC):
         return server_logger
 
     def server_logger(self) -> Optional[logging.Logger]:
-        """Simple cached getter for the server logger."""
+        """
+        Get or create the server logger instance.
+
+        This is a cached getter that creates the logger on first access if
+        logging is enabled.
+
+        Returns:
+            The server logger instance, or None if logging is disabled.
+        """
         if self._server_logger is None:
             self._server_logger = self._create_server_logger(self._rank)
         return self._server_logger
 
+    # --------------------------------------------------------------------------- #
+    # Abstract methods (must be implemented by subclasses)
+    # --------------------------------------------------------------------------- #
+
     @abstractmethod
     async def start_server_task(self) -> asyncio.subprocess.Process | None:
-        """Start the server process and return the process object, or None if there is no process to start, if any exception is raised,
-        the server will be marked as unable to start and the auto-restart task will be cancelled."""
+        """
+        Start the server process and return the process object.
+
+        This method is called by the base class to start the actual server
+        process. Subclasses must implement this to launch their specific
+        server implementation.
+
+        Returns:
+            The asyncio subprocess Process object if a process was started,
+            or None if there is no process to start (e.g., external server).
+
+        Raises:
+            Exception: Any exception raised here will mark the server as unable
+                to start and cancel the auto-restart task.
+        """
         pass
 
+    @abstractmethod
+    async def monitor_health(self) -> None:
+        """
+        Monitor the health of the server.
+
+        This method should continuously monitor the local server's health status.
+        It should exit or raise an exception if the server is not healthy.
+        The method is called in a background task and should run until the
+        server becomes unhealthy or is stopped.
+
+        Raises:
+            RuntimeError: If the server encounters a non-recoverable error.
+                This will disable auto-restart.
+            Exception: Any other exception will trigger a restart attempt
+                (if auto-restart is enabled).
+        """
+        pass
+
+    # --------------------------------------------------------------------------- #
+    # Public API methods
+    # --------------------------------------------------------------------------- #
+
     async def is_ready(self) -> bool:
-        """Check if the server is ready to accept requests, returns True if the server is ready, False otherwise."""
+        """
+        Check if the server is ready to accept requests.
+
+        Performs a health check by making a GET request to the server's
+        /v1/models endpoint. Returns True if the server responds with
+        a 200 status code.
+
+        Returns:
+            True if the server is ready and responding, False otherwise.
+        """
         import httpx
 
         url = f"http://localhost:{self._port}/v1/models"
@@ -203,8 +321,53 @@ class InferenceServer(ABC):
         except Exception:
             return False
 
+    async def send_request(self, endpoint: str, request: dict) -> tuple[int, bytes]:
+        """
+        Send a request to the server.
+
+        Waits for the server to be ready (if not already), then sends a POST
+        request to the specified endpoint with the given JSON payload.
+
+        Args:
+            endpoint: The API endpoint path (e.g., "/v1/completions").
+            request: Dictionary to be sent as JSON payload.
+
+        Returns:
+            Tuple of (status_code, response_body) where:
+                - status_code: HTTP status code as an integer.
+                - response_body: Response body as bytes.
+
+        Raises:
+            asyncio.CancelledError: If the server is unable to start or has
+                permanently failed. This is a non-retryable error.
+        """
+        # Wait for server to be ready (will raise if exception was set). Hopefuly this is "atomic" == doesn't give up
+        # the execution context when the the future is already set. This is "safe way" to ensure this really happens.
+        if not self._server_ready.done() or self._server_ready.exception() is not None:
+            await self._server_ready
+
+        url = f"http://localhost:{self._port}{endpoint}"
+        return await _raw_post(url, request)
+
+    # --------------------------------------------------------------------------- #
+    # Context manager methods
+    # --------------------------------------------------------------------------- #
+
     async def __aenter__(self):
-        """Enter the context manager, starting the auto-restart task and returning the server object and whether this is the master node."""
+        """
+        Enter the context manager.
+
+        Starts the auto-restart task in the background. For non-master nodes,
+        waits for the server to be ready before returning (to ensure proper
+        coordination). Master nodes return immediately.
+
+        Returns:
+            Tuple of (self, is_master) where:
+                - self: The server instance.
+                - is_master: Boolean indicating if this is the master node.
+        """
+        # We start this task no matter what, as we need a task that launches the server in background so that we can early return
+        # for master node.
         self._auto_restart_task = asyncio.create_task(self._server_auto_restart())
         # This is important as we need workers to be barriered by the master node, for the coordination server to be ready.
         # This is very meh in terms of responsbility, as we should pro
@@ -213,7 +376,17 @@ class InferenceServer(ABC):
         return self, self._is_master
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit the context manager, cancelling the auto-restart task and cleaning up the server."""
+        """
+        Exit the context manager.
+
+        Cancels the auto-restart task and performs server cleanup. Ensures
+        proper shutdown of all server-related tasks and processes.
+
+        Args:
+            exc_type: Exception type, if any.
+            exc_val: Exception value, if any.
+            exc_tb: Exception traceback, if any.
+        """
         # We must first cancel the auto restart task to avoid race conditions
         if self._auto_restart_task:
             try:
@@ -223,104 +396,26 @@ class InferenceServer(ABC):
                 pass
         await self.server_cleanup()
 
-    async def send_request(self, endpoint: str, request: dict) -> tuple[int, bytes]:
-        """Send a request to the server, returns the status code and the response body. Raises an exception if the server is unable to start.
-        Some of them are retryable, some are not. Thos that are not are:
-        - asyncio.CancelledError: if the server is unable to start
-        """
-        url = f"http://localhost:{self._port}{endpoint}"
-        # Wait for server to be ready (will raise if exception was set). Hopefuly this is "atomic" == doesn't give up
-        # the execution context when the the future is already set. This is "safe way" to ensure this really happens.
-        if not self._server_ready.done() or self._server_ready.exception() is not None:
-            await self._server_ready
-
-        return await _raw_post(url, request)
-
-    async def _server_auto_restart(self) -> None:
-        while True:
-            try:
-                if not self._server_ready.done():
-                    await self.start_server()
-            except asyncio.CancelledError as e:
-                # Server failed permanently after max retries - stop auto-restart
-                logger.error(f"Server auto-restart stopped: {e}")
-                break
-            except Exception as e:
-                logger.warning(f"Temporary server start failure: {e}")
-                pass
-            await asyncio.sleep(10)
-
-    async def wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 5.0) -> None:
-        """Wait until the server is ready."""
-        for attempt in range(1, max_attempts + 1):
-            try:
-                # Check if server process is still running
-                if self._server_process is not None and self._server_process.returncode is not None:
-                    raise asyncio.CancelledError(
-                        f"{self.__class__.__name__} server process terminated unexpectedly "
-                        f"with return code {self._server_process.returncode}"
-                    )
-                
-                if await self.is_ready():
-                    logger.info(f"{self.__class__.__name__} server is ready.")
-                    return
-            except asyncio.CancelledError:
-                # Re-raise asyncio.CancelledError (process termination) immediately
-                raise
-            except Exception:
-                pass
-            logger.warning(f"Attempt {attempt}: Please wait for {self.__class__.__name__} server to become ready...")
-            await asyncio.sleep(delay_sec)
-
-        raise Exception(f"{self.__class__.__name__} server did not become ready after waiting.")
-
-    async def server_cleanup(self) -> None:
-        # Reset the future for next start attempt, only if the server were previously ready.
-        if self._server_ready.done() and self._server_ready.exception() is None:
-            self._server_ready = asyncio.Future()
-        
-        if self._server_process:
-            try:
-                self._server_process.terminate()
-                await asyncio.wait_for(self._server_process.wait(), timeout=10.0)
-            except asyncio.TimeoutError:
-                self._server_process.kill()
-            except ProcessLookupError:
-                pass
-            self._server_process = None
-
-        if self._server_monitoring_task:
-            try:
-                self._server_monitoring_task.cancel()
-                await asyncio.wait_for(self._server_monitoring_task, timeout=10.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
-            self._server_monitoring_task = None
-
-    @abstractmethod
-    async def monitor_health(self):
-        """Monitor the health of the server, exiting or raising an exception if the server is not healthy"""
-        pass
-
-    async def _monitor_server(self):
-        try:
-            await self.monitor_health()
-        except RuntimeError as e:
-            logger.error(f"Server health check failed: {e}")
-            # THe monitor_health can signal non-recoverable errors, in which case we should stop auto-restart.
-            self._server_ready.set_exception(asyncio.CancelledError("Non-recoverable server error"))
-        except Exception as e:
-            logger.error(f"Server health check failed: {e}")
-            pass
-
-        # Atomic update - reset future on health check failure, only if we were previously ready.
-        if self._server_ready.done() and self._server_ready.exception() is None:
-            self._server_ready = asyncio.Future()
-        # We don't kill server here as weird things could happen as we can't guarantee atomicity of this call,
-        # we just kill it during start server call
-
+    # --------------------------------------------------------------------------- #
+    # Server lifecycle methods
+    # --------------------------------------------------------------------------- #
 
     async def start_server(self, max_retries: int = 1) -> None:
+        """
+        Start the server with retry logic.
+
+        Attempts to start the server process, with optional retries on failure.
+        Uses a lock to ensure only one start attempt happens at a time. If the
+        server is already ready, returns immediately. If it has permanently
+        failed, re-raises the exception.
+
+        Args:
+            max_retries: Maximum number of start attempts. Default is 1.
+
+        Raises:
+            asyncio.CancelledError: If the server fails to start after all
+                retry attempts, or if it has previously failed permanently.
+        """
         # We shouldn't need a lock as there is just single process who can run start_sever at time, but just to be sure.
         async with self._server_start_lock:
             # Check if server is already ready after acquiring lock
@@ -343,12 +438,12 @@ class InferenceServer(ABC):
                     self._server_monitoring_task = asyncio.create_task(self._monitor_server())
                     # We have no way to know if the server is ready from child process
                     if self._is_master:
-                        await self.wait_until_ready()
+                        await self._wait_until_ready()
                     # Signal success
                     if not self._server_ready.done():
                         self._server_ready.set_result(True)
                     return
-                except (asyncio.TimeoutError):
+                except asyncio.TimeoutError:
                     logger.warning(f"Server start attempt {retry + 1}/{max_retries} timed out")
                     pass
                 except Exception as e:
@@ -362,4 +457,138 @@ class InferenceServer(ABC):
                 self._server_ready.set_exception(asyncio.CancelledError(error_msg))
             raise asyncio.CancelledError(error_msg)
 
+    async def server_cleanup(self) -> None:
+        """
+        Clean up server resources.
 
+        Resets the server ready future (if it was previously ready), terminates
+        the server process, and cancels the monitoring task. This method is
+        idempotent and safe to call multiple times.
+        """
+        # Reset the future for next start attempt, only if the server were previously ready.
+        if self._server_ready.done() and self._server_ready.exception() is None:
+            self._server_ready = asyncio.Future()
+
+        if self._server_process:
+            try:
+                self._server_process.terminate()
+                await asyncio.wait_for(self._server_process.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                self._server_process.kill()
+            except ProcessLookupError:
+                pass
+            self._server_process = None
+
+        if self._server_monitoring_task:
+            try:
+                self._server_monitoring_task.cancel()
+                await asyncio.wait_for(self._server_monitoring_task, timeout=10.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+            self._server_monitoring_task = None
+
+    # --------------------------------------------------------------------------- #
+    # Internal/private methods
+    # --------------------------------------------------------------------------- #
+
+    async def _server_auto_restart(self) -> None:
+        """
+        Background task that automatically restarts the server on failure.
+
+        Continuously monitors the server state and attempts to start it if it's
+        not ready. If auto-restart is disabled or the server fails permanently,
+        the task exits. This task runs in a loop with a delay between attempts.
+
+        Note:
+            This is an internal method that should not be called directly.
+            It's started automatically when entering the context manager.
+        """
+        while True:
+            try:
+                if not self._server_ready.done():
+                    await self.start_server()
+            except asyncio.CancelledError as e:
+                # Server failed permanently after max retries - stop auto-restart
+                logger.error(f"Server auto-restart stopped: {e}")
+                break
+            except Exception as e:
+                logger.warning(f"Temporary server start failure: {e}")
+                pass
+
+            if not self._auto_restart:
+                break
+
+            await asyncio.sleep(10)
+
+    async def _monitor_server(self) -> None:
+        """
+        Background task that monitors server health.
+
+        Wraps the abstract monitor_health() method and handles exceptions.
+        On health check failure, resets the server ready future to allow
+        restart attempts. If the error is non-recoverable (RuntimeError),
+        disables auto-restart and marks the server as permanently failed.
+
+        Note:
+            This is an internal method that should not be called directly.
+            It's started automatically when the server process starts.
+        """
+        should_restart = self._auto_restart
+        try:
+            await self.monitor_health()
+        except RuntimeError as e:
+            should_restart = False
+            logger.error(f"Server health check failed: {e}")
+
+        except Exception as e:
+            logger.error(f"Server health check failed: {e}")
+            pass
+
+        # Atomic update - reset future on health check failure, only if we were previously ready.
+        if self._server_ready.done() and self._server_ready.exception() is None:
+            self._server_ready = asyncio.Future()
+
+        if not should_restart and not self._server_ready.done():
+            self._server_ready.set_exception(asyncio.CancelledError("Non-recoverable server error"))
+
+    async def _wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 5.0) -> None:
+        """
+        Wait until the server is ready to accept requests.
+
+        Polls the server's readiness status at regular intervals until it
+        becomes ready or the maximum number of attempts is reached. Also
+        checks if the server process has terminated unexpectedly.
+
+        Args:
+            max_attempts: Maximum number of readiness check attempts.
+                Default is 300.
+            delay_sec: Delay in seconds between readiness checks.
+                Default is 5.0 seconds.
+
+        Raises:
+            asyncio.CancelledError: If the server process terminates
+                unexpectedly.
+            Exception: If the server does not become ready after the
+                maximum number of attempts.
+        """
+        for attempt in range(1, max_attempts + 1):
+            try:
+                # Check if server process is still running
+                if self._server_process is not None and self._server_process.returncode is not None:
+                    raise asyncio.CancelledError(
+                        f"{self.__class__.__name__} server process terminated unexpectedly "
+                        f"with return code {self._server_process.returncode}"
+                    )
+
+                if await self.is_ready():
+                    logger.info(f"{self.__class__.__name__} server is ready.")
+                    return
+            except asyncio.CancelledError:
+                # Re-raise asyncio.CancelledError (process termination) immediately
+                raise
+            except Exception:
+                pass
+            logger.warning(f"Attempt {attempt}: Please wait for {self.__class__.__name__} server to become ready...")
+            await asyncio.sleep(delay_sec)
+
+        raise Exception(f"{self.__class__.__name__} server did not become ready after waiting.")

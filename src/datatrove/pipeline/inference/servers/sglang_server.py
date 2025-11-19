@@ -3,12 +3,13 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.pipeline.inference.distributed.utils import (
     get_distributed_environment,
     get_master_node_host,
     get_node_rank,
+    get_number_of_nodes,
 )
+from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
 
 
@@ -31,20 +32,18 @@ class SGLangServer(InferenceServer):
         check_required_dependencies("SGLang server", ["sglang"])
         super().__init__(config, rank)
 
-
     async def start_server_task(self):
         n_nodes = get_number_of_nodes()
         env = get_distributed_environment()
         if env != "SLURM" or n_nodes <= 1:
             return await self.create_sglang_task()
-        
+
         # Multi-node setup: configure distributed parameters
         master_host = get_master_node_host()
         node_rank = get_node_rank()
         dist_init_addr = f"{master_host}:{self.config.master_port}"
 
         return await self.create_sglang_task(n_nodes, node_rank, dist_init_addr)
-
 
     async def create_sglang_task(self, n_nodes: int = 1, node_rank: int = 0, dist_init_addr: str = "localhost"):
         cmd = [
@@ -76,7 +75,7 @@ class SGLangServer(InferenceServer):
             model_kwargs["dp-size"] = self.config.dp
         if self.config.pp > 1 and "pp-size" not in model_kwargs:
             model_kwargs["pp-size"] = self.config.pp
-        
+
         # set kwargs
         if model_kwargs:
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
@@ -111,12 +110,9 @@ class SGLangServer(InferenceServer):
             # Check for common SGLang errors
             if "Detected errors during sampling" in line:
                 logger.error("Cannot continue, sampling errors detected, model is probably corrupt")
-                if self._server_process:
-                    self._server_process.terminate()
+                raise RuntimeError("Sampling errors detected, model is probably corrupt")
             elif "IndexError: list index out of range" in line:
-                logger.error("IndexError in model, restarting server")
-                if self._server_process:
-                    self._server_process.terminate()
+                raise RuntimeError("IndexError in model, model is probably corrupt")
 
         async def read_stream(stream):
             while True:
@@ -132,8 +128,8 @@ class SGLangServer(InferenceServer):
         if self._server_process is not None:
             stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
             stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
-
-            # Wait for the main task to complete
-            await self._server_process.wait()
-
-            await asyncio.wait_for(asyncio.gather(stdout_task, stderr_task, return_exceptions=True), timeout=10.0)
+            try:
+                await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
+            finally:
+                stdout_task.cancel()
+                stderr_task.cancel()

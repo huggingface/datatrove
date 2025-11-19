@@ -1,30 +1,27 @@
 import asyncio
-import atexit
-from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass
-import os
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from datatrove.pipeline.inference.servers import InferenceServer
+from datatrove.pipeline.inference.distributed.ray import (
+    cleanup_ray,
+    init_ray_master,
+    init_ray_worker,
+    monitor_ray_cluster_health,
+)
 from datatrove.pipeline.inference.distributed.utils import (
     get_distributed_environment,
     get_master_node_host,
     get_number_of_nodes,
     is_master_node,
 )
-from datatrove.pipeline.inference.distributed.ray import (
-    init_ray_master,
-    init_ray_worker,
-    monitor_ray_cluster_health,
-    cleanup_ray,
-)
+from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
 
 
 if TYPE_CHECKING:
     from datatrove.pipeline.inference.run_inference import InferenceConfig
+
 
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
@@ -80,7 +77,7 @@ class VLLMServer(InferenceServer):
         env = get_distributed_environment()
         if env != "SLURM" or n_nodes <= 1:
             return await self._start_vllm_task()
-        
+
         master_ip = get_master_node_host()
         is_master = is_master_node()
         expected_workers = n_nodes  # We spawn worker on the master as well
@@ -126,13 +123,13 @@ class VLLMServer(InferenceServer):
 
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
-                raise asyncio.CancelledError("CUDA out of memory error detected")
+                raise RuntimeError("CUDA out of memory error detected")
             elif "RuntimeError" in line and "CUDA" in line:
-                raise asyncio.CancelledError("CUDA runtime error detected")
-            
+                raise RuntimeError("CUDA runtime error detected")
+
             # Not enough gpus for TP/DP/PP
             elif "required The number of required GPUs exceeds the total number of available GPUs in the placemen":
-                raise asyncio.CancelledError("Not enough GPUs available for the placement")
+                raise RuntimeError("Not enough GPUs available for the placement")
 
         async def read_stream(stream):
             while True:
@@ -150,7 +147,7 @@ class VLLMServer(InferenceServer):
             finally:
                 stdout_task.cancel()
                 stderr_task.cancel()
-    
+
     async def server_cleanup(self):
         await super().server_cleanup()
         if self._is_master:
