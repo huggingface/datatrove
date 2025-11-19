@@ -11,11 +11,11 @@ Parts of this implementation are adapted from https://github.com/allenai/olmocr
 from __future__ import annotations
 
 import asyncio
-import json
-from contextlib import nullcontext, suppress
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Awaitable, Callable, Iterable, Literal
+from typing import AsyncIterator, Callable, ContextManager, Iterable, Literal
 
 from loguru import logger
 
@@ -27,45 +27,13 @@ from datatrove.pipeline.inference.distributed.utils import get_job_id, get_maste
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
+    EndpointServer,
     InferenceServer,
     SGLangServer,
     VLLMServer,
 )
+from datatrove.pipeline.inference.types import InferenceError, InferenceResult, RolloutFunction, ServerError
 from datatrove.pipeline.writers.disk_base import DiskWriter
-
-
-@dataclass
-class InferenceResult:
-    """
-    Successful inference result.
-
-    Attributes:
-        text: Generated text from the model
-        finish_reason: Reason why generation finished
-        usage: Token usage statistics from the model
-    """
-
-    text: str
-    finish_reason: str
-    usage: dict
-
-
-class InferenceError(Exception):
-    """
-    Exception raised when document inference processing fails.
-
-    Attributes:
-        document: The original document that failed processing
-        error: The underlying error that caused the failure
-    """
-
-    def __init__(self, document: Document, error: str | Exception, payload: dict | None = None):
-        self.document = document
-        self.error = error
-        self.payload = payload
-        super().__init__(
-            f"Failed to process document {document.id if document is not None else '?'}: {error}. Payload: {payload if payload is not None else '?'}"
-        )
 
 
 # --------------------------------------------------------------------------- #
@@ -100,10 +68,12 @@ class InferenceConfig:
     """
 
     # server and model
-    server_type: Literal["sglang", "vllm", "dummy"]
+    server_type: Literal["sglang", "vllm", "dummy", "endpoint"]
     model_name_or_path: str
     model_max_context: int = 8192
     use_chat: bool = True
+    endpoint_url: str | None = None  # Required when server_type is "endpoint"
+    api_key: str | None = None  # API key for endpoint authentication (Bearer token)
     # metrics
     metric_interval: int = 120
     # parallelism
@@ -111,10 +81,11 @@ class InferenceConfig:
     dp: int = 1
     pp: int = 1
     # rollouts and generation
-    default_generation_params: dict = field(default_factory=lambda: {"temperature": 0.0})
+    default_generation_params: dict = field(default_factory=dict)
     rollouts_per_document: int = 1
     max_concurrent_generations: int = 500
     max_concurrent_documents: int | None = None
+    request_timeout: float | None = None  # Timeout for HTTP requests in seconds (None means no timeout)
     # other
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
@@ -146,12 +117,10 @@ class InferenceRunner(PipelineStep):
 
     def __init__(
         self,
-        rollout_fn: Callable[
-            [InferenceRunner, Document, Callable[[dict], Awaitable[InferenceResult]]],
-            Awaitable[InferenceResult | dict | list | str | float | int | bool | None],
-        ],
+        rollout_fn: RolloutFunction,
         config: InferenceConfig,
         output_writer: DiskWriter,
+        shared_context: (dict | Callable[[], dict] | ContextManager[dict] | None) = None,
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
         metadata_key: str = "rollout_results",
@@ -161,12 +130,14 @@ class InferenceRunner(PipelineStep):
 
         Args:
             rollout_fn: Function to perform a single rollout for a document.
-                Takes the InferenceRunner instance, the document, and a callback that sends a request to the server.
+                Takes the document and a callback that sends a request to the server.
+                Additionally receives keyword arguments from shared_context.
                 Should return either an InferenceResult, a JSON-serializable value (dict, list, string, number, or bool),
                 or None (if all rollouts return None, the document will be removed). The callback returns an InferenceResult and may raise
                 InferenceError if the request fails.
             config: Configuration for the inference server and processing
             output_writer: Writer for saving inference results
+            shared_context: Shared context to be used by the rollout function. Can be a dict, a callable that returns a dict, or a context manager that returns a dict. The dict items will be passed as keyword arguments to the rollout_fn.
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             metadata_key: Key to use for storing the rollout results in the document metadata. Default: "rollout_results".
@@ -175,6 +146,7 @@ class InferenceRunner(PipelineStep):
 
         self.config = config
         self.rollout_fn = rollout_fn
+        self.shared_context = shared_context
         self.metadata_key = metadata_key
 
         self.output_writer = output_writer
@@ -230,6 +202,8 @@ class InferenceRunner(PipelineStep):
             return VLLMServer(self.config, rank)
         elif stype == "dummy":
             return DummyServer(self.config, rank)
+        elif stype == "endpoint":
+            return EndpointServer(self.config, rank)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
@@ -237,7 +211,7 @@ class InferenceRunner(PipelineStep):
         self, server: InferenceServer, payload: dict, semaphore: asyncio.Semaphore
     ) -> InferenceResult:
         """
-        POST payload to the local server and return the parsed result.
+        POST payload to the server and return the parsed result.
 
         Args:
             payload: The request payload to send
@@ -252,12 +226,6 @@ class InferenceRunner(PipelineStep):
         for key, value in self.config.default_generation_params.items():
             payload.setdefault(key, value)
 
-        # Choose endpoint based on use_chat setting
-        if self.config.use_chat:
-            endpoint = "/v1/chat/completions"
-        else:
-            endpoint = "/v1/completions"
-
         max_retries = 6
         attempt = 0
 
@@ -268,28 +236,7 @@ class InferenceRunner(PipelineStep):
 
             while attempt < max_retries:
                 try:
-                    status, body = await server.send_request(endpoint, payload)
-                    if status == 400:
-                        self.queue_sizes.change_queues({"running_requests": -1})
-                        self.metrics.add_metrics(failed_requests=1, requests=1)
-                        self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(
-                            None, payload=payload, error=f"Got BadRequestError from server: {body.decode()}"
-                        )
-                    elif status == 500:
-                        self.queue_sizes.change_queues({"running_requests": -1})
-                        self.metrics.add_metrics(failed_requests=1, requests=1)
-                        self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(
-                            None, payload=payload, error=f"Got InternalServerError from server: {body.decode()}"
-                        )
-                    elif status != 200:
-                        self.queue_sizes.change_queues({"running_requests": -1})
-                        self.metrics.add_metrics(failed_requests=1, requests=1)
-                        self.stat_update("failed_requests", value=1, unit="request")
-                        raise InferenceError(None, payload=payload, error=f"Error http status {status}")
-
-                    response = json.loads(body)
+                    response = await server.make_request(payload)
                     choice = response["choices"][0]
 
                     # Track metrics
@@ -321,21 +268,27 @@ class InferenceRunner(PipelineStep):
                     sleep_delay = 5 * (2**attempt)
                     await asyncio.sleep(sleep_delay)
                     attempt += 1
-                except asyncio.CancelledError:
+                except (asyncio.CancelledError, ServerError):
                     logger.info("Request cancelled")
                     self.queue_sizes.change_queues({"running_requests": -1})
+                    raise
+                except InferenceError:
+                    # Re-raise InferenceError as-is
+                    self.queue_sizes.change_queues({"running_requests": -1})
+                    self.metrics.add_metrics(failed_requests=1, requests=1)
+                    self.stat_update("failed_requests", value=1, unit="request")
                     raise
                 except Exception as e:
                     logger.warning(f"Unexpected error: {type(e)} {e}")
                     self.queue_sizes.change_queues({"running_requests": -1})
                     self.metrics.add_metrics(failed_requests=1, requests=1)
                     self.stat_update("failed_requests", value=1, unit="request")
-                    raise InferenceError(None, payload=payload, error=str(e))
+                    raise InferenceError(None, str(e), payload=payload)
 
             self.queue_sizes.change_queues({"running_requests": -1})
             self.metrics.add_metrics(failed_requests=1, requests=1)
             self.stat_update("failed_requests", value=1, unit="request")
-            raise InferenceError(payload=payload, error=f"Failed to process request after {max_retries} attempts")
+            raise InferenceError(None, f"Failed to process request after {max_retries} attempts", payload=payload)
 
     async def _cached_request(
         self,
@@ -345,10 +298,13 @@ class InferenceRunner(PipelineStep):
         doc_id: str,
         rollout_idx: int,
         chunk_index: int,
+        request_counters: list[int] | None = None,
     ) -> InferenceResult:
         """
         Return cached inference result when available, otherwise fetch from server and persist it.
         """
+        if request_counters is not None:
+            request_counters[rollout_idx] += 1
         if not self.request_cache.enabled:
             return await self._send_request(server, payload, semaphore)
 
@@ -357,22 +313,28 @@ class InferenceRunner(PipelineStep):
             doc_id, rollout_idx, payload_hash=payload_hash
         )
         if cached_result is not None or cached_error is not None:
-            if cached_error is not None:
+            if cached_error is not None and "BadRequestError" in cached_error:
                 raise InferenceError(None, cached_error, payload=payload)
-            return InferenceResult(
-                text=cached_result["text"], finish_reason=cached_result["finish_reason"], usage=cached_result["usage"]
-            )
+            elif cached_result is not None:
+                return InferenceResult(
+                    text=cached_result["text"],
+                    finish_reason=cached_result["finish_reason"],
+                    usage=cached_result["usage"],
+                )
 
         try:
+            if request_counters is not None:
+                request_counters[rollout_idx] += 1
             result = await self._send_request(server, payload, semaphore)
         except InferenceError as e:
-            await self.request_cache.store_error(
-                chunk_index=chunk_index,
-                doc_id=doc_id,
-                rollout_idx=rollout_idx,
-                error_message=str(e),
-                payload_hash=payload_hash,
-            )
+            if "BadRequestError" in str(e):
+                await self.request_cache.store_error(
+                    chunk_index=chunk_index,
+                    doc_id=doc_id,
+                    rollout_idx=rollout_idx,
+                    error_message=str(e),
+                    payload_hash=payload_hash,
+                )
             raise
 
         await self.request_cache.store_result(
@@ -403,9 +365,9 @@ class InferenceRunner(PipelineStep):
             logger.warning(f"Failed to save document: {e}")
             self.stat_update("failed_documents", value=1, unit="document")
 
-    async def _async_data_gen(self, sync_gen: Iterable[Document]):
+    async def _async_data_gen(self, sync_gen: Iterable[Document]) -> AsyncIterator[Document]:
         """
-        Convert synchronous generator to async generator using asyncio.to_thread.
+        Convert synchronous generator to async generator using a threadpool.
 
         Args:
             sync_gen: Synchronous iterable of documents
@@ -414,18 +376,110 @@ class InferenceRunner(PipelineStep):
             Document objects from the synchronous generator
         """
 
-        def get_next_item(iterator):
-            try:
-                return next(iterator), False
-            except StopIteration:
-                return None, True
+        # One thread, so that we don't instantiate a new thread for each document
+        threadpool = ThreadPoolExecutor(max_workers=1)
+        try:
 
-        iterator = iter(sync_gen)
-        while True:
-            item, is_done = await asyncio.to_thread(get_next_item, iterator)
-            if is_done:
-                break
-            yield item
+            def get_next_item(iterator: Iterable[Document]):
+                try:
+                    return next(iterator)
+                except StopIteration:
+                    return
+
+            iterator = iter(sync_gen)
+            loop = asyncio.get_running_loop()
+            while True:
+                item = await loop.run_in_executor(threadpool, get_next_item, iterator)
+                if item is None:
+                    break
+                yield item
+        finally:
+            await asyncio.wait_for(asyncio.to_thread(threadpool.shutdown, wait=False, cancel_futures=True), timeout=10)
+
+    @contextmanager
+    def get_shared_context_cm(self) -> dict:
+        if self.shared_context is None:
+            yield {}
+        elif isinstance(self.shared_context, dict):
+            yield self.shared_context
+        elif hasattr(self.shared_context, "__enter__") and hasattr(self.shared_context, "__exit__"):
+            # Check for context manager before callable, since @contextmanager objects are also callable
+            with self.shared_context as shared_context:
+                yield shared_context or {}
+        elif callable(self.shared_context):
+            # Check if it's a context manager factory by seeing if calling it returns one
+            result = self.shared_context()
+            if hasattr(result, "__enter__") and hasattr(result, "__exit__"):
+                # It's a context manager factory (like @contextmanager decorated function)
+                with result as shared_context:
+                    yield shared_context or {}
+            else:
+                # It's a regular callable that returns a dict
+                yield result or {}
+        else:
+            raise ValueError(f"Invalid shared context type: {type(self.shared_context)}")
+
+    async def _handle_record(
+        self,
+        doc: Document,
+        rank: int,
+        chunk_index: int,
+        rollout_fn: RolloutFunction,
+        output_writer_context: DiskWriter,
+        server: InferenceServer,
+        semaphore: asyncio.Semaphore,
+    ) -> None:
+        """
+        Process a single document through the inference pipeline.
+
+        Args:
+            doc: Document to process
+            rank: Process rank identifier
+            chunk_index: Chunk index for the document
+            output_writer_context: Output writer context for saving documents
+
+        Raises:
+            InferenceError: If document processing fails
+        """
+        try:
+            request_counters = [0] * self.config.rollouts_per_document
+            rollout_tasks = []
+            for rollout_idx in range(self.config.rollouts_per_document):
+                generate_callback = partial(
+                    self._cached_request,
+                    semaphore=semaphore,
+                    server=server,
+                    doc_id=str(doc.id),
+                    rollout_idx=rollout_idx,
+                    chunk_index=chunk_index,
+                    request_counters=request_counters,
+                )
+                rollout_tasks.append(asyncio.create_task(rollout_fn(doc, generate_callback)))
+            rollout_results = await asyncio.gather(*rollout_tasks)
+
+            for count in request_counters:
+                self.stat_update("requests", value=count, unit="rollout")
+
+            doc.metadata[self.metadata_key] = [
+                rollout_result for rollout_result in rollout_results if rollout_result is not None
+            ]
+            self.stat_update("successful_rollouts", value=len(doc.metadata[self.metadata_key]), unit="document")
+            self.stat_update(
+                "failed_rollouts",
+                value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]),
+                unit="document",
+            )
+
+            if len(doc.metadata[self.metadata_key]) == 0:
+                doc.metadata["__no_rollouts_remove"] = True
+
+            await self._save_document(doc, output_writer_context, rank, chunk_index)
+            await self.request_cache.mark_document_complete(doc.id)
+        except InferenceError as e:
+            raise e
+        except Exception as e:
+            # let's propagate it
+            raise InferenceError(doc, e)
 
     # --------------------------------------------------------------------- #
     # Async processing
@@ -434,7 +488,6 @@ class InferenceRunner(PipelineStep):
         self,
         data_gen: Iterable[Document],
         rank: int = 0,
-        world_size: int = 1,
     ) -> None:
         """
         Run asynchronous inference processing on the provided data.
@@ -444,16 +497,17 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier for distributed processing
             world_size: Total number of processes in distributed setup
         """
+
+        # 1. Initialize semaphore and coordination server
         semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
 
         master_node_host = get_master_node_host()
-
         coordination_server_ctx = (
             CoordinationServer(master_node_host, self.config.coordination_port, get_job_id())
             if get_number_of_nodes() > 1
             else nullcontext()
         )
-
+        await self.request_cache.initialize(rank)
         async with (
             coordination_server_ctx as coordination_server,
             self._init_server(rank=rank) as (inference_server, is_master_node),
@@ -466,126 +520,99 @@ class InferenceRunner(PipelineStep):
                     await asyncio.sleep(10)
                 else:
                     logger.info("Master node is not running, exiting")
-            else:
-                # Start metrics reporting
-                self.metrics.reset()
-                metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
+                    return
 
-                await self.request_cache.initialize(rank)
+            # Start metrics reporting
+            self.metrics.reset()
+            metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
 
-                async def _handle_record(
-                    doc: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter
-                ) -> None:
-                    """
-                    Process a single document through the inference pipeline.
+            # 2. Main processing loop
+            tasks_pool: set[asyncio.Task] = set()
+            chunk_index: int | None = None
+            completed_successfully = False
+            try:
+                with self.output_writer as output_writer_context, self.get_shared_context_cm() as shared_context_data:
+                    rollout_fn: RolloutFunction = partial(self.rollout_fn, **shared_context_data)
 
-                    Args:
-                        doc: Document to process
-                        rank: Process rank identifier
-                        chunk_index: Chunk index for the document
-                        output_writer_context: Output writer context for saving documents
-
-                    Raises:
-                        InferenceError: If document processing fails
-                    """
-                    try:
-                        rollout_tasks = []
-                        for rollout_idx in range(self.config.rollouts_per_document):
-                            generate_callback = partial(
-                                self._cached_request,
-                                semaphore=semaphore,
-                                server=inference_server,
-                                doc_id=str(doc.id),
-                                rollout_idx=rollout_idx,
-                                chunk_index=chunk_index,
-                            )
-                            rollout_tasks.append(asyncio.create_task(self.rollout_fn(self, doc, generate_callback)))
-                        rollout_results = await asyncio.gather(*rollout_tasks)
-
-                        doc.metadata[self.metadata_key] = [
-                            rollout_result for rollout_result in rollout_results if rollout_result is not None
-                        ]
-                        self.stat_update(
-                            "successful_rollouts", value=len(doc.metadata[self.metadata_key]), unit="document"
-                        )
-                        self.stat_update(
-                            "failed_rollouts",
-                            value=self.config.rollouts_per_document - len(doc.metadata[self.metadata_key]),
-                            unit="document",
+                    # this will also upload locally cached documents to the output writer
+                    documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
+                        rank, output_writer_context
+                    )
+                    if documents_to_skip > 0:
+                        logger.info(
+                            f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents"
                         )
 
-                        if len(doc.metadata[self.metadata_key]) == 0:
-                            doc.metadata["__no_rollouts_remove"] = True
+                    # process remaining documents
+                    record_idx = -1
+                    chunk_index_gen = self.checkpoint_manager.chunk_index_gen()
+                    async for record in self._async_data_gen(data_gen):
+                        record_idx += 1
+                        chunk_index = next(chunk_index_gen)
+                        # Skip documents if resuming from checkpoint
+                        if record_idx < documents_to_skip:
+                            continue
+                        elif record_idx == documents_to_skip and documents_to_skip > 0:
+                            logger.info(f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}")
 
-                        await self._save_document(doc, output_writer_context, rank, chunk_index)
-                        await self.request_cache.mark_document_complete(doc.id)
-                    except InferenceError as e:
-                        raise e
-                    except Exception as e:
-                        # let's propagate it
-                        raise InferenceError(doc, e)
+                        # skip already processed documents from chunks in progress
+                        if record.id in processed_ids:
+                            processed_ids.remove(record.id)
+                            continue
 
-                # 2. Main processing loop
-                tasks_pool: set[asyncio.Task] = set()
-                chunk_index: int | None = None
-                completed_successfully = False
-                try:
-                    with self.output_writer as output_writer_context:
-                        # this will also upload locally cached documents to the output writer
-                        documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
-                            rank, output_writer_context
+                        # Throttle by task pool size
+                        while len(tasks_pool) >= self.config.max_concurrent_documents:
+                            done, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
+                            for task in done:
+                                await task  # Re-raises any unhandled exception
+
+                        # Add task for current record
+                        task = asyncio.create_task(
+                            self._handle_record(
+                                record,
+                                rank,
+                                chunk_index,
+                                rollout_fn,
+                                output_writer_context,
+                                inference_server,
+                                semaphore,
+                            )
                         )
-                        if documents_to_skip > 0:
-                            logger.info(
-                                f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents"
-                            )
+                        tasks_pool.add(task)
 
-                        # process remaining documents
-                        record_idx = -1
-                        chunk_index_gen = self.checkpoint_manager.chunk_index_gen()
-                        async for record in self._async_data_gen(data_gen):
-                            record_idx += 1
-                            chunk_index = next(chunk_index_gen)
-                            # Skip documents if resuming from checkpoint
-                            if record_idx < documents_to_skip:
-                                continue
-                            elif record_idx == documents_to_skip and documents_to_skip > 0:
-                                logger.info(
-                                    f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}"
-                                )
+                    # 3. Wait for all remaining tasks to complete
+                    if tasks_pool:
+                        await asyncio.gather(*tasks_pool)
+                        if chunk_index is not None:
+                            await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
+                completed_successfully = True
+            except Exception:
+                raise
+            finally:
+                await self._cleanup(metrics_task, tasks_pool, completed_successfully)
 
-                            # skip already processed documents from chunks in progress
-                            if record.id in processed_ids:
-                                processed_ids.remove(record.id)
-                                continue
+    async def _cleanup(
+        self,
+        metrics_task: asyncio.Task,
+        tasks_pool: set[asyncio.Task],
+        delete_cache_file: bool,
+        timeout: int = 30,
+    ) -> None:
+        async def _wait_for_tasks_to_complete():
+            with suppress(Exception):
+                await asyncio.wait_for(self.request_cache.close(delete_file=delete_cache_file), timeout=timeout // 2)
+            await asyncio.gather(metrics_task, *tasks_pool, return_exceptions=True)
 
-                            # Throttle by task pool size
-                            while len(tasks_pool) >= self.config.max_concurrent_documents:
-                                done, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
-                                for task in done:
-                                    await task  # Re-raises any unhandled exception
+        # First cancel all tasks in the pool
+        for task in tasks_pool:
+            task.cancel()
 
-                            # Add task for current record
-                            task = asyncio.create_task(
-                                _handle_record(record, rank, chunk_index, output_writer_context)
-                            )
-                            tasks_pool.add(task)
-
-                        # 3. Wait for all remaining tasks to complete
-                        if tasks_pool:
-                            await asyncio.gather(*tasks_pool)
-                            if chunk_index is not None:
-                                await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
-                    completed_successfully = True
-                finally:
-                    # 4. shutdown inference server and metrics
-                    try:
-                        metrics_task.cancel()
-                        await asyncio.wait_for(metrics_task, timeout=10.0)
-                    except (asyncio.TimeoutError, asyncio.CancelledError):
-                        logger.warning("Metrics task did not complete within timeout, forcing shutdown")
-                    with suppress(Exception):
-                        await self.request_cache.close(delete_file=completed_successfully)
+        # Cancel the metrics task
+        metrics_task.cancel()
+        try:
+            await asyncio.wait_for(_wait_for_tasks_to_complete(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("Timed out while cleaning up inference runner.")
 
     # --------------------------------------------------------------------- #
     # Synchronous entrypoint required by PipelineStep
@@ -605,4 +632,4 @@ class InferenceRunner(PipelineStep):
             world_size: Total number of processes in distributed setup
         """
         with self.track_time(unit="total"):
-            asyncio.run(self.run_async(data, rank, world_size))
+            asyncio.run(self.run_async(data, rank))

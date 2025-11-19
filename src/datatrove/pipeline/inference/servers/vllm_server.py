@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -10,7 +11,6 @@ from datatrove.pipeline.inference.distributed.ray import (
     monitor_ray_cluster_health,
 )
 from datatrove.pipeline.inference.distributed.utils import (
-    get_distributed_environment,
     get_master_node_host,
     get_number_of_nodes,
     is_master_node,
@@ -65,10 +65,17 @@ class VLLMServer(InferenceServer):
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
         logger.debug(f"Starting VLLM server with command: {' '.join(cmd)}")
+        env = os.environ.copy()
+        # transformers pulls in TensorFlow by default, which adds tens of seconds of startup time
+        # (we measured ~70-80s at tp=2 on H100). These env vars keep it in PyTorch-only mode so
+        # vLLM initializes much faster without affecting throughput.
+        env.setdefault("USE_TF", "0")
+        env.setdefault("TRANSFORMERS_NO_TF", "1")
         return await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
 
     async def start_server_task(self) -> asyncio.subprocess.Process | None:
@@ -142,10 +149,13 @@ class VLLMServer(InferenceServer):
             stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
             stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
             try:
+                # Here he explicity want to the process to raise an exception if it terminates unexpectedly
                 await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
             finally:
+                # No need to deal with server_process itself as we do kill it in server_cleanup
                 stdout_task.cancel()
                 stderr_task.cancel()
+                await asyncio.wait_for(asyncio.gather(stdout_task, stderr_task, return_exceptions=True), timeout=5.0)
 
     async def server_cleanup(self):
         await super().server_cleanup()

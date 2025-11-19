@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional
 from loguru import logger
 
 from datatrove.pipeline.inference.distributed.utils import is_master_node
+from datatrove.pipeline.inference.types import ServerError
 
 
 if TYPE_CHECKING:
@@ -109,7 +110,7 @@ def _find_available_port(rank: int = 0) -> int:
             logger.debug(f"Port {current_port_to_try} is busy. Trying next port...")
 
     if not found_available_port:
-        raise asyncio.CancelledError(
+        raise ServerError(
             f"Could not find an available port for server after trying {max_port_scan_attempts} ports, "
             f"starting from {initial_port}."
         )
@@ -300,6 +301,10 @@ class InferenceServer(ABC):
     # Public API methods
     # --------------------------------------------------------------------------- #
 
+    def get_base_url(self) -> str:
+        """Get the base URL for making requests. Defaults to localhost with port."""
+        return f"http://localhost:{self._port}"
+
     async def is_ready(self) -> bool:
         """
         Check if the server is ready to accept requests.
@@ -313,7 +318,7 @@ class InferenceServer(ABC):
         """
         import httpx
 
-        url = f"http://localhost:{self._port}/v1/models"
+        url = f"{self.get_base_url()}/v1/models"
         try:
             async with httpx.AsyncClient() as session:
                 response = await session.get(url, timeout=5.0)
@@ -321,33 +326,26 @@ class InferenceServer(ABC):
         except Exception:
             return False
 
-    async def send_request(self, endpoint: str, request: dict) -> tuple[int, bytes]:
+    async def make_request(self, payload: dict) -> dict:
         """
-        Send a request to the server.
-
-        Waits for the server to be ready (if not already), then sends a POST
-        request to the specified endpoint with the given JSON payload.
+        Make a request to the server.
 
         Args:
-            endpoint: The API endpoint path (e.g., "/v1/completions").
-            request: Dictionary to be sent as JSON payload.
+            payload: The request payload to send (should already have model and default params)
 
         Returns:
-            Tuple of (status_code, response_body) where:
-                - status_code: HTTP status code as an integer.
-                - response_body: Response body as bytes.
+            Parsed JSON response dict
 
         Raises:
-            asyncio.CancelledError: If the server is unable to start or has
-                permanently failed. This is a non-retryable error.
+            ServerError: If the server is unable to start or has
+                permanently failed.
         """
         # Wait for server to be ready (will raise if exception was set). Hopefuly this is "atomic" == doesn't give up
         # the execution context when the the future is already set. This is "safe way" to ensure this really happens.
         if not self._server_ready.done() or self._server_ready.exception() is not None:
             await self._server_ready
 
-        url = f"http://localhost:{self._port}{endpoint}"
-        return await _raw_post(url, request)
+        return await self._make_request(payload=payload)
 
     # --------------------------------------------------------------------------- #
     # Context manager methods
@@ -413,17 +411,14 @@ class InferenceServer(ABC):
             max_retries: Maximum number of start attempts. Default is 1.
 
         Raises:
-            asyncio.CancelledError: If the server fails to start after all
+            ServerError: If the server fails to start after all
                 retry attempts, or if it has previously failed permanently.
         """
         # We shouldn't need a lock as there is just single process who can run start_sever at time, but just to be sure.
         async with self._server_start_lock:
             # Check if server is already ready after acquiring lock
-            if self._server_ready.done() and self._server_ready.exception() is None:
+            if self._server_ready.done():
                 return
-            # If the server is already failed, we don't try to start it again.
-            elif self._server_ready.done() and self._server_ready.exception() is not None:
-                await self._server_ready
 
             retry = 0
             while retry < max_retries:
@@ -431,10 +426,9 @@ class InferenceServer(ABC):
                 await self.server_cleanup()
 
                 # Find available port for this attempt
-                port = _find_available_port(self._rank)
-                self._port = port
+                self._port = _find_available_port(self._rank)
+                self._server_process = await asyncio.wait_for(self.start_server_task(), timeout=60.0)
                 try:
-                    self._server_process = await asyncio.wait_for(self.start_server_task(), timeout=60.0)
                     self._server_monitoring_task = asyncio.create_task(self._monitor_server())
                     # We have no way to know if the server is ready from child process
                     if self._is_master:
@@ -443,6 +437,8 @@ class InferenceServer(ABC):
                     if not self._server_ready.done():
                         self._server_ready.set_result(True)
                     return
+                except asyncio.CancelledError:
+                    raise
                 except asyncio.TimeoutError:
                     logger.warning(f"Server start attempt {retry + 1}/{max_retries} timed out")
                     pass
@@ -453,9 +449,7 @@ class InferenceServer(ABC):
 
             # Failed after all retries - signal error to all waiters
             error_msg = f"Failed to start {self.__class__.__name__} server after {max_retries} retries"
-            if not self._server_ready.done():
-                self._server_ready.set_exception(asyncio.CancelledError(error_msg))
-            raise asyncio.CancelledError(error_msg)
+            raise ServerError(error_msg)
 
     async def server_cleanup(self) -> None:
         """
@@ -504,18 +498,15 @@ class InferenceServer(ABC):
             It's started automatically when entering the context manager.
         """
         while True:
-            try:
-                if not self._server_ready.done():
+            if not self._server_ready.done():
+                try:
                     await self.start_server()
-            except asyncio.CancelledError as e:
-                # Server failed permanently after max retries - stop auto-restart
-                logger.error(f"Server auto-restart stopped: {e}")
-                break
-            except Exception as e:
-                logger.warning(f"Temporary server start failure: {e}")
-                pass
-
-            if not self._auto_restart:
+                except Exception as e:
+                    # Set the future to the error
+                    if not self._server_ready.done():
+                        self._server_ready.set_exception(ServerError(e))
+                    break
+            elif self._server_ready.exception() is not None:
                 break
 
             await asyncio.sleep(10)
@@ -534,22 +525,19 @@ class InferenceServer(ABC):
             It's started automatically when the server process starts.
         """
         should_restart = self._auto_restart
+        server_error_msg = "Server unexpectedly terminated"
         try:
             await self.monitor_health()
-        except RuntimeError as e:
-            should_restart = False
-            logger.error(f"Server health check failed: {e}")
-
         except Exception as e:
-            logger.error(f"Server health check failed: {e}")
-            pass
+            should_restart = False
+            server_error_msg = e
 
         # Atomic update - reset future on health check failure, only if we were previously ready.
         if self._server_ready.done() and self._server_ready.exception() is None:
             self._server_ready = asyncio.Future()
 
         if not should_restart and not self._server_ready.done():
-            self._server_ready.set_exception(asyncio.CancelledError("Non-recoverable server error"))
+            self._server_ready.set_exception(ServerError(server_error_msg))
 
     async def _wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 5.0) -> None:
         """
@@ -566,7 +554,7 @@ class InferenceServer(ABC):
                 Default is 5.0 seconds.
 
         Raises:
-            asyncio.CancelledError: If the server process terminates
+            ServerError: If the server process terminates
                 unexpectedly.
             Exception: If the server does not become ready after the
                 maximum number of attempts.
@@ -575,7 +563,7 @@ class InferenceServer(ABC):
             try:
                 # Check if server process is still running
                 if self._server_process is not None and self._server_process.returncode is not None:
-                    raise asyncio.CancelledError(
+                    raise ServerError(
                         f"{self.__class__.__name__} server process terminated unexpectedly "
                         f"with return code {self._server_process.returncode}"
                     )
@@ -583,12 +571,51 @@ class InferenceServer(ABC):
                 if await self.is_ready():
                     logger.info(f"{self.__class__.__name__} server is ready.")
                     return
+            except ServerError:
+                raise
             except asyncio.CancelledError:
-                # Re-raise asyncio.CancelledError (process termination) immediately
                 raise
             except Exception:
                 pass
             logger.warning(f"Attempt {attempt}: Please wait for {self.__class__.__name__} server to become ready...")
             await asyncio.sleep(delay_sec)
 
-        raise Exception(f"{self.__class__.__name__} server did not become ready after waiting.")
+        raise ServerError(f"{self.__class__.__name__} server did not become ready after waiting.")
+
+    def cancel(self) -> None:
+        """Cancel the server task."""
+        if self._server_task:
+            self._server_task.cancel()
+
+    async def _make_request(self, payload: dict) -> dict:
+        """
+        Make HTTP request to the server and return the parsed JSON response.
+
+        Args:
+            payload: The request payload to send (should already have model and default params)
+
+        Returns:
+            Parsed JSON response dict
+
+        Raises:
+            InferenceError: If the request fails
+        """
+        from datatrove.pipeline.inference.run_inference import InferenceError
+
+        # Choose endpoint based on use_chat setting
+        if self.config.use_chat:
+            endpoint = "/v1/chat/completions"
+        else:
+            endpoint = "/v1/completions"
+
+        url = f"{self.get_base_url()}{endpoint}"
+        status, body = await _raw_post(url, json_data=payload)
+
+        if status == 400:
+            raise InferenceError(None, f"Got BadRequestError from server: {body.decode()}", payload=payload)
+        elif status == 500:
+            raise InferenceError(None, f"Got InternalServerError from server: {body.decode()}", payload=payload)
+        elif status != 200:
+            raise InferenceError(None, f"Error http status {status}", payload=payload)
+
+        return json.loads(body)

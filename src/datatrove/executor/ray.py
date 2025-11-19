@@ -7,11 +7,7 @@ import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
-
-from ray.exceptions import TaskCancelledError
-from ray.util.client import ray
-from ray.util.placement_group import PlacementGroup
+from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from datatrove.executor.base import PipelineExecutor
 from datatrove.io import DataFolderLike, get_datafolder
@@ -21,14 +17,19 @@ from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipe
 from datatrove.utils.stats import PipelineStats
 
 
+if TYPE_CHECKING:
+    from ray import ActorHandle, ObjectRef
+    from ray.util.placement_group import PlacementGroup
+
+
 @dataclass
 class PlacementGroupTaskFuture:
     """Promise for a task in a placement group."""
 
     def __init__(self):
-        self.tasks: list["ray.ObjectRef"] | None = None
+        self.tasks: list["ObjectRef"] | None = None
 
-    def get_no_wait(self) -> list["ray.ObjectRef"] | None:
+    def get_no_wait(self) -> list["ObjectRef"] | None:
         return self.tasks
 
 
@@ -135,9 +136,9 @@ def convert_remote_options_to_bundle(remote_options: dict) -> dict:
 
 @dataclass
 class TaskGroup:
-    tasks: list["ray.ObjectRef"]
-    workers: list["ray.ActorHandle"]
-    placement_group: PlacementGroup
+    tasks: list["ObjectRef"]
+    workers: list["ActorHandle"]
+    placement_group: "PlacementGroup"
     tasks_successfully_completed: int = 0
 
 
@@ -150,10 +151,10 @@ class TimeoutManager:
         self.task_start_times = {}
         self.timeout_seconds = timeout_seconds
 
-    def add_task(self, task: "ray.ObjectRef"):
+    def add_task(self, task: "ObjectRef"):
         self.task_start_times[task] = time.time()
 
-    def remove_task(self, task: "ray.ObjectRef"):
+    def remove_task(self, task: "ObjectRef"):
         del self.task_start_times[task]
 
     def check_timeouts(self):
@@ -192,6 +193,8 @@ class RayTaskManager:
     def submit_task(
         self, executor_ref: "RayPipelineExecutor", ranks_to_submit: list[int], remote_options: dict
     ) -> PlacementGroupTaskFuture:
+        from ray.util.client import ray
+
         pg_task_future = PlacementGroupTaskFuture()
 
         def async_submit_task():
@@ -235,12 +238,14 @@ class RayTaskManager:
         return pg_task_future
 
     def wait(
-        self, tasks: list["ray.ObjectRef" | PlacementGroupTaskFuture], timeout: int = 0, num_returns: int = 1
-    ) -> tuple[list["ray.ObjectRef"], list["ray.ObjectRef" | PlacementGroupTaskFuture]]:
+        self, tasks: list["ObjectRef | PlacementGroupTaskFuture"], timeout: int = 0, num_returns: int = 1
+    ) -> tuple[list["ObjectRef"], list["ObjectRef | PlacementGroupTaskFuture"]]:
         """
         Functions first checks for completions of the placmenetgroup tasks. Then it takes those that are finished, adds the to normal ray objects calls wait on that.
         Finally it returns the list of finished tasks and the (list of tasks that are still running + placement group tasks that hasven't finished yet)
         """
+        from ray.util.client import ray
+
         # Separate placement group tasks from regular ray tasks
         placement_group_tasks = [task for task in tasks if isinstance(task, PlacementGroupTaskFuture)]
         ray_tasks = [task for task in tasks if not isinstance(task, PlacementGroupTaskFuture)]
@@ -255,13 +260,15 @@ class RayTaskManager:
         finished, unfinished = ray.wait(ray_tasks, num_returns=num_returns, timeout=timeout)
         return finished, unfinished + unfinished_pg_tasks
 
-    def task_done(self, task: "ray.ObjectRef") -> bool:
+    def task_done(self, task: "ObjectRef") -> bool:
         """
         Marks task as done and potentially cleans up the placement group.
         Returns True if all tasks in the group are done and were completed successfully (no errors).
 
         Note: This is the only task which can manipulate the task groups as well as delete placement groups.
         """
+        from ray.util.client import ray
+
         try:
             # Hope this is cheap since we know the task is done :pray:
             ray.get(task)
@@ -285,10 +292,13 @@ class RayTaskManager:
 
         return group.tasks_successfully_completed == self.nodes_per_task
 
-    def kill_task_group(self, task: "ray.ObjectRef"):
+    def kill_task_group(self, task: "ObjectRef"):
         """
         Kills a task and its group siblings
         """
+        from ray.exceptions import TaskCancelledError
+        from ray.util.client import ray
+
         if task not in self.task_to_group:
             logger.warning(f"Task {task} not found in task manager")
             return
@@ -307,6 +317,8 @@ class RayTaskManager:
         """
         Cleans up the task manager.
         """
+        from ray.util.client import ray
+
         # First cancel all placement group futures (ThreadPoolExecutor futures)
         for future in self.pg_futures:
             future.cancel()

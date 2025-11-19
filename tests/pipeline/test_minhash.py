@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from collections import defaultdict, deque
 from math import floor
+from unittest import mock
 
 import numpy as np
 
@@ -166,6 +167,56 @@ class TestMinhash(unittest.TestCase):
         filtered = filter_block(cluster_samples)
         filtered_ids = {x.id for x in filtered}
         assert filtered_ids == kept
+
+    @use_hash_configs()
+    def test_check_can_skip_sig_writing_returns_doc_count(self, hash_config):
+        sigs_folder = os.path.join(self.tmp_dir, "skip_signatures")
+        config = MinhashConfig(hash_config=hash_config)
+        signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config, skip_existing_sigs=True)
+
+        samples = [
+            Document(text=f"This is sample document number {i} with enough words to produce signatures", id=str(i))
+            for i in range(25)
+        ]
+        signatures_block(samples)
+
+        can_skip, doc_count = signatures_block.check_can_skip_sig_writing(rank=0)
+        assert can_skip
+        assert doc_count == len(samples)
+
+    @use_hash_configs()
+    def test_signature_detects_corruption_during_verify(self, hash_config):
+        sigs_folder = os.path.join(self.tmp_dir, "corrupt_signatures")
+        config = MinhashConfig(hash_config=hash_config)
+        signatures_block = MinhashDedupSignature(output_folder=sigs_folder, config=config)
+
+        samples = [
+            Document(
+                text=f"This is document number {i} with enough words to produce signatures for testing", id=str(i)
+            )
+            for i in range(10)
+        ]
+
+        original_open = signatures_block.output_folder.open
+        read_calls = {"count": 0}
+
+        def flaky_open(path, mode="rb", **kwargs):
+            file_obj = original_open(path, mode=mode, **kwargs)
+            if mode == "rb" and path.endswith("00000.minhash.sig"):
+                read_calls["count"] += 1
+                if read_calls["count"] == 2:
+                    with original_open(path, mode="rb") as base_read:
+                        data = bytearray(base_read.read())
+                    if data:
+                        data[0] ^= 0x01
+                        with original_open(path, mode="wb") as base_write:
+                            base_write.write(data)
+                    file_obj = original_open(path, mode=mode, **kwargs)
+            return file_obj
+
+        with mock.patch.object(signatures_block.output_folder, "open", side_effect=flaky_open):
+            with self.assertRaises(ValueError):
+                signatures_block(samples)
 
     @use_hash_configs()
     def test_cluster_ids_sizes(self, hash_config):
