@@ -366,9 +366,9 @@ class InferenceRunner(PipelineStep):
         """
         Return cached inference result when available, otherwise fetch from server and persist it.
         """
+        if request_counters is not None:
+            request_counters[rollout_idx] += 1
         if not self.request_cache.enabled:
-            if request_counters is not None:
-                request_counters[rollout_idx] += 1
             return await self._send_request(payload, semaphore)
 
         payload_hash = self.request_cache.prepare_payload(payload)
@@ -376,24 +376,28 @@ class InferenceRunner(PipelineStep):
             doc_id, rollout_idx, payload_hash=payload_hash
         )
         if cached_result is not None or cached_error is not None:
-            if cached_error is not None:
+            if cached_error is not None and "BadRequestError" in cached_error:
                 raise InferenceError(None, cached_error, payload=payload)
-            return InferenceResult(
-                text=cached_result["text"], finish_reason=cached_result["finish_reason"], usage=cached_result["usage"]
-            )
+            elif cached_result is not None:
+                return InferenceResult(
+                    text=cached_result["text"],
+                    finish_reason=cached_result["finish_reason"],
+                    usage=cached_result["usage"],
+                )
 
         try:
             if request_counters is not None:
                 request_counters[rollout_idx] += 1
             result = await self._send_request(payload, semaphore)
         except InferenceError as e:
-            await self.request_cache.store_error(
-                chunk_index=chunk_index,
-                doc_id=doc_id,
-                rollout_idx=rollout_idx,
-                error_message=str(e),
-                payload_hash=payload_hash,
-            )
+            if "BadRequestError" in str(e):
+                await self.request_cache.store_error(
+                    chunk_index=chunk_index,
+                    doc_id=doc_id,
+                    rollout_idx=rollout_idx,
+                    error_message=str(e),
+                    payload_hash=payload_hash,
+                )
             raise
 
         await self.request_cache.store_result(
@@ -614,17 +618,42 @@ class InferenceRunner(PipelineStep):
                     if chunk_index is not None:
                         await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
             completed_successfully = True
+        except Exception:
+            for task in tasks_pool:
+                task.cancel()
+            await asyncio.gather(*tasks_pool, return_exceptions=True)
+            raise
         finally:
-            # 4. shutdown inference server and metrics
-            if not is_endpoint_server:
+            await self._teardown(
+                metrics_task=metrics_task,
+                server_task=server_task if not is_endpoint_server else None,
+                delete_cache_file=completed_successfully,
+                timeout=30,
+            )
+
+    async def _teardown(
+        self,
+        *,
+        metrics_task: asyncio.Task,
+        server_task: asyncio.Task | None,
+        delete_cache_file: bool,
+        timeout: int = 30,
+    ) -> None:
+        async def _cleanup():
+            if server_task is not None:
                 server_task.cancel()
             metrics_task.cancel()
             tasks_to_cancel = [metrics_task]
-            if not is_endpoint_server:
+            if server_task is not None:
                 tasks_to_cancel.append(server_task)
             await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
             with suppress(Exception):
-                await self.request_cache.close(delete_file=completed_successfully)
+                await self.request_cache.close(delete_file=delete_cache_file)
+
+        try:
+            await asyncio.wait_for(_cleanup(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("Timed out while cleaning up inference runner.")
 
     # --------------------------------------------------------------------- #
     # Synchronous entrypoint required by PipelineStep

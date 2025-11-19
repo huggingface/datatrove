@@ -70,11 +70,21 @@ class VLLMServer(InferenceServer):
         )
 
         # Ensure the subprocess is terminated on exit
-        def _kill_proc():
+        async def _kill_proc_async():
+            if self.server_process and self.server_process.returncode is None:
+                self.server_process.terminate()
+                try:
+                    await asyncio.wait_for(self.server_process.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    logger.warning("vLLM process did not exit after SIGTERM; sending SIGKILL.")
+                    self.server_process.kill()
+                    await self.server_process.wait()
+
+        def _kill_proc_sync():
             if self.server_process and self.server_process.returncode is None:
                 self.server_process.terminate()
 
-        atexit.register(_kill_proc)
+        atexit.register(_kill_proc_sync)
 
         server_printed_ready_message = False
 
@@ -99,10 +109,10 @@ class VLLMServer(InferenceServer):
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
                 logger.error("CUDA out of memory error detected")
-                _kill_proc()
+                await _kill_proc_async()
             elif "RuntimeError" in line and "CUDA" in line:
                 logger.error("CUDA runtime error detected")
-                _kill_proc()
+                await _kill_proc_async()
 
         async def read_stream(stream):
             while True:
@@ -119,19 +129,22 @@ class VLLMServer(InferenceServer):
         stdout_task = asyncio.create_task(read_stream(self.server_process.stdout))
         stderr_task = asyncio.create_task(read_stream(self.server_process.stderr))
 
-        try:
-            await self.server_process.wait()
-        except asyncio.CancelledError:
-            _kill_proc()
-            raise
+        async def _wait_and_drain():
+            try:
+                await self.server_process.wait()
+            except asyncio.CancelledError:
+                await _kill_proc_async()
+                raise
 
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(stdout_task, stderr_task, return_exceptions=True),
-                timeout=5,
-            )
-        except asyncio.TimeoutError:
-            logger.warning("Timed out waiting for VLLM server log tasks to finish; cancelling them.")
-            stdout_task.cancel()
-            stderr_task.cancel()
-            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(stdout_task, stderr_task, return_exceptions=True),
+                    timeout=15,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Timed out waiting for VLLM server log tasks to finish; cancelling them.")
+                stdout_task.cancel()
+                stderr_task.cancel()
+                await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+
+        await _wait_and_drain()
