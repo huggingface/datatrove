@@ -1,5 +1,6 @@
 """Ray cluster initialization and management functions."""
 
+import asyncio
 import subprocess
 import time
 from loguru import logger
@@ -8,7 +9,7 @@ from datatrove.pipeline.inference.distributed.utils import (
     get_available_cpus_per_node,
     get_available_gpus_per_node,
     get_available_memory_per_node,
-    get_master_node_ip,
+    get_master_node_host,
     get_number_of_nodes,
     is_master_node,
 )
@@ -16,6 +17,9 @@ from datatrove.utils._import_utils import check_required_dependencies
 
 # Constants
 WORKER_CHECK_INTERVAL_SECONDS = 2.0
+WORKER_CONNECTION_MAX_RETRIES = 5
+WORKER_CONNECTION_RETRY_DELAY = 10.0
+PROCESS_TIMEOUT = 10.0
 
 
 def calculate_object_store_memory() -> int:
@@ -91,38 +95,44 @@ def _count_alive_worker_nodes(master_ip: str) -> int:
     return len(alive_worker_nodes)
 
 
-def _start_ray_head_node(master_port: int, object_store_memory: int, timeout: float) -> None:
+async def _start_ray_head_node(master_port: int, object_store_memory: int) -> None:
     """Start the Ray head node using CLI.
     
     Args:
         master_port: Port for the Ray cluster
         object_store_memory: Object store memory in bytes
-        timeout: Timeout in seconds for starting Ray
     
     Raises:
         RuntimeError: If Ray head node fails to start
-        subprocess.TimeoutExpired: If the start command times out
+        asyncio.TimeoutError: If the start command times out
     """
     ray_start_cmd = _build_ray_head_start_command(master_port, object_store_memory)
     
     logger.info(f"Running: {' '.join(ray_start_cmd)}")
-    result = subprocess.run(
-        ray_start_cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
+    
+    process = await asyncio.create_subprocess_exec(
+        *ray_start_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
     
-    if result.returncode != 0:
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=PROCESS_TIMEOUT)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError(f"Timeout ({PROCESS_TIMEOUT}s) starting Ray head node")
+    
+    if process.returncode != 0:
         raise RuntimeError(
-            f"Failed to start Ray head node. Return code: {result.returncode}, "
-            f"stderr: {result.stderr}, stdout: {result.stdout}"
+            f"Failed to start Ray head node. Return code: {process.returncode}, "
+            f"stderr: {stderr.decode()}, stdout: {stdout.decode()}"
         )
     
     logger.info("Ray head node started successfully")
 
 
-def _wait_for_workers(expected_workers: int, master_ip: str, timeout: float) -> None:
+async def _wait_for_workers(expected_workers: int, master_ip: str) -> None:
     """Wait for worker nodes to join the Ray cluster.
     
     Args:
@@ -136,7 +146,8 @@ def _wait_for_workers(expected_workers: int, master_ip: str, timeout: float) -> 
     import ray
     
     start_time = time.time()
-    while time.time() - start_time < timeout:
+    max_time = (1 + WORKER_CONNECTION_MAX_RETRIES) * WORKER_CONNECTION_RETRY_DELAY
+    while time.time() - start_time < max_time:
         try:
             connected_workers = _count_alive_worker_nodes(master_ip)
             
@@ -155,22 +166,21 @@ def _wait_for_workers(expected_workers: int, master_ip: str, timeout: float) -> 
                 f"Waiting for workers... {connected_workers}/{expected_workers} connected. "
                 f"Elapsed: {elapsed_time}s"
             )
-            time.sleep(WORKER_CHECK_INTERVAL_SECONDS)
+            await asyncio.sleep(WORKER_CHECK_INTERVAL_SECONDS)
         except Exception as e:
             logger.warning(f"Error checking Ray cluster state: {e}")
-            time.sleep(WORKER_CHECK_INTERVAL_SECONDS)
+            await asyncio.sleep(WORKER_CHECK_INTERVAL_SECONDS)
     
     # Timeout reached
     connected_workers = _count_alive_worker_nodes(master_ip)
     raise RuntimeError(
-        f"Timeout ({timeout}s) waiting for workers to join Ray cluster. "
+        f"Timeout ({max_time}s) waiting for workers to join Ray cluster. "
         f"Only {connected_workers}/{expected_workers} workers connected."
     )
 
 
-def init_ray_master(
+async def init_ray_master(
     master_port: int,
-    timeout: float,
     expected_workers: int | None = None,
 ) -> None:
     """Initialize Ray cluster on the master node.
@@ -179,7 +189,6 @@ def init_ray_master(
     
     Args:
         master_port: Port for the Ray cluster
-        timeout: Timeout in seconds for starting Ray and waiting for workers
         expected_workers: Expected number of worker nodes. If None, uses number of nodes.
     
     Raises:
@@ -188,7 +197,7 @@ def init_ray_master(
     check_required_dependencies("Ray", ["ray"])
     import ray
     
-    master_ip = get_master_node_ip()
+    master_ip = get_master_node_host()
     expected_workers = expected_workers or get_number_of_nodes()
     object_store_memory = calculate_object_store_memory()
     
@@ -196,39 +205,39 @@ def init_ray_master(
     logger.info(f"Expecting {expected_workers} worker nodes to join")
     
     try:
-        _start_ray_head_node(master_port, object_store_memory, timeout)
+        await _start_ray_head_node(master_port, object_store_memory)
         
         # Connect to the Ray cluster
         ray.init(address="auto", ignore_reinit_error=True)
-        logger.info("Connected to Ray cluster")
-        
         # Wait for workers to come online
-        _wait_for_workers(expected_workers, master_ip, timeout)
+        await _wait_for_workers(expected_workers, master_ip)
         
-    except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"Timeout ({timeout}s) starting Ray head node") from e
+    except asyncio.TimeoutError as e:
+        raise RuntimeError(f"Timeout (10.0s) starting Ray head node") from e
     except Exception as e:
         logger.error(f"Failed to initialize Ray cluster: {e}")
         raise
 
 
-def init_ray_worker(
+async def init_ray_worker(
     master_ip: str,
     master_port: int,
-    init_timeout: float,
+    max_retries: int = WORKER_CONNECTION_MAX_RETRIES,
+    retry_delay: float = WORKER_CONNECTION_RETRY_DELAY,
 ) -> None:
     """Initialize Ray worker node and connect to master.
     
     Starts Ray worker node using CLI and connects to the master Ray cluster.
-    After connecting, waits for init_timeout seconds to allow cluster initialization.
+    Will retry up to max_retries times if connection fails.
     
     Args:
         master_ip: IP address of the master node
         master_port: Port of the Ray cluster
-        init_timeout: Timeout in seconds for connecting to Ray cluster and initialization wait
+        max_retries: Maximum number of connection attempts (default: 5)
+        retry_delay: Delay in seconds between retry attempts (default: 10.0)
     
     Raises:
-        RuntimeError: If Ray worker node fails to start
+        RuntimeError: If Ray worker node fails to start after all retries
     """
     object_store_memory = calculate_object_store_memory()
     
@@ -250,23 +259,59 @@ def init_ray_worker(
         str(get_available_gpus_per_node()),
     ]
     
-    logger.info(f"Running: {' '.join(ray_start_cmd)}")
-    result = subprocess.run(
-        ray_start_cmd,
-        capture_output=True,
-        text=True,
-        timeout=init_timeout,
+    last_error = None
+    
+    for attempt in range(1, max_retries + 1):
+        logger.info(f"Connection attempt {attempt}/{max_retries}: Running: {' '.join(ray_start_cmd)}")
+        
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *ray_start_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=PROCESS_TIMEOUT)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                last_error = RuntimeError(f"Timeout ({PROCESS_TIMEOUT}s) connecting to Ray cluster")
+                logger.warning(f"Attempt {attempt}/{max_retries} timed out. {last_error}")
+                if attempt < max_retries:
+                    logger.info(f"Retrying in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                continue
+            
+            if process.returncode != 0:
+                last_error = RuntimeError(
+                    f"Failed to start Ray worker node. Return code: {process.returncode}, "
+                    f"stderr: {stderr.decode()}, stdout: {stdout.decode()}"
+                )
+                logger.warning(f"Attempt {attempt}/{max_retries} failed. {last_error}")
+                if attempt < max_retries:
+                    logger.info(f"Retrying in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                continue
+            
+            # Success!
+            logger.info(f"Worker node successfully connected to Ray cluster at {master_ip}:{master_port}")
+            return
+            
+        except Exception as e:
+            last_error = RuntimeError(f"Failed to start Ray worker node: {e}")
+            logger.warning(f"Attempt {attempt}/{max_retries} failed with exception. {last_error}")
+            if attempt < max_retries:
+                logger.info(f"Retrying in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+    
+    # All retries exhausted
+    raise RuntimeError(
+        f"Failed to connect Ray worker to cluster after {max_retries} attempts. "
+        f"Last error: {last_error}"
     )
-    
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Failed to start Ray worker node. Return code: {result.returncode}, "
-            f"stderr: {result.stderr}, stdout: {result.stdout}"
-        )
-    
-    logger.info(f"Worker node successfully connected to Ray cluster at {master_ip}:{master_port}")
 
-def monitor_ray_cluster_health(check_interval: float = 5.0) -> None:
+async def monitor_ray_cluster_health(check_interval: float = 5.0) -> None:
     """Monitor Ray cluster health by running ray health-check command.
     
     This function runs in a loop, checking every check_interval seconds if the Ray cluster
@@ -296,7 +341,7 @@ def monitor_ray_cluster_health(check_interval: float = 5.0) -> None:
                 )
                 return
             
-            time.sleep(check_interval)
+            await asyncio.sleep(check_interval)
             
         except subprocess.TimeoutExpired:
             # Health check timed out, treat as failure
@@ -313,10 +358,15 @@ def cleanup_ray() -> None:
     
     Stops the Ray runtime on the current node using `ray stop`.
     """
+    import ray
     logger.info("Cleaning up Ray cluster")
     try:
-        subprocess.run(["ray", "stop"], timeout=30, capture_output=True)
+        ray.shutdown()
+        try:
+            subprocess.run(["ray", "stop"], timeout=30, capture_output=True)
+        except subprocess.TimeoutExpired:
+            pass
         logger.info("Ray cluster stopped")
     except Exception as e:
-        logger.warning(f"Error stopping Ray cluster: {e}")
+        pass
 

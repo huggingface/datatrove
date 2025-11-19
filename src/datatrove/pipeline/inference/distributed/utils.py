@@ -19,38 +19,15 @@ def _expand_slurm_nodelist(nodelist: str) -> list[str]:
     hostnames = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
     return hostnames
 
-
-def _resolve_hostname_to_ip(hostname: str) -> str:
-    """Resolve a hostname to its IP address."""
-    try:
-        # Try getent hosts first (more reliable in some environments)
-        result = subprocess.run(
-            ["getent", "hosts", hostname],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        ip = result.stdout.split()[0]
-        return ip
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fallback to socket.gethostbyname
-        try:
-            ip = socket.gethostbyname(hostname)
-            return ip
-        except socket.gaierror:
-            # If resolution fails, return hostname as-is (might work for some setups)
-            return hostname
-
-
-def get_master_node_ip() -> str:
-    """Return IP address of the master node."""
+def get_master_node_host() -> str:
+    """Return hostname of the master node."""
     if get_distributed_environment() == "SLURM":
         nodelist = os.environ["SLURM_NODELIST"]
         hostnames = _expand_slurm_nodelist(nodelist)
         if not hostnames:
             raise RuntimeError(f"Failed to expand SLURM nodelist: {nodelist}")
         master_hostname = hostnames[0]
-        return _resolve_hostname_to_ip(master_hostname)
+        return master_hostname
     elif get_distributed_environment() == "RAY":
         return os.environ["RAY_NODELIST"].split(",")[0]
     else:
@@ -75,14 +52,19 @@ def get_available_gpus_per_node() -> int:
         return int(os.environ.get("SLURM_GPUS_ON_NODE", 0))
     raise NotImplementedError("Only SLURM distributed environment is supported yet.")
 
+
+def get_node_rank() -> int: 
+    """Return the rank of the current node (0 for master, 1, 2, etc. for workers)."""
+    if get_distributed_environment() == "SLURM":
+        return int(os.environ.get("SLURM_NODEID", 0))
+    elif get_distributed_environment() == "RAY":
+        return int(os.environ.get("RAY_NODEID", 0))
+    else:
+        return 0
+
 def is_master_node() -> bool:
     """Return True if the current node is the master node, False otherwise."""
-    if get_distributed_environment() == "SLURM":
-        return int(os.environ.get("SLURM_NODEID", 0)) == 0
-    elif get_distributed_environment() == "RAY":
-        return int(os.environ.get("RAY_NODEID", 0)) == 0
-    else:
-        return True
+    return get_node_rank() == 0
 
 def get_number_of_nodes() -> int:
     """Return the number of nodes in the distributed environment."""
@@ -91,16 +73,26 @@ def get_number_of_nodes() -> int:
 
     raise NotImplementedError("Only SLURM distributed environment is supported yet.")
 
-def get_node_ips() -> list[str]:
-    """Return list of IP addresses of the nodes in the distributed environment."""
+def get_node_hosts() -> list[str]:
+    """Return list of hosts of the nodes in the distributed environment."""
     if get_distributed_environment() == "SLURM":
         nodelist = os.environ["SLURM_NODELIST"]
         hostnames = _expand_slurm_nodelist(nodelist)
-        return [_resolve_hostname_to_ip(hostname) for hostname in hostnames]
+        return hostnames
     elif get_distributed_environment() == "RAY":
         return os.environ["RAY_NODELIST"].split(",")
     else:
         return ["localhost"]
+
+
+def get_job_id() -> str:
+    """Return the job ID of the distributed environment."""
+    if get_distributed_environment() == "SLURM":
+        return os.environ.get("SLURM_JOB_ID", "unknown")
+    elif get_distributed_environment() == "RAY":
+        return os.environ.get("RAY_JOB_ID", "unknown")
+    else:
+        return "unknown"
 
 def get_distributed_environment() -> Literal["SLURM", "RAY"] | None:
     """Return type of the distributed environment, this means either "SLURM", "RAY", or None.

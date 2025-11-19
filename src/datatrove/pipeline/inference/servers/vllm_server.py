@@ -10,7 +10,7 @@ from loguru import logger
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.pipeline.inference.distributed.utils import (
     get_distributed_environment,
-    get_master_node_ip,
+    get_master_node_host,
     get_number_of_nodes,
     is_master_node,
 )
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
 
-    def __init__(self, config: "InferenceConfig"):
+    def __init__(self, config: "InferenceConfig", rank: int):
         """
         Initialize VLLM server.
 
@@ -38,57 +38,16 @@ class VLLMServer(InferenceServer):
         """
         # Check required dependencies for VLLM server
         check_required_dependencies("VLLM server", ["vllm"])
-        super().__init__(config)
+        super().__init__(config, rank)
 
-    @contextmanager
-    def init_distributed_context(self):
-        """Initialize distributed environment for VLLM.
-        
-        If in SLURM environment:
-        - Master node: Initializes Ray cluster
-        - Worker nodes: Connects to Ray cluster in subprocess
-        """
-        
-        n_nodes = get_number_of_nodes()
-        env = get_distributed_environment()
-        if env != "SLURM" or n_nodes <= 1:
-            # Only initialize Ray in SLURM environment with multiple nodes
-            yield; return
-        
-        master_ip = get_master_node_ip()
-        is_master = is_master_node()
-        expected_workers = n_nodes  # We spawn worker on the master as well
-        master_port = self.config.master_port
-        timeout = self.config.distributed_init_timeout
-        
-        try:
-            if is_master:
-                init_ray_master(
-                    master_port=master_port,
-                    timeout=timeout,
-                    expected_workers=expected_workers,
-                )
-            else:
-                init_ray_worker(
-                    master_ip=master_ip,
-                    master_port=master_port,
-                    init_timeout=timeout,
-                )
-                monitor_ray_cluster_health(check_interval=timeout)
-            yield
-        finally:
-            cleanup_ray()
-            
-
-    async def start_server_task(self) -> None:
+    async def _start_vllm_task(self) -> asyncio.subprocess.Process:
         """Start the VLLM server process."""
-
         cmd = [
             "vllm",
             "serve",
             self.config.model_name_or_path,
             "--port",
-            str(self.port),
+            str(self._port),
             "--max-model-len",
             str(self.config.model_max_context),
             "--trust-remote-code",
@@ -109,30 +68,53 @@ class VLLMServer(InferenceServer):
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
         logger.debug(f"Starting VLLM server with command: {' '.join(cmd)}")
-        self.server_process = await asyncio.create_subprocess_exec(
+        return await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Ensure the subprocess is terminated on exit
-        def _kill_proc():
-            if self.server_process:
-                self.server_process.terminate()
+    async def start_server_task(self) -> asyncio.subprocess.Process | None:
+        """Start the VLLM server process, handling distributed setup if needed."""
+        n_nodes = get_number_of_nodes()
+        env = get_distributed_environment()
+        if env != "SLURM" or n_nodes <= 1:
+            return await self._start_vllm_task()
+        
+        master_ip = get_master_node_host()
+        is_master = is_master_node()
+        expected_workers = n_nodes  # We spawn worker on the master as well
+        master_port = self.config.master_port
 
-        atexit.register(_kill_proc)
+        if is_master:
+            await init_ray_master(
+                master_port=master_port,
+                expected_workers=expected_workers,
+            )
+            return await self._start_vllm_task()
+        else:
+            await init_ray_worker(
+                master_ip=master_ip,
+                master_port=master_port,
+            )
+            return None  # Worker nodes don't start a server process
+
+    async def monitor_health(self):
+        """Monitor the health of the VLLM server, exiting or raising an exception if the server is not healthy"""
+        if not self._is_master:
+            # This will block until ray cluster fails
+            await monitor_ray_cluster_health()
+            return
 
         server_printed_ready_message = False
-
-        # Create dedicated logger for server output
-        server_logger = self._create_server_logger(getattr(self, "rank", 0))
 
         async def process_line(line):
             nonlocal server_printed_ready_message
 
             # Always log to file if server logger is available
-            if server_logger:
-                server_logger.info(line)
+            logger_instance = self.server_logger()
+            if logger_instance:
+                logger_instance.info(line)
 
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
@@ -144,34 +126,32 @@ class VLLMServer(InferenceServer):
 
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
-                logger.error("CUDA out of memory error detected")
-                if self.server_process:
-                    self.server_process.terminate()
+                raise asyncio.CancelledError("CUDA out of memory error detected")
             elif "RuntimeError" in line and "CUDA" in line:
-                logger.error("CUDA runtime error detected")
-                if self.server_process:
-                    self.server_process.terminate()
+                raise asyncio.CancelledError("CUDA runtime error detected")
+            
+            # Not enough gpus for TP/DP/PP
+            elif "required The number of required GPUs exceeds the total number of available GPUs in the placemen":
+                raise asyncio.CancelledError("Not enough GPUs available for the placement")
 
         async def read_stream(stream):
             while True:
                 line = await stream.readline()
                 if not line:
                     break
-                try:
-                    line = line.decode("utf-8").rstrip()
-                    await process_line(line)
-                except Exception as ex:
-                    logger.warning(f"Got {ex} when reading log line from inference server, skipping")
+                line = line.decode("utf-8").rstrip()
+                await process_line(line)
 
-        # Start tasks to read stdout and stderr
-        stdout_task = asyncio.create_task(read_stream(self.server_process.stdout))
-        stderr_task = asyncio.create_task(read_stream(self.server_process.stderr))
-
-        try:
-            await self.server_process.wait()
-        except asyncio.CancelledError:
-            if self.server_process:
-                self.server_process.terminate()
-            raise
-
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+        if self._server_process is not None:
+            stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
+            stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
+            try:
+                await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
+            finally:
+                stdout_task.cancel()
+                stderr_task.cancel()
+    
+    async def server_cleanup(self):
+        await super().server_cleanup()
+        if self._is_master:
+            cleanup_ray()

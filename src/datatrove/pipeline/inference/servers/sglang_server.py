@@ -1,10 +1,14 @@
 import asyncio
-import atexit
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
+from datatrove.pipeline.inference.distributed.utils import (
+    get_distributed_environment,
+    get_master_node_host,
+    get_node_rank,
+)
 from datatrove.utils._import_utils import check_required_dependencies
 
 
@@ -15,20 +19,34 @@ if TYPE_CHECKING:
 class SGLangServer(InferenceServer):
     """SGLang inference server implementation."""
 
-    def __init__(self, config: "InferenceConfig"):
+    def __init__(self, config: "InferenceConfig", rank: int):
         """
         Initialize SGLang server.
 
         Args:
             config: InferenceConfig containing all server configuration parameters
+            rank: Rank of the server instance
         """
         # Check required dependencies for SGLang server
         check_required_dependencies("SGLang server", ["sglang"])
-        super().__init__(config)
+        super().__init__(config, rank)
 
-    async def start_server_task(self) -> None:
-        """Start the SGLang server process."""
 
+    async def start_server_task(self):
+        n_nodes = get_number_of_nodes()
+        env = get_distributed_environment()
+        if env != "SLURM" or n_nodes <= 1:
+            return await self.create_sglang_task()
+        
+        # Multi-node setup: configure distributed parameters
+        master_host = get_master_node_host()
+        node_rank = get_node_rank()
+        dist_init_addr = f"{master_host}:{self.config.master_port}"
+
+        return await self.create_sglang_task(n_nodes, node_rank, dist_init_addr)
+
+
+    async def create_sglang_task(self, n_nodes: int = 1, node_rank: int = 0, dist_init_addr: str = "localhost"):
         cmd = [
             "python3",
             "-m",
@@ -39,9 +57,15 @@ class SGLangServer(InferenceServer):
             "--context-length",
             str(self.config.model_max_context),
             "--port",
-            str(self.port),
+            str(self._port),
             "--log-level-http",
             "warning",
+            "--nnodes",
+            str(n_nodes),
+            "--node-rank",
+            str(node_rank),
+            "--dist-init-addr",
+            f"{dist_init_addr}:{self.config.master_port}",
         ]
 
         model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
@@ -52,34 +76,29 @@ class SGLangServer(InferenceServer):
             model_kwargs["dp-size"] = self.config.dp
         if self.config.pp > 1 and "pp-size" not in model_kwargs:
             model_kwargs["pp-size"] = self.config.pp
+        
         # set kwargs
         if model_kwargs:
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
-        self.server_process = await asyncio.create_subprocess_exec(
+        server_process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        return server_process
 
-        # Ensure the subprocess is terminated on exit
-        def _kill_proc():
-            if self.server_process and self.server_process.returncode is None:
-                self.server_process.terminate()
-
-        atexit.register(_kill_proc)
-
+    async def monitor_health(self):
+        """Monitor the health of the SGLang server, exiting or raising an exception if the server is not healthy"""
         server_printed_ready_message = False
 
-        # Create dedicated logger for server output
-        server_logger = self._create_server_logger(getattr(self, "rank", 0))
-
-        def process_line(line):
+        async def process_line(line):
             nonlocal server_printed_ready_message
 
             # Always log to file if server logger is available
-            if server_logger:
-                server_logger.info(line)
+            logger_instance = self.server_logger()
+            if logger_instance:
+                logger_instance.info(line)
 
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
@@ -92,12 +111,12 @@ class SGLangServer(InferenceServer):
             # Check for common SGLang errors
             if "Detected errors during sampling" in line:
                 logger.error("Cannot continue, sampling errors detected, model is probably corrupt")
-                if self.server_process:
-                    self.server_process.terminate()
+                if self._server_process:
+                    self._server_process.terminate()
             elif "IndexError: list index out of range" in line:
                 logger.error("IndexError in model, restarting server")
-                if self.server_process:
-                    self.server_process.terminate()
+                if self._server_process:
+                    self._server_process.terminate()
 
         async def read_stream(stream):
             while True:
@@ -106,19 +125,15 @@ class SGLangServer(InferenceServer):
                     break
                 try:
                     line = line.decode("utf-8").rstrip()
-                    process_line(line)
+                    await process_line(line)
                 except Exception as ex:
                     logger.warning(f"Got {ex} when reading log line from inference server, skipping")
 
-        # Start tasks to read stdout and stderr
-        stdout_task = asyncio.create_task(read_stream(self.server_process.stdout))
-        stderr_task = asyncio.create_task(read_stream(self.server_process.stderr))
+        if self._server_process is not None:
+            stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
+            stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
 
-        try:
-            await self.server_process.wait()
-        except asyncio.CancelledError:
-            if self.server_process:
-                self.server_process.terminate()
-            raise
+            # Wait for the main task to complete
+            await self._server_process.wait()
 
-        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+            await asyncio.wait_for(asyncio.gather(stdout_task, stderr_task, return_exceptions=True), timeout=10.0)

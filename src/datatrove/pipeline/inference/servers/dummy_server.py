@@ -1,9 +1,13 @@
+import argparse
 import asyncio
 import json
+import os
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import TYPE_CHECKING
 
+import torch.distributed as dist
 from loguru import logger
 
 from datatrove.pipeline.inference.servers import InferenceServer
@@ -81,37 +85,73 @@ class DummyHandler(BaseHTTPRequestHandler):
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
 
-    def __init__(self, config: "InferenceConfig"):
+    def __init__(self, config: "InferenceConfig", rank: int):
         """
         Initialize Dummy server.
 
         Args:
             config: InferenceConfig containing all server configuration parameters
+            rank: Rank of the server
         """
-        super().__init__(config)
-        self.server: HTTPServer = None
+        super().__init__(config, rank)
 
-    async def start_server_task(self) -> None:
-        """Start the dummy HTTP server in a separate thread."""
+    async def start_server_task(self) -> asyncio.subprocess.Process | None:
+        """Start the dummy HTTP server."""
+        world_size = self.config.tp * self.config.dp * self.config.pp
+        print(f"World size: {world_size}")
 
-        def run_server():
-            self.server = HTTPServer(("localhost", self.port), DummyHandler)
-            logger.info(f"Dummy server started on port {self.port}")
-            self.server.serve_forever()
+        cmd = [
+            "torchrun",
+            "--nproc_per_node",
+            str(world_size),
+            os.path.abspath(__file__),
+            "--port",
+            str(self._port),
+        ]
+        logger.info(f"Starting distributed Dummy server with: {' '.join(cmd)}")
+        return await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
-        # Run the server in a separate thread
-        server_thread = threading.Thread(target=run_server, daemon=True)
-        server_thread.start()
 
-        # Wait a bit for the server to start
-        await asyncio.sleep(1)
-        logger.info("Dummy server is ready!")
+    async def monitor_health(self):
+        if self._server_process:
+            async def read_stream(stream):
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    line = line.decode("utf-8").rstrip()
+                    if "Dummy server started on port" in line:
+                        logger.info(line)
 
-        # Keep the task alive
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except asyncio.CancelledError:
-            if self.server:
-                self.server.shutdown()
-            raise
+            stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
+            stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
+            try:
+                await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
+            finally:
+                stdout_task.cancel()
+                stderr_task.cancel()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, required=True)
+    args = parser.parse_args()
+    logger.info(f"Args: {args}")
+
+    if "RANK" in os.environ:
+        if not dist.is_initialized():
+            dist.init_process_group(backend="gloo")
+        dist.barrier()
+        rank = int(os.environ["RANK"])
+    else:
+        rank = 0
+
+    if rank == 0:
+            server = HTTPServer(("localhost", args.port), DummyHandler)
+            server.serve_forever()
+    else:
+        while True:
+            time.sleep(1)

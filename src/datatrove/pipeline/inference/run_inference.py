@@ -18,11 +18,10 @@ from functools import partial
 from typing import Awaitable, Callable, Iterable, Literal
 
 from loguru import logger
-
 from datatrove.data import Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
-from datatrove.pipeline.inference.distributed.utils import is_master_node
+from datatrove.pipeline.inference.distributed.utils import get_job_id, get_master_node_host
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
@@ -31,6 +30,7 @@ from datatrove.pipeline.inference.servers import (
     VLLMServer,
 )
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.pipeline.inference.distributed.coordination_server import CoordinationServer
 
 
 @dataclass
@@ -67,59 +67,6 @@ class InferenceError(Exception):
         )
 
 
-# --------------------------------------------------------------------------- #
-# Low-level, dependency-free HTTP POST helper (kept from the original file)
-# --------------------------------------------------------------------------- #
-async def _raw_post(url: str, json_data: dict) -> tuple[int, bytes]:
-    """
-    Very small HTTP/1.1 POST helper using the std-lib socket machinery.
-
-    Args:
-        url: The target URL for the POST request
-        json_data: Dictionary to be sent as JSON payload
-
-    Returns:
-        Tuple of (status_code, response_body)
-    """
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    host, port = parsed.hostname, parsed.port or 80
-    path = parsed.path or "/"
-
-    reader: asyncio.StreamReader
-    writer: asyncio.StreamWriter
-
-    reader, writer = await asyncio.open_connection(host, port)
-    try:
-        payload = json.dumps(json_data).encode()
-        request = (
-            f"POST {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"Content-Type: application/json\r\n"
-            f"Content-Length: {len(payload)}\r\n"
-            f"Connection: close\r\n\r\n"
-        ).encode()
-        writer.write(request + payload)
-        await writer.drain()
-
-        # Status line
-        status_parts = (await reader.readline()).decode().split(" ", 2)
-        status_code = int(status_parts[1]) if len(status_parts) >= 2 else 500
-
-        # Headers (ignored – we rely on Content-Length only)
-        while True:
-            line = await reader.readline()
-            if line in (b"\r\n", b"\n", b""):
-                break
-
-        # Body
-        body = await reader.read()  # connection closes -> EOF
-        return status_code, body
-    finally:
-        writer.close()
-        await writer.wait_closed()
-
 
 # --------------------------------------------------------------------------- #
 # Public, simplified configuration
@@ -147,6 +94,7 @@ class InferenceConfig:
         model_kwargs: Additional keyword arguments passed to model initialization.
         server_log_folder: Optional directory for server logs. Creates one log per rank when set.
         master_port: Port of the master node used for distributed settings. (default: 9810)
+        coordination_port: Port of the coordination server used for distributed settings. (default: 9811)
         distributed_init_timeout: Timeout in seconds for distributed initialization (default: 300). 
             Applies to both master (waiting for workers) and workers (connecting to cluster).
     """
@@ -173,6 +121,7 @@ class InferenceConfig:
     # distributed
     master_port: int = 9810
     distributed_init_timeout: int = 300
+    coordination_port: int = 9811
 
     def __post_init__(self):
         if self.max_concurrent_documents is None:
@@ -242,7 +191,6 @@ class InferenceRunner(PipelineStep):
             checkpoints_local_dir, records_per_chunk, request_cache=self.request_cache
         )
 
-        self._server: InferenceServer | None = None
         self.metrics = MetricsKeeper(window=60 * 5)
         self.queue_sizes = QueueSizesKeeper()
 
@@ -260,26 +208,11 @@ class InferenceRunner(PipelineStep):
             logger.info(str(self.stats))
             await asyncio.sleep(interval)
 
-    @property
-    def server(self) -> InferenceServer:
-        """
-        Lazy initialization of the inference server.
-
-        Returns:
-            The initialized inference server instance
-        """
-        if self._server is None:
-            self._server = self._init_server()
-        # At this point _server is guaranteed to be not None after _init_server()
-        assert self._server is not None
-        return self._server
-
-
 
     # --------------------------------------------------------------------- #
     # Helpers
     # --------------------------------------------------------------------- #
-    def _init_server(self) -> InferenceServer:
+    def _init_server(self, rank: int) -> InferenceServer:
         """
         Spawn the requested inference server (non-blocking).
 
@@ -292,15 +225,15 @@ class InferenceRunner(PipelineStep):
         stype = self.config.server_type
 
         if stype == "sglang":
-            return SGLangServer(self.config)
+            return SGLangServer(self.config, rank)
         elif stype == "vllm":
-            return VLLMServer(self.config)
+            return VLLMServer(self.config, rank)
         elif stype == "dummy":
-            return DummyServer(self.config)
+            return DummyServer(self.config, rank)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 
-    async def _send_request(self, payload: dict, semaphore: asyncio.Semaphore) -> InferenceResult:
+    async def _send_request(self, server: InferenceServer, payload: dict, semaphore: asyncio.Semaphore) -> InferenceResult:
         """
         POST payload to the local server and return the parsed result.
 
@@ -323,7 +256,6 @@ class InferenceRunner(PipelineStep):
         else:
             endpoint = "/v1/completions"
 
-        url = f"http://localhost:{self.server.port}{endpoint}"
         max_retries = 6
         attempt = 0
 
@@ -334,7 +266,7 @@ class InferenceRunner(PipelineStep):
 
             while attempt < max_retries:
                 try:
-                    status, body = await _raw_post(url, json_data=payload)
+                    status, body = await server.send_request(endpoint, payload)
                     if status == 400:
                         self.queue_sizes.change_queues({"running_requests": -1})
                         self.metrics.add_metrics(failed_requests=1, requests=1)
@@ -407,6 +339,7 @@ class InferenceRunner(PipelineStep):
         self,
         payload: dict,
         semaphore: asyncio.Semaphore,
+        server: InferenceServer,
         doc_id: str,
         rollout_idx: int,
         chunk_index: int,
@@ -415,7 +348,7 @@ class InferenceRunner(PipelineStep):
         Return cached inference result when available, otherwise fetch from server and persist it.
         """
         if not self.request_cache.enabled:
-            return await self._send_request(payload, semaphore)
+            return await self._send_request(server, payload, semaphore)
 
         payload_hash = self.request_cache.prepare_payload(payload)
         cached_result, cached_error = await self.request_cache.get_cached_response(
@@ -429,7 +362,7 @@ class InferenceRunner(PipelineStep):
             )
 
         try:
-            result = await self._send_request(payload, semaphore)
+            result = await self._send_request(server, payload, semaphore)
         except InferenceError as e:
             await self.request_cache.store_error(
                 chunk_index=chunk_index,
@@ -511,12 +444,19 @@ class InferenceRunner(PipelineStep):
         """
         semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
 
-        with self.server.init_distributed_context():
-            if is_master_node():
-                server_task = asyncio.create_task(self.server.host_server(rank=rank))
-                await self.server.wait_until_ready()
-                logger.info(f"Inference server up on port {self.server.port}")
+        master_node_host = get_master_node_host()
 
+
+        async with (CoordinationServer(master_node_host, self.config.coordination_port, get_job_id()) as coordination_server, self._init_server(rank=rank) as (inference_server, is_master_node)):
+            # In the distributed regime, the participating nodes are excpected to do some sort of weak barrier (ray start/join for vllm, torch.distributed.barrier for sglang) during the init_server..
+            # We can thus expect that by this point, the coordination server must be running on master node for all worker nodes.
+            # This is not true for the master node, which might not have started the coordination server yet.
+            if not is_master_node:
+                while await coordination_server.master_running():
+                    await asyncio.sleep(10)
+                else:
+                    logger.info("Master node is not running, exiting")
+            else:
                 # Start metrics reporting
                 self.metrics.reset()
                 metrics_task = asyncio.create_task(self.metrics_reporter(interval=self.config.metric_interval))
@@ -544,6 +484,7 @@ class InferenceRunner(PipelineStep):
                             generate_callback = partial(
                                 self._cached_request,
                                 semaphore=semaphore,
+                                server=inference_server,
                                 doc_id=str(doc.id),
                                 rollout_idx=rollout_idx,
                                 chunk_index=chunk_index,
@@ -622,9 +563,11 @@ class InferenceRunner(PipelineStep):
                     completed_successfully = True
                 finally:
                     # 4. shutdown inference server and metrics
-                    server_task.cancel()
-                    metrics_task.cancel()
-                    await asyncio.gather(server_task, metrics_task, return_exceptions=True)
+                    try:
+                        metrics_task.cancel()
+                        await asyncio.wait_for(metrics_task, timeout=10.0)
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        logger.warning("Metrics task did not complete within timeout, forcing shutdown")
                     with suppress(Exception):
                         await self.request_cache.close(delete_file=completed_successfully)
 
