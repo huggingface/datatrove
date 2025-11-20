@@ -45,7 +45,12 @@ class ServerError(Exception):
 
     def __init__(self, error: str | Exception):
         self.error = error
-        super().__init__(f"Server encountered unrecoverable error: {error}")
+        if not isinstance(error, ServerError):
+            error_str = f"Server encountered unrecoverable error: {error}"
+        else:
+            error_str = str(error)
+
+        super().__init__(error_str)
 
 
 # Type alias for the generate callback function

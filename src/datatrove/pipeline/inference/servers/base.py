@@ -517,8 +517,8 @@ class InferenceServer(ABC):
 
         Wraps the abstract monitor_health() method and handles exceptions.
         On health check failure, resets the server ready future to allow
-        restart attempts. If the error is non-recoverable (RuntimeError),
-        disables auto-restart and marks the server as permanently failed.
+        restart attempts. If the monitor_health raises an exception instead of returning,
+        the server is marked as permanently failed and we will not attempt to restart it.
 
         Note:
             This is an internal method that should not be called directly.
@@ -614,7 +614,7 @@ class InferenceServer(ABC):
         if status == 400:
             raise InferenceError(None, f"Got BadRequestError from server: {body.decode()}", payload=payload)
         elif status == 500:
-            raise InferenceError(None, f"Got InternalServerError from server: {body.decode()}", payload=payload)
+            raise ServerError(f"Got InternalServerError from server: {body.decode()}")
         elif status != 200:
             raise InferenceError(None, f"Error http status {status}", payload=payload)
 

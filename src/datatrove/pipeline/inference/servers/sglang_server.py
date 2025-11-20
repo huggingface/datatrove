@@ -34,14 +34,12 @@ class SGLangServer(InferenceServer):
 
     async def start_server_task(self):
         n_nodes = get_number_of_nodes()
-        env = get_distributed_environment()
         if n_nodes <= 1:
             return await self.create_sglang_task()
 
         # Multi-node setup: configure distributed parameters
-        master_host = get_master_node_host()
+        dist_init_addr = get_master_node_host()
         node_rank = get_node_rank()
-        dist_init_addr = f"{master_host}:{self.config.master_port}"
 
         return await self.create_sglang_task(n_nodes, node_rank, dist_init_addr)
 
@@ -113,6 +111,8 @@ class SGLangServer(InferenceServer):
                 raise RuntimeError("Sampling errors detected, model is probably corrupt")
             elif "IndexError: list index out of range" in line:
                 raise RuntimeError("IndexError in model, model is probably corrupt")
+
+            # TODO: We should handle the torch.distributed fail, so that we can restart the server.
 
         async def read_stream(stream):
             while True:

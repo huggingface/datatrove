@@ -75,12 +75,13 @@ class VLLMServer(InferenceServer):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=env,
+            # env=env,
         )
 
     async def start_server_task(self) -> asyncio.subprocess.Process | None:
         """Start the VLLM server process, handling distributed setup if needed."""
         n_nodes = get_number_of_nodes()
+        print(f"Number of nodes: {n_nodes}")
         if n_nodes <= 1:
             return await self._start_vllm_task()
 
@@ -126,16 +127,16 @@ class VLLMServer(InferenceServer):
             if "Application startup complete" in line or "Uvicorn running on" in line:
                 server_printed_ready_message = True
                 logger.info("VLLM server startup complete")
-
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
                 raise RuntimeError("CUDA out of memory error detected")
             elif "RuntimeError" in line and "CUDA" in line:
                 raise RuntimeError("CUDA runtime error detected")
-
             # Not enough gpus for TP/DP/PP
-            elif "required The number of required GPUs exceeds the total number of available GPUs in the placemen":
+            elif "required The number of required GPUs exceeds the total number of available GPUs in the placement" in line:
                 raise RuntimeError("Not enough GPUs available for the placement")
+
+            # TODO: We should handle the case when the ray fails, so that we can try to restart the server.
 
         async def read_stream(stream):
             while True:
@@ -159,5 +160,5 @@ class VLLMServer(InferenceServer):
 
     async def server_cleanup(self):
         await super().server_cleanup()
-        if self._is_master:
+        if self._is_master and get_number_of_nodes() > 1:
             cleanup_ray()

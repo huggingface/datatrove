@@ -65,6 +65,7 @@ class InferenceConfig:
         coordination_port: Port of the coordination server used for distributed settings. (default: 9811)
         distributed_init_timeout: Timeout in seconds for distributed initialization (default: 300).
             Applies to both master (waiting for workers) and workers (connecting to cluster).
+        auto_restart_server: Whether to automatically restart the server on failure.
     """
 
     # server and model
@@ -89,7 +90,8 @@ class InferenceConfig:
     # other
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
-    # distributed
+    # distributed, we could probably init inside the server class, so that we can run multiple jobs on same nodes, but this use-case
+    # doesn't make much sense, so keep it as is now.
     master_port: int = 9810
     distributed_init_timeout: int = 300
     coordination_port: int = 9811
@@ -477,6 +479,8 @@ class InferenceRunner(PipelineStep):
             await self.request_cache.mark_document_complete(doc.id)
         except InferenceError as e:
             raise e
+        except (ServerError, asyncio.CancelledError):
+            raise
         except Exception as e:
             # let's propagate it
             raise InferenceError(doc, e)
@@ -501,26 +505,19 @@ class InferenceRunner(PipelineStep):
         # 1. Initialize semaphore and coordination server
         semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
 
-        master_node_host = get_master_node_host()
-        coordination_server_ctx = (
-            CoordinationServer(master_node_host, self.config.coordination_port, get_job_id())
-            if get_number_of_nodes() > 1
-            else nullcontext()
-        )
         await self.request_cache.initialize(rank)
         async with (
-            coordination_server_ctx as coordination_server,
+            CoordinationServer(self.config.coordination_port, get_job_id()) as coordination_server,
             self._init_server(rank=rank) as (inference_server, is_master_node),
         ):
-            # In the distributed regime, the participating nodes are excpected to do some sort of weak barrier (ray start/join for vllm, torch.distributed.barrier for sglang) during the init_server..
-            # We can thus expect that by this point, the coordination server must be running on master node for all worker nodes.
-            # This is not true for the master node, which might not have started the coordination server yet.
             if not is_master_node:
+                # Give the master node some time to start the coordination server
+                await asyncio.sleep(20)
                 while coordination_server is not None and await coordination_server.master_running():
                     await asyncio.sleep(10)
-                else:
-                    logger.info("Master node is not running, exiting")
-                    return
+
+                logger.info("Master node is not running, exiting")
+                return
 
             # Start metrics reporting
             self.metrics.reset()

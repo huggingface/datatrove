@@ -3,8 +3,9 @@
 import asyncio
 import json
 from typing import Optional
-
 from loguru import logger
+
+from datatrove.pipeline.inference.distributed.utils import get_master_node_host, is_master_node, get_number_of_nodes
 
 
 async def _raw_get(url: str) -> tuple[int, bytes]:
@@ -56,7 +57,7 @@ class CoordinationServer:
     - /health/{job_id}: Health check endpoint that waits for request and returns okay
     """
 
-    def __init__(self, master_node_host: str, port: int, job_id: str):
+    def __init__(self, port: int, job_id: str):
         """
         Initialize the coordination server.
 
@@ -67,7 +68,7 @@ class CoordinationServer:
         self.port = port
         self.job_id = job_id
         self._server: Optional[asyncio.Server] = None
-        self.master_node_host = master_node_host
+        self.master_node_host = get_master_node_host()
 
     async def __start(self) -> None:
         """Start the coordination server."""
@@ -129,19 +130,31 @@ class CoordinationServer:
 
     async def __aenter__(self) -> "CoordinationServer":
         """Enter the coordination server."""
-        await self.__start()
+        if is_master_node() and get_number_of_nodes() > 1:
+            await self.__start()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit the coordination server."""
-        await asyncio.wait_for(self.__stop(), timeout=10.0)
-
-    async def master_running(self, timeout: float = 10.0) -> bool:
-        """Check if the master node is running. Returns True if the master node is running, False otherwise."""
         try:
-            status_code, _ = await asyncio.wait_for(
-                _raw_get(f"http://{self.master_node_host}:{self.port}/health/{self.job_id}"), timeout=timeout
-            )
-        except Exception:
-            return False
-        return status_code == 200
+            await asyncio.wait_for(self.__stop(), timeout=10.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+
+    async def master_running(self, timeout: float = 5.0) -> bool:
+        """Check if the master node is running. Returns True if the master node is running, False otherwise."""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                status_code, _ = await asyncio.wait_for(
+                    _raw_get(f"http://{self.master_node_host}:{self.port}/health/{self.job_id}"), timeout=timeout
+                )
+                if status_code == 200:
+                    return True
+            except (asyncio.CancelledError):
+                raise
+            except Exception:
+                if attempt == max_retries - 1:
+                    return False
+                await asyncio.sleep(5.0)
+        return False
