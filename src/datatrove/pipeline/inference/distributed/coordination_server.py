@@ -49,7 +49,7 @@ async def _raw_get(url: str) -> tuple[int, bytes]:
         await writer.wait_closed()
 
 
-class CoordinationServer:
+class DistributedCoordinationServer:
     """
     Simple HTTP server for coordinating between master and worker nodes.
 
@@ -128,7 +128,7 @@ class CoordinationServer:
             self._server = None
             logger.debug("Coordination server stopped")
 
-    async def __aenter__(self) -> "CoordinationServer":
+    async def __aenter__(self) -> "DistributedCoordinationServer":
         """Enter the coordination server."""
         if is_master_node() and get_number_of_nodes() > 1:
             await self.__start()

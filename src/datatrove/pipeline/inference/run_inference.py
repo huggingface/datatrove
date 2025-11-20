@@ -22,8 +22,8 @@ from loguru import logger
 from datatrove.data import Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
-from datatrove.pipeline.inference.distributed.coordination_server import CoordinationServer
-from datatrove.pipeline.inference.distributed.utils import get_job_id, get_master_node_host, get_number_of_nodes
+from datatrove.pipeline.inference.distributed.coordination_server import DistributedCoordinationServer
+from datatrove.pipeline.inference.distributed.utils import get_job_id
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
@@ -501,13 +501,12 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier for distributed processing
             world_size: Total number of processes in distributed setup
         """
-
         # 1. Initialize semaphore and coordination server
         semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
 
         await self.request_cache.initialize(rank)
         async with (
-            CoordinationServer(self.config.coordination_port, get_job_id()) as coordination_server,
+            DistributedCoordinationServer(self.config.coordination_port, get_job_id()) as coordination_server,
             self._init_server(rank=rank) as (inference_server, is_master_node),
         ):
             if not is_master_node:

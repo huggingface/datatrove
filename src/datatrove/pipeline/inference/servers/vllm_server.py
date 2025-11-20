@@ -11,6 +11,7 @@ from datatrove.pipeline.inference.distributed.ray import (
     monitor_ray_cluster_health,
 )
 from datatrove.pipeline.inference.distributed.utils import (
+    get_distributed_environment,
     get_master_node_host,
     get_number_of_nodes,
     is_master_node,
@@ -84,6 +85,13 @@ class VLLMServer(InferenceServer):
         print(f"Number of nodes: {n_nodes}")
         if n_nodes <= 1:
             return await self._start_vllm_task()
+
+        # VLLM has ray executor, which will create placement groups itself, however
+        # in ray executor managaes placmeent groups itself and expects to run to run the workers
+        # itself. This is not compatible with VLLM multi-node setup as again VLLM expects to manage
+        # workers placement groups itself.
+        if n_nodes > 1 and get_distributed_environment() == "RAY":
+            raise RuntimeError("Datatrove Ray distributed executor doesn't support multi-node setup by specifying nodes=2+. Please unset the nodes=2+ parameter and let VLLM to allocate the number of nodes itself.")
 
         master_ip = get_master_node_host()
         is_master = is_master_node()

@@ -57,13 +57,12 @@ class RankWorker:
         import multiprocess.pool
 
         # Set environment variables for distributed execution
-        os.environ["RAY_NODELIST"] = ",".join(node_ips)
-        os.environ["RAY_NODEID"] = str(node_idx)
-
         # Sleep for the executor's timeout
         def run_for_rank_wrapper_with_sleep(rank, rank_id):
+            os.environ["RAY_NODELIST"] = ",".join(node_ips)
+            os.environ["RAY_NODEID"] = str(node_idx)
             time.sleep(random.randint(0, executor_ref.randomize_start_duration))
-            return executor_ref._run_for_rank(rank, rank_id)
+            return executor_ref._run_for_rank(rank, rank_id, node_rank=node_idx)
 
         executor = executor_ref
         rank_ids = list(range(len(ranks))) if executor.log_first else list(range(1, len(ranks) + 1))
@@ -161,6 +160,8 @@ class RayTaskManager:
         pg_future = Future()
 
         def async_submit_task():
+            # No enforcment of "spread" here, thus it can happen that multiple tasks run on same nodes under nodes>=2.
+            # It shouldn't be an issue, but we should be aware of it.
             pg = ray.util.placement_group([convert_remote_options_to_bundle(remote_options)] * self.nodes_per_task)
             ray.get(pg.ready())
             workers = []
@@ -551,7 +552,7 @@ class RayPipelineExecutor(PipelineExecutor):
             # Clean up task manager (shuts down thread pool executor)
             task_manager.clean_up()
 
-    def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
+    def _run_for_rank(self, rank: int, local_rank: int = 0, node_rank: int = 0) -> PipelineStats:
         """
             Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
             and marks tasks as completed.
@@ -563,14 +564,13 @@ class RayPipelineExecutor(PipelineExecutor):
         Returns: the stats for this task
         """
         import tempfile
-
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
 
         # We log only locally and upload logs to logging_dir after the pipeline is finished
         ray_logs_dir = get_datafolder(f"{tempfile.gettempdir()}/ray_logs")
-        logfile = add_task_logger(ray_logs_dir, rank, local_rank)
+        logfile = add_task_logger(ray_logs_dir, rank, local_rank, node_rank=node_rank)
         log_pipeline(self.pipeline)
 
         stats = PipelineStats()

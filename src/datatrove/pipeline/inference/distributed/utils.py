@@ -102,9 +102,11 @@ def get_job_id() -> str:
 
 def get_distributed_environment() -> Literal["SLURM", "RAY"] | None:
     """Return type of the distributed environment, this means either "SLURM", "RAY", or None."""
-    if "SLURM_NODEID" in os.environ:
-        return "SLURM"
-    elif "RAY_NODEID" in os.environ:
+    # IMPORTANT: Order is important here, it's possible we run ray in SLURM environment. However if the order is reversed
+    # the ray node would think they are in SLURM environment, which would cause problems.
+    if "RAY_NODEID" in os.environ:
         return "RAY"
+    elif "SLURM_NODEID" in os.environ:
+        return "SLURM"
     else:
         return None
