@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from datatrove.pipeline.inference.distributed.utils import (
-    get_distributed_environment,
     get_master_node_host,
     get_node_rank,
     get_number_of_nodes,

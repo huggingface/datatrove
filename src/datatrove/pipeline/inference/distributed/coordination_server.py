@@ -3,9 +3,10 @@
 import asyncio
 import json
 from typing import Optional
+
 from loguru import logger
 
-from datatrove.pipeline.inference.distributed.utils import get_master_node_host, is_master_node, get_number_of_nodes
+from datatrove.pipeline.inference.distributed.utils import get_master_node_host, get_number_of_nodes, is_master_node
 
 
 async def _raw_get(url: str) -> tuple[int, bytes]:
@@ -151,7 +152,7 @@ class DistributedCoordinationServer:
                 )
                 if status_code == 200:
                     return True
-            except (asyncio.CancelledError):
+            except asyncio.CancelledError:
                 raise
             except Exception:
                 if attempt == max_retries - 1:

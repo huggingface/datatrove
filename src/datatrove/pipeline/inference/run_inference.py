@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager, nullcontext, suppress
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from functools import partial
 from typing import AsyncIterator, Callable, ContextManager, Iterable, Literal
