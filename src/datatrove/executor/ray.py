@@ -5,7 +5,7 @@ import json
 import random
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
@@ -18,19 +18,11 @@ from datatrove.utils.stats import PipelineStats
 
 
 if TYPE_CHECKING:
-    from ray import ActorHandle, ObjectRef
+    from ray import ObjectRef
+    from ray.actor import ActorHandle
     from ray.util.placement_group import PlacementGroup
 
-
-@dataclass
-class PlacementGroupTaskFuture:
-    """Promise for a task in a placement group."""
-
-    def __init__(self):
-        self.tasks: list["ObjectRef"] | None = None
-
-    def get_no_wait(self) -> list["ObjectRef"] | None:
-        return self.tasks
+# TODO: We should re-use the placement group from the previous run if it exists
 
 
 class RankWorker:
@@ -89,37 +81,6 @@ class RankWorker:
         return stats
 
 
-def run_for_rank(executor_ref: "RayPipelineExecutor", ranks: list[int]) -> PipelineStats:
-    """
-        Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
-        and marks tasks as completed.
-    Args:
-        executor_ref: the executor reference
-        ranks: the ranks that we want to run in this job
-    Returns: cumulative stats for all ranks in this job
-    """
-    import multiprocess.pool
-
-    from datatrove.utils.stats import PipelineStats
-
-    # Sleep for the executor's timeout
-    def run_for_rank_wrapper_with_sleep(rank, rank_id):
-        time.sleep(random.randint(0, executor_ref.randomize_start_duration))
-        return executor_ref._run_for_rank(rank, rank_id)
-
-    executor = executor_ref
-    rank_ids = list(range(len(ranks))) if executor.log_first else list(range(1, len(ranks) + 1))
-    stats = PipelineStats()
-    # We use simple map, so that all tasks are executed and errors are reported (raised) only after all tasks are finished
-    with multiprocess.pool.Pool(processes=len(ranks)) as pool:
-        # Consume results
-        deque(
-            pool.starmap(run_for_rank_wrapper_with_sleep, [(rank, rank_id) for rank_id, rank in zip(rank_ids, ranks)]),
-            maxlen=0,
-        )
-    return stats
-
-
 def convert_remote_options_to_bundle(remote_options: dict) -> dict:
     """
     Converts remote options to a bundle for a placement group.
@@ -139,7 +100,9 @@ class TaskGroup:
     tasks: list["ObjectRef"]
     workers: list["ActorHandle"]
     placement_group: "PlacementGroup"
+    ranks: list[int]  # Ranks being processed by this task group
     tasks_successfully_completed: int = 0
+    has_retriable_error: bool = False  # Track if any task in group failed with retriable error
 
 
 class TimeoutManager:
@@ -192,15 +155,13 @@ class RayTaskManager:
 
     def submit_task(
         self, executor_ref: "RayPipelineExecutor", ranks_to_submit: list[int], remote_options: dict
-    ) -> PlacementGroupTaskFuture:
-        from ray.util.client import ray
+    ) -> Future:
+        import ray
 
-        pg_task_future = PlacementGroupTaskFuture()
+        pg_future = Future()
 
         def async_submit_task():
-            pg = ray.util.placement_group(
-                [convert_remote_options_to_bundle(remote_options)] * self.nodes_per_task, strategy="STRICT_SPREAD"
-            )
+            pg = ray.util.placement_group([convert_remote_options_to_bundle(remote_options)] * self.nodes_per_task)
             ray.get(pg.ready())
             workers = []
             for i in range(self.nodes_per_task):
@@ -225,79 +186,126 @@ class RayTaskManager:
                 task = worker.run_for_rank.remote(executor_ref, ranks_to_submit, node_ips, node_idx)
                 tasks.append(task)
 
-            group = TaskGroup(tasks=tasks, workers=workers, placement_group=pg)
+            group = TaskGroup(tasks=tasks, workers=workers, placement_group=pg, ranks=ranks_to_submit)
             for task in tasks:
                 self.task_to_group[task] = group
                 self.timeout_manager.add_task(task)
 
-            pg_task_future.tasks = tasks
+            pg_future.set_result(tasks)
 
-        # Submit to thread pool executor and store the future
+        # Submit to thread pool executor
         thread_future = self.executor.submit(async_submit_task)
+
         self.pg_futures.append(thread_future)
-        return pg_task_future
+        return pg_future
 
     def wait(
-        self, tasks: list["ObjectRef | PlacementGroupTaskFuture"], timeout: int = 0, num_returns: int = 1
-    ) -> tuple[list["ObjectRef"], list["ObjectRef | PlacementGroupTaskFuture"]]:
+        self, tasks: list["ObjectRef | Future"], timeout: int = 0, num_returns: int = 1
+    ) -> tuple[list["ObjectRef"], list["ObjectRef | Future"]]:
         """
-        Functions first checks for completions of the placmenetgroup tasks. Then it takes those that are finished, adds the to normal ray objects calls wait on that.
-        Finally it returns the list of finished tasks and the (list of tasks that are still running + placement group tasks that hasven't finished yet)
+        Functions first checks for completions of the placement group tasks. Then it takes those that are finished, adds them to normal ray objects and calls wait on that.
+        Finally it returns the list of finished tasks and the (list of tasks that are still running + placement group tasks that haven't finished yet)
         """
-        from ray.util.client import ray
+        import ray
 
-        # Separate placement group tasks from regular ray tasks
-        placement_group_tasks = [task for task in tasks if isinstance(task, PlacementGroupTaskFuture)]
-        ray_tasks = [task for task in tasks if not isinstance(task, PlacementGroupTaskFuture)]
+        # Separate placement group futures from regular ray tasks
+        placement_group_futures = [task for task in tasks if isinstance(task, Future)]
+        ray_tasks = [task for task in tasks if not isinstance(task, Future)]
 
         unfinished_pg_tasks = []
-        for pg_task in placement_group_tasks:
-            if pg_task.tasks is not None:
-                ray_tasks.extend(pg_task.tasks)
+        if not ray_tasks and placement_group_futures:
+            # All are placement group futures
+            wait(placement_group_futures, timeout=timeout, return_when=FIRST_COMPLETED)
+
+        for pg_future in placement_group_futures:
+            # Check if the future is done and has tasks attribute
+            if pg_future.done():
+                try:
+                    ray_tasks.extend(pg_future.result())
+                except Exception as e:
+                    # TODO: Handle this better, by knowing the rank ids
+                    logger.warning(f"Failed to get result from placement group future: {e}")
             else:
-                unfinished_pg_tasks.append(pg_task)
+                unfinished_pg_tasks.append(pg_future)
 
-        finished, unfinished = ray.wait(ray_tasks, num_returns=num_returns, timeout=timeout)
-        return finished, unfinished + unfinished_pg_tasks
+        if ray_tasks:
+            finished, unfinished = ray.wait(ray_tasks, num_returns=num_returns, timeout=timeout)
+            return finished, unfinished + unfinished_pg_tasks
+        return [], unfinished_pg_tasks
 
-    def task_done(self, task: "ObjectRef") -> bool:
+    def task_done(self, task: "ObjectRef") -> tuple[bool, list[int] | None]:
         """
         Marks task as done and potentially cleans up the placement group.
-        Returns True if all tasks in the group are done and were completed successfully (no errors).
+        Returns a tuple:
+            - (True, None): All tasks in the group are done and were completed successfully
+            - (False, ranks_to_resubmit): Task failed due to retriable error, returns ranks to resubmit
+            - (False, None): Task failed but not retriable, or group not fully done
 
-        Note: This is the only task which can manipulate the task groups as well as delete placement groups.
+        Note: This is the only function which can manipulate the task groups as well as delete placement groups.
         """
-        from ray.util.client import ray
+        import ray
+        from ray.exceptions import (
+            ObjectLostError,
+            RayActorError,
+            TaskCancelledError,
+            WorkerCrashedError,
+        )
+
+        group = self.task_to_group[task]
 
         try:
             # Hope this is cheap since we know the task is done :pray:
             ray.get(task)
-            self.task_to_group[task].tasks_successfully_completed += 1
-        except Exception:
-            pass
+            group.tasks_successfully_completed += 1
+        except (WorkerCrashedError, TaskCancelledError, ObjectLostError) as e:
+            # These are retriable Ray-side errors
+            group.has_retriable_error = True
+            logger.warning(f"Task {task} failed with retriable error {type(e).__name__}: {e}")
+        except RayActorError as e:
+            # Check if it's a preemption (actor died)
+            if hasattr(e, "preempted") and e.preempted:
+                group.has_retriable_error = True
+                logger.warning(f"Task {task} failed due to preemption: {e}")
+            else:
+                # Other actor errors might be retriable too (e.g., actor crashed)
+                group.has_retriable_error = True
+                logger.warning(f"Task {task} failed with RayActorError: {e}")
+        except Exception as e:
+            # Application-level errors are not retriable
+            logger.debug(f"Task {task} failed with non-retriable error {type(e).__name__}: {e}")
 
         # Delete the task from group
-        group = self.task_to_group[task]
         group.tasks.remove(task)
         # Remove the reference to group
         del self.task_to_group[task]
         self.timeout_manager.remove_task(task)
 
         if len(group.tasks) == 0:
+            # All tasks in the group are done
             # Remove the placement group
             try:
                 ray.util.remove_placement_group(group.placement_group)
             except Exception as e:
                 logger.warning(f"Failed to remove placement group: {e}")
 
-        return group.tasks_successfully_completed == self.nodes_per_task
+            # Return success status and ranks to resubmit if needed
+            if group.tasks_successfully_completed == self.nodes_per_task:
+                return True, None
+            elif group.has_retriable_error:
+                # Return ranks to resubmit if any task failed with retriable error
+                return False, group.ranks
+            else:
+                return False, None
+
+        # Group not fully done yet
+        return False, None
 
     def kill_task_group(self, task: "ObjectRef"):
         """
         Kills a task and its group siblings
         """
+        import ray
         from ray.exceptions import TaskCancelledError
-        from ray.util.client import ray
 
         if task not in self.task_to_group:
             logger.warning(f"Task {task} not found in task manager")
@@ -308,16 +316,43 @@ class RayTaskManager:
         # Kill all tasks in the group
         for t in group.tasks:
             try:
-                ray.kill(t, force=True)
+                ray.cancel(t)
             except TaskCancelledError:
                 # Task was already cancelled, so we can ignore it
                 pass
 
+        # Wait for all tasks to be cancelled, with timeout
+        ray.wait(group.tasks, num_returns=len(group.tasks), timeout=2)
+
+        # Kill the tasks
+        for t in group.tasks:
+            ray.cancel(t, force=True)
+
+        # Kill actors
+        for worker in group.workers:
+            try:
+                ray.kill(worker)
+            except Exception as e:
+                logger.warning(f"Failed to kill worker: {e}")
+
+        # Remove placement group
+        try:
+            ray.util.remove_placement_group(group.placement_group)
+        except Exception as e:
+            logger.warning(f"Failed to remove placement group: {e}")
+
+        # Clean up references
+        for t in list(group.tasks):
+            if t in self.task_to_group:
+                del self.task_to_group[t]
+            if t in self.timeout_manager.task_start_times:
+                self.timeout_manager.remove_task(t)
+
     def clean_up(self):
         """
-        Cleans up the task manager.
+        Cleans up the task manager, invalidates any placement groups and tasks that are still running.
         """
-        from ray.util.client import ray
+        import ray
 
         # First cancel all placement group futures (ThreadPoolExecutor futures)
         for future in self.pg_futures:
@@ -336,6 +371,12 @@ class RayTaskManager:
 
         # Shutdown the thread pool executor
         self.executor.shutdown(wait=True, cancel_futures=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.clean_up()
 
 
 class RayPipelineExecutor(PipelineExecutor):
@@ -358,6 +399,8 @@ class RayPipelineExecutor(PipelineExecutor):
             in the Ray cluster. Defaults to 1.
         mem_per_cpu_gb: Amount of memory (in GB) to reserve per CPU
             in the Ray cluster. Defaults to 2 GB.
+        gpus_per_task: The number of GPUs to reserve per task
+        nodes_per_task: Number of nodes to use per task. If > 1, creates a placement group
         ray_remote_kwargs: Additional kwargs to pass to the ray.remote decorator
         log_first: Whether to the first task in ray job should log to console. Default: False
         tasks_per_job: Number of tasks to run in each Ray job. Default: 1
@@ -378,11 +421,12 @@ class RayPipelineExecutor(PipelineExecutor):
         randomize_start_duration: int = 0,
         cpus_per_task: int = 1,
         mem_per_cpu_gb: float = 2,
+        gpus_per_task: int = 0,
+        nodes_per_task: int = 1,
         ray_remote_kwargs: dict = None,
         log_first: bool = False,
         tasks_per_job: int = 1,
         time: Optional[int] = None,
-        nodes_per_task: int = 1,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -390,6 +434,7 @@ class RayPipelineExecutor(PipelineExecutor):
         self.depends = depends
         # track whether run() has been called
         self.cpus_per_task = cpus_per_task
+        self.gpus_per_task = gpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.ray_remote_kwargs = ray_remote_kwargs
         self.tasks_per_job = tasks_per_job
@@ -431,7 +476,7 @@ class RayPipelineExecutor(PipelineExecutor):
         # 4) Define resource requirements for this pipeline's tasks
         remote_options = {
             "num_cpus": self.cpus_per_task,
-            "num_gpus": 0,
+            "num_gpus": self.gpus_per_task,
             "memory": int(self.mem_per_cpu_gb * self.cpus_per_task * 1024 * 1024 * 1024),
         }
         if self.ray_remote_kwargs:
@@ -442,7 +487,6 @@ class RayPipelineExecutor(PipelineExecutor):
         ranks_per_jobs = [
             incomplete_ranks[i : i + self.tasks_per_job] for i in range(0, len(incomplete_ranks), self.tasks_per_job)
         ]
-        unfinished = []
         total_tasks = len(ranks_per_jobs)
         completed = 0
 
@@ -450,8 +494,11 @@ class RayPipelineExecutor(PipelineExecutor):
         timeout_manager = TimeoutManager(self.time)
         task_manager = RayTaskManager(self.nodes_per_task, timeout_manager)
         finished, unfinished = [], []
-        # Launch initial tasks
+        # Track resubmission counts to prevent infinite loops
+        rank_resubmit_count = {}
+        max_resubmits = 3  # Maximum number of resubmissions per rank
 
+        # Launch initial tasks
         try:
             for _ in range(min(MAX_CONCURRENT_TASKS, len(ranks_per_jobs))):
                 ranks_to_submit = ranks_per_jobs.pop(0)
@@ -462,10 +509,21 @@ class RayPipelineExecutor(PipelineExecutor):
             while unfinished:
                 finished, unfinished = task_manager.wait(unfinished, num_returns=1, timeout=10)
 
-                # Handle timeouts (and completed tasks)
+                # Handle completed tasks and resubmit if needed
                 for task in finished:
-                    if task_manager.task_done(task):
+                    success, ranks_to_resubmit = task_manager.task_done(task)
+                    if success:
                         completed += 1
+
+                    if ranks_to_resubmit:
+                        resubmit_rank_count = rank_resubmit_count.get(ranks_to_resubmit, 0)
+                        if resubmit_rank_count >= max_resubmits:
+                            logger.warning(
+                                f"Rank {ranks_to_resubmit} has failed too many times, skipping further resubmissions"
+                            )
+                            continue
+                        rank_resubmit_count[ranks_to_resubmit] = resubmit_rank_count + 1
+                        ranks_per_jobs.append(ranks_to_resubmit)
 
                 for task in timeout_manager.check_timeouts():
                     task_manager.kill_task_group(task)
@@ -515,6 +573,7 @@ class RayPipelineExecutor(PipelineExecutor):
         logfile = add_task_logger(ray_logs_dir, rank, local_rank)
         log_pipeline(self.pipeline)
 
+        stats = PipelineStats()
         try:
             # pipe data from one step to the next
             pipelined_data = None
