@@ -192,12 +192,15 @@ class SlurmPipelineExecutor(PipelineExecutor):
             for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
-            # Get node ID for logging prefix (always add prefix regardless of distributed mode)
-            node_rank = int(os.environ.get("SLURM_NODEID", 0))
+            # Get node ID for logging prefix. Use -1 for single-node mode, otherwise use SLURM_NODEID
+            if self.nodes_per_task == 1:
+                node_rank = -1
+            else:
+                node_rank = int(os.environ.get("SLURM_NODEID", 0))
 
-            # Re-export mem-per-cpu, which despite being document as should exist
+            # Re-export mem-per-cpu, which despite being documented as should exist
             # might not exist in all environments.
-            
+
             for rank_to_run in range(*ranks_to_run_range):
                 if rank_to_run >= len(all_ranks):
                     break
@@ -324,7 +327,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args = {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
-            "gpus": self.gpus_per_task*self.nodes_per_task,
+            "gpus": self.gpus_per_task * self.nodes_per_task,
             "nodes": self.nodes_per_task,
             "partition": self.partition,
             "job-name": self.job_name,

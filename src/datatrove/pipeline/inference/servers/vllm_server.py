@@ -76,22 +76,23 @@ class VLLMServer(InferenceServer):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            # env=env,
+            env=env,
         )
 
     async def start_server_task(self) -> asyncio.subprocess.Process | None:
         """Start the VLLM server process, handling distributed setup if needed."""
         n_nodes = get_number_of_nodes()
-        print(f"Number of nodes: {n_nodes}")
         if n_nodes <= 1:
             return await self._start_vllm_task()
 
         # VLLM has ray executor, which will create placement groups itself, however
-        # in ray executor managaes placmeent groups itself and expects to run to run the workers
+        # in ray executor manages placement groups itself and expects to run the workers
         # itself. This is not compatible with VLLM multi-node setup as again VLLM expects to manage
         # workers placement groups itself.
         if n_nodes > 1 and get_distributed_environment() == "RAY":
-            raise RuntimeError("Datatrove Ray distributed executor doesn't support multi-node setup by specifying nodes=2+. Please unset the nodes=2+ parameter and let VLLM to allocate the number of nodes itself.")
+            raise RuntimeError(
+                "Datatrove Ray distributed executor doesn't support multi-node setup by specifying nodes=2+. Please unset the nodes=2+ parameter and let VLLM to allocate the number of nodes itself."
+            )
 
         master_ip = get_master_node_host()
         is_master = is_master_node()
@@ -141,7 +142,10 @@ class VLLMServer(InferenceServer):
             elif "RuntimeError" in line and "CUDA" in line:
                 raise RuntimeError("CUDA runtime error detected")
             # Not enough gpus for TP/DP/PP
-            elif "required The number of required GPUs exceeds the total number of available GPUs in the placement" in line:
+            elif (
+                "required The number of required GPUs exceeds the total number of available GPUs in the placement"
+                in line
+            ):
                 raise RuntimeError("Not enough GPUs available for the placement")
 
             # TODO: We should handle the case when the ray fails, so that we can try to restart the server.
@@ -158,7 +162,7 @@ class VLLMServer(InferenceServer):
             stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
             stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
             try:
-                # Here he explicity want to the process to raise an exception if it terminates unexpectedly
+                # Here we explicity want the process to raise an exception if it terminates unexpectedly
                 await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
             finally:
                 # No need to deal with server_process itself as we do kill it in server_cleanup

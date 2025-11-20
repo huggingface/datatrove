@@ -62,7 +62,9 @@ class RankWorker:
             os.environ["RAY_NODELIST"] = ",".join(node_ips)
             os.environ["RAY_NODEID"] = str(node_idx)
             time.sleep(random.randint(0, executor_ref.randomize_start_duration))
-            return executor_ref._run_for_rank(rank, rank_id, node_rank=node_idx)
+            # Use -1 for single-node mode, otherwise use node_idx
+            node_rank = -1 if executor_ref.nodes_per_task == 1 else node_idx
+            return executor_ref._run_for_rank(rank, rank_id, node_rank=node_rank)
 
         executor = executor_ref
         rank_ids = list(range(len(ranks))) if executor.log_first else list(range(1, len(ranks) + 1))
@@ -496,7 +498,7 @@ class RayPipelineExecutor(PipelineExecutor):
         task_manager = RayTaskManager(self.nodes_per_task, timeout_manager)
         finished, unfinished = [], []
         # Track resubmission counts to prevent infinite loops
-        rank_resubmit_count = {}
+        rank_resubmit_count: dict[tuple[int, ...], int] = {}
         max_resubmits = 3  # Maximum number of resubmissions per rank
 
         # Launch initial tasks
@@ -517,6 +519,7 @@ class RayPipelineExecutor(PipelineExecutor):
                         completed += 1
 
                     if ranks_to_resubmit:
+                        ranks_to_resubmit = tuple(ranks_to_resubmit)
                         resubmit_rank_count = rank_resubmit_count.get(ranks_to_resubmit, 0)
                         if resubmit_rank_count >= max_resubmits:
                             logger.warning(
@@ -552,18 +555,20 @@ class RayPipelineExecutor(PipelineExecutor):
             # Clean up task manager (shuts down thread pool executor)
             task_manager.clean_up()
 
-    def _run_for_rank(self, rank: int, local_rank: int = 0, node_rank: int = 0) -> PipelineStats:
+    def _run_for_rank(self, rank: int, local_rank: int = 0, node_rank: int = -1) -> PipelineStats:
         """
             Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
             and marks tasks as completed.
         Args:
             rank: the rank that we want to run the pipeline for
             local_rank: at the moment this is only used for logging.
+            node_rank: node rank/ID for logging prefix. Logs will be prefixed with [NODE X] if node_rank != -1. We assume node_rank == 0 is the master node. -1 means single node mode (default).
             Any task with local_rank != 0 will not print logs to console.
 
         Returns: the stats for this task
         """
         import tempfile
+
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
@@ -589,13 +594,14 @@ class RayPipelineExecutor(PipelineExecutor):
 
             logger.success(f"Processing done for {rank=}")
 
-            # stats
+            # stats - only save on master node in distributed setting (or when node_rank <= 0 for single node)
             stats = PipelineStats(self.pipeline)
-            with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
-                stats.save_to_disk(f)
-            logger.info(stats.get_repr(f"Task {rank}"))
-            # completed
-            self.mark_rank_as_completed(rank)
+            if node_rank <= 0:
+                with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
+                    stats.save_to_disk(f)
+                logger.info(stats.get_repr(f"Task {rank}"))
+                # completed
+                self.mark_rank_as_completed(rank)
         except Exception as e:
             logger.exception(e)
             raise e

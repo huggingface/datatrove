@@ -972,7 +972,7 @@ def test_server_auto_restart():
             # kill the server process
             server.kill_server()
 
-            # We have to make a bit space to propagate that the error happend
+            # We have to make a bit space to propagate that the error happened
             await asyncio.sleep(1)
 
             # Verify requests work
