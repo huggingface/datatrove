@@ -59,8 +59,6 @@ class RequestCache:
         os.makedirs(os.path.join(self.base_dir, f"{rank:05d}"), exist_ok=True)
         self.db_path = os.path.join(self.base_dir, f"{rank:05d}", "replay.sqlite3")
         self._conn = await aiosqlite.connect(self.db_path)
-        await self._conn.execute("PRAGMA journal_mode=WAL;")
-        await self._conn.execute("PRAGMA synchronous=NORMAL;")
         await self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS request_cache (
@@ -93,10 +91,6 @@ class RequestCache:
         self._conn = None
         if delete_file and self.db_path and os.path.exists(self.db_path):
             os.remove(self.db_path)
-            if os.path.exists(self.db_path + "-shm"):
-                os.remove(self.db_path + "-shm")
-            if os.path.exists(self.db_path + "-wal"):
-                os.remove(self.db_path + "-wal")
         self.db_path = None
         self._doc_ids_in_cache.clear()
 
