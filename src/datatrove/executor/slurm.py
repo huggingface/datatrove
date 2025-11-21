@@ -327,7 +327,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args = {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
-            "gpus": self.gpus_per_task * self.nodes_per_task,
             "nodes": self.nodes_per_task,
             "partition": self.partition,
             "job-name": self.job_name,
@@ -342,6 +341,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
             sbatch_args["requeue"] = ""
         if self.qos:
             sbatch_args["qos"] = self.qos
+        gpus = self.gpus_per_task * self.nodes_per_task
+        if gpus > 0:
+            sbatch_args["gpus"] = gpus
         return sbatch_args
 
     def get_launch_file_contents(self, sbatch_args: dict, run_script: str) -> str:

@@ -79,7 +79,7 @@ class VLLMServer(InferenceServer):
             env=env,
         )
 
-    async def start_server_task(self) -> asyncio.subprocess.Process | None:
+    async def start_server(self) -> asyncio.subprocess.Process | None:
         """Start the VLLM server process, handling distributed setup if needed."""
         n_nodes = get_number_of_nodes()
         if n_nodes <= 1:
@@ -162,6 +162,7 @@ class VLLMServer(InferenceServer):
             stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
             stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
             try:
+                # TODO: for head node, check if the number of connected nodes hasn't dropped
                 # Here we explicity want the process to raise an exception if it terminates unexpectedly
                 await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
             finally:

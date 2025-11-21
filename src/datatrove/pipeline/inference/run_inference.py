@@ -22,8 +22,6 @@ from loguru import logger
 from datatrove.data import Document
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
-from datatrove.pipeline.inference.distributed.coordination_server import DistributedCoordinationServer
-from datatrove.pipeline.inference.distributed.utils import get_job_id
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     DummyServer,
@@ -62,10 +60,6 @@ class InferenceConfig:
         model_kwargs: Additional keyword arguments passed to model initialization.
         server_log_folder: Optional directory for server logs. Creates one log per rank when set.
         master_port: Port of the master node used for distributed settings. (default: 9810)
-        coordination_port: Port of the coordination server used for distributed settings. (default: 9811)
-        distributed_init_timeout: Timeout in seconds for distributed initialization (default: 300).
-            Applies to both master (waiting for workers) and workers (connecting to cluster).
-        auto_restart_server: Whether to automatically restart the server on failure.
     """
 
     # server and model
@@ -93,9 +87,6 @@ class InferenceConfig:
     # distributed, we could probably init inside the server class, so that we can run multiple jobs on same nodes, but this use-case
     # doesn't make much sense, so keep it as is now.
     master_port: int = 9810
-    distributed_init_timeout: int = 300
-    coordination_port: int = 9811
-    auto_restart_server: bool = True
 
     def __post_init__(self):
         if self.max_concurrent_documents is None:
@@ -264,7 +255,7 @@ class InferenceRunner(PipelineStep):
                     self.queue_sizes.change_queues({"running_requests": -1})
                     return InferenceResult(text=text, finish_reason=choice["finish_reason"], usage=usage)
                 except (ConnectionError, OSError, asyncio.TimeoutError) as e:
-                    # This means the server is dead likely, so we need to wait for restart
+                    # This means the server is dead likely, let's try again just to be sure
                     logger.warning(f"Client error: {type(e)} {e}")
                     self.queue_sizes.change_queues({"running_requests": -1})
                     sleep_delay = 5 * (2**attempt)
@@ -325,8 +316,6 @@ class InferenceRunner(PipelineStep):
                 )
 
         try:
-            if request_counters is not None:
-                request_counters[rollout_idx] += 1
             result = await self._send_request(server, payload, semaphore)
         except InferenceError as e:
             if "BadRequestError" in str(e):
@@ -438,10 +427,10 @@ class InferenceRunner(PipelineStep):
             doc: Document to process
             rank: Process rank identifier
             chunk_index: Chunk index for the document
+            rollout_fn: Function to perform a single rollout for a document. Already wrapped with the shared context.
             output_writer_context: Output writer context for saving documents
-
-        Raises:
-            InferenceError: If document processing fails
+            server: Inference server to use
+            semaphore: Semaphore for controlling concurrent requests
         """
         try:
             request_counters = [0] * self.config.rollouts_per_document
@@ -499,24 +488,16 @@ class InferenceRunner(PipelineStep):
         Args:
             data_gen: Iterable of Document objects to process
             rank: Process rank identifier for distributed processing
-            world_size: Total number of processes in distributed setup
         """
-        # 1. Initialize semaphore and coordination server
-        semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
-
-        await self.request_cache.initialize(rank)
-        async with (
-            DistributedCoordinationServer(self.config.coordination_port, get_job_id()) as coordination_server,
-            self._init_server(rank=rank) as (inference_server, is_master_node),
-        ):
-            if not is_master_node:
-                # Give the master node some time to start the coordination server
-                await asyncio.sleep(20)
-                while coordination_server is not None and await coordination_server.master_running():
-                    await asyncio.sleep(10)
-
-                logger.info("Master node is not running, exiting")
+        async with self._init_server(rank=rank) as inference_server:
+            if not inference_server:
+                # we are a worker, we do not send requests
                 return
+
+            # 1. Initialize semaphore and request cache
+            semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
+
+            await self.request_cache.initialize(rank)
 
             # Start metrics reporting
             self.metrics.reset()
@@ -528,6 +509,7 @@ class InferenceRunner(PipelineStep):
             completed_successfully = False
             try:
                 with self.output_writer as output_writer_context, self.get_shared_context_cm() as shared_context_data:
+                    # Wrap the rollout function with the shared context
                     rollout_fn: RolloutFunction = partial(self.rollout_fn, **shared_context_data)
 
                     # this will also upload locally cached documents to the output writer
@@ -582,10 +564,8 @@ class InferenceRunner(PipelineStep):
                         if chunk_index is not None:
                             await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
                 completed_successfully = True
-            except Exception:
-                raise
             finally:
-                await self._cleanup(metrics_task, tasks_pool, completed_successfully)
+                await self._cleanup(metrics_task, tasks_pool, delete_cache_file=completed_successfully)
 
     async def _cleanup(
         self,

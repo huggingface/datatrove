@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 
-from datatrove.pipeline.inference.distributed.utils import is_master_node
+from datatrove.pipeline.inference.distributed.utils import get_node_rank, is_master_node
 from datatrove.pipeline.inference.types import ServerError
 
 
@@ -123,7 +123,7 @@ class InferenceServer(ABC):
     Abstract base class for inference servers.
 
     This class provides the infrastructure for managing inference server processes,
-    including automatic startup, health monitoring, restart capabilities, and
+    including automatic startup, health monitoring, and
     request handling. Subclasses must implement the abstract methods to define
     server-specific behavior.
 
@@ -139,7 +139,6 @@ class InferenceServer(ABC):
         config: The inference configuration object.
         _rank: The rank/ID of this server instance.
         _is_master: Whether this is the master node in a distributed setup.
-        _auto_restart: Whether to automatically restart the server on failure.
     """
 
     _requires_dependencies = ["httpx"]
@@ -167,29 +166,27 @@ class InferenceServer(ABC):
         # Monitoring task for local server health check
         self._server_monitoring_task: Optional[asyncio.Task] = None
         self._server_logger: Optional[logging.Logger] = None
-        # Auto-restart task for server failure recovery
-        self._auto_restart_task: Optional[asyncio.Task] = None
+        # Background task for starting the server (so we can start preprocessing)
+        self._bg_start_server_task: Optional[asyncio.Task] = None
         self._is_master = is_master_node()
         self._rank = rank
-        self._auto_restart = config.auto_restart_server
+        self._node_rank = get_node_rank()
 
     # --------------------------------------------------------------------------- #
     # Logging helper methods
     # --------------------------------------------------------------------------- #
 
-    def _get_log_file_path(self, rank: int) -> str | None:
+    def _get_log_file_path(self) -> str | None:
         """
         Get the log file path for a given rank.
-
-        Args:
-            rank: The rank/ID of the server instance.
 
         Returns:
             The log file path string, or None if logging is disabled.
         """
         if self.config.server_log_folder is None:
             return None
-        return f"{self.config.server_log_folder}/server_rank_{rank}.log"
+        # TODO
+        return f"{self.config.server_log_folder}/server_rank_{self._rank:05d}_node_{self._node_rank}.log"
 
     def _should_log_to_file(self) -> bool:
         """
@@ -200,15 +197,12 @@ class InferenceServer(ABC):
         """
         return self.config.server_log_folder is not None
 
-    def _create_server_logger(self, rank: int) -> Optional[logging.Logger]:
+    def _create_server_logger(self) -> Optional[logging.Logger]:
         """
         Create a dedicated logger for server output that writes to file.
 
         The logger is configured to write only the message content (no timestamps)
         since the server process typically provides its own timestamps.
-
-        Args:
-            rank: The rank/ID of the server instance.
 
         Returns:
             A configured Logger instance, or None if logging is disabled.
@@ -216,14 +210,14 @@ class InferenceServer(ABC):
         if not self._should_log_to_file():
             return None
 
-        log_file_path = self._get_log_file_path(rank)
+        log_file_path = self._get_log_file_path()
         if log_file_path is None:
             return None
 
         os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
         # Create a dedicated logger for this server instance
-        server_logger = logging.getLogger(f"{self.__class__.__name__}_rank_{rank:05d}")
+        server_logger = logging.getLogger(f"{self.__class__.__name__}_rank_{self._rank:05d}_node_{self._node_rank}")
         server_logger.setLevel(logging.INFO)
 
         # Remove any existing handlers to avoid duplicates
@@ -253,7 +247,7 @@ class InferenceServer(ABC):
             The server logger instance, or None if logging is disabled.
         """
         if self._server_logger is None:
-            self._server_logger = self._create_server_logger(self._rank)
+            self._server_logger = self._create_server_logger()
         return self._server_logger
 
     # --------------------------------------------------------------------------- #
@@ -261,7 +255,7 @@ class InferenceServer(ABC):
     # --------------------------------------------------------------------------- #
 
     @abstractmethod
-    async def start_server_task(self) -> asyncio.subprocess.Process | None:
+    async def start_server(self) -> asyncio.subprocess.Process | None:
         """
         Start the server process and return the process object.
 
@@ -275,7 +269,7 @@ class InferenceServer(ABC):
 
         Raises:
             Exception: Any exception raised here will mark the server as unable
-                to start and cancel the auto-restart task.
+                to start.
         """
         pass
 
@@ -290,10 +284,7 @@ class InferenceServer(ABC):
         server becomes unhealthy or is stopped.
 
         Raises:
-            RuntimeError: If the server encounters a non-recoverable error.
-                This will disable auto-restart.
-            Exception: Any other exception will trigger a restart attempt
-                (if auto-restart is enabled).
+            Exception: If the server encounters a non-recoverable error. (we now treat all errors as non-recoverable)
         """
         pass
 
@@ -355,29 +346,25 @@ class InferenceServer(ABC):
         """
         Enter the context manager.
 
-        Starts the auto-restart task in the background. For non-master nodes,
-        waits for the server to be ready before returning (to ensure proper
-        coordination). Master nodes return immediately.
+        Starts the start task in the background.
 
         Returns:
-            Tuple of (self, is_master) where:
-                - self: The server instance.
-                - is_master: Boolean indicating if this is the master node.
+            - self: The server instance.
         """
         # We start this task no matter what, as we need a task that launches the server in background so that we can early return
         # for master node.
-        self._auto_restart_task = asyncio.create_task(self._server_auto_restart())
-        # This is important as we need workers to be barriered by the master node, for the coordination server to be ready.
-        # This is very meh in terms of responsbility, as we should pro
-        if not self._is_master:
-            await self._server_ready
-        return self, self._is_master
+        self._bg_start_server_task = asyncio.create_task(self.bg_start_server())
+        if self._is_master:
+            return self
+        else:
+            # we are a worker and need to block until everything is done and fully finished
+            await self._bg_start_server_task
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
         Exit the context manager.
 
-        Cancels the auto-restart task and performs server cleanup. Ensures
+        Cancels the background start task and performs server cleanup. Ensures
         proper shutdown of all server-related tasks and processes.
 
         Args:
@@ -385,11 +372,11 @@ class InferenceServer(ABC):
             exc_val: Exception value, if any.
             exc_tb: Exception traceback, if any.
         """
-        # We must first cancel the auto restart task to avoid race conditions
-        if self._auto_restart_task:
+        # We must first cancel the start task to avoid race conditions
+        if self._bg_start_server_task:
             try:
-                self._auto_restart_task.cancel()
-                await asyncio.wait_for(self._auto_restart_task, timeout=10.0)
+                self._bg_start_server_task.cancel()
+                await asyncio.wait_for(self._bg_start_server_task, timeout=10.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
         await self.server_cleanup()
@@ -398,7 +385,7 @@ class InferenceServer(ABC):
     # Server lifecycle methods
     # --------------------------------------------------------------------------- #
 
-    async def start_server(self, max_retries: int = 1) -> None:
+    async def bg_start_server(self, max_retries: int = 1) -> None:
         """
         Start the server with retry logic.
 
@@ -416,40 +403,46 @@ class InferenceServer(ABC):
         """
         # We shouldn't need a lock as there is just single process who can run start_sever at time, but just to be sure.
         async with self._server_start_lock:
-            # Check if server is already ready after acquiring lock
-            if self._server_ready.done():
-                return
-
-            retry = 0
-            while retry < max_retries:
-                # Cleanup the server if it is already running
-                await self.server_cleanup()
-
-                # Find available port for this attempt
-                self._port = _find_available_port(self._rank)
-                self._server_process = await asyncio.wait_for(self.start_server_task(), timeout=60.0)
-                try:
-                    self._server_monitoring_task = asyncio.create_task(self._monitor_server())
-                    # We have no way to know if the server is ready from child process
-                    if self._is_master:
-                        await self._wait_until_ready()
-                    # Signal success
-                    if not self._server_ready.done():
-                        self._server_ready.set_result(True)
+            try:
+                # Check if server is already ready after acquiring lock
+                if self._server_ready.done():
                     return
-                except asyncio.CancelledError:
-                    raise
-                except asyncio.TimeoutError:
-                    logger.warning(f"Server start attempt {retry + 1}/{max_retries} timed out")
-                    pass
-                except Exception as e:
-                    logger.warning(f"Server start attempt {retry + 1}/{max_retries} failed: {e}")
-                    pass
-                retry += 1
 
-            # Failed after all retries - signal error to all waiters
-            error_msg = f"Failed to start {self.__class__.__name__} server after {max_retries} retries"
-            raise ServerError(error_msg)
+                retry = 0
+                while retry < max_retries:
+                    # Cleanup the server if it is already running
+                    await self.server_cleanup()
+
+                    # Find available port for this attempt
+                    self._port = _find_available_port(self._rank)
+                    try:
+                        self._server_process = await asyncio.wait_for(self.start_server(), timeout=60.0)
+                        self._server_monitoring_task = asyncio.create_task(self._monitor_server())
+                        # We have no way to know if the server is ready from child process
+                        if self._is_master:
+                            await self._wait_until_ready()
+                            # Signal success
+                            if not self._server_ready.done():
+                                self._server_ready.set_result(True)
+                        else:
+                            # we need to block the worker
+                            await self._server_monitoring_task
+                        # we are done
+                        return
+                    except asyncio.CancelledError:
+                        raise
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Server start attempt {retry + 1}/{max_retries} timed out")
+                    except Exception as e:
+                        logger.warning(f"Server start attempt {retry + 1}/{max_retries} failed: {e}")
+                    retry += 1
+
+                # Failed after all retries - signal error to all waiters
+                error_msg = f"Failed to start {self.__class__.__name__} server after {max_retries} retries"
+                raise ServerError(error_msg)
+            except Exception as e:
+                if not self._server_ready.done():
+                    self._server_ready.set_exception(ServerError(e))
 
     async def server_cleanup(self) -> None:
         """
@@ -484,59 +477,30 @@ class InferenceServer(ABC):
     # --------------------------------------------------------------------------- #
     # Internal/private methods
     # --------------------------------------------------------------------------- #
-
-    async def _server_auto_restart(self) -> None:
-        """
-        Background task that automatically restarts the server on failure.
-
-        Continuously monitors the server state and attempts to start it if it's
-        not ready. If auto-restart is disabled or the server fails permanently,
-        the task exits. This task runs in a loop with a delay between attempts.
-
-        Note:
-            This is an internal method that should not be called directly.
-            It's started automatically when entering the context manager.
-        """
-        while True:
-            if not self._server_ready.done():
-                try:
-                    await self.start_server()
-                except Exception as e:
-                    # Set the future to the error
-                    if not self._server_ready.done():
-                        self._server_ready.set_exception(ServerError(e))
-                    break
-            elif self._server_ready.exception() is not None:
-                break
-
-            await asyncio.sleep(10)
-
     async def _monitor_server(self) -> None:
         """
         Background task that monitors server health.
 
         Wraps the abstract monitor_health() method and handles exceptions.
-        On health check failure, resets the server ready future to allow
-        restart attempts. If the monitor_health raises an exception instead of returning,
-        the server is marked as permanently failed and we will not attempt to restart it.
+        On health check failure, resets the server ready future to allow start attempts.
+        If the monitor_health raises an exception instead of returning,
+        the server is marked as permanently failed and we will not attempt to start it again.
 
         Note:
             This is an internal method that should not be called directly.
             It's started automatically when the server process starts.
         """
-        should_restart = self._auto_restart
         server_error_msg = "Server unexpectedly terminated"
         try:
             await self.monitor_health()
         except Exception as e:
-            should_restart = False
             server_error_msg = e
 
         # Atomic update - reset future on health check failure, only if we were previously ready.
         if self._server_ready.done() and self._server_ready.exception() is None:
             self._server_ready = asyncio.Future()
 
-        if not should_restart and not self._server_ready.done():
+        if not self._server_ready.done():
             self._server_ready.set_exception(ServerError(server_error_msg))
 
     async def _wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 5.0) -> None:

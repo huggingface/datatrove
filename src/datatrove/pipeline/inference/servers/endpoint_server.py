@@ -44,7 +44,7 @@ class EndpointServer(InferenceServer):
                 timeout=self.config.request_timeout,
             )
 
-    async def start_server_task(self) -> None:
+    async def start_server(self) -> None:
         """No local server to start - abstract method must be implemented but does nothing."""
         pass
 

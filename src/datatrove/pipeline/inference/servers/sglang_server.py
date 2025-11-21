@@ -31,7 +31,7 @@ class SGLangServer(InferenceServer):
         check_required_dependencies("SGLang server", ["sglang"])
         super().__init__(config, rank)
 
-    async def start_server_task(self):
+    async def start_server(self):
         n_nodes = get_number_of_nodes()
         if n_nodes <= 1:
             return await self.create_sglang_task()
@@ -132,3 +132,4 @@ class SGLangServer(InferenceServer):
             finally:
                 stdout_task.cancel()
                 stderr_task.cancel()
+                await asyncio.wait_for(asyncio.gather(stdout_task, stderr_task, return_exceptions=True), timeout=5.0)

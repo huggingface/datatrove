@@ -925,7 +925,7 @@ def test_simple_startup_and_cleanup():
         )
         server = DummyServer(config, rank=0)
 
-        async with server as (srv, is_master):
+        async with server:
             await server._server_ready
 
             print("Server is ready! Verifying port...")
@@ -948,40 +948,8 @@ def test_simple_startup_and_cleanup():
         if server._server_monitoring_task:
             assert server._server_monitoring_task.cancelled() or server._server_monitoring_task.done()
 
-        # Verify auto-restart task is cancelled
-        assert server._auto_restart_task.cancelled() or server._auto_restart_task.done()
-
-    asyncio.run(run_test())
-
-
-def test_server_auto_restart():
-    """
-    Test manual server restart by triggering cleanup and restart.
-    """
-
-    async def run_test():
-        config = InferenceConfig(
-            server_type="dummy",
-            model_name_or_path="dummy",
-        )
-        server = DummyServer(config, rank=0)
-
-        async with server:
-            await server._server_ready
-
-            # kill the server process
-            server.kill_server()
-
-            # We have to make a bit space to propagate that the error happened
-            await asyncio.sleep(1)
-
-            # Verify requests work
-            try:
-                await server.make_request({"messages": [{"role": "user", "content": "test"}]})
-            except Exception as e:
-                # Server should auto-restart and handle the request
-                print(f"Request failed: {e}")
-                raise
+        # Verify background start task is cancelled
+        assert server._bg_start_server_task.cancelled() or server._bg_start_server_task.done()
 
     asyncio.run(run_test())
 
@@ -991,7 +959,6 @@ def test_server_auto_restart_turn_off():
         config = InferenceConfig(
             server_type="dummy",
             model_name_or_path="dummy",
-            auto_restart_server=False,
         )
         server = DummyServer(config, rank=0)
 

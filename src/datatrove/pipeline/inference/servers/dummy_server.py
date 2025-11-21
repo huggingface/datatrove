@@ -105,7 +105,7 @@ class DummyServer(InferenceServer):
                 self.http_server.shutdown()
             raise
 
-    async def start_server_task(self) -> None:
+    async def start_server(self) -> None:
         """Start the dummy HTTP server in a separate thread."""
 
         def run_server():
