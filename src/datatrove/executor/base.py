@@ -26,6 +26,7 @@ class DistributedEnvVars(TypedDict):
 
     All values must be strings.
     """
+
     datatrove_node_ips: str  # comma-separated list of node IPs/hostnames
     datatrove_cpus_per_task: str  # number of CPUs per task
     datatrove_mem_per_cpu: str  # memory per CPU in GB

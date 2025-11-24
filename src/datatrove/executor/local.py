@@ -1,4 +1,3 @@
-import socket
 import time
 from copy import deepcopy
 from functools import partial
@@ -155,7 +154,6 @@ class LocalPipelineExecutor(PipelineExecutor):
         """Get distributed environment variables for LOCAL executor."""
         # Default values for local execution - these can be overridden if needed
         # For now, we'll use reasonable defaults
-        import os
 
         return DistributedEnvVars(
             datatrove_node_ips="localhost",

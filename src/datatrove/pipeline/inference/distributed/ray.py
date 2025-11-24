@@ -173,10 +173,7 @@ async def _wait_for_workers(expected_workers: int) -> None:
     )
 
 
-async def init_ray_master(
-    master_port: int,
-    expected_workers: int
-) -> None:
+async def init_ray_master(master_port: int, expected_workers: int) -> None:
     """Initialize Ray cluster on the master node.
 
     Starts Ray head node using CLI and waits for worker nodes to join.
@@ -343,17 +340,16 @@ async def monitor_ray_cluster_health(check_interval: float = 5.0) -> None:
 async def monitor_ray_workers(expected_workers: int) -> None:
     """Monitor the number of ray nodes. Raises an exception if the number of nodes has dropped"""
     logger.info(f"Starting Ray nodes monitoring (expecting {expected_workers} workers)")
-    
+
     while True:
         try:
             # Get cluster resources to check node count
             if _count_alive_worker_nodes() < expected_workers:
                 raise RuntimeError("Number of ray nodes has dropped below expected")
             await asyncio.sleep(WORKER_CHECK_INTERVAL_SECONDS)
-            
+
         except Exception as e:
             raise RuntimeError(f"Ray nodes monitoring failed: {e}") from e
-
 
 
 def cleanup_ray() -> None:

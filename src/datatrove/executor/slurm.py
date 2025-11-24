@@ -21,6 +21,7 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp, logger
 
+
 def expand_slurm_nodelist(nodelist: str) -> list[str]:
     """Expand SLURM nodelist (which may contain range notation) to list of hostnames.
 
@@ -35,6 +36,7 @@ def expand_slurm_nodelist(nodelist: str) -> list[str]:
     )
     hostnames = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
     return hostnames
+
 
 def requeue_handler(signum, _frame):
     signame = signal.Signals(signum).name

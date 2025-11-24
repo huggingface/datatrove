@@ -13,8 +13,8 @@ from datatrove.pipeline.inference.distributed.ray import (
 )
 from datatrove.pipeline.inference.distributed.utils import (
     get_distributed_environment,
-    get_node_hosts,
     get_master_node_host,
+    get_node_hosts,
     is_master_node,
 )
 from datatrove.pipeline.inference.servers import InferenceServer
@@ -164,18 +164,20 @@ class VLLMServer(InferenceServer):
             await monitor_ray_workers(expected_workers=len(get_node_hosts()))
 
         if self._server_process is not None:
-            tasks = [asyncio.create_task(read_stream(self._server_process.stdout)),
-                     asyncio.create_task(read_stream(self._server_process.stderr)),
-                     asyncio.create_task(self._server_process.wait())]
-            
+            tasks = [
+                asyncio.create_task(read_stream(self._server_process.stdout)),
+                asyncio.create_task(read_stream(self._server_process.stderr)),
+                asyncio.create_task(self._server_process.wait()),
+            ]
+
             # Only add ray monitoring task in distributed setting (nodes > 1)
             if len(get_node_hosts()) > 1:
                 monitor_ray_task = asyncio.create_task(monitor_ray_workers_after_server_ready())
                 tasks.append(monitor_ray_task)
-            
+
             try:
                 # Any exception raising or task completion from the set should cause the monitor to fail, we thus wait for first occurance of it.
-                # Note this will not raise the exception 
+                # Note this will not raise the exception
                 done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 # This will raise the exception if any of the tasks failed
                 if done:

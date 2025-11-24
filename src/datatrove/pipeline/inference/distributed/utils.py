@@ -1,9 +1,5 @@
 import os
-import subprocess
 from typing import Literal
-
-
-
 
 
 def get_available_cpus_per_node() -> int:
@@ -12,6 +8,7 @@ def get_available_cpus_per_node() -> int:
     """
 
     return int(os.environ["DATATROVE_CPUS_PER_TASK"])
+
 
 def get_available_memory_per_node() -> int:
     """Return the amount of available memory (MB) in the distributed environment.
@@ -23,6 +20,7 @@ def get_available_memory_per_node() -> int:
 
     cpus = get_available_cpus_per_node()
     return cpus * mem_per_cpu
+
 
 def get_available_gpus_per_node() -> int:
     """Return the number of available GPUs in the distributed environment.

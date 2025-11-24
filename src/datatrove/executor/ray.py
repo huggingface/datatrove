@@ -448,6 +448,7 @@ class RayPipelineExecutor(PipelineExecutor):
     def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
         """Get distributed environment variables for RAY executor."""
         import os
+
         node_ips = os.environ.get("RAY_NODELIST", "")
 
         return DistributedEnvVars(
@@ -580,7 +581,6 @@ class RayPipelineExecutor(PipelineExecutor):
 
         Returns: the stats for this task
         """
-        import os
         import tempfile
 
         if self.is_rank_completed(rank):
