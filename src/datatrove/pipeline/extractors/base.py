@@ -82,7 +82,7 @@ class BaseExtractor(PipelineStep):
 
 
 class ExtractorSandbox:
-    def __init__(self, timeout, wamup_text):
+    def __init__(self, timeout, wamup_text=""):
         self.timeout = timeout
         self.process = None
         self.parent_conn = None
