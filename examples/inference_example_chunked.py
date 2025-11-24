@@ -14,6 +14,7 @@ from typing import Any, Awaitable, Callable
 
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
+from datatrove.executor.slurm import SlurmPipelineExecutor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceResult, InferenceRunner
 from datatrove.pipeline.writers import JsonlWriter
 
@@ -189,6 +190,27 @@ pipeline_executor_with_pool = LocalPipelineExecutor(
     tasks=1,
 )
 
+# Example 3: Distributed inference
+pipeline_executor_distributed = SlurmPipelineExecutor(
+    tasks=100,
+    time="10:00:00",
+    partition="hopper-prod",
+    gpus_per_task=8,
+    nodes_per_task=2,
+    logging_dir=LOGS_PATH,
+    pipeline=[
+        documents,
+        InferenceRunner(
+            rollout_fn=chunked_rollout,
+            config=InferenceConfig(
+                server_type="vllm",
+                model_name_or_path="deepseek-ai/DeepSeek-R1",
+                tp=16,
+            ),
+            output_writer=JsonlWriter(OUTPUT_PATH),
+        ),
+    ],
+)
 if __name__ == "__main__":
     # Run the pipeline
     pipeline_executor.run()
