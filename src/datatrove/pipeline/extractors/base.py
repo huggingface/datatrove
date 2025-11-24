@@ -36,7 +36,7 @@ class BaseExtractor(PipelineStep):
         """
         pass
 
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1, warmup_text: str = "warmup") -> DocumentsPipeline:
         """Iterates through each document in data and calls `timeout_extract` on it.
 
         Args:
@@ -47,7 +47,7 @@ class BaseExtractor(PipelineStep):
         Returns:
 
         """
-        with ExtractorSandbox(timeout=self.timeout) as extractor:
+        with ExtractorSandbox(timeout=self.timeout, wamup_text=warmup_text) as extractor:
             for doc in data:
                 self.stat_update(StatHints.total)
                 with self.track_time():
