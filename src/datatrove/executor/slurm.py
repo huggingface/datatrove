@@ -16,11 +16,25 @@ from typing import Callable
 import dill
 from dill import CONTENTS_FMODE
 
-from datatrove.executor.base import PipelineExecutor
+from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp, logger
 
+def expand_slurm_nodelist(nodelist: str) -> list[str]:
+    """Expand SLURM nodelist (which may contain range notation) to list of hostnames.
+
+    Uses `scontrol show hostnames` to properly expand SLURM nodelist format like
+    'ip-26-0-164-[45-46]' into individual hostnames.
+    """
+    result = subprocess.run(
+        ["scontrol", "show", "hostnames", nodelist],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    hostnames = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+    return hostnames
 
 def requeue_handler(signum, _frame):
     signame = signal.Signals(signum).name
@@ -197,9 +211,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 node_rank = -1
             else:
                 node_rank = int(os.environ.get("SLURM_NODEID", 0))
-
-            # Re-export mem-per-cpu, which despite being documented as should exist
-            # might not exist in all environments.
 
             for rank_to_run in range(*ranks_to_run_range):
                 if rank_to_run >= len(all_ranks):
@@ -382,6 +393,17 @@ class SlurmPipelineExecutor(PipelineExecutor):
         {run_script}
         """
             )
+        )
+
+    def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
+        """Get distributed environment variables for SLURM executor."""
+        node_hosts = expand_slurm_nodelist(os.environ["SLURM_NODELIST"])
+        return DistributedEnvVars(
+            datatrove_node_ips=",".join(node_hosts),
+            datatrove_cpus_per_task=str(self.cpus_per_task),
+            datatrove_mem_per_cpu=str(self.mem_per_cpu_gb),
+            datatrove_gpus_on_node=str(self.gpus_per_task),
+            datatrove_executor="SLURM",
         )
 
     @property

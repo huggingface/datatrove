@@ -3,110 +3,54 @@ import subprocess
 from typing import Literal
 
 
-def _expand_slurm_nodelist(nodelist: str) -> list[str]:
-    """Expand SLURM nodelist (which may contain range notation) to list of hostnames.
 
-    Uses `scontrol show hostnames` to properly expand SLURM nodelist format like
-    'ip-26-0-164-[45-46]' into individual hostnames.
-    """
-    result = subprocess.run(
-        ["scontrol", "show", "hostnames", nodelist],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    hostnames = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-    return hostnames
-
-
-def get_master_node_host() -> str:
-    """Return hostname of the master node."""
-    if get_distributed_environment() == "SLURM":
-        nodelist = os.environ["SLURM_NODELIST"]
-        hostnames = _expand_slurm_nodelist(nodelist)
-        if not hostnames:
-            raise RuntimeError(f"Failed to expand SLURM nodelist: {nodelist}")
-        master_hostname = hostnames[0]
-        return master_hostname
-    elif get_distributed_environment() == "RAY":
-        return os.environ["RAY_NODELIST"].split(",")[0]
-    else:
-        return "localhost"
 
 
 def get_available_cpus_per_node() -> int:
-    """Return the number of available CPUs in the distributed environment."""
-    if get_distributed_environment() == "SLURM":
-        return int(os.environ.get("SLURM_CPUS_PER_TASK", 0))
-    raise NotImplementedError("Only SLURM distributed environment is supported yet.")
+    """Return the number of available CPUs in the distributed environment.
+    -1 signifies unknown CPUs.
+    """
 
+    return int(os.environ["DATATROVE_CPUS_PER_TASK"])
 
 def get_available_memory_per_node() -> int:
-    """Return the amount of available memory (MB) in the distributed environment."""
+    """Return the amount of available memory (MB) in the distributed environment.
+    -1 signifies unknown memory.
+    """
+    mem_per_cpu = int(os.environ["DATATROVE_MEM_PER_CPU"])
+    if mem_per_cpu == -1:
+        return -1
+
     cpus = get_available_cpus_per_node()
-    mem_per_cpu = int(os.environ.get("SLURM_MEM_PER_CPU", 0))
     return cpus * mem_per_cpu
 
-
 def get_available_gpus_per_node() -> int:
-    """Return the number of available GPUs in the distributed environment."""
-    if get_distributed_environment() == "SLURM":
-        return int(os.environ.get("SLURM_GPUS_ON_NODE", 0))
-    raise NotImplementedError("Only SLURM distributed environment is supported yet.")
+    """Return the number of available GPUs in the distributed environment.
+    -1 signifies unknown GPUs.
+    """
+    return int(os.environ["DATATROVE_GPUS_ON_NODE"])
 
 
 def get_node_rank() -> int:
-    """Return the rank of the current node (0 for master, 1, 2, etc. for workers)."""
-    if get_distributed_environment() == "SLURM":
-        return int(os.environ.get("SLURM_NODEID", 0))
-    elif get_distributed_environment() == "RAY":
-        return int(os.environ.get("RAY_NODEID", 0))
-    else:
-        return 0
+    """Return the rank of the current node (0 for master, 1, 2, etc. for workers). -1 stands for single-node mode."""
+    return int(os.environ["DATATROVE_NODE_RANK"])
 
 
 def is_master_node() -> bool:
     """Return True if the current node is the master node, False otherwise."""
-    return get_node_rank() == 0
-
-
-def get_number_of_nodes() -> int:
-    """Return the number of nodes in the distributed environment."""
-    if get_distributed_environment() == "SLURM":
-        return int(os.environ.get("SLURM_JOB_NUM_NODES", 0))
-
-    return len(get_node_hosts())
+    return get_node_rank() <= 0
 
 
 def get_node_hosts() -> list[str]:
     """Return list of hosts of the nodes in the distributed environment."""
-    if get_distributed_environment() == "SLURM":
-        nodelist = os.environ["SLURM_NODELIST"]
-        hostnames = _expand_slurm_nodelist(nodelist)
-        return hostnames
-    elif get_distributed_environment() == "RAY":
-        return os.environ["RAY_NODELIST"].split(",")
-    else:
-        return ["localhost"]
+    return os.environ["DATATROVE_NODE_IPS"].split(",")
 
 
-def get_job_id() -> str:
-    """Return the job ID of the distributed environment."""
-    if get_distributed_environment() == "SLURM":
-        return os.environ.get("SLURM_JOB_ID", "unknown")
-    elif get_distributed_environment() == "RAY":
-        return os.environ.get("RAY_JOB_ID", "unknown")
-    else:
-        return "unknown"
+def get_distributed_environment() -> Literal["SLURM", "RAY", "LOCAL"]:
+    """Return type of the distributed environment, this means either "SLURM", "RAY", or "LOCAL"."""
+    return os.environ["DATATROVE_EXECUTOR"]
 
 
-def get_distributed_environment() -> Literal["SLURM", "RAY"] | None:
-    """Return type of the distributed environment, this means either "SLURM", "RAY", or None."""
-    # IMPORTANT: Order is important here, it's possible we run ray in SLURM environment. However if the order is reversed
-    # the ray node would think they are in SLURM environment, which would cause problems.
-    if "RAY_NODEID" in os.environ:
-        return "RAY"
-    elif "SLURM_NODEID" in os.environ:
-        return "SLURM"
-    else:
-        return None
+def get_master_node_host() -> str:
+    """Return the hostname of the master node."""
+    return get_node_hosts()[0]

@@ -9,11 +9,12 @@ from datatrove.pipeline.inference.distributed.ray import (
     init_ray_master,
     init_ray_worker,
     monitor_ray_cluster_health,
+    monitor_ray_workers,
 )
 from datatrove.pipeline.inference.distributed.utils import (
     get_distributed_environment,
+    get_node_hosts,
     get_master_node_host,
-    get_number_of_nodes,
     is_master_node,
 )
 from datatrove.pipeline.inference.servers import InferenceServer
@@ -81,7 +82,7 @@ class VLLMServer(InferenceServer):
 
     async def start_server(self) -> asyncio.subprocess.Process | None:
         """Start the VLLM server process, handling distributed setup if needed."""
-        n_nodes = get_number_of_nodes()
+        n_nodes = len(get_node_hosts())
         if n_nodes <= 1:
             return await self._start_vllm_task()
 
@@ -158,20 +159,35 @@ class VLLMServer(InferenceServer):
                 line = line.decode("utf-8").rstrip()
                 await process_line(line)
 
+        async def monitor_ray_workers_after_server_ready():
+            await self._server_ready
+            await monitor_ray_workers(expected_workers=len(get_node_hosts()))
+
         if self._server_process is not None:
-            stdout_task = asyncio.create_task(read_stream(self._server_process.stdout))
-            stderr_task = asyncio.create_task(read_stream(self._server_process.stderr))
+            tasks = [asyncio.create_task(read_stream(self._server_process.stdout)),
+                     asyncio.create_task(read_stream(self._server_process.stderr)),
+                     asyncio.create_task(self._server_process.wait())]
+            
+            # Only add ray monitoring task in distributed setting (nodes > 1)
+            if len(get_node_hosts()) > 1:
+                monitor_ray_task = asyncio.create_task(monitor_ray_workers_after_server_ready())
+                tasks.append(monitor_ray_task)
+            
             try:
-                # TODO: for head node, check if the number of connected nodes hasn't dropped
-                # Here we explicity want the process to raise an exception if it terminates unexpectedly
-                await asyncio.gather(stdout_task, stderr_task, self._server_process.wait())
+                # Any exception raising or task completion from the set should cause the monitor to fail, we thus wait for first occurance of it.
+                # Note this will not raise the exception 
+                done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                # This will raise the exception if any of the tasks failed
+                if done:
+                    for task in done:
+                        task.result()
             finally:
                 # No need to deal with server_process itself as we do kill it in server_cleanup
-                stdout_task.cancel()
-                stderr_task.cancel()
-                await asyncio.wait_for(asyncio.gather(stdout_task, stderr_task, return_exceptions=True), timeout=5.0)
+                for task in tasks:
+                    task.cancel()
+                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5.0)
 
     async def server_cleanup(self):
         await super().server_cleanup()
-        if self._is_master and get_number_of_nodes() > 1:
+        if len(get_node_hosts()) > 1:
             cleanup_ray()

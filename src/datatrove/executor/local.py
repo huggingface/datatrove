@@ -1,3 +1,4 @@
+import socket
 import time
 from copy import deepcopy
 from functools import partial
@@ -5,7 +6,7 @@ from typing import Callable
 
 import multiprocess
 
-from datatrove.executor.base import PipelineExecutor
+from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
@@ -149,6 +150,20 @@ class LocalPipelineExecutor(PipelineExecutor):
             stats.save_to_disk(statsfile)
         logger.success(stats.get_repr(f"All {self.local_tasks} tasks"))
         return stats
+
+    def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
+        """Get distributed environment variables for LOCAL executor."""
+        # Default values for local execution - these can be overridden if needed
+        # For now, we'll use reasonable defaults
+        import os
+
+        return DistributedEnvVars(
+            datatrove_node_ips="localhost",
+            datatrove_cpus_per_task="-1",
+            datatrove_mem_per_cpu="-1",
+            datatrove_gpus_on_node="-1",
+            datatrove_executor="LOCAL",
+        )
 
     @property
     def world_size(self) -> int:

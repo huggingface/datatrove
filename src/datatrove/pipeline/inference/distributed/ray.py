@@ -11,7 +11,6 @@ from datatrove.pipeline.inference.distributed.utils import (
     get_available_gpus_per_node,
     get_available_memory_per_node,
     get_master_node_host,
-    get_number_of_nodes,
 )
 from datatrove.utils._import_utils import check_required_dependencies
 
@@ -79,7 +78,7 @@ def _build_ray_head_start_command(master_port: int, object_store_memory: int) ->
     ]
 
 
-def _count_alive_worker_nodes(master_ip: str) -> int:
+def _count_alive_worker_nodes() -> int:
     """Count the number of alive worker nodes in the Ray cluster.
 
     Args:
@@ -91,7 +90,7 @@ def _count_alive_worker_nodes(master_ip: str) -> int:
     import ray
 
     nodes = ray.nodes()
-    alive_worker_nodes = [node for node in nodes if node["Alive"] and node["NodeManagerAddress"] != master_ip]
+    alive_worker_nodes = [node for node in nodes if node["Alive"]]
     return len(alive_worker_nodes)
 
 
@@ -132,12 +131,11 @@ async def _start_ray_head_node(master_port: int, object_store_memory: int) -> No
     logger.info("Ray head node started successfully")
 
 
-async def _wait_for_workers(expected_workers: int, master_ip: str) -> None:
+async def _wait_for_workers(expected_workers: int) -> None:
     """Wait for worker nodes to join the Ray cluster.
 
     Args:
         expected_workers: Expected number of worker nodes
-        master_ip: IP address of the master node
         timeout: Maximum time to wait in seconds
 
     Raises:
@@ -147,15 +145,14 @@ async def _wait_for_workers(expected_workers: int, master_ip: str) -> None:
 
     start_time = time.time()
     max_time = (1 + WORKER_CONNECTION_MAX_RETRIES) * WORKER_CONNECTION_RETRY_DELAY
+    connected_workers = _count_alive_worker_nodes()
     while time.time() - start_time < max_time:
         try:
-            connected_workers = _count_alive_worker_nodes(master_ip)
+            connected_workers = _count_alive_worker_nodes()
 
             if connected_workers >= expected_workers:
-                nodes = ray.nodes()
-                total_alive_nodes = len([n for n in nodes if n["Alive"]])
                 logger.info(
-                    f"All {expected_workers} worker nodes are online. Total nodes in cluster: {total_alive_nodes}"
+                    f"All {expected_workers} worker nodes are online. Total nodes in cluster: {connected_workers}"
                 )
                 logger.info(ray.nodes())
                 return
@@ -170,7 +167,6 @@ async def _wait_for_workers(expected_workers: int, master_ip: str) -> None:
             await asyncio.sleep(WORKER_CHECK_INTERVAL_SECONDS)
 
     # Timeout reached
-    connected_workers = _count_alive_worker_nodes(master_ip)
     raise RuntimeError(
         f"Timeout ({max_time}s) waiting for workers to join Ray cluster. "
         f"Only {connected_workers}/{expected_workers} workers connected."
@@ -179,7 +175,7 @@ async def _wait_for_workers(expected_workers: int, master_ip: str) -> None:
 
 async def init_ray_master(
     master_port: int,
-    expected_workers: int | None = None,
+    expected_workers: int
 ) -> None:
     """Initialize Ray cluster on the master node.
 
@@ -196,7 +192,6 @@ async def init_ray_master(
     import ray
 
     master_ip = get_master_node_host()
-    expected_workers = expected_workers or get_number_of_nodes()
     object_store_memory = calculate_object_store_memory()
 
     logger.info(f"Starting Ray head node on master (IP: {master_ip}, port: {master_port})")
@@ -208,7 +203,7 @@ async def init_ray_master(
         # Connect to the Ray cluster
         ray.init(address="auto", ignore_reinit_error=True)
         # Wait for workers to come online
-        await _wait_for_workers(expected_workers, master_ip)
+        await _wait_for_workers(expected_workers)
 
     except asyncio.TimeoutError as e:
         raise RuntimeError("Timeout (10.0s) starting Ray head node") from e
@@ -343,6 +338,22 @@ async def monitor_ray_cluster_health(check_interval: float = 5.0) -> None:
             # Any other exception means health check failed
             logger.warning(f"Ray cluster health check failed: {e}. Exiting health monitor.")
             return
+
+
+async def monitor_ray_workers(expected_workers: int) -> None:
+    """Monitor the number of ray nodes. Raises an exception if the number of nodes has dropped"""
+    logger.info(f"Starting Ray nodes monitoring (expecting {expected_workers} workers)")
+    
+    while True:
+        try:
+            # Get cluster resources to check node count
+            if _count_alive_worker_nodes() < expected_workers:
+                raise RuntimeError("Number of ray nodes has dropped below expected")
+            await asyncio.sleep(WORKER_CHECK_INTERVAL_SECONDS)
+            
+        except Exception as e:
+            raise RuntimeError(f"Ray nodes monitoring failed: {e}") from e
+
 
 
 def cleanup_ray() -> None:

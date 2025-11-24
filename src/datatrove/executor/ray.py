@@ -9,7 +9,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
-from datatrove.executor.base import PipelineExecutor
+from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils._import_utils import check_required_dependencies
@@ -445,6 +445,19 @@ class RayPipelineExecutor(PipelineExecutor):
         self.time = time
         self.nodes_per_task = nodes_per_task
 
+    def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
+        """Get distributed environment variables for RAY executor."""
+        import os
+        node_ips = os.environ.get("RAY_NODELIST", "")
+
+        return DistributedEnvVars(
+            datatrove_node_ips=node_ips,
+            datatrove_cpus_per_task=str(self.cpus_per_task),
+            datatrove_mem_per_cpu=str(self.mem_per_cpu_gb),
+            datatrove_gpus_on_node=str(self.gpus_per_task),
+            datatrove_executor="RAY",
+        )
+
     @property
     def world_size(self) -> int:
         return self.tasks
@@ -567,11 +580,15 @@ class RayPipelineExecutor(PipelineExecutor):
 
         Returns: the stats for this task
         """
+        import os
         import tempfile
 
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
+
+        # Set distributed environment variables
+        self._set_distributed_environment(node_rank)
 
         # We log only locally and upload logs to logging_dir after the pipeline is finished
         ray_logs_dir = get_datafolder(f"{tempfile.gettempdir()}/ray_logs")

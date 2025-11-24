@@ -5,8 +5,8 @@ from loguru import logger
 
 from datatrove.pipeline.inference.distributed.utils import (
     get_master_node_host,
+    get_node_hosts,
     get_node_rank,
-    get_number_of_nodes,
 )
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
@@ -32,7 +32,7 @@ class SGLangServer(InferenceServer):
         super().__init__(config, rank)
 
     async def start_server(self):
-        n_nodes = get_number_of_nodes()
+        n_nodes = len(get_node_hosts())
         if n_nodes <= 1:
             return await self.create_sglang_task()
 

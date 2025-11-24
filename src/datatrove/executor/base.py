@@ -1,11 +1,12 @@
 import dataclasses
 import json
+import os
 import random
 import time
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Sequence
-from typing import Callable
+from typing import Callable, TypedDict
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
@@ -18,6 +19,18 @@ from datatrove.utils.logging import (
     logger,
 )
 from datatrove.utils.stats import PipelineStats
+
+
+class DistributedEnvVars(TypedDict):
+    """Required environment variables that must be set by get_distributed_env.
+
+    All values must be strings.
+    """
+    datatrove_node_ips: str  # comma-separated list of node IPs/hostnames
+    datatrove_cpus_per_task: str  # number of CPUs per task
+    datatrove_mem_per_cpu: str  # memory per CPU in GB
+    datatrove_gpus_on_node: str  # number of GPUs on the node
+    datatrove_executor: str  # executor type
 
 
 class PipelineExecutor(ABC):
@@ -62,6 +75,29 @@ class PipelineExecutor(ABC):
         """
         return 0
 
+    @abstractmethod
+    def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
+        """
+        Returns a dictionary of environment variables to set for distributed execution.
+        This method is called by `_run_for_rank` to set up the distributed environment.
+
+        Args:
+            node_rank: node rank/ID. -1 means single node mode (default).
+
+        Returns: DistributedEnvVars dictionary with all required environment variables.
+                 All values must be strings.
+        """
+        pass
+
+    def _set_distributed_environment(self, node_rank: int):
+        env_vars = self.get_distributed_env(node_rank)
+        os.environ["DATATROVE_NODE_RANK"] = str(node_rank)
+        os.environ["DATATROVE_EXECUTOR"] = env_vars["datatrove_executor"]
+        os.environ["DATATROVE_NODE_IPS"] = env_vars["datatrove_node_ips"]
+        os.environ["DATATROVE_CPUS_PER_TASK"] = env_vars["datatrove_cpus_per_task"]
+        os.environ["DATATROVE_MEM_PER_CPU"] = env_vars["datatrove_mem_per_cpu"]
+        os.environ["DATATROVE_GPUS_ON_NODE"] = env_vars["datatrove_gpus_on_node"]
+
     def _run_for_rank(self, rank: int, local_rank: int = 0, node_rank: int = -1) -> PipelineStats:
         """
             Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
@@ -79,6 +115,8 @@ class PipelineExecutor(ABC):
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
+
+        self._set_distributed_environment(node_rank)
 
         logfile = add_task_logger(self.logging_dir, rank, local_rank, node_rank=node_rank)
         log_pipeline(self.pipeline)
