@@ -298,39 +298,45 @@ async def init_ray_worker(
     )
 
 
-async def monitor_ray_cluster_health(check_interval: float = 5.0) -> None:
+async def monitor_ray_cluster_health(check_interval: float = 30.0) -> None:
     """Monitor Ray cluster health by running ray health-check command.
     This function runs in a loop, checking every check_interval seconds if the Ray cluster
     is still healthy by calling `ray health-check --skip-version-check`. If the health check
     fails, it returns to signal the process should exit.
     Args:
-        check_interval: Interval in seconds between health checks (default: 5.0)
+        check_interval: Interval in seconds between health checks (default: 30.0)
     """
     logger.info(f"Starting Ray cluster health monitoring (checking every {check_interval}s)")
 
     while True:
         try:
             # Run ray health-check command
-            result = subprocess.run(
-                ["ray", "health-check", "--skip-version-check"],
-                capture_output=True,
-                text=True,
-                timeout=check_interval,
+            process = await asyncio.create_subprocess_exec(
+                "ray",
+                "health-check",
+                "--skip-version-check",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            if result.returncode != 0:
+
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30.0)
+            except asyncio.TimeoutError:
+                process.kill()
+                await asyncio.wait_for(process.wait(), timeout=5.0)
+                logger.warning("Ray cluster health check timed out. Exiting health monitor.")
+                return
+
+            if process.returncode != 0:
                 # Health check failed, cluster is dead
                 logger.warning(
-                    f"Ray cluster health check failed (return code: {result.returncode}). "
-                    f"stderr: {result.stderr}, stdout: {result.stdout}. Exiting health monitor."
+                    f"Ray cluster health check failed (return code: {process.returncode}). "
+                    f"stderr: {stderr.decode()}, stdout: {stdout.decode()}. Exiting health monitor."
                 )
                 return
 
             await asyncio.sleep(check_interval)
 
-        except subprocess.TimeoutExpired:
-            # Health check timed out, treat as failure
-            logger.warning("Ray cluster health check timed out. Exiting health monitor.")
-            return
         except Exception as e:
             # Any other exception means health check failed
             logger.warning(f"Ray cluster health check failed: {e}. Exiting health monitor.")
