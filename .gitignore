@@ -161,3 +161,6 @@ cython_debug/
 .vscode/
 
 playground/
+
+# codex
+node_modules/

@@ -1,33 +1,35 @@
 """
-Chunked inference pipeline example with chunking.
+Chunked inference pipeline example with rollouts.
 
 This example shows how to run inference on documents using the InferenceRunner
-with chunking enabled. Documents are processed in chunks with checkpoint support
-for resuming from failures. Each chunk is saved to a separate output file.
+with checkpointing enabled. Documents are processed with a rollout function that
+can perform multiple generations per document before the results are written.
 """
 
-from typing import Any, AsyncGenerator
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import contextmanager
+from functools import partial
+from typing import Any, Awaitable, Callable
 
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
+from datatrove.executor.slurm import SlurmPipelineExecutor
+from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceResult, InferenceRunner
 from datatrove.pipeline.writers import JsonlWriter
 
 
-# For creating query payloads, you have 2 options:
-# 1. Create a simple query builder that returns a dict
-def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any] | None:
+async def simple_rollout(
+    document: Document,
+    generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
+) -> InferenceResult:
     """
-    Simple query builder that extracts text from document for OCR processing.
+    Basic rollout that sends a single request per document.
 
-    Args:
-        runner: Inference runner instance
-        document: Input document with text content
-
-    Returns:
-        Query payload for the inference server
+    Returns the InferenceResult directly, which will be stored under document.metadata["rollout_results"].
     """
-    return {
+
+    payload = {
         "messages": [
             {
                 "role": "user",
@@ -39,110 +41,98 @@ def simple_query_builder(runner: InferenceRunner, document: Document) -> dict[st
         "max_tokens": 2048,
     }
 
+    return await generate(payload)
 
-def large_sample_query_builder(runner: InferenceRunner, document: Document) -> dict[str, Any] | None:
-    """Query builder that chunks long samples and requests callbacks for continuation."""
 
-    MAX_CHARS_PER_PART = 4000
+async def chunked_rollout(
+    document: Document,
+    generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
+) -> str:
+    """
+    Rollout that chunks long inputs and stitches the generations together.
+    """
+
     instruction = "Rewrite this in a more formal style:"
-    chunks = document.metadata.get("chunks")
-    if not chunks:
-        text = document.text
-        if len(text) > MAX_CHARS_PER_PART:
-            chunks = [text[i : i + MAX_CHARS_PER_PART] for i in range(0, len(text), MAX_CHARS_PER_PART)]
-            document.metadata["chunks"] = chunks
-        else:
-            chunks = [text]
+    max_chars_per_part = 4000
+    text = document.text
+    chunks = [text[i : i + max_chars_per_part] for i in range(0, len(text), max_chars_per_part)] or [text]
 
-    inference_results = document.metadata.get("inference_results") or []
-    total_parts = len(chunks)
-    current_index = min(len(inference_results), total_parts - 1)
-    current_chunk = chunks[current_index]
+    generations: list[dict[str, Any]] = []
+    prev_chunk = None
 
-    if current_index == 0:
+    for chunk in chunks:
+        # here we just ask the model to continue the previous generation or an empty msg if there isn't anything
         payload = {
             "messages": [
                 {
                     "role": "user",
-                    "content": f"{instruction}\n\n{current_chunk}",
-                }
-            ],
-        }
-    else:
-        previous_chunk = chunks[current_index - 1]
-        previous_result = inference_results[-1]
-        previous_generation = getattr(previous_result, "text", str(previous_result))
-        payload = {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"{instruction}\n\n{previous_chunk}{current_chunk}",
+                    "content": f"{instruction}\n\n{prev_chunk if prev_chunk else ''}{chunk}",
                 },
                 {
                     "role": "assistant",
-                    "content": previous_generation,
+                    "content": generations[-1] if generations else "",
                 },
             ],
-            # see these params here https://docs.vllm.ai/en/v0.7.2/api/offline_inference/llm.html#vllm.LLM.chat
+            # see https://docs.vllm.ai/en/v0.7.2/api/offline_inference/llm.html#vllm.LLM.chat
             "continue_final_message": True,
             "add_generation_prompt": False,
             "echo": False,
         }
 
-    # if we have a bunch of chunks for this sample, we want this function to be called again after the next generation is completed
-    payload["callback"] = len(inference_results) < total_parts - 1
-    return payload
+        # could potentially have some error handling here
+        result: InferenceResult = await generate(payload)
+        generations.append(result.text)
+        prev_chunk = chunk
+    return "\n".join(generations)
 
 
-# 2. Create an async query builder that returns an async generator of dicts. Use this option if you need
-# a) Create multiple requests per document
-# b) Your query function is IO/CPU heavy
-
-
-def heavy_cpu_task(document: Document, page: int):
-    # block sleep
+def cpu_heavy_build_payload(doc: Document, page: int) -> dict[str, Any]:
+    # simulate heavy work
     import time
 
+    # not async on purpose
     time.sleep(10)
     return {
         "messages": [
             {
                 "role": "user",
-                "content": [{"type": "text", "text": document.text}],
+                "content": [{"type": "text", "text": f"[page {page}] {doc.text}"}],
             }
         ],
         "max_tokens": 4096,
     }
 
 
-async def async_query_builder(runner: InferenceRunner, document: Document) -> AsyncGenerator[dict[str, Any], None]:
+@contextmanager
+def process_pool_context(max_workers: int = 100):
+    """Context manager for ProcessPoolExecutor that ensures proper cleanup."""
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        # This resource will be accessible in the rollout function as a keyword argument
+        # (and shared for all rollout invocations). try/finally syntax works too
+        yield {"process_pool": pool}
+
+
+async def heavy_cpu_rollout(
+    document: Document,
+    generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
+    process_pool: ProcessPoolExecutor,
+) -> list[InferenceResult]:
     """
-    Query builder for Language Model.
+    Example rollout that offloads heavy preprocessing to a process pool.
 
-    Args:
-        document: Input document with image URL or content
-
-    Returns:
-        Async generator of query payloads for the inference server
+    The process_pool should be provided via shared_context when creating the InferenceRunner.
+    See example usage below.
     """
-    import asyncio
-    import atexit
-    from concurrent.futures import ProcessPoolExecutor
 
-    # Because it's async, you can run IO heavy tasks with little to no overhead (simply use await)
-    # If you need to run CPU heavy tasks, it's a bit more complicated
-    # 1. create a process pool executor and bind it to the runner
-    # 2. access the process pool, then using asyncio.run_in_executor
+    loop = asyncio.get_running_loop()
 
-    # If we didn't run with this the whole execution would take at least 1000*2*10 seconds
-    if not hasattr(runner, "process_pool"):
-        runner.process_pool = ProcessPoolExecutor(max_workers=100)
-        runner.process_pool.__enter__()
-        # Register cleanup
-        atexit.register(runner.process_pool.__exit__, None, None, None)
+    async def process_page(page: int) -> InferenceResult:
+        payload = await loop.run_in_executor(process_pool, cpu_heavy_build_payload, document, page)
+        return await generate(payload)
 
-    for page in [1, 2]:
-        yield await asyncio.get_running_loop().run_in_executor(runner.process_pool, heavy_cpu_task, document, page)
+    page_results = await asyncio.gather(*[process_page(page) for page in [1, 2]], return_exceptions=True)
+
+    return page_results
 
 
 # Configuration
@@ -158,32 +148,69 @@ documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in r
 config: InferenceConfig = InferenceConfig(
     server_type="vllm",  # Options: "sglang", "vllm", "dummy"
     model_name_or_path="reducto/RolmOCR",
-    temperature=0.0,
     model_max_context=8192,
-    max_concurrent_requests=500,
-    max_concurrent_tasks=500,
     metric_interval=120,
+    default_generation_params={"temperature": 0.0},
+    rollouts_per_document=1,
+    max_concurrent_generations=500,
 )
 
 # Create the pipeline with chunking
+# Example 1: Simple rollout without shared context
 pipeline_executor: LocalPipelineExecutor = LocalPipelineExecutor(
     pipeline=[
-        # Read input documents
         documents,
         InferenceRunner(
-            query_builder=large_sample_query_builder,
+            rollout_fn=chunked_rollout,
             config=config,
             records_per_chunk=500,  # Enable chunking with 500 documents per chunk
-            checkpoints_local_dir=CHECKPOINTS_PATH,  # leave unset to disable checkpointing behaviour
+            checkpoints_local_dir=CHECKPOINTS_PATH,  # Leave unset to disable checkpointing
             output_writer=JsonlWriter(OUTPUT_PATH, output_filename="${rank}_chunk_${chunk_index}.jsonl"),
-            # you can also pass a postprocess_fn(document) -> document|None to modify/filter the document after inference. Return None to remove the document
-            postprocess_fn=None,
         ),
     ],
     logging_dir=LOGS_PATH,
     tasks=1,  # Number of parallel tasks
 )
 
+# Example 2: Rollout with shared context (process pool)
+pipeline_executor_with_pool = LocalPipelineExecutor(
+    pipeline=[
+        documents,
+        InferenceRunner(
+            rollout_fn=heavy_cpu_rollout,
+            config=config,
+            records_per_chunk=500,
+            checkpoints_local_dir=CHECKPOINTS_PATH,
+            output_writer=JsonlWriter(OUTPUT_PATH, output_filename="${rank}_chunk_${chunk_index}.jsonl"),
+            # we could call it without partial, but this way the pool is initialized lazily and not before the job starts
+            shared_context=partial(process_pool_context, max_workers=100),
+        ),
+    ],
+    logging_dir=LOGS_PATH,
+    tasks=1,
+)
+
+# Example 3: Distributed inference
+pipeline_executor_distributed = SlurmPipelineExecutor(
+    tasks=100,
+    time="10:00:00",
+    partition="hopper-prod",
+    gpus_per_task=8,
+    nodes_per_task=2,
+    logging_dir=LOGS_PATH,
+    pipeline=[
+        documents,
+        InferenceRunner(
+            rollout_fn=chunked_rollout,
+            config=InferenceConfig(
+                server_type="vllm",
+                model_name_or_path="deepseek-ai/DeepSeek-R1",
+                tp=16,
+            ),
+            output_writer=JsonlWriter(OUTPUT_PATH),
+        ),
+    ],
+)
 if __name__ == "__main__":
     # Run the pipeline
     pipeline_executor.run()
