@@ -16,10 +16,26 @@ from typing import Callable
 import dill
 from dill import CONTENTS_FMODE
 
-from datatrove.executor.base import PipelineExecutor
+from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import get_random_str, get_timestamp, logger
+
+
+def expand_slurm_nodelist(nodelist: str) -> list[str]:
+    """Expand SLURM nodelist (which may contain range notation) to list of hostnames.
+
+    Uses `scontrol show hostnames` to properly expand SLURM nodelist format like
+    'ip-26-0-164-[45-46]' into individual hostnames.
+    """
+    result = subprocess.run(
+        ["scontrol", "show", "hostnames", nodelist],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    hostnames = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+    return hostnames
 
 
 def requeue_handler(signum, _frame):
@@ -46,6 +62,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
             except when you need to give each task more memory
         mem_per_cpu_gb: slurm option. use in conjunction with the
             above option to increase max memory
+        gpus_per_task: how many gpus to give each task. should be 0
+        nodes_per_task: number of nodes to run the pipeline on
         workers: how many tasks to run simultaneously. -1 for no
             limit
         job_name: slurm job name
@@ -95,6 +113,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         partition: str,
         cpus_per_task: int = 1,
         mem_per_cpu_gb: int = 2,
+        gpus_per_task: int = 0,
+        nodes_per_task: int = 1,
         workers: int = -1,
         job_name: str = "data_processing",
         qos: str = "normal",
@@ -126,6 +146,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.workers = workers
         self.partition = partition
         self.cpus_per_task = cpus_per_task
+        self.nodes_per_task = nodes_per_task
+        self.gpus_per_task = gpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
         self.tasks_per_job = tasks_per_job
         self.time = time
@@ -186,12 +208,18 @@ class SlurmPipelineExecutor(PipelineExecutor):
             for ss in self.requeue_signals or []:
                 signal.signal(signal.Signals[ss], requeue_handler)
 
+            # Get node ID for logging prefix. Use -1 for single-node mode, otherwise use SLURM_NODEID
+            if self.nodes_per_task == 1:
+                node_rank = -1
+            else:
+                node_rank = int(os.environ.get("SLURM_NODEID", 0))
+
             for rank_to_run in range(*ranks_to_run_range):
                 if rank_to_run >= len(all_ranks):
                     break
                 rank = all_ranks[rank_to_run]
 
-                self._run_for_rank(rank)
+                self._run_for_rank(rank, node_rank=node_rank)
         else:
             # we still have to launch the job
             self.launch_job()
@@ -274,7 +302,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.get_sbatch_args(max_array),
             # use "-n 1" for each srun command to enforce that only one task will be launched.
             # Some setting may lead to two tasks, see https://groups.google.com/g/slurm-users/c/L4nCXtZLlTo
-            f"srun {srun_args_str} -l -n 1 launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
+            f"srun {srun_args_str} -l -n {self.nodes_per_task} launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         # save it
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:
@@ -312,6 +340,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         sbatch_args = {
             "cpus-per-task": self.cpus_per_task,
             "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
+            "nodes": self.nodes_per_task,
             "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
@@ -325,6 +354,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
             sbatch_args["requeue"] = ""
         if self.qos:
             sbatch_args["qos"] = self.qos
+        gpus = self.gpus_per_task * self.nodes_per_task
+        if gpus > 0:
+            sbatch_args["gpus"] = gpus
         return sbatch_args
 
     def get_launch_file_contents(self, sbatch_args: dict, run_script: str) -> str:
@@ -363,6 +395,17 @@ class SlurmPipelineExecutor(PipelineExecutor):
         {run_script}
         """
             )
+        )
+
+    def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
+        """Get distributed environment variables for SLURM executor."""
+        node_hosts = expand_slurm_nodelist(os.environ["SLURM_NODELIST"])
+        return DistributedEnvVars(
+            datatrove_node_ips=",".join(node_hosts),
+            datatrove_cpus_per_task=str(self.cpus_per_task),
+            datatrove_mem_per_cpu=str(self.mem_per_cpu_gb),
+            datatrove_gpus_on_node=str(self.gpus_per_task),
+            datatrove_executor="SLURM",
         )
 
     @property

@@ -1,10 +1,22 @@
 import asyncio
-import atexit
 import os
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from datatrove.pipeline.inference.distributed.ray import (
+    cleanup_ray,
+    init_ray_master,
+    init_ray_worker,
+    monitor_ray_cluster_health,
+    monitor_ray_workers,
+)
+from datatrove.pipeline.inference.distributed.utils import (
+    get_distributed_environment,
+    get_master_node_host,
+    get_node_hosts,
+    is_master_node,
+)
 from datatrove.pipeline.inference.servers import InferenceServer
 from datatrove.utils._import_utils import check_required_dependencies
 
@@ -16,7 +28,7 @@ if TYPE_CHECKING:
 class VLLMServer(InferenceServer):
     """VLLM inference server implementation."""
 
-    def __init__(self, config: "InferenceConfig"):
+    def __init__(self, config: "InferenceConfig", rank: int):
         """
         Initialize VLLM server.
 
@@ -25,17 +37,16 @@ class VLLMServer(InferenceServer):
         """
         # Check required dependencies for VLLM server
         check_required_dependencies("VLLM server", ["vllm"])
-        super().__init__(config)
+        super().__init__(config, rank)
 
-    async def start_server_task(self) -> None:
+    async def _start_vllm_task(self) -> asyncio.subprocess.Process:
         """Start the VLLM server process."""
-
         cmd = [
             "vllm",
             "serve",
             self.config.model_name_or_path,
             "--port",
-            str(self.port),
+            str(self._port),
             "--max-model-len",
             str(self.config.model_max_context),
             "--trust-remote-code",
@@ -55,48 +66,69 @@ class VLLMServer(InferenceServer):
         if model_kwargs:
             cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
 
+        logger.debug(f"Starting VLLM server with command: {' '.join(cmd)}")
         env = os.environ.copy()
         # transformers pulls in TensorFlow by default, which adds tens of seconds of startup time
         # (we measured ~70-80s at tp=2 on H100). These env vars keep it in PyTorch-only mode so
         # vLLM initializes much faster without affecting throughput.
         env.setdefault("USE_TF", "0")
         env.setdefault("TRANSFORMERS_NO_TF", "1")
-
-        self.server_process = await asyncio.create_subprocess_exec(
+        return await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
 
-        # Ensure the subprocess is terminated on exit
-        async def _kill_proc_async():
-            if self.server_process and self.server_process.returncode is None:
-                self.server_process.terminate()
-                try:
-                    await asyncio.wait_for(self.server_process.wait(), timeout=5)
-                except asyncio.TimeoutError:
-                    logger.warning("vLLM process did not exit after SIGTERM; sending SIGKILL.")
-                    self.server_process.kill()
-                    await self.server_process.wait()
+    async def start_server(self) -> asyncio.subprocess.Process | None:
+        """Start the VLLM server process, handling distributed setup if needed."""
+        n_nodes = len(get_node_hosts())
+        if n_nodes <= 1:
+            return await self._start_vllm_task()
 
-        def _kill_proc_sync():
-            if self.server_process and self.server_process.returncode is None:
-                self.server_process.terminate()
+        # VLLM has ray executor, which will create placement groups itself, however
+        # in ray executor manages placement groups itself and expects to run the workers
+        # itself. This is not compatible with VLLM multi-node setup as again VLLM expects to manage
+        # workers placement groups itself.
+        if n_nodes > 1 and get_distributed_environment() == "RAY":
+            raise RuntimeError(
+                "Datatrove Ray distributed executor doesn't support multi-node setup by specifying nodes=2+. Please unset the nodes=2+ parameter and let VLLM to allocate the number of nodes itself."
+            )
 
-        atexit.register(_kill_proc_sync)
+        master_ip = get_master_node_host()
+        is_master = is_master_node()
+        expected_workers = n_nodes  # We spawn worker on the master as well
+        master_port = self.config.master_port
+
+        if is_master:
+            await init_ray_master(
+                master_port=master_port,
+                expected_workers=expected_workers,
+            )
+            return await self._start_vllm_task()
+        else:
+            await init_ray_worker(
+                master_ip=master_ip,
+                master_port=master_port,
+            )
+            return None  # Worker nodes don't start a server process
+
+    async def monitor_health(self):
+        """Monitor the health of the VLLM server, exiting or raising an exception if the server is not healthy"""
+        if not self._is_master:
+            # This will block until ray cluster fails
+            await monitor_ray_cluster_health()
+            return
 
         server_printed_ready_message = False
-
-        # Create dedicated logger for server output
-        server_logger = self._create_server_logger(getattr(self, "rank", 0))
 
         async def process_line(line):
             nonlocal server_printed_ready_message
 
             # Always log to file if server logger is available
-            if server_logger:
-                server_logger.info(line)
+            logger_instance = self.server_logger()
+            if logger_instance:
+                logger_instance.info(line)
 
             # if the server hasn't initialized yet, log all the lines to the main logger also
             if not server_printed_ready_message:
@@ -105,46 +137,59 @@ class VLLMServer(InferenceServer):
             if "Application startup complete" in line or "Uvicorn running on" in line:
                 server_printed_ready_message = True
                 logger.info("VLLM server startup complete")
-
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
-                logger.error("CUDA out of memory error detected")
-                await _kill_proc_async()
+                raise RuntimeError("CUDA out of memory error detected")
             elif "RuntimeError" in line and "CUDA" in line:
-                logger.error("CUDA runtime error detected")
-                await _kill_proc_async()
+                raise RuntimeError("CUDA runtime error detected")
+            # Not enough gpus for TP/DP/PP
+            elif (
+                "required The number of required GPUs exceeds the total number of available GPUs in the placement"
+                in line
+            ):
+                raise RuntimeError("Not enough GPUs available for the placement")
+
+            # TODO: We should handle the case when the ray fails, so that we can try to restart the server.
 
         async def read_stream(stream):
             while True:
                 line = await stream.readline()
                 if not line:
                     break
-                try:
-                    line = line.decode("utf-8").rstrip()
-                    await process_line(line)
-                except Exception as ex:
-                    logger.warning(f"Got {ex} when reading log line from inference server, skipping")
+                line = line.decode("utf-8").rstrip()
+                await process_line(line)
 
-        # Start tasks to read stdout and stderr
-        stdout_task = asyncio.create_task(read_stream(self.server_process.stdout))
-        stderr_task = asyncio.create_task(read_stream(self.server_process.stderr))
+        async def monitor_ray_workers_after_server_ready():
+            await self._server_ready
+            await monitor_ray_workers(expected_workers=len(get_node_hosts()))
 
-        async def _wait_and_drain():
+        if self._server_process is not None:
+            tasks = [
+                asyncio.create_task(read_stream(self._server_process.stdout)),
+                asyncio.create_task(read_stream(self._server_process.stderr)),
+                asyncio.create_task(self._server_process.wait()),
+            ]
+
+            # Only add ray monitoring task in distributed setting (nodes > 1)
+            if len(get_node_hosts()) > 1:
+                monitor_ray_task = asyncio.create_task(monitor_ray_workers_after_server_ready())
+                tasks.append(monitor_ray_task)
+
             try:
-                await self.server_process.wait()
-            except asyncio.CancelledError:
-                await _kill_proc_async()
-                raise
+                # Any exception raising or task completion from the set should cause the monitor to fail, we thus wait for first occurance of it.
+                # Note this will not raise the exception
+                done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                # This will raise the exception if any of the tasks failed
+                if done:
+                    for task in done:
+                        task.result()
+            finally:
+                # No need to deal with server_process itself as we do kill it in server_cleanup
+                for task in tasks:
+                    task.cancel()
+                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5.0)
 
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(stdout_task, stderr_task, return_exceptions=True),
-                    timeout=15,
-                )
-            except asyncio.TimeoutError:
-                logger.warning("Timed out waiting for VLLM server log tasks to finish; cancelling them.")
-                stdout_task.cancel()
-                stderr_task.cancel()
-                await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
-
-        await _wait_and_drain()
+    async def server_cleanup(self):
+        await super().server_cleanup()
+        if len(get_node_hosts()) > 1:
+            cleanup_ray()

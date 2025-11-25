@@ -1,11 +1,12 @@
 import dataclasses
 import json
+import os
 import random
 import time
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Sequence
-from typing import Callable
+from typing import Callable, TypedDict
 
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
@@ -18,6 +19,19 @@ from datatrove.utils.logging import (
     logger,
 )
 from datatrove.utils.stats import PipelineStats
+
+
+class DistributedEnvVars(TypedDict):
+    """Required environment variables that must be set by get_distributed_env.
+
+    All values must be strings.
+    """
+
+    datatrove_node_ips: str  # comma-separated list of node IPs/hostnames
+    datatrove_cpus_per_task: str  # number of CPUs per task
+    datatrove_mem_per_cpu: str  # memory per CPU in GB
+    datatrove_gpus_on_node: str  # number of GPUs on the node
+    datatrove_executor: str  # executor type
 
 
 class PipelineExecutor(ABC):
@@ -62,22 +76,50 @@ class PipelineExecutor(ABC):
         """
         return 0
 
-    def _run_for_rank(self, rank: int, local_rank: int = 0) -> PipelineStats:
+    @abstractmethod
+    def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
+        """
+        Returns a dictionary of environment variables to set for distributed execution.
+        This method is called by `_run_for_rank` to set up the distributed environment.
+
+        Args:
+            node_rank: node rank/ID. -1 means single node mode (default).
+
+        Returns: DistributedEnvVars dictionary with all required environment variables.
+                 All values must be strings.
+        """
+        pass
+
+    def _set_distributed_environment(self, node_rank: int):
+        env_vars = self.get_distributed_env(node_rank)
+        os.environ["DATATROVE_NODE_RANK"] = str(node_rank)
+        os.environ["DATATROVE_EXECUTOR"] = env_vars["datatrove_executor"]
+        os.environ["DATATROVE_NODE_IPS"] = env_vars["datatrove_node_ips"]
+        os.environ["DATATROVE_CPUS_PER_TASK"] = env_vars["datatrove_cpus_per_task"]
+        os.environ["DATATROVE_MEM_PER_CPU"] = env_vars["datatrove_mem_per_cpu"]
+        os.environ["DATATROVE_GPUS_ON_NODE"] = env_vars["datatrove_gpus_on_node"]
+
+    def _run_for_rank(self, rank: int, local_rank: int = 0, node_rank: int = -1) -> PipelineStats:
         """
             Main executor's method. Sets up logging, pipes data from each pipeline step to the next, saves statistics
-            and marks tasks as completed.
+            and marks tasks as completed. We assume node_rank == 0 is the master node. node_rank == -1 means single node mode.
+            Completion is only marked on the master node, all other nodes are ignored in terms of job completion as we use 1-master, many-workers mode.
+            In this case it's master responsibility to check for workers completion and mark the job as complete.
         Args:
             rank: the rank that we want to run the pipeline for
             local_rank: at the moment this is only used for logging.
             Any task with local_rank != 0 will not print logs to console.
-
+            node_rank: node rank/ID for logging prefix. Logs will be prefixed with [NODE X] if node_rank != -1. We assume node_rank == 0 is the master node. -1 means single node mode (default).
         Returns: the stats for this task
 
         """
         if self.is_rank_completed(rank):
             logger.info(f"Skipping {rank=} as it has already been completed.")
             return PipelineStats()
-        logfile = add_task_logger(self.logging_dir, rank, local_rank)
+
+        self._set_distributed_environment(node_rank)
+
+        logfile = add_task_logger(self.logging_dir, rank, local_rank, node_rank=node_rank)
         log_pipeline(self.pipeline)
 
         if self.randomize_start_duration > 0:
@@ -97,13 +139,13 @@ class PipelineExecutor(ABC):
 
             logger.success(f"Processing done for {rank=}")
 
-            # stats
+            # stats - only save on master node in distributed setting (or when node_rank <= 0 for single node)
             stats = PipelineStats(self.pipeline)
-            with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
-                stats.save_to_disk(f)
-            logger.info(stats.get_repr(f"Task {rank}"))
-            # completed
-            self.mark_rank_as_completed(rank)
+            if node_rank <= 0:
+                with self.logging_dir.open(f"stats/{rank:05d}.json", "w") as f:
+                    stats.save_to_disk(f)
+                logger.info(stats.get_repr(f"Task {rank}"))
+                self.mark_rank_as_completed(rank)
         except Exception as e:
             logger.exception(e)
             raise e

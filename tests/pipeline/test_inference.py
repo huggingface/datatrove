@@ -13,7 +13,8 @@ import pytest
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
-from datatrove.pipeline.inference.servers.dummy_server import DummyHandler
+from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
+from datatrove.pipeline.inference.types import ServerError
 from datatrove.pipeline.writers import JsonlWriter
 
 
@@ -73,7 +74,7 @@ def test_multiple_rollouts_collect_results(tmp_path):
     output_dir = tmp_path / "multi_rollouts"
     documents = [Document(text="hello world", id="multi-1")]
 
-    async def multi_rollout(document, generate):
+    async def multi_rollout(document, generate, **kwargs):
         await asyncio.sleep(0)
         return "multi-result"
 
@@ -108,7 +109,7 @@ def test_custom_metadata_key(tmp_path):
     output_dir = tmp_path / "custom_metadata"
     documents = [Document(text="hello", id="custom-1")]
 
-    async def custom_rollout(document, generate):
+    async def custom_rollout(document, generate, **kwargs):
         return {"value": document.id}
 
     config = InferenceConfig(
@@ -154,7 +155,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 
     with pytest.raises(ValueError, match="chunk_index"):
         InferenceRunner(
-            rollout_fn=lambda document, generate: generate({}),
+            rollout_fn=lambda document, generate, **kwargs: generate({}),
             config=config,
             output_writer=JsonlWriter(
                 str(tmp_path / "no_chunk"),
@@ -167,7 +168,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 
     try:
         InferenceRunner(
-            rollout_fn=lambda document, generate: generate({}),
+            rollout_fn=lambda document, generate, **kwargs: generate({}),
             config=config,
             output_writer=JsonlWriter(
                 str(tmp_path / "with_chunk"),
@@ -184,7 +185,7 @@ def test_chunked_checkpoint_requires_chunk_index(tmp_path):
 def test_rollout_handles_multiple_parts(tmp_path):
     parts = ["first chunk", "second chunk", "third chunk"]
 
-    async def chunked_rollout(document, generate):
+    async def chunked_rollout(document, generate, **kwargs):
         document.metadata["rollout_calls"] = document.metadata.get("rollout_calls", 0) + 1
         document.metadata.setdefault("parts_served", [])
 
@@ -250,7 +251,7 @@ def test_query_builder_none_payload_skips_document(tmp_path):
     output_dir = tmp_path / "none_payload_output"
     documents = [Document(text="skip me", id="skip-none")]
 
-    async def none_rollout(document, generate):
+    async def none_rollout(document, generate, **kwargs):
         return None
 
     config = InferenceConfig(
@@ -285,7 +286,7 @@ def test_async_query_builder_none_payload_skips_document(tmp_path):
     output_dir = tmp_path / "none_async_output"
     documents = [Document(text="skip me async", id="skip-async")]
 
-    async def none_async_rollout(document, generate):
+    async def none_async_rollout(document, generate, **kwargs):
         await asyncio.sleep(0)
         return None
 
@@ -488,7 +489,7 @@ def test_complete_pipeline_with_various_scenarios():
         documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(num_docs)]
 
         # Normal query builder that doesn't cause pipeline failures
-        async def normal_rollout(document, generate):
+        async def normal_rollout(document, generate, **kwargs):
             result = await generate(
                 {
                     "messages": [
@@ -734,7 +735,7 @@ def test_shared_context_none(tmp_path):
     output_dir = tmp_path / "shared_context_none"
     documents = [Document(text="test", id="shared-4")]
 
-    async def rollout_no_context(document, generate):
+    async def rollout_no_context(document, generate, **kwargs):
         # This should work fine without any kwargs
         result = await generate(
             {
@@ -904,6 +905,77 @@ def test_endpoint_server(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_simple_startup_and_cleanup():
+    """
+    Scenario 1: Simple scenario - check that resources are correctly deallocated.
+
+    Verifies:
+    - Server starts successfully
+    - Server becomes ready
+    - Server can handle requests
+    - All resources are properly cleaned up on exit
+    """
+
+    async def run_test():
+        config = InferenceConfig(
+            server_type="dummy",
+            model_name_or_path="dummy",
+        )
+        server = DummyServer(config, rank=0)
+
+        async with server:
+            await server._server_ready
+
+            print("Server is ready! Verifying port...")
+            # Verify port was assigned
+            assert server._port is not None
+            assert server._port >= 3000
+            assert server._port <= 65535
+
+            print("Sending test request...")
+            # Send a test request
+            response = await server.make_request({"messages": [{"role": "user", "content": "test"}]})
+            assert "dummy text content" in response["choices"][0]["message"]["content"]
+            print("Test assertions passed, exiting context manager...")
+
+        # Verify server process is cleaned up
+        if server._server_process:
+            assert server._server_process.returncode is not None
+
+        # Verify monitoring task is cancelled
+        if server._server_monitoring_task:
+            assert server._server_monitoring_task.cancelled() or server._server_monitoring_task.done()
+
+        # Verify background start task is cancelled
+        assert server._bg_start_server_task.cancelled() or server._bg_start_server_task.done()
+
+    asyncio.run(run_test())
+
+
+def test_server_auto_restart_turn_off():
+    async def run_test():
+        config = InferenceConfig(
+            server_type="dummy",
+            model_name_or_path="dummy",
+        )
+        server = DummyServer(config, rank=0)
+
+        async with server:
+            await server._server_ready
+
+            # kill the server process
+            server.kill_server()
+
+            # Ensure we have enough time for server to notice
+            await asyncio.sleep(3)
+
+            # Verify requests work
+            with pytest.raises(ServerError):
+                await server.make_request({"messages": [{"role": "user", "content": "test"}]})
+
+    asyncio.run(run_test())
 
 
 if __name__ == "__main__":

@@ -89,7 +89,7 @@ inference = [
   "aiosqlite",
 ]
 ray = [
-  "ray"
+  "ray[default]"
 ]
 quality = [
   "ruff>=0.1.5"

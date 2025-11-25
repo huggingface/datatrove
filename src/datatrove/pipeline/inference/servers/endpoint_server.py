@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING
 
 from datatrove.pipeline.inference.servers.base import InferenceServer
@@ -11,15 +12,16 @@ if TYPE_CHECKING:
 class EndpointServer(InferenceServer):
     """Inference server that sends requests to an external endpoint URL using OpenAI-compatible API."""
 
-    def __init__(self, config: "InferenceConfig"):
+    def __init__(self, config: "InferenceConfig", rank: int):
         """
         Initialize Endpoint server.
 
         Args:
             config: InferenceConfig containing all server configuration parameters.
                 Must have endpoint_url set.
+            rank: Rank of the server
         """
-        super().__init__(config)
+        super().__init__(config, rank)
         if not hasattr(config, "endpoint_url") or config.endpoint_url is None:
             raise ValueError("endpoint_url must be provided in InferenceConfig for EndpointServer")
         self.endpoint_url = config.endpoint_url
@@ -42,13 +44,18 @@ class EndpointServer(InferenceServer):
                 timeout=self.config.request_timeout,
             )
 
-    async def start_server_task(self) -> None:
+    async def start_server(self) -> None:
         """No local server to start - abstract method must be implemented but does nothing."""
         pass
 
-    async def wait_until_ready(self, max_attempts: int = 10, delay_sec: float = 1.0) -> None:
+    async def monitor_health(self) -> None:
+        """No health check to perform - abstract method must be implemented but does nothing."""
+        never_to_be_completed_future = asyncio.Future()
+        await never_to_be_completed_future
+
+    async def _wait_until_ready(self, max_attempts: int = 10, delay_sec: float = 1.0) -> None:
         """Wait until the endpoint is ready. Uses shorter delays since we're just checking endpoint availability."""
-        await super().wait_until_ready(max_attempts=max_attempts, delay_sec=delay_sec)
+        await super()._wait_until_ready(max_attempts=max_attempts, delay_sec=delay_sec)
 
     def get_base_url(self) -> str:
         """Get the base URL for making requests."""
