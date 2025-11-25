@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
-from datatrove.io import DataFolderLike, get_datafolder
+from datatrove.io import DataFolderLike, file_is_local, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils._import_utils import check_required_dependencies
 from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipeline, logger
@@ -431,11 +431,18 @@ class RayPipelineExecutor(PipelineExecutor):
         tasks_per_job: int = 1,
         time: Optional[int] = None,
     ):
+        # Check if the logging_dir is local fs and if so issue a warning that for synchronization it has to be a shared filesystem
+        if logging_dir and file_is_local(logging_dir):
+            logger.warning(
+                "Logging directory points to a local filesystem. For correct synchronization to work this "
+                "filesystem needs be shared across the submitting node as well as the workers and needs "
+                "to be persistent across node restarts."
+            )
+
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
         self.workers = workers if workers != -1 else tasks
         self.depends = depends
-        # track whether run() has been called
         self.cpus_per_task = cpus_per_task
         self.gpus_per_task = gpus_per_task
         self.mem_per_cpu_gb = mem_per_cpu_gb
@@ -443,6 +450,7 @@ class RayPipelineExecutor(PipelineExecutor):
         self.tasks_per_job = tasks_per_job
         self.log_first = log_first
         self.time = time
+        self._launched = False
         self.nodes_per_task = nodes_per_task
 
     def get_distributed_env(self, node_rank: int = -1) -> DistributedEnvVars:
@@ -472,12 +480,22 @@ class RayPipelineExecutor(PipelineExecutor):
         check_required_dependencies("ray", ["ray"])
         import ray
 
-        # 1) If there is a depends=, ensure it has run and is finished
+        assert not self.depends or (isinstance(self.depends, RayPipelineExecutor)), (
+            "depends= must be a RayPipelineExecutor"
+        )
         if self.depends:
-            logger.info(f'Launching dependency job "{self.depends}"')
-            self.depends.run()
+            # take care of launching any unlaunched dependencies
+            if not self.depends._launched:
+                logger.info(f'Launching dependency job "{self.depends}"')
+                self.depends.run()
+            while (
+                incomplete := len(self.depends.get_incomplete_ranks(skip_completed=True))
+            ) > 0:  # set skip_completed=True to get *real* incomplete task count
+                logger.info(f"Dependency job still has {incomplete}/{self.depends.world_size} tasks. Waiting...")
+                time.sleep(2 * 60)
 
-        # 2) Check if all tasks are already completed
+        self._launched = True
+        # 3) Check if all tasks are already completed
         incomplete_ranks = self.get_incomplete_ranks(range(self.world_size))
         if not incomplete_ranks:
             logger.info(f"All {self.world_size} tasks appear to be completed already. Nothing to run.")

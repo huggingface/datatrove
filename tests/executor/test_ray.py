@@ -65,6 +65,54 @@ class TestRayExecutor(unittest.TestCase):
                         f"Expected file {file} was not found in {log_dir}",
                     )
 
+    def test_dependencies(self):
+        """Test that multiple executors can depend on the same parent executor and the parent only runs once."""
+
+        parent_log_dir = get_datafolder(f"{self.tmp_dir}/parent")
+
+        class ParentSimpleStep(PipelineStep):
+            def run(self, data, rank=None, world_size=None):
+                with open(parent_log_dir.resolve_paths("parent.txt"), "a") as f:
+                    f.write(f"called {rank}\n")
+
+        class ChildSimpleStep(PipelineStep):
+            def run(self, data, rank=None, world_size=None):
+                pass
+
+        # Create parent executor
+        parent_executor = RayPipelineExecutor(
+            pipeline=[ParentSimpleStep()],
+            tasks=2,
+            workers=2,
+            logging_dir=parent_log_dir,
+        )
+
+        # Create two child executors that depend on the same parent
+        child1_log_dir = get_datafolder(f"{self.tmp_dir}/child1")
+        child1_executor = RayPipelineExecutor(
+            pipeline=[ChildSimpleStep()],
+            tasks=2,
+            workers=2,
+            logging_dir=child1_log_dir,
+            depends=parent_executor,
+        )
+
+        child2_log_dir = get_datafolder(f"{self.tmp_dir}/child2")
+        child2_executor = RayPipelineExecutor(
+            pipeline=[ChildSimpleStep()],
+            tasks=2,
+            workers=2,
+            logging_dir=child2_log_dir,
+            depends=parent_executor,
+        )
+
+        # Run child1 - this should launch the parent first
+        child1_executor.run()
+        child2_executor.run()
+        with open(parent_log_dir.resolve_paths("parent.txt"), "r") as f:
+            # Two calls because of two tasks
+            self.assertEqual(sorted(f.read().strip().splitlines()), ["called 0", "called 1"])
+
     def test_placement_group_creation(self):
         """Test that placement groups are created when nodes_per_task > 1"""
         from datatrove.executor.ray import RayTaskManager
