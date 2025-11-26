@@ -15,7 +15,7 @@ class MediaType:
     AUDIO = 2
 
 
-@dataclass
+@dataclass(slots=True)
 class Media:
     """Media metadata
 
@@ -28,7 +28,7 @@ class Media:
     local_path: str | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class Document:
     """Main Document dataclass going through the processing pipeline
 
