@@ -215,9 +215,9 @@ class StreamingHuggingFaceDatasetWriter(HuggingFaceDatasetWriter):
                 break
             except HfHubHTTPError as exc:
                 race_condition = False
-                if hasattr(exc, 'server_message'):
+                if hasattr(exc, "server_message"):
                     race_condition = "A commit has happened since" in exc.server_message
-                elif hasattr(exc, 'response') and exc.response is not None:
+                elif hasattr(exc, "response") and exc.response is not None:
                     race_condition = "A commit has happened since" in exc.response.text
                 if race_condition and retries < MAX_RETRIES:
                     logger.warning(
@@ -268,4 +268,3 @@ class StreamingHuggingFaceDatasetWriter(HuggingFaceDatasetWriter):
             logger.info("Starting upload of %s files to %s", len(filelist), self.dataset)
             self.upload_files(*filelist)
         self._commit_pending_operations(reason="final chunk")
-
