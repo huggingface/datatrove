@@ -142,3 +142,130 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         """
         super()._on_file_switch(original_name, old_filename, new_filename)
         self.upload_files(old_filename)
+
+
+class StreamingHuggingFaceDatasetWriter(HuggingFaceDatasetWriter):
+    """HuggingFaceDatasetWriter variant that pushes commits after each upload."""
+
+    def __init__(
+        self,
+        *args: Any,
+        commit_every_n_uploads: int = 1,
+        commit_message_prefix: str = "DataTrove upload",
+        batch_size: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the writer with incremental commit configuration.
+
+        Args:
+            commit_every_n_uploads: Number of uploaded files to batch per commit.
+            commit_message_prefix:  Prefix applied to every incremental commit.
+            batch_size:             Size of the batch to write to the Parquet file. Defaults to the upstream writer value when not provided.
+        """
+        if batch_size is not None and batch_size < 1:
+            msg = "batch_size must be >= 1 when provided."
+            raise ValueError(msg)
+        super().__init__(*args, **kwargs)
+        if batch_size is not None:
+            self.batch_size = batch_size
+        if commit_every_n_uploads < 1:
+            msg = "commit_every_n_uploads must be at least 1."
+            raise ValueError(msg)
+        self.commit_every_n_uploads = commit_every_n_uploads
+        self.commit_message_prefix = commit_message_prefix
+        self._uploads_since_commit = 0
+        logger.info(
+            "Initialized streaming writer for %s (commit_every=%s, max_file_size=%s, batch_size=%s)",
+            self.dataset,
+            self.commit_every_n_uploads,
+            self.max_file_size,
+            self.batch_size,
+        )
+
+    def _commit_pending_operations(self, reason: str) -> None:
+        """Push the staged operations to the Hub with retries."""
+        if not self.operations:
+            logger.debug("No pending operations to commit (%s).", reason)
+            return
+        operation_count = len(self.operations)
+        logger.info(
+            "Creating commit with %s pending operations for %s (reason=%s)",
+            operation_count,
+            self.dataset,
+            reason,
+        )
+        retries = 0
+        while True:
+            try:
+                create_commit(
+                    self.dataset,
+                    repo_type="dataset",
+                    operations=self.operations,
+                    commit_message=f"{self.commit_message_prefix} ({reason})",
+                    revision=self.revision,
+                )
+                self.operations.clear()
+                self._uploads_since_commit = 0
+                logger.info(
+                    "Commit finished for %s (reason=%s, committed_operations=%s)",
+                    self.dataset,
+                    reason,
+                    operation_count,
+                )
+                break
+            except HfHubHTTPError as exc:
+                race_condition = False
+                if hasattr(exc, 'server_message'):
+                    race_condition = "A commit has happened since" in exc.server_message
+                elif hasattr(exc, 'response') and exc.response is not None:
+                    race_condition = "A commit has happened since" in exc.response.text
+                if race_condition and retries < MAX_RETRIES:
+                    logger.warning(
+                        "Commit race detected for %s (attempt %s/%s). Retrying...",
+                        self.dataset,
+                        retries + 1,
+                        MAX_RETRIES,
+                    )
+                    time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
+                    retries += 1
+                    continue
+                logger.exception("Commit failed for %s (reason=%s)", self.dataset, reason)
+                raise
+
+    def _on_file_switch(self, original_name: str, old_filename: str, new_filename: str) -> None:
+        """Log file rotations to make sure uploads happen mid-run."""
+        logger.info(
+            "File switch triggered for %s (original=%s, old=%s, new=%s)",
+            self.dataset,
+            original_name,
+            old_filename,
+            new_filename,
+        )
+        super()._on_file_switch(original_name, old_filename, new_filename)
+
+    def upload_files(self, *filenames: str) -> None:  # type: ignore[override]
+        """Upload files and immediately create a commit if threshold reached."""
+        if not filenames:
+            logger.debug("upload_files called with no filenames for %s", self.dataset)
+            return
+        logger.info(
+            "Uploading %s file(s) to %s: %s",
+            len(filenames),
+            self.dataset,
+            ", ".join(filenames),
+        )
+        super().upload_files(*filenames)
+        self._uploads_since_commit += len(filenames)
+        if self._uploads_since_commit >= self.commit_every_n_uploads:
+            self._commit_pending_operations(reason=f"{self._uploads_since_commit} files")
+
+    def close(self, rank: int = 0) -> None:  # type: ignore[override]
+        """Flush remaining data, upload leftovers, and ensure the final commit exists."""
+        logger.info("Closing streaming writer for %s", self.dataset)
+        ParquetWriter.close(self)
+        filelist = list(self.output_mg.get_open_files().keys())
+        if filelist:
+            logger.info("Starting upload of %s files to %s", len(filelist), self.dataset)
+            self.upload_files(*filelist)
+        self._commit_pending_operations(reason="final chunk")
+
