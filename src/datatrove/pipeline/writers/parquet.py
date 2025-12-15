@@ -53,6 +53,7 @@ class ParquetWriter(DiskWriter):
             filename = self._get_filename_with_file_id(filename)
         self._write_batch(filename)
         self._writers.pop(filename).close()
+        self._batches.pop(filename)
         super().close_file(filename)
 
     def _write_batch(self, filename):
