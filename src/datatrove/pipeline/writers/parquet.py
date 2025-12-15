@@ -43,17 +43,15 @@ class ParquetWriter(DiskWriter):
         self.batch_size = batch_size
         self.schema = schema
 
-    def _on_file_switch(self, original_name, old_filename, new_filename):
+    def close_file(self, filename):
         """
-            Called when we are switching file from "old_filename" to "new_filename" (original_name is the filename
-            without 000_, 001_, etc)
+            We need to write the last batch before closing the file
         Args:
-            original_name: name without file counter
-            old_filename: old full filename
-            new_filename: new full filename
+            filename: filename to close
         """
-        self._writers.pop(original_name).close()
-        super()._on_file_switch(original_name, old_filename, new_filename)
+        self._write_batch(filename)
+        self._writers.pop(filename).close()
+        super().close_file(filename)
 
     def _write_batch(self, filename):
         if not self._batches[filename]:
@@ -81,9 +79,7 @@ class ParquetWriter(DiskWriter):
 
     def close(self):
         for filename in list(self._batches.keys()):
-            self._write_batch(filename)
-        for writer in self._writers.values():
-            writer.close()
+            self.close_file(filename)
         self._batches.clear()
         self._writers.clear()
         super().close()
