@@ -49,6 +49,8 @@ class ParquetWriter(DiskWriter):
         Args:
             filename: filename to close
         """
+        if self.max_file_size > 0 and filename not in self._writers:
+            filename = self._get_filename_with_file_id(filename)
         self._write_batch(filename)
         self._writers.pop(filename).close()
         super().close_file(filename)
@@ -66,6 +68,9 @@ class ParquetWriter(DiskWriter):
     def _write(self, document: dict, file_handler: IO, filename: str):
         import pyarrow as pa
         import pyarrow.parquet as pq
+
+        if self.max_file_size > 0:
+            filename = self._get_filename_with_file_id(filename)
 
         if filename not in self._writers:
             self._writers[filename] = pq.ParquetWriter(

@@ -134,6 +134,8 @@ class DiskWriter(PipelineStep, ABC):
         Args:
             filename: filename to close
         """
+        if self.max_file_size > 0 and filename not in self.output_mg.get_open_files():
+            filename = self._get_filename_with_file_id(filename)
         self.output_mg.pop(filename).close()
 
     def _get_filename_with_file_id(self, filename):
