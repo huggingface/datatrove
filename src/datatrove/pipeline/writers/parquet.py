@@ -84,7 +84,7 @@ class ParquetWriter(DiskWriter):
             self._write_batch(filename)
 
     def close(self):
-        for filename in list(self._batches.keys()):
+        for filename in list(self._writers.keys()):
             self.close_file(filename)
         self._batches.clear()
         self._writers.clear()
