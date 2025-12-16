@@ -140,6 +140,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
         requeue: bool = True,
         srun_args: dict = None,
         tasks_per_job: int = 1,
+        with_srun: bool = True,
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         self.tasks = tasks
@@ -185,6 +186,7 @@ class SlurmPipelineExecutor(PipelineExecutor):
             )
         )
         self.requeue = requeue
+        self.with_srun = with_srun
 
     def run(self):
         """
@@ -302,7 +304,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.get_sbatch_args(max_array),
             # use "-n 1" for each srun command to enforce that only one task will be launched.
             # Some setting may lead to two tasks, see https://groups.google.com/g/slurm-users/c/L4nCXtZLlTo
-            f"srun {srun_args_str} -l -n {self.nodes_per_task} launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
+            f"srun {srun_args_str} -l -n {self.nodes_per_task} launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}"
+            if self.with_srun
+            else f"launch_pickled_pipeline {self.logging_dir.resolve_paths('executor.pik')}",
         )
         # save it
         with self.logging_dir.open("launch_script.slurm", "w") as launchscript_f:

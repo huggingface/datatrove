@@ -126,7 +126,17 @@ class DiskWriter(PipelineStep, ABC):
             _new_filename: new full filename
 
         """
-        self.output_mg.pop(old_filename).close()
+        self.close_file(old_filename)
+
+    def close_file(self, filename):
+        """
+            Close a file and remove it from the output manager
+        Args:
+            filename: filename to close
+        """
+        if self.max_file_size > 0 and filename not in self.output_mg.get_open_files():
+            filename = self._get_filename_with_file_id(filename)
+        self.output_mg.pop(filename).close()
 
     def _get_filename_with_file_id(self, filename):
         """
