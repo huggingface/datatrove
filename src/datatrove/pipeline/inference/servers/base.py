@@ -409,7 +409,7 @@ class InferenceServer(ABC):
                     return
 
                 retry = 0
-                while retry < max_retries:
+                while retry < max_retries + 1:
                     # Cleanup the server if it is already running
                     await self.server_cleanup()
 
