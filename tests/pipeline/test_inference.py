@@ -978,5 +978,42 @@ def test_server_auto_restart_turn_off():
     asyncio.run(run_test())
 
 
+class FailingDummyServer(DummyServer):
+    def __init__(self, config, rank):
+        super().__init__(config, rank)
+        self.start_attempts = 0
+
+    async def start_server(self):
+        self.start_attempts += 1
+        raise Exception("Simulated start failure")
+
+    async def _wait_until_ready(self, max_attempts=1, delay_sec=0.1):
+        # Override to avoid waiting in tests
+        pass
+
+
+def test_server_retries():
+    config = InferenceConfig(
+        server_type="dummy", model_name_or_path="test-model", model_max_context=100, metric_interval=60
+    )
+
+    server = None
+
+    # We expect an exception because it fails every time
+    async def run_test():
+        nonlocal server
+        server = FailingDummyServer(config, rank=0)
+        # "async open the server"
+        async with server:
+            # Wait until it fails
+            with pytest.raises(ServerError):
+                await server.make_request({})
+
+    asyncio.run(run_test())
+
+    # Should attempt 2 times: initial attempt (0) + 1 retry (1) => loop runs for 0, 1.
+    assert server.start_attempts == 2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
