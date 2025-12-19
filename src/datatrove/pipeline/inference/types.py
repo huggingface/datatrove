@@ -13,11 +13,13 @@ class InferenceResult:
         text: Generated text from the model
         finish_reason: Reason why generation finished
         usage: Token usage statistics from the model
+        response: Full response returned from InferenceServer
     """
 
     text: str
     finish_reason: str
     usage: dict
+    response: dict
 
 
 class InferenceError(Exception):

@@ -253,7 +253,9 @@ class InferenceRunner(PipelineStep):
                         text = choice["text"]
 
                     self.queue_sizes.change_queues({"running_requests": -1})
-                    return InferenceResult(text=text, finish_reason=choice["finish_reason"], usage=usage)
+                    return InferenceResult(
+                        text=text, finish_reason=choice["finish_reason"], usage=usage, response=response
+                    )
                 except (ConnectionError, OSError, asyncio.TimeoutError) as e:
                     # This means the server is dead likely, let's try again just to be sure
                     logger.warning(f"Client error: {type(e)} {e}")
@@ -313,6 +315,7 @@ class InferenceRunner(PipelineStep):
                     text=cached_result["text"],
                     finish_reason=cached_result["finish_reason"],
                     usage=cached_result["usage"],
+                    response=cached_result,
                 )
 
         try:
