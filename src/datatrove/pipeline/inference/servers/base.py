@@ -408,8 +408,7 @@ class InferenceServer(ABC):
                 if self._server_ready.done():
                     return
 
-                retry = 0
-                while retry < max_retries + 1:
+                for retry in range(max_retries + 1):
                     # Cleanup the server if it is already running
                     await self.server_cleanup()
 
@@ -435,7 +434,6 @@ class InferenceServer(ABC):
                         logger.warning(f"Server start attempt {retry + 1}/{max_retries} timed out")
                     except Exception as e:
                         logger.warning(f"Server start attempt {retry + 1}/{max_retries} failed: {e}")
-                    retry += 1
 
                 # Failed after all retries - signal error to all waiters
                 error_msg = f"Failed to start {self.__class__.__name__} server after {max_retries} retries"
@@ -496,12 +494,13 @@ class InferenceServer(ABC):
         except Exception as e:
             server_error_msg = e
 
-        # Atomic update - reset future on health check failure, only if we were previously ready.
+        # We no longer can recover from server error, if it was previously running, we thus
+        # set the server ready exception to kill coming requests.
         if self._server_ready.done() and self._server_ready.exception() is None:
             self._server_ready = asyncio.Future()
-
-        if not self._server_ready.done():
             self._server_ready.set_exception(ServerError(server_error_msg))
+
+        # Server failed during startup -> don't do anything let the bg_start_server handle it
 
     async def _wait_until_ready(self, max_attempts: int = 300, delay_sec: float = 5.0) -> None:
         """
