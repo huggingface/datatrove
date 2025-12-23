@@ -40,8 +40,8 @@ class HTTPFetchReader(PipelineStep):
         self.workers = workers
         self._scrapers = None
         self._thread_local = None
-        self.last_log_time = 0
-        self.start_time = 0
+        self.last_log_time = 0.0
+        self.start_time = 0.0
         # To prevent division by zero
         self.processed_documents = 0
         self.processed_media = 0
@@ -52,7 +52,7 @@ class HTTPFetchReader(PipelineStep):
         self.pool_connections = pool_connections
         self.custom_agent = custom_agent
 
-        max_timeout = sum(self._retry_delay * (2**attempt) for attempt in range(self._max_retries))
+        max_timeout = self._retry_delay * (2**self._max_retries - 1)
         logger.debug(f"Initializing HTTPFetchReader with {self.workers} workers, max timeout: {max_timeout} seconds")
         super().__init__()
 
@@ -264,7 +264,7 @@ class HTTPFetchReader(PipelineStep):
 
         resolver = dns.resolver.Resolver()
         resolver.nameservers = ["127.0.0.1"]
-        resolver.port = self.dns_port
+        resolver.port = self.dns_port or 53
         original_getaddrinfo = socket.getaddrinfo
 
         def getaddrinfo_patched(host, port, family=0, type=0, proto=0, flags=0):
@@ -301,8 +301,6 @@ class HTTPFetchReader(PipelineStep):
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         self.start_time = time.time()
-        self.processed_documents = 0
-        self.processed_media = 0
 
         if data is None:
             return

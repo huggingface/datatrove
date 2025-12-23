@@ -679,10 +679,11 @@ class InferenceRunner(PipelineStep):
                     return
 
                 # Wait for all requests to complete and collect results in order
-                if request_tasks:
-                    results = await asyncio.gather(*request_tasks)
-                else:
-                    results = []
+                if not request_tasks:
+                    raise InferenceProcessingError(doc, "No valid payloads generated from query_builder")
+
+                # Wait for all requests to complete and collect results in order
+                results = await asyncio.gather(*request_tasks)
 
                 for result in results:
                     if isinstance(result, InferenceError) and (

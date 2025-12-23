@@ -48,7 +48,7 @@ class BaseExtractor(PipelineStep):
         Returns:
 
         """
-        with ExtractorSandbox(timeout=self.timeout) as extractor:
+        with ExtractorSandbox(timeout=self.timeout, warmup_text="") as extractor:
             for doc in data:
                 self.stat_update(StatHints.total)
                 with self.track_time():
@@ -83,11 +83,11 @@ class BaseExtractor(PipelineStep):
 
 
 class ExtractorSandbox:
-    def __init__(self, timeout, wamup_text):
+    def __init__(self, timeout, warmup_text=""):
         self.timeout = timeout
         self.process = None
         self.parent_conn = None
-        self.warmup_text = wamup_text
+        self.warmup_text = warmup_text
         self.child_conn = None
         self.all_processes = []
 
