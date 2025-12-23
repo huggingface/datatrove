@@ -51,7 +51,7 @@ class BaseMediaWriter(PipelineStep, ABC):
     def _get_output_filename(self, media: Media, rank: int | str = 0, **kwargs) -> str:
         """
             Get the output path for a given document, based on any possible tag replacement.
-            Example filename with `rank` tag: "${rank}.jsonl.gz"
+            Example filename with `rank` tag: "${rank}.zstd"
             Tags replaced:
             - `rank`: rank of the current worker. Important as to avoid multiple workers writing to the same file
             - `id`: the document's id
