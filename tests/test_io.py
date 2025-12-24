@@ -1,38 +1,82 @@
-"""Tests for io.py changes"""
-
+import gzip
+import multiprocessing
+import os
 import shutil
 import tempfile
+import time
 import unittest
+from functools import partial
 from pathlib import Path
 
+import boto3
+import moto
 
-class TestIoChanges(unittest.TestCase):
-    """Test io.py changes for kwargs passing"""
+from datatrove.io import get_datafolder, get_shard_from_paths_file, safely_create_file
 
+
+EXAMPLE_DIRS = ("/home/testuser/somedir", "file:///home/testuser2/somedir", "s3://test-bucket/somedir")
+FULL_PATHS = (
+    "/home/testuser/somedir/file.txt",
+    "/home/testuser2/somedir/file.txt",
+    "s3://test-bucket/somedir/file.txt",
+)
+
+
+def fake_do_download(cc, ll):
+    time.sleep(0.5)
+    with ll:
+        cc.value += 1
+
+
+@moto.mock_aws
+class TestIO(unittest.TestCase):
     def setUp(self):
+        s3 = boto3.client("s3", region_name="us-east-1")
+        s3.create_bucket(Bucket="test-bucket")
+
         self.tmp_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
-    def test_open_file_with_kwargs(self):
-        """Test that open_file passes kwargs to fs.open"""
-        from datatrove.io import open_file
+    def test_resolve_paths(self):
+        for example, full in zip(EXAMPLE_DIRS, FULL_PATHS):
+            self.assertEqual(get_datafolder(example).resolve_paths("file.txt"), full)
 
-        # Create a test file
-        test_file = Path(self.tmp_dir) / "test.txt"
-        test_file.write_text("test content")
+    def test_make_dirs(self):
+        df = get_datafolder(self.tmp_dir)
+        with df.open("subdir1/subdir2/some_path.txt", "wt") as f:
+            f.write("hello")
+        assert df.isdir("subdir1/subdir2")
 
-        # Open with additional kwargs (like block_size)
-        # This should not raise an error
-        with open_file(str(test_file), mode="rt", block_size=1024) as f:
-            content = f.read()
-            self.assertEqual(content, "test content")
+    def test_safely_create_file_locking(self):
+        for runi, (completed_exists, lock_exists, expec_calls) in enumerate(
+            (
+                (True, True, 0),
+                (False, True, 1),
+                (False, False, 1),
+            )
+        ):
+            manager = multiprocessing.Manager()
+            counter = manager.Value("i", 0)
+            lock = manager.Lock()
+
+            file_path = os.path.join(self.tmp_dir, str(runi), "myfile")
+            os.makedirs(os.path.join(self.tmp_dir, str(runi)))
+
+            with manager.Pool(2) as pool:
+                if completed_exists:
+                    open(file_path + ".completed", "a").close()
+                if lock_exists:
+                    open(file_path + ".lock", "a").close()
+
+                pool.starmap(
+                    partial(safely_create_file, do_processing=partial(fake_do_download, cc=counter, ll=lock)),
+                    [(file_path,) for _ in range(2)],
+                )
+
+                self.assertEqual(counter.value, expec_calls)
 
     def test_get_shard_from_paths_file_with_compression(self):
         """Test that get_shard_from_paths_file supports compression='infer'"""
-        import gzip
-
-        from datatrove.io import get_shard_from_paths_file
-
         # Create a compressed paths file
         paths_file = Path(self.tmp_dir) / "paths.txt.gz"
         test_paths = ["path1.txt", "path2.txt", "path3.txt"]
@@ -49,8 +93,6 @@ class TestIoChanges(unittest.TestCase):
 
     def test_get_shard_from_paths_file_sharding(self):
         """Test that get_shard_from_paths_file correctly shards paths"""
-        from datatrove.io import get_shard_from_paths_file
-
         # Create a paths file
         paths_file = Path(self.tmp_dir) / "paths.txt"
         test_paths = [f"path{i}.txt" for i in range(10)]
