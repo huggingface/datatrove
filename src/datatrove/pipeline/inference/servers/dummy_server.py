@@ -2,7 +2,7 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 
@@ -81,37 +81,49 @@ class DummyHandler(BaseHTTPRequestHandler):
 class DummyServer(InferenceServer):
     """Dummy inference server for debugging and testing."""
 
-    def __init__(self, config: "InferenceConfig"):
+    def __init__(self, config: "InferenceConfig", rank: int):
         """
         Initialize Dummy server.
 
         Args:
             config: InferenceConfig containing all server configuration parameters
+            rank: Rank of the server
         """
-        super().__init__(config)
-        self.server: HTTPServer = None
+        super().__init__(config, rank)
+        self.http_server: Optional[HTTPServer] = None
 
-    async def start_server_task(self) -> None:
+    async def monitor_health(self):
+        # Keep the task alive
+        try:
+            while True:
+                if not self.http_server:
+                    return
+                await asyncio.sleep(0.5)
+            # Try to connect to the server
+        except asyncio.CancelledError:
+            if self.http_server:
+                self.http_server.shutdown()
+            raise
+
+    async def start_server(self) -> None:
         """Start the dummy HTTP server in a separate thread."""
 
         def run_server():
-            self.server = HTTPServer(("localhost", self.port), DummyHandler)
-            logger.info(f"Dummy server started on port {self.port}")
-            self.server.serve_forever()
+            self.http_server = HTTPServer(("localhost", self._port), DummyHandler)
+            logger.info(f"Dummy server started on port {self._port}")
+            self.http_server.serve_forever()
 
         # Run the server in a separate thread
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
 
-        # Wait a bit for the server to start
-        await asyncio.sleep(1)
-        logger.info("Dummy server is ready!")
+    def kill_server(self):
+        if self.http_server is not None:
+            self.http_server.shutdown()
+            self.http_server = None
 
-        # Keep the task alive
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except asyncio.CancelledError:
-            if self.server:
-                self.server.shutdown()
-            raise
+    async def server_cleanup(self):
+        await super().server_cleanup()
+        if self.http_server:
+            self.http_server.shutdown()
+            self.http_server = None

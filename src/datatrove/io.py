@@ -293,6 +293,10 @@ def get_fs_with_filepath(data: DataFileLike) -> tuple[AbstractFileSystem, str]:
     # (str path, initialized fs object)
     if isinstance(data, tuple) and isinstance(data[0], str) and isinstance(data[1], AbstractFileSystem):
         return (data[1], data[0])  # yeah yeah this is a bit weird I agree
+
+    if isinstance(data, DataFolder):
+        return (data.fs, data.path)
+
     raise ValueError(
         "You must pass a DataFileLike instance, a str path, a (str path, fs_init_kwargs) or (str path, fs object)"
     )

@@ -321,13 +321,57 @@ Some options common to most readers:
 - `limit` read only a certain number of samples. Useful for testing/debugging
 
 ### Synthetic data generation
-We support [vLLM](https://github.com/vllm-project/vllm) and [SGLang](https://github.com/sgl-project/sglang) for inference using the [InferenceRunner block](src/datatrove/pipeline/inference/run_inference.py). Each datatrove task will spawn a replica of the target model and full asynchronous continuous batching will guarantee high model throughput.
+Install the inference extras with `pip install datatrove[inference]` to pull in the lightweight HTTP client, checkpointing dependencies and async sqlite cache.
 
-By setting `checkpoints_local_dir` and `records_per_chunk` generations will be written to a local folder until a chunk is complete, allowing for checkpointing in case tasks fail or are preempted.
+We support [vLLM](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), OpenAI-compatible HTTPS endpoints and a local `dummy` server through the [InferenceRunner block](src/datatrove/pipeline/inference/run_inference.py). Each datatrove task can spin up its own server replica (for `vllm`, `sglang` or `dummy`) or talk directly to an external endpoint while asynchronous batching keeps GPU utilization high.
 
-Tune `max_concurrent_requests` to tune batching behaviour. If you have slow pre-processing, you can also increase `max_concurrent_tasks` (to a value higher than `max_concurrent_requests`). 
+Rollouts are plain async callables that receive a `Document`, a `generate(payload)` callback and any extra kwargs coming from `shared_context`. You can freely orchestrate multiple sequential or parallel `generate` calls inside the rollout. Set `rollouts_per_document` to automatically run the same rollout multiple times per sample; the runner collects successful outputs under `document.metadata["rollout_results"]`.
 
-Refer to the [example](examples/inference_example_chunked.py) for more info.
+`shared_context` lets you inject shared state into every rollout invocation. It accepts:
+- a dict (passed through as keyword arguments),
+- a callable returning a dict (handy for lazily creating resources),
+- a context manager or a callable returning one (great for pools, GPU allocators, temp dirs, etc.). Context managers are properly entered/exited once per task.
+
+Recoverable generation:
+- Setting `checkpoints_local_dir` together with `records_per_chunk` writes every `Document` to local chunk files (remember to include `${chunk_index}` in the output filename template), then uploads them via the configured writer. Failed tasks automatically resume from the last finished chunk.
+- When checkpointing is enabled a sqlite-backed `RequestCache` deduplicates individual rollouts via payload hashes (requires `xxhash` and `aiosqlite`) so completed generations are never re-sent during retries.
+
+Tune batching with `max_concurrent_generations` and, when pre/post-processing is heavy, raise `max_concurrent_documents` to allow more rollout coroutines to build payloads while requests are in flight.
+
+<details>
+  <summary>Minimal end-to-end example</summary>
+
+  ```
+  from datatrove.data import Document
+  from datatrove.executor.local import LocalPipelineExecutor
+  from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
+  from datatrove.pipeline.writers import JsonlWriter
+
+  async def simple_rollout(doc: Document, generate):
+      payload = {"messages": [{"role": "user", "content": [{"type": "text", "text": doc.text}]}], "max_tokens": 2048}
+      return await generate(payload)
+
+  documents = [Document(text="What's the weather in Tokyo?", id=str(i)) for i in range(1005)]
+  config = InferenceConfig(server_type="vllm", model_name_or_path="google/gemma-3-27b-it", rollouts_per_document=1, max_concurrent_generations=500)
+
+  LocalPipelineExecutor(
+      pipeline=[
+          documents,
+          InferenceRunner(
+              rollout_fn=simple_rollout,
+              config=config,
+              records_per_chunk=500,
+              checkpoints_local_dir="/fsx/.../translate-checkpoints",
+              output_writer=JsonlWriter("s3://.../final_output_data", output_filename="${rank}_chunk_${chunk_index}.jsonl"),
+          ),
+      ],
+      logging_dir="/fsx/.../inference_logs",
+      tasks=1,
+  ).run()
+  ```
+</details>
+
+The extended [inference_example_chunked.py](examples/inference_example_chunked.py) script demonstrates single- and multi-rollout flows, resumable checkpoints and sharing a process pool across rollouts.
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.
