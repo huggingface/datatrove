@@ -1,5 +1,4 @@
 import asyncio
-import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -50,7 +49,6 @@ class CustomServer(InferenceServer):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=os.path.dirname(os.path.abspath(__file__)),  # Run from the servers directory
         )
 
     async def monitor_health(self):
@@ -109,4 +107,4 @@ class CustomServer(InferenceServer):
             finally:
                 for task in tasks:
                     task.cancel()
-                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5.0)
+                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5.0)  # type: ignore

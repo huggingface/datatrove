@@ -1015,5 +1015,88 @@ def test_server_retries():
     assert server.start_attempts == 2
 
 
+def test_custom_server(tmp_path):
+    """Test CustomServer with a small python script."""
+    output_dir = tmp_path / "custom_test"
+    documents = [Document(text="hello custom", id="custom-1")]
+
+    # Create the server script
+    script_path = tmp_path / "server_script.py"
+    script_path.write_text(
+        """
+import argparse
+import json
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import sys
+
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == "/v1/chat/completions":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            response = {
+                "id": "chatcmpl-123",
+                "object": "chat.completion",
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello from custom server!"},
+                    "finish_reason": "stop"
+                }],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 10}
+            }
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+        else:
+             self.send_error(404)
+
+    def do_GET(self):
+        if self.path == "/v1/models":
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"object": "list", "data": []}).encode('utf-8'))
+        else:
+            self.send_error(404)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8000)
+    args, unknown = parser.parse_known_args()
+    print("Application startup complete", flush=True)
+    HTTPServer(('127.0.0.1', args.port), SimpleHandler).serve_forever()
+"""
+    )
+
+    async def custom_rollout(document, generate):
+        result = await generate({"messages": [{"role": "user", "content": document.text}]})
+        return {"text": result.text}
+
+    config = InferenceConfig(
+        server_type="custom",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        model_kwargs={"server_script": str(script_path)},
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=custom_rollout,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    doc = documents[0]
+    rollout_results = doc.metadata["rollout_results"]
+    first_result = rollout_results[0]
+    assert isinstance(first_result, dict)
+    assert first_result["text"] == "Hello from custom server!"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
