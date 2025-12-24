@@ -50,11 +50,8 @@ def create_hash_func(
         else:
             return sha1_hash32 if config.precision == 32 else sha1_hash64
     elif config.hash_fc == "xxhash":
-        from datatrove.utils.hashes.xxhash import xxhash32, xxhash32_bytes, xxhash64, xxhash64_bytes
+        from datatrove.utils.hashes.xxhash import xxhash32, xxhash64
 
-        if input_type is bytes:
-            return xxhash32_bytes if config.precision == 32 else xxhash64_bytes
-        else:
-            return xxhash32 if config.precision == 32 else xxhash64
+        return xxhash32 if config.precision == 32 else xxhash64
     else:
         raise ValueError(f"Unknown {config.hash_fc=}")

@@ -62,7 +62,6 @@ processing = [
     "xxhash",
 #    "kenlm",
     "pyahocorasick",
-    "aiofiles"
     
 ]
 decont = [
