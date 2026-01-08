@@ -61,7 +61,8 @@ processing = [
     "regex",
     "xxhash",
 #    "kenlm",
-    "pyahocorasick"
+    "pyahocorasick",
+    
 ]
 decont = [
     "lighteval>=0.3.0"

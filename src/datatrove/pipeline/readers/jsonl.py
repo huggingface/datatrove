@@ -1,3 +1,4 @@
+import base64
 from typing import Callable, Literal
 
 from datatrove.io import DataFileLike, DataFolderLike
@@ -75,7 +76,11 @@ class JsonlReader(BaseDiskReader):
                 for li, line in enumerate(f):
                     with self.track_time():
                         try:
-                            document = self.get_document_from_dict(orjson.loads(line), filepath, li)
+                            line = orjson.loads(line)
+                            for media in line.get("media", []):
+                                if media["media_bytes"] is not None:
+                                    media["media_bytes"] = base64.decodebytes(media["media_bytes"].encode("ascii"))
+                            document = self.get_document_from_dict(line, filepath, li)
                             if not document:
                                 continue
                         except (EOFError, JSONDecodeError) as e:

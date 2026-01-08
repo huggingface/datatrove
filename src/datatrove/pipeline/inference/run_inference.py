@@ -24,6 +24,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
+    CustomServer,
     DummyServer,
     EndpointServer,
     InferenceServer,
@@ -63,7 +64,7 @@ class InferenceConfig:
     """
 
     # server and model
-    server_type: Literal["sglang", "vllm", "dummy", "endpoint"]
+    server_type: Literal["sglang", "vllm", "dummy", "custom", "endpoint"]
     model_name_or_path: str
     model_max_context: int = 8192
     use_chat: bool = True
@@ -195,6 +196,8 @@ class InferenceRunner(PipelineStep):
             return VLLMServer(self.config, rank)
         elif stype == "dummy":
             return DummyServer(self.config, rank)
+        elif stype == "custom":
+            return CustomServer(self.config, rank)
         elif stype == "endpoint":
             return EndpointServer(self.config, rank)
         else:

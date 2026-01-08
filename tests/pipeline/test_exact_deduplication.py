@@ -4,12 +4,12 @@ import tempfile
 import unittest
 
 from datatrove.data import Document
-from datatrove.pipeline.dedup.url_dedup import (
-    UrlDedupBuildIndex,
-    UrlDedupConfig,
-    UrlDedupFilter,
-    UrlDedupSignature,
-    UrlFindDedups,
+from datatrove.pipeline.dedup.exact_dedup import (
+    ExactDedupBuildIndex,
+    ExactDedupConfig,
+    ExactDedupFilter,
+    ExactDedupSignature,
+    ExactFindDedups,
 )
 from tests.utils import require_xxhash, use_hash_configs
 
@@ -39,13 +39,15 @@ class UrlDedup(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     def test_url_deduplication(self):
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs")
-        find_duplicates = UrlFindDedups(
+        config = ExactDedupConfig(content_getter=lambda doc: doc.metadata.get("url", ""))
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
+            config=config,
             lines_to_buffer=1000,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups")
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         signature_creation(data=DOCS)
         find_duplicates()
@@ -57,15 +59,17 @@ class UrlDedup(unittest.TestCase):
         )
 
     def test_url_deduplication_with_priority_highest_id(self):
-        config = UrlDedupConfig(document_priority=lambda x: int(x.id))
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: int(x.id)
+        )
 
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
-        find_duplicates = UrlFindDedups(
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
             config=config,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         signature_creation(data=DOCS)
         find_duplicates()
@@ -76,15 +80,17 @@ class UrlDedup(unittest.TestCase):
         self.assertEqual({int(doc.id) for doc in docs}, set(expected_ids))
 
     def test_url_deduplication_with_priority_lowest_id(self):
-        config = UrlDedupConfig(document_priority=lambda x: 5 - int(x.id) + 1)
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: 5 - int(x.id) + 1
+        )
 
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
-        find_duplicates = UrlFindDedups(
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
             config=config,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         signature_creation(data=DOCS)
         find_duplicates()
@@ -95,15 +101,15 @@ class UrlDedup(unittest.TestCase):
         self.assertEqual({int(doc.id) for doc in docs}, set(expected_ids))
 
     def test_url_deduplication_with_normalization(self):
-        config = UrlDedupConfig(url_normalizer=lambda x: x.replace("2", ""))
+        config = ExactDedupConfig(content_getter=lambda doc: doc.metadata.get("url", "").replace("2", ""))
 
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
-        find_duplicates = UrlFindDedups(
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
             config=config,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         signature_creation(data=DOCS)
         find_duplicates()
@@ -116,21 +122,24 @@ class UrlDedup(unittest.TestCase):
         )
 
     def test_url_deduplication_with_index(self):
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs")
-        index_signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/index_sigs")
-        build_index = UrlDedupBuildIndex(
+        config = ExactDedupConfig(content_getter=lambda doc: doc.metadata.get("url", ""))
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        index_signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/index_sigs", config=config)
+        build_index = ExactDedupBuildIndex(
             data_folder=self.tmp_dir + "/index_sigs",
             output_folder=self.tmp_dir + "/index",
             index_name="index",
+            config=config,
             lines_to_buffer=1000,
         )
-        find_duplicates = UrlFindDedups(
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             index_folder=self.tmp_dir + "/index",
             output_folder=self.tmp_dir + "/dups",
+            config=config,
             lines_to_buffer=1000,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups")
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         index_signature_creation(data=INDEX)
         build_index()
@@ -144,15 +153,17 @@ class UrlDedup(unittest.TestCase):
         )
 
     def test_sd_worker(self):
-        config = UrlDedupConfig(document_priority=lambda x: int(x.id))
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: int(x.id)
+        )
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
 
-        find_duplicates = UrlFindDedups(
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
             config=config,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         signature_creation(data=DOCS_1, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)
@@ -170,16 +181,22 @@ class UrlDedup(unittest.TestCase):
 
     @use_hash_configs()
     def test_distributed_find_dups(self, hash_config):
-        config = UrlDedupConfig(document_priority=lambda x: int(x.id), hash_config=hash_config)
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""),
+            document_priority=lambda x: int(x.id),
+            hash_config=hash_config,
+        )
 
-        signature_creation = UrlDedupSignature(output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config)
+        signature_creation = ExactDedupSignature(
+            output_folder=self.tmp_dir + "/sigs", finder_workers=50, config=config
+        )
 
-        find_duplicates = UrlFindDedups(
+        find_duplicates = ExactFindDedups(
             data_folder=self.tmp_dir + "/sigs",
             output_folder=self.tmp_dir + "/dups",
             config=config,
         )
-        dedup_filter = UrlDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
 
         signature_creation(data=DOCS_1, rank=0, world_size=2)
         signature_creation(data=DOCS_2, rank=1, world_size=2)
@@ -195,3 +212,43 @@ class UrlDedup(unittest.TestCase):
             {doc.metadata["url"] for doc in dedup_docs_2},
             {doc.metadata["url"] for doc in DOCS},
         )
+
+    def test_cluster_size(self):
+        """Test that duplicate_count metadata is correctly added to kept documents"""
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: int(x.id)
+        )
+
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        find_duplicates = ExactFindDedups(
+            data_folder=self.tmp_dir + "/sigs",
+            output_folder=self.tmp_dir + "/dups",
+            config=config,
+            save_cluster_size=True,
+        )
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+
+        signature_creation(data=DOCS)
+        find_duplicates()
+        docs = list(dedup_filter(data=copy.deepcopy(DOCS)))
+
+        # Should keep 3 documents: one from each unique URL cluster
+        self.assertEqual(len(docs), 3)
+
+        # Create a mapping of doc_id to duplicate_count
+        doc_counts = {doc.id: doc.metadata.get("duplicate_count", 0) for doc in docs}
+
+        # Doc 4 should be kept (highest priority for "https://example.com" cluster)
+        # and should have duplicate_count=2 (docs 1 and 2 are duplicates)
+        self.assertIn("4", doc_counts)
+        self.assertEqual(doc_counts["4"], 2)
+
+        # Doc 3 should be kept (only one with "https://new-site.com")
+        # and should have duplicate_count=0 (no duplicates)
+        self.assertIn("3", doc_counts)
+        self.assertEqual(doc_counts["3"], 0)
+
+        # Doc 5 should be kept (only one with "https://example2.com")
+        # and should have duplicate_count=0 (no duplicates)
+        self.assertIn("5", doc_counts)
+        self.assertEqual(doc_counts["5"], 0)

@@ -13,6 +13,7 @@ class MediaType:
     IMAGE = 0
     VIDEO = 1
     AUDIO = 2
+    DOCUMENT = 3
 
 
 @dataclass
@@ -22,10 +23,15 @@ class Media:
     For future uses, currently not used.
     """
 
+    id: str
     type: int
     url: str
     alt: str | None = None
-    local_path: str | None = None
+    path: str | None = None
+    offset: int | None = None
+    length: int | None = None
+    media_bytes: bytes | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
