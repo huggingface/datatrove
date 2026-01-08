@@ -57,7 +57,7 @@ async def chunked_rollout(
     text = document.text
     chunks = [text[i : i + max_chars_per_part] for i in range(0, len(text), max_chars_per_part)] or [text]
 
-    generations: list[dict[str, Any]] = []
+    generations: list[str] = []
     prev_chunk = None
 
     for chunk in chunks:
