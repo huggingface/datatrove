@@ -5,6 +5,9 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
+DEFAULT_CDC_OPTIONS = {"min_chunk_size": 256 * 1024, "max_chunk_size": 1024 * 1024, "norm_level": 0}
+
+
 class ParquetWriter(DiskWriter):
     default_output_filename: str = "${rank}.parquet"
     name = "📒 Parquet"
@@ -21,6 +24,8 @@ class ParquetWriter(DiskWriter):
         max_file_size: int = 5 * 2**30,  # 5GB
         schema: Any = None,
         save_media_bytes=False,
+        use_content_defined_chunking=True,
+        write_page_index=True,
     ):
         # Validate the compression setting
         if compression not in {"snappy", "gzip", "brotli", "lz4", "zstd", None}:
@@ -44,6 +49,12 @@ class ParquetWriter(DiskWriter):
         self.compression = compression
         self.batch_size = batch_size
         self.schema = schema
+        # Write Optimized-parquet files
+        # See https://huggingface.co/docs/hub/en/datasets-libraries#optimized-parquet-files
+        if use_content_defined_chunking is True:
+            use_content_defined_chunking = DEFAULT_CDC_OPTIONS
+        self.use_content_defined_chunking = use_content_defined_chunking
+        self.write_page_index = write_page_index
 
     def close_file(self, filename):
         """
@@ -80,6 +91,8 @@ class ParquetWriter(DiskWriter):
                 file_handler,
                 schema=self.schema if self.schema is not None else pa.RecordBatch.from_pylist([document]).schema,
                 compression=self.compression,
+                use_content_defined_chunking=self.use_content_defined_chunking,
+                write_page_index=self.write_page_index,
             )
         self._batches[filename].append(document)
         if len(self._batches[filename]) == self.batch_size:
