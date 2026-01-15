@@ -7,14 +7,15 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from huggingface_hub import dataset_info, upload_file, whoami
-from datatrove.utils.logging import logger
-from datatrove.pipeline.base import PipelineStep
 
+from datatrove.pipeline.base import PipelineStep
+from datatrove.utils.logging import logger
 
 
 @dataclass
 class InferenceDatasetCardParams:
     """Parameters required for generating a dataset card."""
+
     output_repo_id: str
     input_dataset_name: str
     input_dataset_split: str
@@ -32,20 +33,21 @@ class InferenceDatasetCardParams:
 @dataclass
 class InferenceDatasetCardGenerator(PipelineStep):
     """Generate final dataset card after inference completes."""
+
     params: InferenceDatasetCardParams
-    
+
     name: str = "InferenceDatasetCardGenerator"
     type: str = "Generator"
 
     def run(self, data=None, rank: int = 0, world_size: int = 1):
         """
         Generate final dataset card after all data is processed.
-        
+
         Only runs on rank 0. Yields data if provided (passthrough).
         """
         if data:
             yield from data
-            
+
         if rank != 0:
             return
 
@@ -70,7 +72,7 @@ class JobStats:
     completion_tokens_mean: float | None
 
 
-def load_job_stats(stats_path: Path, timeout: int = 60*5) -> JobStats | None:
+def load_job_stats(stats_path: Path, timeout: int = 60 * 5) -> JobStats | None:
     start_time = time.time()
     logger.info(f"Waiting for stats file at {stats_path} (timeout: {timeout}s)...")
     while not stats_path.exists():
@@ -80,9 +82,9 @@ def load_job_stats(stats_path: Path, timeout: int = 60*5) -> JobStats | None:
         logger.info(f"Stats file not found yet at {stats_path}, waiting... ({int(time.time() - start_time)}s elapsed)")
         time.sleep(10)
     logger.info(f"Stats file found at {stats_path}")
-    
-    time.sleep(2) # Give a small buffer for write completion
-        
+
+    time.sleep(2)  # Give a small buffer for write completion
+
     try:
         with stats_path.open() as f:
             entries = json.load(f)
@@ -128,10 +130,10 @@ def load_job_stats(stats_path: Path, timeout: int = 60*5) -> JobStats | None:
 
 def fetch_source_dataset_metadata(dataset_name: str) -> dict[str, Any]:
     logger.info(f"Fetching metadata for source dataset: {dataset_name}")
-    
+
     info = dataset_info(dataset_name, expand=["cardData"])
     card_data = getattr(info, "card_data", None) or getattr(info, "cardData", None) or {}
-    
+
     return {
         "license": getattr(info, "license", None) or card_data.get("license"),
         "languages": card_data.get("language") or card_data.get("languages") or [],
@@ -157,10 +159,10 @@ def _size_category(num_examples: int | None) -> str:
 def _render_job_stats(stats: JobStats | None) -> str:
     if not stats:
         return "Job statistics could not be collected."
-    
-    prompt_total = format_number(stats.prompt_tokens_total) if stats.prompt_tokens_total else 'n/a'
-    completion_total = format_number(stats.completion_tokens_total) if stats.completion_tokens_total else 'n/a'
-    
+
+    prompt_total = format_number(stats.prompt_tokens_total) if stats.prompt_tokens_total else "n/a"
+    completion_total = format_number(stats.completion_tokens_total) if stats.completion_tokens_total else "n/a"
+
     rows = [
         "| Metric | Value |",
         "| --- | --- |",
@@ -212,7 +214,7 @@ def build_and_upload_dataset_card(
 ) -> None:
     """
     Build and upload dataset card.
-    
+
     Args:
         params: Dataset card parameters, including stats_path.
         progress_section: Optional progress bar string.
@@ -222,37 +224,57 @@ def build_and_upload_dataset_card(
     stats = None
     if not progress_section and params.stats_path:
         stats = load_job_stats(params.stats_path)
-    
+
     status = "final" if stats else "progress"
-    logger.info(f"{'Starting dataset card generation' if stats else 'Uploading progress update'} for {params.output_repo_id}")
-    
+    logger.info(
+        f"{'Starting dataset card generation' if stats else 'Uploading progress update'} for {params.output_repo_id}"
+    )
+
     if params.stats_path and not stats:
         logger.warning("Warning: Could not load job statistics. Card will have missing data.")
-    
+
     # Format stats-based values
     fallback = "In progress..." if status == "progress" else "N/A"
     doc_count_text = format_number(stats.document_count) if stats and stats.document_count else fallback
-    completion_tokens_text = format_number(stats.completion_tokens_total) if stats and stats.completion_tokens_total else fallback
-    size_category = _size_category(stats.document_count) if stats and stats.document_count else "unknown"
-    job_stats_table = _render_job_stats(stats) if stats else (
-        "Generation in progress. Final statistics will be available upon completion." if status == "progress"
-        else "Job statistics could not be collected."
+    completion_tokens_text = (
+        format_number(stats.completion_tokens_total) if stats and stats.completion_tokens_total else fallback
     )
-    
+    size_category = _size_category(stats.document_count) if stats and stats.document_count else "unknown"
+    job_stats_table = (
+        _render_job_stats(stats)
+        if stats
+        else (
+            "Generation in progress. Final statistics will be available upon completion."
+            if status == "progress"
+            else "Job statistics could not be collected."
+        )
+    )
+
     # Create stats summary line (only show when we have final stats)
     stats_summary = ""  # Empty during progress
     if stats and stats.document_count and stats.completion_tokens_total:
         stats_summary = f"The run produced {doc_count_text} samples and generated {completion_tokens_text} tokens."
-    
+
     # Fetch source dataset metadata
     source_meta = fetch_source_dataset_metadata(params.input_dataset_name)
-    source_dataset_full = f"{params.input_dataset_name}/{params.input_dataset_config}" if params.input_dataset_config else params.input_dataset_name
+    source_dataset_full = (
+        f"{params.input_dataset_name}/{params.input_dataset_config}"
+        if params.input_dataset_config
+        else params.input_dataset_name
+    )
 
     # Extract metadata fields
     raw_languages = source_meta.get("languages")
     languages = ([raw_languages] if isinstance(raw_languages, str) else list(raw_languages or [])) or ["en"]
     license_id = source_meta.get("license") or "other"
-    tags = sorted({["synthetic"], *(source_meta.get("tags") or []), params.model_name.split("/")[-1], params.input_dataset_name.split("/")[-1]})
+    tags = sorted(
+        {
+            ["synthetic"],
+            *(source_meta.get("tags") or []),
+            params.model_name.split("/")[-1],
+            params.input_dataset_name.split("/")[-1],
+        }
+    )
 
     try:
         hf_user = whoami()["name"]
@@ -315,11 +337,9 @@ def build_and_upload_dataset_card(
 
 if __name__ == "__main__":
     import typer
-    
+
     # Create a CLI that just accepts the json args
-    def main(
-        args_json: str
-    ):
+    def main(args_json: str):
         kwargs = json.loads(args_json)
         build_and_upload_dataset_card(**kwargs)
 
