@@ -269,7 +269,7 @@ def build_and_upload_dataset_card(
     license_id = source_meta.get("license") or "other"
     tags = sorted(
         {
-            ["synthetic"],
+            "synthetic",
             *(source_meta.get("tags") or []),
             params.model_name.split("/")[-1],
             params.input_dataset_name.split("/")[-1],
