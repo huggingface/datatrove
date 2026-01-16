@@ -371,7 +371,7 @@ Tune batching with `max_concurrent_generations` and, when pre/post-processing is
   ```
 </details>
 
-The extended [inference_example_chunked.py](examples/inference/inference_example_chunked.py) script demonstrates single- and multi-rollout flows, resumable checkpoints and sharing a process pool across rollouts.
+The extended [inference_chunked.py](examples/inference/inference_chunked.py) script demonstrates single- and multi-rollout flows, resumable checkpoints and sharing a process pool across rollouts.
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.
