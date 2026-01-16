@@ -1,8 +1,20 @@
-# Prompt optimization experiment configuration
-script: "dataforge/generate_data.py"
+# Sample benchmark configuration for vLLM throughput experiments
+#
+# This config demonstrates how to set up a sweep over different models and
+# tensor parallelism (TP) configurations.
+#
+# Launch with:
+#   python examples/inference/benchmark/launch_experiments.py \
+#       --config examples/inference/benchmark/sample_benchmark_config.yaml
+#
+# Dry run (no submission):
+#   python examples/inference/benchmark/launch_experiments.py \
+#       --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
+
+script: "examples/inference/generate_data.py"
 continue_on_failure: true
 
-# Fixed arguments for all runs
+# Fixed arguments applied to all runs
 fixed_args:
   qos: "high"
   time: "1:00:00"
@@ -10,14 +22,14 @@ fixed_args:
   model-max-context: 2048
   max-tokens: 1024
 
-  metric-interval: 60 # seconds
+  metric-interval: 60  # seconds
 
   input-dataset-name: "simplescaling/s1K-1.1"
   input-dataset-split: "train"
   prompt-column: "question"
   model-revision: "main"
   
-  output-dataset-name: "s1K-1.1-dataforge-benchmark"
+  output-dataset-name: "s1K-1.1-benchmark"
   output-dir: "data"
   num-workers: 1
   tasks: 1
@@ -25,9 +37,9 @@ fixed_args:
   examples-per-chunk: 50
   trust-remote-code: true
 
-# Launch with python dataforge/benchmark/launch_experiments.py --config dataforge/benchmark/sample_benchmark_config.yaml
-
 # Variable arguments - creates different experiment runs
+# Each run expands list values into the cartesian product of configurations.
+# The run name is auto-derived from model, TP, PP, and speculative config.
 runs:
   # Compact models
   - name: "gemma-3-1b-it"

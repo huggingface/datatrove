@@ -1,30 +1,17 @@
-# Copyright 2020-2025 The HuggingFace Team. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """
-This script is the entrypoint for generating synthetic data. It uses the InferenceRunner
+Script for generating synthetic data using vLLM inference. Uses the InferenceRunner
 with chunking enabled. Documents are processed in chunks with checkpoint support
 for resuming from failures. Each chunk is saved to a separate output file.
-Adapted from: https://github.com/huggingface/datatrove/blob/v0.6.0/examples/inference_example_chunked.py
+
+Supports local execution, SLURM clusters, and multi-node setups.
 
 Usage:
 
 # View all options
-python dataforge/generate_data.py --help
+python examples/inference/generate_data.py --help
 
 # Generate synthetic data locally using a prompt column
-python dataforge/generate_data.py \
+python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --input-dataset-split train \
     --prompt-column question \
@@ -58,7 +45,7 @@ python dataforge/generate_data.py \
     --local-execution
 
 # Generate synthetic data on a Slurm cluster
-python dataforge/generate_data.py \
+python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --input-dataset-split train \
     --prompt-column question \
@@ -66,14 +53,14 @@ python dataforge/generate_data.py \
     --model-revision main \
     --model-max-context 32768 \
     --max-tokens 16384 \
-    --output-dataset-name s1K-1.1-dataforge \
+    --output-dataset-name s1K-1.1-benchmark \
     --output-dir data \
     --num-workers 10 \
     --tasks 20 \
     --examples-per-chunk 50
 
 # Generate synthetic data on multiple nodes
-python dataforge/generate_data.py \
+python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --input-dataset-split train \
     --prompt-column question \
@@ -82,7 +69,7 @@ python dataforge/generate_data.py \
     --model-max-context 1024 \
     --max-tokens 8 \
     --trust-remote-code \
-    --output-dataset-name s1K-1.1-dataforge-Kimi-K2-Instruct \
+    --output-dataset-name s1K-1.1-benchmark-Kimi-K2-Instruct \
     --output-dir data \
     --num-workers 1 \
     --tasks 1 \
@@ -96,8 +83,9 @@ python dataforge/generate_data.py \
 """
 
 import os
-from typing import Any, Awaitable, Callable
+import sys
 from pathlib import Path
+from typing import Any, Awaitable, Callable
 
 import torch
 import typer
@@ -105,20 +93,24 @@ from transformers import AutoConfig, GenerationConfig
 
 from datatrove.data import Document
 from datatrove.executor import LocalPipelineExecutor, SlurmPipelineExecutor
-from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner, InferenceResult
+from datatrove.pipeline.inference.dataset_card_generator import (
+    InferenceDatasetCardGenerator,
+    InferenceDatasetCardParams,
+)
+from datatrove.pipeline.inference.progress_monitor import InferenceProgressMonitor
+from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceResult, InferenceRunner
 from datatrove.pipeline.readers import HuggingFaceDatasetReader
 from datatrove.pipeline.writers import ParquetWriter
 from datatrove.utils.logging import logger
 
-from dataforge.dataset_card_generator import DatasetCardGenerator, DatasetCardParams
-from dataforge.progress_monitor import ProgressMonitor
-from dataforge.utils import (
-    check_hf_auth, 
-    resolve_repo_id, 
-    ensure_repo_exists,
+sys.path.insert(0, str(Path(__file__).parent))
+from utils import (
+    check_hf_auth,
     encode_spec_segment_for_log_dir,
+    ensure_repo_exists,
     model_name_safe,
     normalize_speculative,
+    resolve_repo_id,
     validate_config,
 )
 
@@ -169,7 +161,7 @@ def main(
     # Processing settings
     examples_per_chunk: int = 500,
     tasks: int = 10,
-    num_workers: int = 4,
+    num_workers: int = 10,
     local_execution: bool = False,
     enable_monitoring: bool = False,
     # slurm settings
@@ -313,7 +305,7 @@ def main(
         ),
     ]
 
-    dataset_card_params = DatasetCardParams(
+    dataset_card_params = InferenceDatasetCardParams(
         output_repo_id=full_repo_id,
         input_dataset_name=input_dataset_name,
         input_dataset_split=input_dataset_split,
@@ -335,14 +327,14 @@ def main(
     )
 
     monitor_pipeline = [
-        ProgressMonitor(
+        InferenceProgressMonitor(
             params=dataset_card_params,
             max_examples=max_examples,
             update_interval=60 if local_execution else 3600,  # 1 minute for debugging, 1 hour for slurm
         )
     ]
 
-    datacard_pipeline = [DatasetCardGenerator(params=dataset_card_params)]
+    datacard_pipeline = [InferenceDatasetCardGenerator(params=dataset_card_params)]
 
     if local_execution:
         inference_executor = LocalPipelineExecutor(

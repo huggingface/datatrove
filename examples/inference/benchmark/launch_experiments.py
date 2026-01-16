@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 """
-Launch experiments from a YAML configuration file. 
-A dry run prints the Slurm submission commands and planned job submissions without actually submitting any jobs or making changes.
+Launch benchmark experiments from a YAML configuration file.
+
+A dry run prints the Slurm submission commands and planned job submissions
+without actually submitting any jobs or making changes.
 
 Usage:
 
-python dataforge/benchmark/launch_experiments.py --config dataforge/benchmark/sample_benchmark_config.yaml
-python dataforge/benchmark/launch_experiments.py --config dataforge/benchmark/sample_benchmark_config.yaml --dry-run
-python dataforge/benchmark/launch_experiments.py --config dataforge/benchmark/sample_benchmark_config.yaml --run-names "run1,run3"
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml
+
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
+
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml --run-names "run1,run3"
 """
 
 import re
 import subprocess
+import sys
 import time
+from itertools import product
 from pathlib import Path
 from typing import Any
 
-import yaml
-from itertools import product
-from dataforge.utils import normalize_speculative, encode_spec_segment_for_log_dir
 import typer
+import yaml
+
 from datatrove.utils.logging import logger
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import encode_spec_segment_for_log_dir, normalize_speculative
 
 
 class ExperimentLauncher:
@@ -320,7 +331,7 @@ class ExperimentLauncher:
 
 
 def main(
-    config: str = "dataforge/benchmark/sample_benchmark_config.yaml",
+    config: str = "examples/inference/benchmark/sample_benchmark_config.yaml",
     dry_run: bool = False,
     run_names: str | None = None,
 ) -> None:

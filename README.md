@@ -325,6 +325,8 @@ Install the inference extras with `pip install datatrove[inference]` to pull in 
 
 We support [vLLM](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), OpenAI-compatible HTTPS endpoints and a local `dummy` server through the [InferenceRunner block](src/datatrove/pipeline/inference/run_inference.py). Each datatrove task can spin up its own server replica (for `vllm`, `sglang` or `dummy`) or talk directly to an external endpoint while asynchronous batching keeps GPU utilization high.
 
+For a ready-to-use script for synthetic data generation at scale (supporting models from 1B to 1T parameters, local/SLURM execution, and multi-node setups), see [`generate_data.py`](examples/inference/generate_data.py). For benchmarking vLLM throughput across different models and configurations, see the [benchmark tools](examples/inference/benchmark/README.md).
+
 Rollouts are plain async callables that receive a `Document`, a `generate(payload)` callback and any extra kwargs coming from `shared_context`. You can freely orchestrate multiple sequential or parallel `generate` calls inside the rollout. Set `rollouts_per_document` to automatically run the same rollout multiple times per sample; the runner collects successful outputs under `document.metadata["rollout_results"]`.
 
 `shared_context` lets you inject shared state into every rollout invocation. It accepts:

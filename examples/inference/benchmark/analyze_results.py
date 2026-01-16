@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Analyze experiment outputs and produce a summary CSV and formatted table.
+Analyze benchmark experiment outputs and produce a summary CSV and formatted table.
 
 - Extract token counts and request stats from inference_logs/stats.json
 - Parse throughput metrics from server logs (excludes startup time)
@@ -11,20 +11,21 @@ Analyze experiment outputs and produce a summary CSV and formatted table.
 Usage:
 
 # Summarize experiments under the default 'data/' root and write CSV
-python dataforge/benchmark/analyze_results.py
+python examples/inference/benchmark/analyze_results.py
 
-# Summarize a specific root and set an explicit CSV path (option style)
-python dataforge/benchmark/analyze_results.py --root /path/to/runs --out-csv benchmarking_results.csv
+# Summarize a specific root and set an explicit CSV path
+python examples/inference/benchmark/analyze_results.py --root data --out-csv benchmarking_results.csv
 """
 
 import glob
+import json
 import os
 import re
 from pathlib import Path
-import json
 
 import pandas as pd
 import typer
+
 from datatrove.utils.logging import logger
 
 GPUS_PER_NODE = 8
