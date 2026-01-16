@@ -292,6 +292,7 @@ class CheckpointManager:
                 # not strictly needed but just to be safe for the future
                 async with self.file_locks[chunk_index]:
                     for document in reader.read_file(filename):
+                        document.metadata.pop("file_path", None)  # Remove any injected file_path
                         if "__no_rollouts_remove" not in document.metadata:
                             output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
                         all_ids.add(document.id)
