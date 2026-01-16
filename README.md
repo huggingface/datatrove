@@ -371,7 +371,31 @@ Tune batching with `max_concurrent_generations` and, when pre/post-processing is
   ```
 </details>
 
-The extended [inference_example_chunked.py](examples/inference_example_chunked.py) script demonstrates single- and multi-rollout flows, resumable checkpoints and sharing a process pool across rollouts.
+The extended [inference_chunked.py](examples/inference/inference_chunked.py) script demonstrates single- and multi-rollout flows, resumable checkpoints and sharing a process pool across rollouts.
+
+#### Progress monitoring
+
+For long-running inference jobs, you can use `InferenceProgressMonitor` to periodically update a HuggingFace dataset card with a progress bar and ETA. After inference completes, `InferenceDatasetCardGenerator` creates a final dataset card with statistics.
+
+```python
+from datatrove.pipeline.inference import InferenceDatasetCardParams, InferenceProgressMonitor, InferenceDatasetCardGenerator
+
+params = InferenceDatasetCardParams(
+    output_repo_id="your-username/output-dataset",
+    input_dataset_name="simplescaling/s1K-1.1",
+    input_dataset_split="train",
+    model_name="Qwen/Qwen3-0.6B",
+    # ... other params
+)
+
+# Monitor pipeline (runs in parallel with inference on Slurm)
+monitor_pipeline = [InferenceProgressMonitor(params=params, update_interval=3600)]
+
+# Final card generation (runs after inference completes)
+datacard_pipeline = [InferenceDatasetCardGenerator(params=params)]
+```
+
+See [progress_monitor.py](examples/inference/progress_monitor.py) for a complete example with Slurm integration.
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.

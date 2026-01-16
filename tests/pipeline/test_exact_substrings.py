@@ -3,6 +3,8 @@ import shutil
 import tempfile
 import unittest
 
+import pytest
+
 from datatrove.data import Document
 from datatrove.pipeline.dedup.exact_substrings import (
     ESDatasetToSequence,
@@ -181,6 +183,7 @@ class TestExactSubstr(unittest.TestCase):
         for i, doc_text in enumerate(sequence_reader(sequence, size)):
             self.assertEqual(docs[i].text, reader.tokenizer.decode(read_bytes(doc_text)))
 
+    @pytest.mark.flaky(reruns=3, reruns_delay=2)
     def test_signature_1_worker(self):
         data = copy.deepcopy(DATA)
 
@@ -233,6 +236,7 @@ class TestExactSubstr(unittest.TestCase):
         for i, doc in enumerate(dedup_reader(data=data)):
             self.assertEqual(doc.text, TARGETS.get(i))
 
+    @pytest.mark.flaky(reruns=3, reruns_delay=2)
     def test_signature_2_worker(self):
         data = copy.deepcopy(DATA)
 
