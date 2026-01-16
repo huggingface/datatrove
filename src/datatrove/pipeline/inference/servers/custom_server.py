@@ -41,7 +41,13 @@ class CustomServer(InferenceServer):
 
         # Add model kwargs if provided
         if self.config.model_kwargs:
-            cmd.extend([f"--{k}={v}" for k, v in self.config.model_kwargs.items()])
+            for k, v in self.config.model_kwargs.items():
+                if v is True:
+                    cmd.append(f"--{k}")  # Boolean flag: e.g., --enforce-eager
+                elif v is False:
+                    cmd.append(f"--no-{k}")  # Negated flag: e.g., --no-enforce-eager
+                else:
+                    cmd.append(f"--{k}={v}")
 
         logger.info(f"Starting Custom server with command: {' '.join(cmd)}")
 
