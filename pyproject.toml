@@ -43,7 +43,7 @@ io = [
   "warcio",
   "datasets>=3.1.0",
   "orjson",
-  "zstandard"
+  "zstandard",
 ]
 s3 = [
   "s3fs>=2023.12.2",
@@ -52,7 +52,7 @@ processing = [
     "fasttext-numpy2-wheel",
     "nltk",
     "inscriptis",
-#   "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
+# "readability-lxml @ git+https://github.com/huggingface/python-readability.git@speedup",
     "tldextract",
     "trafilatura>=1.8.0,<1.12.0",
     "tokenizers",
@@ -60,12 +60,12 @@ processing = [
     "fasteners",
     "regex",
     "xxhash",
-#    "kenlm",
+# "kenlm",
     "pyahocorasick",
     
 ]
 decont = [
-    "lighteval>=0.3.0"
+    "lighteval>=0.3.0",
 ]
 multilingual = [
     "spacy[ja]>=3.8",
@@ -90,10 +90,10 @@ inference = [
   "aiosqlite",
 ]
 ray = [
-  "ray[default]"
+  "ray[default]",
 ]
 quality = [
-  "ruff>=0.1.5"
+  "ruff>=0.1.5",
 ]
 testing = [
   "datatrove[cli]",
@@ -112,14 +112,14 @@ testing = [
   "pytest-timeout",
   "pytest-xdist",
   "moto[s3,server]",
-  "spacy[ja]"
+  "spacy[ja]",
 ]
 all = [
   "datatrove[quality]",
   "datatrove[testing]",
 ]
 dev = [
-  "datatrove[all]"
+  "datatrove[all]",
 ]
 
 [project.urls]
