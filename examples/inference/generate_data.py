@@ -13,67 +13,46 @@ python examples/inference/generate_data.py --help
 # Generate synthetic data locally using a prompt column
 python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
-    --input-dataset-split train \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
-    --model-revision main \
-    --model-max-context 32768 \
-    --max-tokens 16384 \
     --output-dataset-name s1K-1.1-dataforge \
-    --output-dir data \
-    --num-workers 1 \
-    --tasks 1 \
     --examples-per-chunk 50 \
-    --local-execution
-
-# Generate synthetic data using a prompt template with [[DOCUMENT]] variable
-python dataforge/generate_data.py \
-    --input-dataset-name Salesforce/wikitext \
-    --input-dataset-config wikitext-2-v1 \
-    --input-dataset-split train \
-    --prompt-column text \
-    --prompt-template "Summarize the following document: [[DOCUMENT]]" \
-    --model-name-or-path Qwen/Qwen3-0.6B \
-    --model-revision main \
-    --model-max-context 32768 \
-    --max-tokens 16384 \
-    --output-dataset-name wikitext-summaries \
-    --output-dir data \
-    --num-workers 1 \
     --tasks 1 \
-    --examples-per-chunk 50 \
+    --workers 1 \
     --local-execution
 
 # Generate synthetic data on a Slurm cluster
 python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
-    --input-dataset-split train \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
-    --model-revision main \
-    --model-max-context 32768 \
-    --max-tokens 16384 \
     --output-dataset-name s1K-1.1-benchmark \
-    --output-dir data \
-    --num-workers 10 \
-    --tasks 20 \
     --examples-per-chunk 50
+
+# Generate synthetic data using a prompt template with [[DOCUMENT]] variable
+python dataforge/generate_data.py \
+    --input-dataset-name Salesforce/wikitext \
+    --input-dataset-config wikitext-2-v1 \
+    --prompt-column text \
+    --prompt-template "Summarize the following document: [[DOCUMENT]]" \
+    --model-name-or-path Qwen/Qwen3-0.6B \
+    --output-dataset-name wikitext-summaries \
+    --examples-per-chunk 50 \
+    --tasks 1 \
+    --workers 1
 
 # Generate synthetic data on multiple nodes
 python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
-    --input-dataset-split train \
     --prompt-column question \
     --model-name-or-path moonshotai/Kimi-K2-Instruct \
-    --model-revision main \
     --model-max-context 1024 \
     --max-tokens 8 \
     --trust-remote-code \
     --output-dataset-name s1K-1.1-benchmark-Kimi-K2-Instruct \
-    --output-dir data \
-    --num-workers 1 \
-    --tasks 1 \
     --examples-per-chunk 10 \
+    --tasks 1 \
+    --workers 1 \
     --max-examples 100 \
     --nodes-per-task 2 \
     --tp 8 \
@@ -161,7 +140,7 @@ def main(
     # Processing settings
     examples_per_chunk: int = 500,
     tasks: int = 10,
-    num_workers: int = 10,
+    workers: int = 10,
     local_execution: bool = False,
     enable_monitoring: bool = False,
     # slurm settings
@@ -341,11 +320,13 @@ def main(
             pipeline=inference_pipeline,
             logging_dir=inference_logs_path,
             tasks=tasks,
+            workers=workers,
         )
         datacard_executor = LocalPipelineExecutor(
             pipeline=datacard_pipeline,
             logging_dir=datacard_logs_path,
             tasks=1,
+            workers=1,
         )
         
         inference_executor.run()
@@ -356,6 +337,7 @@ def main(
             pipeline=inference_pipeline,
             logging_dir=inference_logs_path,
             tasks=tasks,
+            workers=workers,
             time=time,
             partition="hopper-prod",
             max_array_launch_parallel=True,
@@ -371,7 +353,6 @@ def main(
                 "mem-per-cpu": f"{mem_per_cpu_mb}M",
                 **({"reservation": reservation} if reservation else {}),
             },
-            workers=num_workers,
             venv_path=".venv/bin/activate",
         )
         inference_executor.run()
@@ -384,13 +365,13 @@ def main(
                 pipeline=monitor_pipeline,
                 logging_dir=monitor_logs_path,
                 tasks=1,
+                workers=1,
                 time="7-00:00:00",  # Long enough to outlast inference
                 partition="hopper-cpu",
                 qos=qos,
                 job_name=f"{name}_monitor",
                 cpus_per_task=1,
                 sbatch_args={"mem-per-cpu": "4G", "requeue": ""},  # Requeue to handle long running jobs
-                workers=1,
                 venv_path=".venv/bin/activate",
             )
         
@@ -400,6 +381,7 @@ def main(
             pipeline=datacard_pipeline,
             logging_dir=datacard_logs_path,
             tasks=1,
+            workers=1,
             time="0:10:00",
             partition="hopper-cpu",
             qos=qos,
@@ -408,7 +390,6 @@ def main(
             depends=inference_executor,
             run_on_dependency_fail=False, # use afterok
             sbatch_args={"mem-per-cpu": "4G"},
-            workers=1,
             venv_path=".venv/bin/activate",
         )
         datacard_executor.run()
