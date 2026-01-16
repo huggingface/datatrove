@@ -16,7 +16,7 @@ class MediaType:
     DOCUMENT = 3
 
 
-@dataclass
+@dataclass(slots=True)
 class Media:
     """Media metadata
 
@@ -34,7 +34,7 @@ class Media:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class Document:
     """Main Document dataclass going through the processing pipeline
 
