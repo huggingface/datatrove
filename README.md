@@ -397,7 +397,7 @@ monitor_pipeline = [InferenceProgressMonitor(params=params, update_interval=3600
 datacard_pipeline = [InferenceDatasetCardGenerator(params=params)]
 ```
 
-See [progress_monitor.py](examples/inference/progress_monitor.py) for a complete example with Slurm integration.
+See [progress_monitoring.py](examples/inference/progress_monitoring.py) for a complete example with Slurm integration.
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.

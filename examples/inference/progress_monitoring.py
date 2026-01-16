@@ -8,13 +8,13 @@ creates a final dataset card with statistics.
 
 Usage:
     # Local execution (requires GPU)
-    python examples/inference/progress_monitor.py --output-dataset-name my-dataset --local-execution
+    python examples/inference/progress_monitoring.py --output-dataset-name my-dataset --local-execution
 
     # Slurm execution with progress monitoring
-    python examples/inference/progress_monitor.py --output-dataset-name my-dataset --enable-monitoring
+    python examples/inference/progress_monitoring.py --output-dataset-name my-dataset --enable-monitoring
 
     # Slurm execution without progress monitoring
-    python examples/inference/progress_monitor.py --output-dataset-name my-dataset
+    python examples/inference/progress_monitoring.py --output-dataset-name my-dataset
 """
 
 import argparse
