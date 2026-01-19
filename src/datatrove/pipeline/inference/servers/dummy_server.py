@@ -93,17 +93,11 @@ class DummyServer(InferenceServer):
         self.http_server: Optional[HTTPServer] = None
 
     async def monitor_health(self):
-        # Keep the task alive
-        try:
-            while True:
-                if not self.http_server:
-                    return
-                await asyncio.sleep(0.5)
-            # Try to connect to the server
-        except asyncio.CancelledError:
-            if self.http_server:
-                self.http_server.shutdown()
-            raise
+        # Keep the task alive until cancelled
+        while True:
+            if not self.http_server:
+                return
+            await asyncio.sleep(0.5)
 
     async def start_server(self) -> None:
         """Start the dummy HTTP server in a separate thread."""
@@ -125,5 +119,7 @@ class DummyServer(InferenceServer):
     async def server_cleanup(self):
         await super().server_cleanup()
         if self.http_server:
-            self.http_server.shutdown()
+            # Run blocking shutdown in executor to avoid blocking the event loop
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self.http_server.shutdown)
             self.http_server = None
