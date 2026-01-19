@@ -42,7 +42,7 @@ For multi-node setups, usually you want to set `--tp {NUM_GPUS_PER_NODE}` and th
 
 ### Slurm Job Architecture
 
-When running on Slurm, DataForge automatically manages three separate jobs with inter-dependencies to ensure efficient processing and accurate reporting:
+When running on Slurm, DataTrove automatically manages three separate jobs with inter-dependencies to ensure efficient processing and accurate reporting:
 
 1.  **`inference`** (GPU array job): The main execution job that processes data in parallel using vLLM. It writes Parquet shards directly to the Hugging Face Hub. Upon successful completion of all tasks, it generates a `stats.json` file.
 2.  **`monitor`** (CPU job): A lightweight job that periodically polls the repository for progress and updates the dataset card (README.md) with a live progress bar and ETA. The monitor runs in a loop and stops when either `stats.json` is created (inference completed successfully) or the Slurm job disappears from the queue without creating `stats.json` (inference failed/cancelled).
