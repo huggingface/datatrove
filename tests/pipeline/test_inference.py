@@ -515,8 +515,8 @@ def test_complete_pipeline_with_various_scenarios():
             model_max_context=8192,
             metric_interval=120,
             rollouts_per_document=1,
-            max_concurrent_generations=500,
-            max_concurrent_documents=500,
+            max_concurrent_generations=10,  # Reduced from 500 for CI compatibility
+            max_concurrent_documents=10,  # Reduced from 500 for CI compatibility
         )
 
         pipeline_executor = LocalPipelineExecutor(
