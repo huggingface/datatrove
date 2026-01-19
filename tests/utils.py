@@ -55,6 +55,14 @@ def require_trafilatura(test_case):
     return test_case
 
 
+def require_justext(test_case):
+    try:
+        import justext  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires justext")(test_case)
+    return test_case
+
+
 def require_readability(test_case):
     try:
         import readability  # noqa: F401
@@ -63,11 +71,27 @@ def require_readability(test_case):
     return test_case
 
 
+def require_resiliparse(test_case):
+    try:
+        import resiliparse  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires resiliparse")(test_case)
+    return test_case
+
+
 def require_inscriptis(test_case):
     try:
         import inscriptis  # noqa: F401
     except ImportError:
         test_case = unittest.skip("test requires inscriptis")(test_case)
+    return test_case
+
+
+def require_readabilipy(test_case):
+    try:
+        import readabilipy  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires readabilipy")(test_case)
     return test_case
 
 
