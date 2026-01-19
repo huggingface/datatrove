@@ -9,6 +9,14 @@ pip install datatrove[inference]
 
 Make sure to login to your HF account with `hf auth login` using a token with write access since the script creates dataset repos and uploads data.
 
+## Custom Rollouts
+
+This README focuses on `generate_data.py`, a ready-to-use script for prompt-based generation. If you need more control over how generations are orchestrated (e.g., chunked documents, multi-step reasoning, process pools for heavy preprocessing), you can write **custom rollout functions**. See [`inference_chunked.py`](inference_chunked.py) for examples of:
+- Simple single-request rollouts
+- Chunked rollouts that split long documents and stitch generations together
+- CPU-heavy preprocessing with process pools via `shared_context`
+- Multi-node distributed inference
+
 ## Quickstart
 
 DataTrove provides two main execution modes for generating synthetic training data from existing datasets:

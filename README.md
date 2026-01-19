@@ -25,7 +25,12 @@ Local, remote and other file systems are supported through [fsspec](https://file
 - [DataFolder / paths](#datafolder--paths)
 - [Practical guides](#practical-guides)
   * [Reading data](#reading-data)
-  * [Synthetic data generatioon](#synthetic-data-generation)
+  * [Synthetic data generation](#synthetic-data-generation)
+    + [Custom rollouts](#custom-rollouts)
+    + [Ready-to-use generation script](#ready-to-use-generation-script)
+    + [Advanced configuration](#advanced-configuration)
+    + [Progress monitoring](#progress-monitoring)
+    + [Benchmarking](#benchmarking)
   * [Extracting text](#extracting-text)
   * [Filtering data](#filtering-data)
   * [Saving data](#saving-data)
@@ -325,9 +330,21 @@ Install the inference extras with `pip install datatrove[inference]` to pull in 
 
 We support [vLLM](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), OpenAI-compatible HTTPS endpoints and a local `dummy` server through the [InferenceRunner block](src/datatrove/pipeline/inference/run_inference.py). Each datatrove task can spin up its own server replica (for `vllm`, `sglang` or `dummy`) or talk directly to an external endpoint while asynchronous batching keeps GPU utilization high.
 
-For a ready-to-use script for synthetic data generation at scale (supporting models from 1B to 1T parameters, local/SLURM execution, and multi-node setups), see [`generate_data.py`](examples/inference/generate_data.py). For benchmarking vLLM throughput across different models and configurations, see the [benchmark tools](examples/inference/benchmark/README.md).
+#### Custom rollouts
 
-Rollouts are plain async callables that receive a `Document`, a `generate(payload)` callback and any extra kwargs coming from `shared_context`. You can freely orchestrate multiple sequential or parallel `generate` calls inside the rollout. Set `rollouts_per_document` to automatically run the same rollout multiple times per sample; the runner collects successful outputs under `document.metadata["rollout_results"]`.
+The core abstraction is a **rollout function**—a plain async callable that receives a `Document`, a `generate(payload)` callback, and any extra kwargs from `shared_context`. You can freely orchestrate multiple sequential or parallel `generate` calls inside the rollout. This gives you full control over how prompts are constructed and how generations are combined. See [inference_chunked.py](examples/inference/inference_chunked.py) for examples of:
+- Simple single-request rollouts
+- Chunked rollouts that split long documents and stitch generations together
+- CPU-heavy preprocessing with process pools via `shared_context`
+- Multi-node distributed inference
+
+Set `rollouts_per_document` to automatically run the same rollout multiple times per sample; the runner collects successful outputs under `document.metadata["rollout_results"]`.
+
+#### Ready-to-use generation script
+
+For a ready-to-use script for synthetic data generation at scale (supporting models from 1B to 1T parameters, local/SLURM execution, and multi-node setups), see [`generate_data.py`](examples/inference/generate_data.py). This script handles prompt-based generation with configurable system prompts and templates.
+
+#### Advanced configuration
 
 `shared_context` lets you inject shared state into every rollout invocation. It accepts:
 - a dict (passed through as keyword arguments),
@@ -398,6 +415,12 @@ datacard_pipeline = [InferenceDatasetCardGenerator(params=params)]
 ```
 
 See [progress_monitoring.py](examples/inference/progress_monitoring.py) for a complete example with Slurm integration.
+
+#### Benchmarking
+
+To measure vLLM throughput across different models and configurations (TP, PP, speculative decoding), use the [benchmark tools](examples/inference/benchmark/README.md). The benchmark suite provides:
+- **`launch_experiments.py`**: Launch sweep experiments from YAML config with automatic Slurm job submission
+- **`analyze_results.py`**: Parse server logs and generate CSV summaries with metrics like tokens/s per GPU and GPU-days to process 1B tokens
 
 ### Extracting text
 You can use [extractors](src/datatrove/pipeline/extractors) to extract text content from raw html. The most commonly used extractor in datatrove is [Trafilatura](src/datatrove/pipeline/extractors/trafilatura.py), which uses the [trafilatura](https://trafilatura.readthedocs.io/en/latest/) library.
