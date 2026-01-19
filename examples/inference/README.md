@@ -11,7 +11,7 @@ Make sure to login to your HF account with `hf auth login` using a token with wr
 
 ## Quickstart
 
-DataForge provides two main execution modes for generating synthetic training data from existing datasets:
+DataTrove provides two main execution modes for generating synthetic training data from existing datasets:
 
 * **Local execution**: Run on a single machine with multiple workers for development and small-scale generation
 * **Slurm cluster**: Distribute processing across multiple nodes for large-scale production workloads
