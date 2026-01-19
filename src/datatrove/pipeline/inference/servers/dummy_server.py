@@ -119,13 +119,15 @@ class DummyServer(InferenceServer):
     async def server_cleanup(self):
         await super().server_cleanup()
         if self.http_server:
-            # Run blocking shutdown in executor with timeout to prevent hangs
-            loop = asyncio.get_running_loop()
-            try:
-                await asyncio.wait_for(
-                    loop.run_in_executor(None, self.http_server.shutdown),
-                    timeout=5.0,
-                )
-            except asyncio.TimeoutError:
-                logger.warning("Timeout shutting down DummyServer HTTP server")
+            # Fire-and-forget: start shutdown in daemon thread, don't wait
+            # This avoids blocking the default executor which can hang asyncio.run() cleanup
+            server = self.http_server
             self.http_server = None
+
+            def do_shutdown():
+                try:
+                    server.shutdown()
+                except Exception:
+                    pass
+
+            threading.Thread(target=do_shutdown, daemon=True).start()
