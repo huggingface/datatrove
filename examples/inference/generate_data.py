@@ -126,7 +126,7 @@ def main(
     pp: int = 1,
     dp: int = 1,
     nodes_per_task: int = 1,
-    max_num_seqs: int = 1000, # reduce this if you run out of memory
+    max_num_seqs: int = 1000,  # reduce this if you run out of memory
     # vLLM server settings (there should be no need to change the defaults)
     max_concurrent_generations: int = 500,
     max_concurrent_documents: int = 500,
@@ -136,7 +136,7 @@ def main(
     # Generation parameters
     temperature: float | None = None,
     top_k: int | None = None,
-    top_p: float | None  = None,
+    top_p: float | None = None,
     max_tokens: int = 16384,
     rollouts_per_document: int = 1,
     # Processing settings
@@ -155,11 +155,11 @@ def main(
     """Typer CLI entrypoint that runs the pipeline with provided options."""
 
     # Check authentication early
-    check_hf_auth() # Check authentication early to avoid errors later
+    check_hf_auth()  # Check authentication early to avoid errors later
 
     full_repo_id = resolve_repo_id(output_dataset_name)  # Resolve full repo name for the output dataset
 
-    ensure_repo_exists(full_repo_id, private=output_private) # Create the repository if it doesn't exist
+    ensure_repo_exists(full_repo_id, private=output_private)  # Create the repository if it doesn't exist
 
     if local_execution:
         available_gpus = torch.cuda.device_count()
@@ -170,8 +170,9 @@ def main(
         nodes_per_task = 1
         logger.info(f"Local execution on {available_gpus} GPUs on one node")
 
-
-    config = AutoConfig.from_pretrained(model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code)
+    config = AutoConfig.from_pretrained(
+        model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+    )
 
     gpus_per_node = validate_config(
         tp=tp,
@@ -182,7 +183,6 @@ def main(
         config=config,
         prompt_template=prompt_template,
     )
-
 
     async def simple_rollout(
         document: Document,
@@ -203,15 +203,19 @@ def main(
             content = prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
             messages.append({"role": "user", "content": content})
 
-        return await generate({
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-        })
+        return await generate(
+            {
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "top_k": top_k,
+                "top_p": top_p,
+            }
+        )
 
-    generation_config = GenerationConfig.from_pretrained(model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code)
+    generation_config = GenerationConfig.from_pretrained(
+        model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+    )
     temperature = temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
     top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
@@ -393,7 +397,7 @@ def main(
                 job_name=f"{name}_datacard",
                 cpus_per_task=1,
                 depends=inference_executor,
-                run_on_dependency_fail=False, # use afterok
+                run_on_dependency_fail=False,  # use afterok
                 sbatch_args={"mem-per-cpu": "4G"},
                 venv_path=".venv/bin/activate",
             )
