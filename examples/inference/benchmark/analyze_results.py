@@ -14,7 +14,7 @@ Usage:
 python examples/inference/benchmark/analyze_results.py
 
 # Summarize a specific root and set an explicit CSV path
-python examples/inference/benchmark/analyze_results.py --root data --out-csv benchmarking_results.csv
+python examples/inference/benchmark/analyze_results.py --root data --out-csv data/benchmarking_results.csv
 """
 
 import glob
@@ -219,7 +219,7 @@ def compute_gpus_for_1b_per_hour_from_per_gpu(output_tps_per_gpu: float | None) 
 
 
 def analyze(root: str, out_csv: str) -> int:
-    files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
+    files = sorted(glob.glob(os.path.join(root, "**", "logs", "inference", "slurm_logs", "*.out"), recursive=True))
     rows: list[dict[str, object]] = []
 
     for path in files:
@@ -473,7 +473,7 @@ def analyze(root: str, out_csv: str) -> int:
 
 def main(
     root: str = "data",
-    out_csv: str = "benchmarking_results.csv",
+    out_csv: str = "data/benchmarking_results.csv",
 ) -> None:
     analyze(root, out_csv)
 
