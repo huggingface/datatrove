@@ -142,6 +142,7 @@ def main(
     tasks: int = 10,
     workers: int = 10,
     local_execution: bool = False,
+    enable_datacard: bool = True,
     enable_monitoring: bool = False,
     # slurm settings
     name: str = "dataforge",
@@ -322,6 +323,9 @@ def main(
             tasks=tasks,
             workers=workers,
         )
+        if enable_datacard:
+            datacard_executor.run()
+
         datacard_executor = LocalPipelineExecutor(
             pipeline=datacard_pipeline,
             logging_dir=datacard_logs_path,
@@ -329,7 +333,6 @@ def main(
             workers=1,
         )
         
-        inference_executor.run()
         # Monitor not supported in local execution as it would block
         datacard_executor.run()
     else:
@@ -377,22 +380,23 @@ def main(
         
             monitor_executor.run()
 
-        datacard_executor = SlurmPipelineExecutor(
-            pipeline=datacard_pipeline,
-            logging_dir=datacard_logs_path,
-            tasks=1,
-            workers=1,
-            time="0:10:00",
-            partition="hopper-cpu",
-            qos=qos,
-            job_name=f"{name}_datacard",
-            cpus_per_task=1,
-            depends=inference_executor,
-            run_on_dependency_fail=False, # use afterok
-            sbatch_args={"mem-per-cpu": "4G"},
-            venv_path=".venv/bin/activate",
-        )
-        datacard_executor.run()
+        if enable_datacard:
+            datacard_executor = SlurmPipelineExecutor(
+                pipeline=datacard_pipeline,
+                logging_dir=datacard_logs_path,
+                tasks=1,
+                workers=1,
+                time="0:10:00",
+                partition="hopper-cpu",
+                qos=qos,
+                job_name=f"{name}_datacard",
+                cpus_per_task=1,
+                depends=inference_executor,
+                run_on_dependency_fail=False, # use afterok
+                sbatch_args={"mem-per-cpu": "4G"},
+                venv_path=".venv/bin/activate",
+            )
+            datacard_executor.run()
 
 
 if __name__ == "__main__":
