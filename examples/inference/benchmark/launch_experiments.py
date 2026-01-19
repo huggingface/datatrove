@@ -27,70 +27,71 @@ import yaml
 
 from datatrove.utils.logging import logger
 
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import encode_spec_segment_for_log_dir, normalize_speculative
 
 
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
-    
+
     def __init__(self, config_path: str, dry_run: bool = False):
         """
         Initialize the experiment launcher.
-        
+
         Args:
             config_path: Path to YAML configuration file
             dry_run: If True, print commands without executing
         """
         self.config_path = Path(config_path)
         self.dry_run = dry_run
-        
+
         # Load and validate configuration
         self.config = self._load_config()
         self._validate_config()
-        
+
         # Setup experiment metadata
-        self.timestamp = time.strftime('%Y%m%d_%H%M%S')
-        
+        self.timestamp = time.strftime("%Y%m%d_%H%M%S")
+
     def _load_config(self) -> dict[str, Any]:
         """Load YAML configuration file."""
         if not self.config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
-            
-        with open(self.config_path, 'r') as f:
+
+        with open(self.config_path, "r") as f:
             config = yaml.safe_load(f)
-            
+
         if not config:
             raise ValueError("Empty configuration file")
-            
+
         return config
-    
+
     def _validate_config(self) -> None:
         """Validate the configuration structure."""
-        required_keys = ['script', 'runs']
+        required_keys = ["script", "runs"]
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(f"Missing required key in config: {key}")
-        
+
         # Validate runs structure
-        if not isinstance(self.config['runs'], list):
+        if not isinstance(self.config["runs"], list):
             raise ValueError("'runs' must be a list of dictionaries")
-            
-        if len(self.config['runs']) == 0:
+
+        if len(self.config["runs"]) == 0:
             raise ValueError("'runs' list cannot be empty")
-            
-        for i, run in enumerate(self.config['runs']):
+
+        for i, run in enumerate(self.config["runs"]):
             if not isinstance(run, dict):
                 raise ValueError(f"Run {i} must be a dictionary")
-            if 'name' not in run:
+            if "name" not in run:
                 raise ValueError(f"Run {i} missing required 'name' field")
             # Validate that no run has 'name' in its args (since we auto-generate it)
-            if 'name' in run.get('args', {}):
+            if "name" in run.get("args", {}):
                 raise ValueError(
                     f"Run '{run['name']}' should not have 'name' in its args. "
                     f"The run name is automatically passed as --name to the script."
                 )
-        
+
     def _sanitize_for_name(self, value: Any) -> str:
         """Sanitize a value to be safely embedded into a run name."""
         if isinstance(value, bool):
@@ -101,21 +102,21 @@ class ExperimentLauncher:
             val_str = str(value)
 
         # Replace path separators to avoid directory-like names
-        val_str = val_str.replace('/', '-')
+        val_str = val_str.replace("/", "-")
         # Keep only safe characters
         val_str = re.sub(r"[^A-Za-z0-9._-]+", "_", val_str)
         # Collapse multiple underscores and trim
-        val_str = re.sub(r"_{2,}", "_", val_str).strip('_')
+        val_str = re.sub(r"_{2,}", "_", val_str).strip("_")
         return val_str
-    
+
     def _derive_run_name(self, args: dict[str, Any], fallback: str) -> str:
         """Derive run name as {model}-tp_{tp}-{spec_short}."""
-        model_value = args.get('model-name-or-path') or args.get('model_name_or_path') or fallback
+        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or fallback
         # Keep hyphens, but avoid slashes in name
-        model_for_name = str(model_value).replace('/', '_')
-        tp_value = args.get('tp')
+        model_for_name = str(model_value).replace("/", "_")
+        tp_value = args.get("tp")
         tp_str = str(tp_value) if tp_value is not None else "1"
-        spec_raw = args.get('speculative-config') or args.get('speculative_config')
+        spec_raw = args.get("speculative-config") or args.get("speculative_config")
         if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
             spec_raw = None
         spec_norm = normalize_speculative(spec_raw)
@@ -127,15 +128,17 @@ class ExperimentLauncher:
 
         If multiple args contain lists, generate the cartesian product (all permutations).
         """
-        args = run_config.get('args', {}) or {}
+        args = run_config.get("args", {}) or {}
         sweep_keys = [key for key, value in args.items() if isinstance(value, list) and len(value) > 0]
 
         if not sweep_keys:
-            derived_name = self._derive_run_name(args, run_config['name'])
-            return [{
-                'name': derived_name,
-                'args': args,
-            }]
+            derived_name = self._derive_run_name(args, run_config["name"])
+            return [
+                {
+                    "name": derived_name,
+                    "args": args,
+                }
+            ]
 
         ordered_keys = sorted(sweep_keys)
         value_lists = [args[key] for key in ordered_keys]
@@ -146,47 +149,49 @@ class ExperimentLauncher:
             for key, val in zip(ordered_keys, combo):
                 new_args[key] = val
 
-            new_name = self._derive_run_name(new_args, run_config['name'])
+            new_name = self._derive_run_name(new_args, run_config["name"])
 
-            expanded_runs.append({
-                'name': new_name,
-                'args': new_args,
-            })
+            expanded_runs.append(
+                {
+                    "name": new_name,
+                    "args": new_args,
+                }
+            )
 
         return expanded_runs
-    
+
     def _build_command(self, run_config: dict[str, Any]) -> list[str]:
         """
         Build command line from configuration.
-        
+
         Args:
             run_config: Configuration for a specific run
-            
+
         Returns:
             Command as list of strings
         """
         # Build base command - execute script directly
-        script = self.config['script']
-        if script.endswith('.py'):
-            cmd = ['python', script]
+        script = self.config["script"]
+        if script.endswith(".py"):
+            cmd = ["python", script]
         else:
             # Execute script directly (e.g., "rephrase" -> "rephrase")
             cmd = [script]
-        
+
         # Add the run name as --name argument first
-        cmd.extend(['--name', run_config['name']])
-        
+        cmd.extend(["--name", run_config["name"]])
+
         # Merge fixed_args and run args, with run args overriding fixed_args
-        fixed_args = self.config.get('fixed_args', {})
-        var_args = run_config.get('args', {})
+        fixed_args = self.config.get("fixed_args", {})
+        var_args = run_config.get("args", {})
         merged_args = {**fixed_args, **var_args}
-        
+
         # Add merged arguments to command
         for key, value in merged_args.items():
             self._add_argument_to_command(cmd, key, value)
-        
+
         return cmd
-    
+
     def _add_argument_to_command(self, cmd: list[str], key: str, value: Any) -> None:
         """Add an argument to the command list based on its type."""
         if isinstance(value, bool):
@@ -198,22 +203,22 @@ class ExperimentLauncher:
             cmd.extend(str(v) for v in value)
         else:
             cmd.extend([f"--{key}", str(value)])
-    
+
     def _execute_command(self, cmd: list[str], run_name: str) -> tuple[int, bool]:
         """Execute a command (Slurm job submission) and indicate if it was skipped."""
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info(f"Submitting Slurm job for run: {run_name}")
         logger.info(f"Command: {' '.join(cmd)}")
-        logger.info(f"{'='*60}")
-        
+        logger.info(f"{'=' * 60}")
+
         if self.dry_run:
             logger.info("[DRY RUN] Slurm job would be submitted")
             return 0, False
-        
+
         try:
             # Execute the command (which will submit a Slurm job)
             result = subprocess.run(cmd, check=False, capture_output=True, text=True)
-            
+
             # Print stdout/stderr for job submission feedback
             if result.stdout:
                 logger.info(f"Job submission output: {result.stdout.strip()}")
@@ -224,7 +229,7 @@ class ExperimentLauncher:
 
             if result.returncode != 0:
                 logger.error(f"❌ Failed to submit Slurm job for {run_name}")
-            
+
             return result.returncode, skipped
         except KeyboardInterrupt:
             logger.info(f"\nInterrupted during job submission for run: {run_name}")
@@ -232,45 +237,45 @@ class ExperimentLauncher:
         except Exception as e:
             logger.error(f"Error submitting job for run {run_name}: {e}")
             return 1, False
-    
+
     def launch(self) -> dict[str, int]:
         """
         Launch all configured experiments as Slurm jobs.
-        
+
         Returns:
             Dictionary mapping run names to job submission exit codes
         """
         logger.info(f"Configuration: {self.config_path}")
         logger.info(f"Timestamp: {self.timestamp}")
-        
+
         if self.dry_run:
             logger.info("\n*** DRY RUN MODE - No Slurm jobs will be submitted ***")
         else:
             logger.info("\n*** SUBMITTING SLURM JOBS ***")
-        
+
         results = {}
         skipped_runs = set()
-        
+
         # Expand runs to handle sweeps (lists in args produce cartesian product of values)
         expanded_runs: list[dict[str, Any]] = []
-        for base_run in self.config['runs']:
+        for base_run in self.config["runs"]:
             expanded_runs.extend(self._expand_run(base_run))
 
         for run_config in expanded_runs:
-            run_name = run_config['name']
-            
+            run_name = run_config["name"]
+
             # Build and submit Slurm job
             cmd = self._build_command(run_config)
             exit_code, skipped = self._execute_command(cmd, run_name)
             results[run_name] = exit_code
             if skipped:
                 skipped_runs.add(run_name)
-            
+
             if exit_code != 0:
                 logger.error(f"❌ Slurm job submission failed for {run_name} (exit code {exit_code})")
-                
+
                 # Check if we should continue on failure
-                if not self.config.get('continue_on_failure', True):
+                if not self.config.get("continue_on_failure", True):
                     logger.warning("Stopping job submissions due to failure")
                     break
             elif not self.dry_run:
@@ -278,12 +283,12 @@ class ExperimentLauncher:
                     logger.info(f"ℹ️ Slurm job skipped for {run_name} (already completed)")
                 else:
                     logger.info(f"✅ Slurm job submitted successfully for {run_name}")
-        
+
         # Print summary
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info("JOB SUBMISSION SUMMARY")
-        logger.info(f"{'='*60}")
-        
+        logger.info(f"{'=' * 60}")
+
         for run_name, exit_code in results.items():
             if self.dry_run:
                 status = "✅ WOULD SUBMIT" if exit_code == 0 else f"❌ WOULD FAIL ({exit_code})"
@@ -293,11 +298,9 @@ class ExperimentLauncher:
                 else:
                     status = "✅ SUBMITTED" if exit_code == 0 else f"❌ FAILED ({exit_code})"
             logger.info(f"{run_name:<30} {status}")
-        
+
         if results:
-            successful_submissions = sum(
-                1 for name, code in results.items() if code == 0 and name not in skipped_runs
-            )
+            successful_submissions = sum(1 for name, code in results.items() if code == 0 and name not in skipped_runs)
             if self.dry_run:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs would be submitted successfully")
             else:
@@ -307,7 +310,7 @@ class ExperimentLauncher:
                 if successful_submissions > 0:
                     logger.info("Use 'squeue -u $USER' to monitor job status")
                     logger.info("Use 'scancel <job_id>' to cancel jobs if needed")
-        
+
         return results
 
 

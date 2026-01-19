@@ -82,6 +82,7 @@ from datatrove.pipeline.readers import HuggingFaceDatasetReader
 from datatrove.pipeline.writers import ParquetWriter
 from datatrove.utils.logging import logger
 
+
 sys.path.insert(0, str(Path(__file__).parent))
 from utils import (
     check_hf_auth,
@@ -92,6 +93,7 @@ from utils import (
     resolve_repo_id,
     validate_config,
 )
+
 
 MB = 1024 * 1024
 
@@ -115,8 +117,8 @@ def main(
     model_revision: str = "main",
     model_max_context: int = 32768,
     system_prompt: str | None = None,
-    # WARNING: Set to True only if you trust the model repository. 
-    # Enabling this allows execution of arbitrary code from the remote repository, 
+    # WARNING: Set to True only if you trust the model repository.
+    # Enabling this allows execution of arbitrary code from the remote repository,
     # which can be a security risk. Use True only for trusted sources.
     trust_remote_code: bool = False,
     # vLLM distribution settings
@@ -167,10 +169,10 @@ def main(
         pp = 1
         nodes_per_task = 1
         logger.info(f"Local execution on {available_gpus} GPUs on one node")
-    
+
 
     config = AutoConfig.from_pretrained(model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code)
-    
+
     gpus_per_node = validate_config(
         tp=tp,
         pp=pp,
@@ -192,7 +194,7 @@ def main(
         Returns the InferenceResult directly, which will be stored under document.metadata["rollout_results"].
         """
         messages = [] if system_prompt is None else [{"role": "system", "content": system_prompt}]
-        
+
         if isinstance(document.text, list) and all(isinstance(msg, dict) for msg in document.text):
             if prompt_template:
                 raise ValueError("Prompt template is not supported for message lists")
@@ -200,7 +202,7 @@ def main(
         else:
             content = prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
             messages.append({"role": "user", "content": content})
-        
+
         return await generate({
             "messages": messages,
             "max_tokens": max_tokens,
@@ -213,7 +215,7 @@ def main(
     temperature = temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
     top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
-    
+
     # Normalize and encode speculative config; treat common "none" strings as disabled
     spec_raw = speculative_config
     if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
@@ -323,18 +325,17 @@ def main(
             tasks=tasks,
             workers=workers,
         )
-        if enable_datacard:
-            datacard_executor.run()
+        inference_executor.run()
 
-        datacard_executor = LocalPipelineExecutor(
-            pipeline=datacard_pipeline,
-            logging_dir=datacard_logs_path,
-            tasks=1,
-            workers=1,
-        )
-        
-        # Monitor not supported in local execution as it would block
-        datacard_executor.run()
+        if enable_datacard:
+            datacard_executor = LocalPipelineExecutor(
+                pipeline=datacard_pipeline,
+                logging_dir=datacard_logs_path,
+                tasks=1,
+                workers=1,
+            )
+            # Monitor not supported in local execution as it would block
+            datacard_executor.run()
     else:
         inference_executor = SlurmPipelineExecutor(
             pipeline=inference_pipeline,
@@ -363,7 +364,7 @@ def main(
         if enable_monitoring:
             # Update monitor with inference job id so it can stop if inference fails
             monitor_pipeline[0].inference_job_id = inference_executor.job_id
-            
+
             monitor_executor = SlurmPipelineExecutor(
                 pipeline=monitor_pipeline,
                 logging_dir=monitor_logs_path,
@@ -377,7 +378,7 @@ def main(
                 sbatch_args={"mem-per-cpu": "4G", "requeue": ""},  # Requeue to handle long running jobs
                 venv_path=".venv/bin/activate",
             )
-        
+
             monitor_executor.run()
 
         if enable_datacard:

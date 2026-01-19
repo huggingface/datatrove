@@ -1,10 +1,15 @@
 """Utility functions for the vLLM benchmark scripts."""
-from huggingface_hub import whoami, get_full_repo_name, create_repo, repo_exists
+
 import json
+
+from huggingface_hub import create_repo, get_full_repo_name, repo_exists, whoami
 from transformers import AutoConfig
+
 from datatrove.utils.logging import logger
 
+
 MAX_GPUS_PER_NODE = 8
+
 
 def check_hf_auth() -> None:
     """
@@ -14,12 +19,14 @@ def check_hf_auth() -> None:
     try:
         user_info = whoami()
         logger.info(f"Authenticated as: {user_info.get('name', 'Unknown')}")
-        auth = user_info.get('auth', {})
-        if auth.get('type') == 'access_token':
-            role = auth.get('accessToken', {}).get('role')
+        auth = user_info.get("auth", {})
+        if auth.get("type") == "access_token":
+            role = auth.get("accessToken", {}).get("role")
             logger.info(f"Token role: {role}")
             if role != "write":
-                raise ValueError("Active token is NOT a write token. Please set HF_TOKEN environment variable to a write token.")
+                raise ValueError(
+                    "Active token is NOT a write token. Please set HF_TOKEN environment variable to a write token."
+                )
     except Exception:
         raise ValueError("Not logged in to Hugging Face. Please set HF_TOKEN environment variable to a write token.")
 
@@ -122,13 +129,13 @@ def encode_spec_segment_for_log_dir(spec_json: str) -> str:
 
 
 def validate_config(
-    tp: int, 
-    pp: int, 
-    dp: int, 
-    nodes_per_task: int, 
+    tp: int,
+    pp: int,
+    dp: int,
+    nodes_per_task: int,
     optimization_level: int,
     config: AutoConfig,
-    prompt_template: str | None = None
+    prompt_template: str | None = None,
 ) -> None:
     """
     Validates configuration parameters for inference.
@@ -151,7 +158,9 @@ def validate_config(
     if nodes_per_task < 1:
         raise ValueError(f"nodes_per_task must be >= 1, got {nodes_per_task}.")
     if optimization_level not in (0, 1, 2, 3):
-        raise ValueError(f"optimization_level must be one of (0, 1, 2, 3), got {optimization_level}. 0 has the fastest startup, 3 has the best throughput.")
+        raise ValueError(
+            f"optimization_level must be one of (0, 1, 2, 3), got {optimization_level}. 0 has the fastest startup, 3 has the best throughput."
+        )
 
     total_gpus = tp * pp * dp
 
@@ -168,9 +177,7 @@ def validate_config(
     gpus_per_node = total_gpus // nodes_per_task
 
     if gpus_per_node < 1:
-        raise ValueError(
-            f"nodes_per_task ({nodes_per_task}) cannot exceed total GPUs (tp*pp*dp={total_gpus})."
-        )
+        raise ValueError(f"nodes_per_task ({nodes_per_task}) cannot exceed total GPUs (tp*pp*dp={total_gpus}).")
     if gpus_per_node > MAX_GPUS_PER_NODE:
         raise ValueError(
             f"gpus_per_node ({gpus_per_node}) exceeds GPUS_PER_NODE ({MAX_GPUS_PER_NODE}). Increase nodes_per_task "
@@ -179,7 +186,7 @@ def validate_config(
 
     # Check if tp is valid for vLLM
     # Handle multi-modal configs (e.g., Gemma3) where num_attention_heads is in text_config
-    num_heads = int(getattr(config, 'num_attention_heads', None) or config.text_config.num_attention_heads)
+    num_heads = int(getattr(config, "num_attention_heads", None) or config.text_config.num_attention_heads)
     if num_heads % tp != 0:
         raise ValueError(
             f"Total number of attention heads ({num_heads}) must be divisible by tensor parallel size (tp={tp})."

@@ -28,45 +28,46 @@ import typer
 
 from datatrove.utils.logging import logger
 
+
 GPUS_PER_NODE = 8
 
 
 def parse_server_logs(server_log_path: Path) -> dict[str, float] | None:
     """
     Parse vLLM server logs to extract throughput metrics, excluding server startup time.
-    
+
     Returns:
         Dict with:
           - avg_prompt_throughput: Average prompt throughput from lines with prompt>0 (total for engine)
           - avg_generation_throughput: Average generation throughput from steady-state lines (total for engine)
         Or None if parsing fails
-        
+
     Note: The returned values are the total throughput for the entire engine.
           Divide by TP to get per-GPU throughput.
     """
     try:
         if not server_log_path.exists():
             return None
-        
+
         with open(server_log_path, "r") as f:
             log_lines = f.readlines()
-        
+
         # Pattern to extract throughput metrics from vLLM logs
         # Example: "Avg prompt throughput: 6949.8 tokens/s, Avg generation throughput: 5108.0 tokens/s"
         pattern = re.compile(
             r"Avg prompt throughput:\s+([\d.]+)\s+tokens/s,\s+Avg generation throughput:\s+([\d.]+)\s+tokens/s"
         )
-        
+
         prompt_throughputs = []
         generation_throughputs_steady = []
         generation_throughputs_mixed = []
-        
+
         for line in log_lines:
             match = pattern.search(line)
             if match:
                 prompt_thr = float(match.group(1))
                 gen_thr = float(match.group(2))
-                
+
                 if prompt_thr == 0.0:
                     # Steady-state: pure generation phase
                     generation_throughputs_steady.append(gen_thr)
@@ -74,7 +75,7 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float] | None:
                     # Mixed phase: prompt processing happening
                     prompt_throughputs.append(prompt_thr)
                     generation_throughputs_mixed.append(gen_thr)
-        
+
         # Calculate averages
         avg_prompt = sum(prompt_throughputs) / len(prompt_throughputs) if prompt_throughputs else None
         avg_gen_steady = (
@@ -85,7 +86,7 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float] | None:
 
         if avg_prompt is None and avg_gen_steady is None:
             return None
-        
+
         return {
             "avg_prompt_throughput": avg_prompt,
             "avg_generation_throughput": avg_gen_steady,
@@ -131,6 +132,7 @@ def parse_path_fields(file_path: str) -> tuple[str, int | None, int | None, int 
 
     return model, tp, pp, dp, spec_config
 
+
 def _get_total_from_stat_field(val: object) -> float | None:
     """
     Normalize a stats.json field that may be a number or a dict with a 'total' key.
@@ -146,6 +148,7 @@ def _get_total_from_stat_field(val: object) -> float | None:
             return float(t)
     return None
 
+
 def parse_stats_json(stats_path: Path) -> dict[str, float] | None:
     """
     Parse a merged stats.json produced by datatrove.tools.merge_stats to extract:
@@ -153,7 +156,7 @@ def parse_stats_json(stats_path: Path) -> dict[str, float] | None:
       - output_tokens_total (completion_tokens.total)
       - successful_requests_total
       - failed_requests_total (if present; else 0)
-    
+
     Note: Does NOT extract timing information - use server logs for throughput metrics.
     """
     try:
@@ -249,7 +252,7 @@ def analyze(root: str, out_csv: str) -> int:
 
         stats_dir = Path(path).parent.parent  # .../inference_logs
         stats_info = parse_stats_json(stats_dir / "stats.json")
-        
+
         if stats_info is None:
             row["comment"] = "stats.json not found"
             rows.append(row)
@@ -270,7 +273,7 @@ def analyze(root: str, out_csv: str) -> int:
             candidates = sorted(server_logs_dir.glob("server_rank_*.log"))
             if candidates:
                 server_log_path = candidates[0]  # Pick the first match (could refine selection if needed)
-        
+
         server_metrics = parse_server_logs(server_log_path) if server_log_path else None
 
         if server_metrics is None:
@@ -292,7 +295,7 @@ def analyze(root: str, out_csv: str) -> int:
         tp_val = tp if tp and tp > 0 else 1
         pp_val = pp if pp and pp > 0 else 1
         # dp does not affect per-instance throughput if we are looking at one instance log
-        
+
         # Total GPUs contributing to this throughput = TP * PP
         gpu_divisor = tp_val * pp_val
 
@@ -396,13 +399,10 @@ def analyze(root: str, out_csv: str) -> int:
     df_disp = df.copy()
     df_disp["__metric_count__"] = df_disp[metric_cols].notna().sum(axis=1)
     df_disp["__out_tok_tp__"] = df_disp["output_tps_per_gpu"].fillna(-1)
-    df_disp = (
-        df_disp.sort_values(
-            by=["model", "tp", "pp", "dp", "spec_config", "__metric_count__", "__out_tok_tp__"],
-            ascending=[True, True, True, True, True, False, False],
-        )
-        .drop_duplicates(subset=["model", "tp", "pp", "dp", "spec_config"], keep="first")
-    )
+    df_disp = df_disp.sort_values(
+        by=["model", "tp", "pp", "dp", "spec_config", "__metric_count__", "__out_tok_tp__"],
+        ascending=[True, True, True, True, True, False, False],
+    ).drop_duplicates(subset=["model", "tp", "pp", "dp", "spec_config"], keep="first")
     # Do not drop rows with no metrics; we still want one row per existing experiment folder
 
     def fmt(val: object, col_key: str) -> str:
@@ -410,6 +410,7 @@ def analyze(root: str, out_csv: str) -> int:
             return ""
         try:
             import pandas as _pd  # avoid shadowing
+
             if _pd.isna(val):
                 return ""
         except Exception:
@@ -417,6 +418,7 @@ def analyze(root: str, out_csv: str) -> int:
         # Column-aware numeric formatting for the summary table
         try:
             from numbers import Number
+
             is_num = isinstance(val, Number)
         except Exception:
             is_num = False
@@ -439,7 +441,7 @@ def analyze(root: str, out_csv: str) -> int:
     data_rows: list[list[str]] = []
     for _, row in df_disp.iterrows():
         rendered = []
-        for (_label, col_key, _align) in columns_map:
+        for _label, col_key, _align in columns_map:
             rendered.append(f"{fmt(row.get(col_key), col_key)}")
         data_rows.append(rendered)
 
@@ -456,9 +458,13 @@ def analyze(root: str, out_csv: str) -> int:
 
     aligns = [align for (_, _, align) in columns_map]
     # Header
-    header_line = "| " + " | ".join(
-        pad(h, widths[i], "left" if aligns[i] == "left" else "right") for i, h in enumerate(header_labels)
-    ) + " |"
+    header_line = (
+        "| "
+        + " | ".join(
+            pad(h, widths[i], "left" if aligns[i] == "left" else "right") for i, h in enumerate(header_labels)
+        )
+        + " |"
+    )
     sep_line = "| " + " | ".join("-" * widths[i] for i in range(len(widths))) + " |"
     print(header_line)
     print(sep_line)
@@ -480,5 +486,3 @@ def main(
 
 if __name__ == "__main__":
     typer.run(main)
-
-
