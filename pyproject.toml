@@ -171,3 +171,6 @@ lines-after-imports = 2
 known-first-party = [
   "datatrove"
 ]
+
+[tool.pytest.ini_options]
+timeout = 120  # 2 minute timeout for all tests to prevent CI hangs
