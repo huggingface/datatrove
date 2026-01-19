@@ -122,7 +122,7 @@ Each run can specify:
 
 ## Model Lineup
 
-We have benchmarked DataForge with a variety of models to determine the best throughput and number of GPUs required to 
+We have benchmarked DataTrove with a variety of models to determine the best throughput and number of GPUs required to 
 generate 1 billion tokens per hour. The following table provides an overview of these optimised configurations:
 
 
