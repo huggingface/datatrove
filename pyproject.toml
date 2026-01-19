@@ -1,10 +1,10 @@
 [project]
 name = "datatrove"
-version = "0.7.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
+version = "0.8.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
-  {name = "HuggingFace Inc.", email = "guilherme@huggingface.co"}
+  {name = "HuggingFace Inc.", email = "guilherme@macrodata.co"}
 ]
 license = {text = "Apache-2.0"}
 classifiers = [
@@ -62,7 +62,6 @@ processing = [
   "xxhash",
 # "kenlm",
   "pyahocorasick",
-    
 ]
 decont = [
   "lighteval>=0.3.0",
