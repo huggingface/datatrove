@@ -1,0 +1,115 @@
+# Sample benchmark configuration for vLLM throughput experiments
+#
+# This config demonstrates how to set up a sweep over different models,
+# tensor parallelism (TP) and pipeline parallelism (PP) configurations.
+#
+# Launch with:
+#   python examples/inference/benchmark/launch_experiments.py \
+#       --config examples/inference/benchmark/sample_benchmark_config.yaml
+#
+# Dry run (no submission):
+#   python examples/inference/benchmark/launch_experiments.py \
+#       --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
+
+script: "examples/inference/generate_data.py"
+continue_on_failure: true
+
+# Fixed arguments applied to all runs
+fixed_args:
+  qos: "high"
+  time: "1:00:00"
+
+  model-max-context: 2048
+  max-tokens: 1024
+
+  metric-interval: 60  # seconds
+
+  input-dataset-name: "simplescaling/s1K-1.1"
+  input-dataset-split: "train"
+  prompt-column: "question"
+  model-revision: "main"
+  
+  output-dataset-name: "s1K-1.1-benchmark"
+  output-dir: "data"
+
+  enable-datacard: false
+  enable-monitoring: false
+  
+  workers: 1
+  tasks: 1
+  max-num-seqs: 1000
+  examples-per-chunk: 50
+  trust-remote-code: true
+
+# Variable arguments - creates different experiment runs
+# Each run expands list values into the cartesian product of configurations.
+# The run name is auto-derived from model, TP, PP, and speculative config.
+runs:
+  # Compact models
+  - name: "gemma-3-1b-it"
+    args:
+      model-name-or-path: "google/gemma-3-1b-it"
+      tp: [1]
+      speculative-config: [None]
+  - name: "Qwen3-1.7B"
+    args:
+      model-name-or-path: "Qwen/Qwen3-1.7B"
+      tp: [1]
+      speculative-config: [None]
+  - name: "gemma-3-4b-it"
+    args:
+      model-name-or-path: "google/gemma-3-4b-it"
+      tp: [1, 2]
+      speculative-config: [None]
+  - name: "Qwen3-4B-Thinking-2507"
+    args:
+      model-name-or-path: "Qwen/Qwen3-4B-Thinking-2507"
+      tp: [1, 2]
+      speculative-config: [None]
+  # Medium models
+  - name: "gpt-oss-20b"
+    args:
+      model-name-or-path: "openai/gpt-oss-20b"
+      tp: [1, 2, 4]
+      speculative-config: [None]
+  - name: "Qwen3-30B-A3B-Thinking-2507"
+    args:
+      model-name-or-path: "Qwen/Qwen3-30B-A3B-Thinking-2507"
+      tp: [1, 2, 4]
+      speculative-config: [None]
+  - name: "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+    args:
+      model-name-or-path: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
+      tp: [1, 2, 4]
+      speculative-config: [None]
+  - name: "NVIDIA-Nemotron-3-Nano-30B-A3B-FP8"
+    args:
+      model-name-or-path: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8"
+      tp: [1, 2, 4]
+      speculative-config: [None]
+  - name: "Qwen3-Next-80B-A3B-Thinking"
+    args:
+      model-name-or-path: "Qwen/Qwen3-Next-80B-A3B-Thinking"
+      tp: [4, 8]
+      speculative-config: [None]
+  # Large models
+  - name: "gpt-oss-120b"
+    args:
+      model-name-or-path: "openai/gpt-oss-120b"
+      tp: [2, 4, 8]
+      speculative-config: [None]
+  - name: "Qwen3-235B-A22B-Thinking-2507"
+    args:
+      model-name-or-path: "Qwen/Qwen3-235B-A22B-Thinking-2507"
+      tp: [8]
+      speculative-config: [None]
+  # Enormous models
+  - name: "Kimi-K2-Instruct"
+    args:
+      model-name-or-path: "moonshotai/Kimi-K2-Instruct"
+      tp: [8]
+      pp: [2]
+      nodes-per-task: [2]
+      speculative-config: [None]
+      examples-per-chunk: 10
+      max-num-seqs: 16
