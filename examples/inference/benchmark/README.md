@@ -59,13 +59,7 @@ python examples/inference/benchmark/launch_experiments.py \
     --config examples/inference/benchmark/sample_benchmark_config.yaml
 ```
 
-You can limit to specific runs with `--run-names`:
-
-```bash
-python examples/inference/benchmark/launch_experiments.py \
-    --config examples/inference/benchmark/sample_benchmark_config.yaml \
-    --run-names "Qwen3-4B,gemma-3-1b-it"
-```
+Just re-run this script until all jobs complete successfully. Completed jobs will be skipped.
 
 ### 4. Analyze Results
 
@@ -74,14 +68,14 @@ After jobs complete, analyze the results:
 ```bash
 python examples/inference/benchmark/analyze_results.py \
     --root data \
-    --out-csv benchmark_results.csv
+    --out-csv data/benchmark_results.csv
 ```
 
 ## Output Structure
 
 Results are expected under:
 ```
-data/{model}/tp{TP}-pp{PP}-dp{DP}/{spec_config}/.../inference_logs/
+data/{model}/tp{TP}-pp{PP}-dp{DP}/{spec_config}/.../inference/
 ```
 
 Where:
@@ -125,17 +119,6 @@ Each run can specify:
 - `dp`: Data parallelism
 - `nodes-per-task`: Number of nodes per task (for multi-node models)
 - `speculative-config`: Speculative decoding config (`None`, `"ngram:5"`, etc.)
-
-## Requirements
-
-Install the inference dependencies:
-
-```bash
-pip install datatrove[inference]
-```
-
-This includes `typer`, `pandas`, `pyyaml`, and other required packages.
-
 
 ## Model Lineup
 

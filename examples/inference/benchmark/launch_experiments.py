@@ -12,9 +12,6 @@ python examples/inference/benchmark/launch_experiments.py \
 
 python examples/inference/benchmark/launch_experiments.py \
     --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
-
-python examples/inference/benchmark/launch_experiments.py \
-    --config examples/inference/benchmark/sample_benchmark_config.yaml --run-names "run1,run3"
 """
 
 import re
@@ -37,19 +34,16 @@ from utils import encode_spec_segment_for_log_dir, normalize_speculative
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
     
-    def __init__(self, config_path: str, dry_run: bool = False, 
-                 selected_runs: list[str] | None = None):
+    def __init__(self, config_path: str, dry_run: bool = False):
         """
         Initialize the experiment launcher.
         
         Args:
             config_path: Path to YAML configuration file
             dry_run: If True, print commands without executing
-            selected_runs: Optional list of specific run names to execute
         """
         self.config_path = Path(config_path)
         self.dry_run = dry_run
-        self.selected_runs = selected_runs or []
         
         # Load and validate configuration
         self.config = self._load_config()
@@ -205,12 +199,6 @@ class ExperimentLauncher:
         else:
             cmd.extend([f"--{key}", str(value)])
     
-    def _should_run(self, run_name: str) -> bool:
-        """Check if a specific run should be executed."""
-        if not self.selected_runs:
-            return True
-        return run_name in self.selected_runs
-    
     def _execute_command(self, cmd: list[str], run_name: str) -> tuple[int, bool]:
         """Execute a command (Slurm job submission) and indicate if it was skipped."""
         logger.info(f"\n{'='*60}")
@@ -260,9 +248,6 @@ class ExperimentLauncher:
         else:
             logger.info("\n*** SUBMITTING SLURM JOBS ***")
         
-        if self.selected_runs:
-            logger.info(f"Selected runs: {', '.join(self.selected_runs)}")
-        
         results = {}
         skipped_runs = set()
         
@@ -273,10 +258,6 @@ class ExperimentLauncher:
 
         for run_config in expanded_runs:
             run_name = run_config['name']
-            
-            if not self._should_run(run_name):
-                logger.info(f"Skipping run: {run_name}")
-                continue
             
             # Build and submit Slurm job
             cmd = self._build_command(run_config)
@@ -333,18 +314,11 @@ class ExperimentLauncher:
 def main(
     config: str = "examples/inference/benchmark/sample_benchmark_config.yaml",
     dry_run: bool = False,
-    run_names: str | None = None,
 ) -> None:
-    # Parse selected runs (comma-separated string → list)
-    selected_runs: list[str] | None = None
-    if run_names:
-        selected_runs = [name.strip() for name in run_names.split(",") if name.strip()]
-
     try:
         launcher = ExperimentLauncher(
             config_path=config,
             dry_run=dry_run,
-            selected_runs=selected_runs
         )
 
         results = launcher.launch()

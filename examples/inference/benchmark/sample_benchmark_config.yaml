@@ -1,7 +1,7 @@
 # Sample benchmark configuration for vLLM throughput experiments
 #
-# This config demonstrates how to set up a sweep over different models and
-# tensor parallelism (TP) configurations.
+# This config demonstrates how to set up a sweep over different models,
+# tensor parallelism (TP) and pipeline parallelism (PP) configurations.
 #
 # Launch with:
 #   python examples/inference/benchmark/launch_experiments.py \
@@ -31,7 +31,11 @@ fixed_args:
   
   output-dataset-name: "s1K-1.1-benchmark"
   output-dir: "data"
-  num-workers: 1
+
+  enable-datacard: false
+  enable-monitoring: false
+  
+  workers: 1
   tasks: 1
   max-num-seqs: 1000
   examples-per-chunk: 50
