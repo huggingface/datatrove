@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from functools import partial
-from typing import AsyncIterator, Callable, ContextManager, Iterable, Iterator, Literal
+from typing import AsyncIterator, Callable, ContextManager, Iterable, Literal
 
 from loguru import logger
 
@@ -368,30 +368,21 @@ class InferenceRunner(PipelineStep):
 
         Yields:
             Document objects from the synchronous generator
-
-        Raises:
-            asyncio.TimeoutError: If waiting for the next document times out
         """
+        # One thread, so that we don't instantiate a new thread for each document
         threadpool = ThreadPoolExecutor(max_workers=1)
         try:
 
-            def get_next_item(iterator: Iterator[Document]) -> Document | None:
+            def get_next_item(iterator: Iterable[Document]):
                 try:
                     return next(iterator)
                 except StopIteration:
-                    return None
+                    return
 
             iterator = iter(sync_gen)
             loop = asyncio.get_running_loop()
             while True:
-                try:
-                    item = await asyncio.wait_for(
-                        loop.run_in_executor(threadpool, get_next_item, iterator),
-                        timeout=60.0,  # 60 second timeout per item
-                    )
-                except asyncio.TimeoutError:
-                    logger.error("Timeout waiting for next document from data generator")
-                    raise
+                item = await loop.run_in_executor(threadpool, get_next_item, iterator)
                 if item is None:
                     break
                 yield item
