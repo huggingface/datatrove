@@ -369,7 +369,6 @@ class InferenceRunner(PipelineStep):
         Yields:
             Document objects from the synchronous generator
         """
-
         # One thread, so that we don't instantiate a new thread for each document
         threadpool = ThreadPoolExecutor(max_workers=1)
         try:
@@ -388,7 +387,8 @@ class InferenceRunner(PipelineStep):
                     break
                 yield item
         finally:
-            await asyncio.wait_for(asyncio.to_thread(threadpool.shutdown, wait=False, cancel_futures=True), timeout=10)
+            # shutdown(wait=False) is non-blocking, so safe to call directly
+            threadpool.shutdown(wait=False, cancel_futures=True)
 
     @contextmanager
     def get_shared_context_cm(self) -> dict:
