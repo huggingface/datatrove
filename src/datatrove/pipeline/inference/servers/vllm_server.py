@@ -64,7 +64,13 @@ class VLLMServer(InferenceServer):
             model_kwargs["pipeline-parallel-size"] = self.config.pp
         # set kwargs
         if model_kwargs:
-            cmd.extend([f"--{k}={v}" for k, v in model_kwargs.items()])
+            for k, v in model_kwargs.items():
+                if v is True:
+                    cmd.append(f"--{k}")  # Boolean flag: e.g., --enforce-eager
+                elif v is False:
+                    cmd.append(f"--no-{k}")  # Negated flag: e.g., --no-enforce-eager
+                else:
+                    cmd.append(f"--{k}={v}")
 
         logger.debug(f"Starting VLLM server with command: {' '.join(cmd)}")
         env = os.environ.copy()

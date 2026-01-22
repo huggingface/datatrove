@@ -1,88 +1,43 @@
-import dataclasses
-import os.path
+import os
 from abc import ABC, abstractmethod
 from collections import Counter
 from string import Template
-from types import MethodType
-from typing import IO, Callable
+from typing import IO
 
-from datatrove.data import Document, DocumentsPipeline
+from datatrove.data import DocumentsPipeline, Media
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
-from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import StatHints
 
 
-class DiskWriter(PipelineStep, ABC):
+class BaseMediaWriter(PipelineStep, ABC):
     """
-        Base writer block to save data to disk.
+    Base writer block to save data to disk.
 
     Args:
         output_folder: a str, tuple or DataFolder where data should be saved
         output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
-        compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
-        adapter: a custom function to "adapt" the Document format to the desired output format
     """
 
     default_output_filename: str = None
-    type = "💽 - WRITER"
+    type = "💽 - MEDIA WRITER"
 
     def __init__(
         self,
         output_folder: DataFolderLike,
         output_filename: str = None,
-        compression: str | None = "infer",
-        adapter: Callable = None,
-        mode: str = "wt",
-        expand_metadata: bool = False,
+        mode: str = "wb",
         max_file_size: int = -1,  # in bytes. -1 for unlimited
-        save_media_bytes: bool = False,
     ):
         super().__init__()
-        self.compression = compression
         self.output_folder = get_datafolder(output_folder)
         output_filename = output_filename or self.default_output_filename
-        if self.compression == "gzip" and not output_filename.endswith(".gz"):
-            output_filename += ".gz"
-        elif self.compression == "zstd" and not output_filename.endswith(".zst"):
-            output_filename += ".zst"
         self.max_file_size = max_file_size
         self.file_id_counter = Counter()
         if self.max_file_size > 0 and mode != "wb":
             raise ValueError("Can only specify `max_file_size` when writing in binary mode!")
-
         self.output_filename = Template(output_filename)
-        if self.output_filename.safe_substitute(rank=0) == output_filename:
-            logger.warning(
-                f"Output filename template '{output_filename}' does not include ${{rank}}; parallel workers may overwrite outputs."
-            )
-        self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=compression)
-        self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
-        self.expand_metadata = expand_metadata
-        self.save_media_bytes = save_media_bytes
-
-    def _default_adapter(self, document: Document) -> dict:
-        """
-        You can create your own adapter that returns a dictionary in your preferred format
-        Args:
-            document: document to format
-
-        Returns: a dictionary to write to disk
-
-        """
-        data = {key: val for key, val in dataclasses.asdict(document).items() if val}
-        if self.expand_metadata and "metadata" in data:
-            data |= data.pop("metadata")
-
-        if not self.save_media_bytes and "media" in data:
-            data["media"] = [
-                {
-                    **media,
-                    "media_bytes": None,
-                }
-                for media in data["media"]
-            ]
-        return data
+        self.output_mg = self.output_folder.get_output_file_manager(mode=mode, compression=None)
 
     def __enter__(self):
         return self
@@ -93,10 +48,10 @@ class DiskWriter(PipelineStep, ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def _get_output_filename(self, document: Document, rank: int | str = 0, **kwargs) -> str:
+    def _get_output_filename(self, media: Media, rank: int | str = 0, **kwargs) -> str:
         """
             Get the output path for a given document, based on any possible tag replacement.
-            Example filename with `rank` tag: "${rank}.jsonl.gz"
+            Example filename with `rank` tag: "${rank}.zstd"
             Tags replaced:
             - `rank`: rank of the current worker. Important as to avoid multiple workers writing to the same file
             - `id`: the document's id
@@ -110,12 +65,10 @@ class DiskWriter(PipelineStep, ABC):
         Returns: the final replaced path for this document
 
         """
-        return self.output_filename.substitute(
-            {"rank": str(rank).zfill(5), "id": document.id, **document.metadata, **kwargs}
-        )
+        return self.output_filename.substitute({"rank": str(rank).zfill(5), **kwargs})
 
     @abstractmethod
-    def _write(self, document: dict, file_handler: IO, filename: str):
+    def _write(self, media: Media, file_handler: IO, filename: str) -> tuple[str, int, int]:
         """
         Main method that subclasses should implement. Receives an adapted (after applying self.adapter) dictionary with data to save to `file_handler`
         Args:
@@ -137,17 +90,7 @@ class DiskWriter(PipelineStep, ABC):
             _new_filename: new full filename
 
         """
-        self.close_file(old_filename)
-
-    def close_file(self, filename):
-        """
-            Close a file and remove it from the output manager
-        Args:
-            filename: filename to close
-        """
-        if self.max_file_size > 0 and filename not in self.output_mg.get_open_files():
-            filename = self._get_filename_with_file_id(filename)
-        self.output_mg.pop(filename).close()
+        self.output_mg.pop(old_filename).close()
 
     def _get_filename_with_file_id(self, filename):
         """
@@ -162,7 +105,7 @@ class DiskWriter(PipelineStep, ABC):
             return f"{os.path.dirname(filename)}/{self.file_id_counter[filename]:03d}_{os.path.basename(filename)}"
         return f"{self.file_id_counter[filename]:03d}_{os.path.basename(filename)}"
 
-    def write(self, document: Document, rank: int = 0, **kwargs):
+    def write(self, media: Media, rank: int = 0, **kwargs):
         """
         Top level method to write a `Document` to disk. Will compute its output filename, adapt it to desired output format, write it and save stats.
         Args:
@@ -173,7 +116,7 @@ class DiskWriter(PipelineStep, ABC):
         Returns:
 
         """
-        original_name = output_filename = self._get_output_filename(document, rank, **kwargs)
+        original_name = output_filename = self._get_output_filename(media, rank, **kwargs)
         # we possibly have to change file
         if self.max_file_size > 0:
             # get size of current file
@@ -185,10 +128,13 @@ class DiskWriter(PipelineStep, ABC):
                 self._on_file_switch(original_name, output_filename, new_output_filename)
                 output_filename = new_output_filename
         # actually write
-        self._write(self.adapter(document), self.output_mg.get_file(output_filename), original_name)
-        self.stat_update(self._get_output_filename(document, "XXXXX", **kwargs))
+        filename, offset, compressed_size = self._write(
+            media, self.output_mg.get_file(output_filename), output_filename
+        )
+        self.stat_update(self._get_output_filename(media, "XXXXX", **kwargs))
         self.stat_update(StatHints.total)
-        self.update_doc_stats(document)
+        self.update_media_stats(media)
+        return filename, offset, compressed_size
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
@@ -204,5 +150,11 @@ class DiskWriter(PipelineStep, ABC):
         with self:
             for document in data:
                 with self.track_time():
-                    self.write(document, rank)
+                    for media in document.media:
+                        if media.media_bytes is not None:
+                            filename, offset, compressed_size = self.write(media, rank)
+                            media.path = filename
+                            media.offset = offset
+                            media.length = compressed_size
+                            self.stat_update(StatHints.total)
                 yield document

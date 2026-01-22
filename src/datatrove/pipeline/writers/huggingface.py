@@ -38,6 +38,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
         schema: Any = None,
         revision: str | None = None,
+        save_media_bytes=False,
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
@@ -76,6 +77,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             expand_metadata=expand_metadata,
             max_file_size=max_file_size,
             schema=schema,
+            save_media_bytes=save_media_bytes,
         )
         self.operations = []
         self._repo_init = False

@@ -327,16 +327,15 @@ class RayTaskManager:
         # Wait for all tasks to be cancelled, with timeout
         ray.wait(group.tasks, num_returns=len(group.tasks), timeout=2)
 
-        # Kill the tasks
-        for t in group.tasks:
-            ray.cancel(t, force=True)
-
         # Kill actors
         for worker in group.workers:
             try:
                 ray.kill(worker)
             except Exception as e:
                 logger.warning(f"Failed to kill worker: {e}")
+
+        # Wait for all tasks to be cancelled (due to worker kill), with timeout
+        ray.wait(group.tasks, num_returns=len(group.tasks), timeout=2)
 
         # Remove placement group
         try:

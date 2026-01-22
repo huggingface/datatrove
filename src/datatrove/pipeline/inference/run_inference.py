@@ -24,6 +24,7 @@ from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
+    CustomServer,
     DummyServer,
     EndpointServer,
     InferenceServer,
@@ -63,7 +64,7 @@ class InferenceConfig:
     """
 
     # server and model
-    server_type: Literal["sglang", "vllm", "dummy", "endpoint"]
+    server_type: Literal["sglang", "vllm", "dummy", "custom", "endpoint"]
     model_name_or_path: str
     model_max_context: int = 8192
     use_chat: bool = True
@@ -195,6 +196,8 @@ class InferenceRunner(PipelineStep):
             return VLLMServer(self.config, rank)
         elif stype == "dummy":
             return DummyServer(self.config, rank)
+        elif stype == "custom":
+            return CustomServer(self.config, rank)
         elif stype == "endpoint":
             return EndpointServer(self.config, rank)
         else:
@@ -366,7 +369,6 @@ class InferenceRunner(PipelineStep):
         Yields:
             Document objects from the synchronous generator
         """
-
         # One thread, so that we don't instantiate a new thread for each document
         threadpool = ThreadPoolExecutor(max_workers=1)
         try:
@@ -385,7 +387,8 @@ class InferenceRunner(PipelineStep):
                     break
                 yield item
         finally:
-            await asyncio.wait_for(asyncio.to_thread(threadpool.shutdown, wait=False, cancel_futures=True), timeout=10)
+            # shutdown(wait=False) is non-blocking, so safe to call directly
+            threadpool.shutdown(wait=False, cancel_futures=True)
 
     @contextmanager
     def get_shared_context_cm(self) -> dict:

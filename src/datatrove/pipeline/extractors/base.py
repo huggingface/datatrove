@@ -1,3 +1,4 @@
+import platform
 import time
 from abc import abstractmethod
 from multiprocessing import Pipe, Process
@@ -47,7 +48,7 @@ class BaseExtractor(PipelineStep):
         Returns:
 
         """
-        with ExtractorSandbox(timeout=self.timeout) as extractor:
+        with ExtractorSandbox(timeout=self.timeout, warmup_text="") as extractor:
             for doc in data:
                 self.stat_update(StatHints.total)
                 with self.track_time():
@@ -82,11 +83,11 @@ class BaseExtractor(PipelineStep):
 
 
 class ExtractorSandbox:
-    def __init__(self, timeout, wamup_text=""):
+    def __init__(self, timeout, warmup_text=""):
         self.timeout = timeout
         self.process = None
         self.parent_conn = None
-        self.wamup_text = wamup_text
+        self.warmup_text = warmup_text
         self.child_conn = None
         self.all_processes = []
 
@@ -110,14 +111,21 @@ class ExtractorSandbox:
 
     def _worker(self, conn, extract_fn):
         # Ensure this process is killed first
-        self.set_oom_score_adj(1000)
+        if platform.system() == "Linux":
+            self.set_oom_score_adj(1000)
 
-        extract_fn(self.wamup_text)  # "warmup"
+        if isinstance(self.warmup_text, tuple):
+            extract_fn(*self.warmup_text)  # "warmup"
+        else:
+            extract_fn(self.warmup_text)  # "warmup"
         conn.send(None)  # ready
         while True:
             try:
                 text = conn.recv()
-                result = extract_fn(text)
+                if isinstance(text, tuple):
+                    result = extract_fn(*text)
+                else:
+                    result = extract_fn(text)
                 conn.send(result)
             except EOFError:
                 break
@@ -176,7 +184,6 @@ class ExtractorSandbox:
         # Now clean up ALL processes
         alive_processes = [p for p in self.all_processes if p.is_alive()]
         logger.info(f"Found {len(alive_processes)} alive processes to terminate")
-
         if alive_processes:
             # Step 1: Terminate all processes
             for i, process in enumerate(alive_processes):
@@ -193,7 +200,6 @@ class ExtractorSandbox:
                     process.join(timeout=5.0)  # Much longer timeout
                 except Exception as e:
                     logger.warning(f"Error joining process {process.pid}: {e}")
-
             # Step 3: Kill any remaining processes
             still_alive_processes = [p for p in alive_processes if p.is_alive()]
             if still_alive_processes:
@@ -205,7 +211,6 @@ class ExtractorSandbox:
                         process.join(timeout=2.0)  # Final join with timeout
                     except Exception as e:
                         logger.error(f"Error killing process {process.pid}: {e}")
-
             # Step 4: Final check
             final_alive = [p for p in self.all_processes if p.is_alive()]
             if final_alive:
