@@ -28,6 +28,7 @@ class JsonlReader(BaseDiskReader):
         recursive: whether to search files recursively. Ignored if paths_file is provided
         glob_pattern: pattern that all files must match exactly to be included (relative to data_folder). Ignored if paths_file is provided
         shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use with dedup blocks
+        add_file_path: add the source file path to metadata when missing
     """
 
     name = "🐿 Jsonl"
@@ -49,6 +50,7 @@ class JsonlReader(BaseDiskReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        add_file_path: bool = True,
     ):
         super().__init__(
             data_folder,
@@ -64,6 +66,7 @@ class JsonlReader(BaseDiskReader):
             recursive,
             glob_pattern,
             shuffle_files,
+            add_file_path,
         )
         self.compression = compression
 

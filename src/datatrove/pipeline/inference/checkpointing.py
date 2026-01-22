@@ -285,14 +285,13 @@ class CheckpointManager:
                 with self.checkpoints_local_dir_df.open(f"last_chunk/{rank:05d}.txt", "r") as f:
                     self.last_chunk_index = int(f.read().strip())
 
-            reader = JsonlReader(self.checkpoints_local_dir, compression=None)
+            reader = JsonlReader(self.checkpoints_local_dir, compression=None, add_file_path=False)
             # find existing chunk files and read from them
             for filename in self.checkpoints_local_dir_df.glob(f"{rank:05d}/*.jsonl"):
                 chunk_index = int(filename.removeprefix(f"{rank:05d}/chunk_").removesuffix(".jsonl"))
                 # not strictly needed but just to be safe for the future
                 async with self.file_locks[chunk_index]:
                     for document in reader.read_file(filename):
-                        document.metadata.pop("file_path", None)  # Remove any injected file_path
                         if "__no_rollouts_remove" not in document.metadata:
                             output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
                         all_ids.add(document.id)
