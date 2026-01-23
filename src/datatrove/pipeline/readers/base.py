@@ -130,6 +130,7 @@ class BaseDiskReader(BaseReader):
         recursive: whether to search files recursively. Ignored if paths_file is provided
         glob_pattern: pattern that all files must match exactly to be included (relative to data_folder). Ignored if paths_file is provided
         shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use with dedup blocks
+        add_file_path: add the source file path to metadata when missing
     """
 
     type = "📖 - READER"
@@ -149,6 +150,7 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        add_file_path: bool = True,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
@@ -158,10 +160,11 @@ class BaseDiskReader(BaseReader):
         self.shuffle_files = shuffle_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
+        self.add_file_path = add_file_path
 
     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int):
         document = super().get_document_from_dict(data, source_file, id_in_file)
-        if document:
+        if document and self.add_file_path:
             document.metadata.setdefault("file_path", self.data_folder.resolve_paths(source_file))
         return document
 

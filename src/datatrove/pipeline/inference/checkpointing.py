@@ -285,7 +285,7 @@ class CheckpointManager:
                 with self.checkpoints_local_dir_df.open(f"last_chunk/{rank:05d}.txt", "r") as f:
                     self.last_chunk_index = int(f.read().strip())
 
-            reader = JsonlReader(self.checkpoints_local_dir, compression=None)
+            reader = JsonlReader(self.checkpoints_local_dir, compression=None, add_file_path=False)
             # find existing chunk files and read from them
             for filename in self.checkpoints_local_dir_df.glob(f"{rank:05d}/*.jsonl"):
                 chunk_index = int(filename.removeprefix(f"{rank:05d}/chunk_").removesuffix(".jsonl"))
