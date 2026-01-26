@@ -201,6 +201,19 @@ def main(
             messages.extend(document.text)
         else:
             content = prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
+
+            # Truncate content if too long to avoid server errors
+            # Uses ~3 chars per token as a conservative approximation
+            char_budget = (model_max_context - max_tokens) * 3
+            if len(content) > char_budget:
+                original_len = len(content)
+                # Try to truncate at a newline boundary for cleaner cuts
+                last_newline = content.rfind("\n", 0, char_budget)
+                content = content[:last_newline] if last_newline != -1 else content[:char_budget]
+                # Import logger inside the function to ensure it's available in pickled closures
+                from datatrove.utils.logging import logger as _logger
+                _logger.warning(f"Truncated content from {original_len} to {len(content)} chars (budget: {char_budget} chars)")
+
             messages.append({"role": "user", "content": content})
 
         return await generate(
