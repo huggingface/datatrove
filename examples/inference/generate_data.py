@@ -101,7 +101,6 @@ MB = 1024 * 1024
 def main(
     # Input data details
     input_dataset_name: str = "simplescaling/s1K-1.1",
-    input_dataset_split: str = "train",
     input_dataset_config: str | None = None,
     input_dataset_split: str = "train",
     prompt_column: str = "question",
