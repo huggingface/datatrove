@@ -27,7 +27,7 @@ class InferenceDatasetCardParams:
     model_revision: str
     generation_kwargs: dict[str, Any]
     spec_config: str | None
-    stats_path: Path
+    stats_path: str
 
 
 @dataclass
@@ -223,7 +223,7 @@ def build_and_upload_dataset_card(
     # During progress monitoring, we don't want to wait for stats.json
     stats = None
     if not progress_section and params.stats_path:
-        stats = load_job_stats(params.stats_path)
+        stats = load_job_stats(Path(params.stats_path))
 
     status = "final" if stats else "progress"
     logger.info(
