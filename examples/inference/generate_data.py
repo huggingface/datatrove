@@ -103,6 +103,7 @@ def main(
     input_dataset_name: str = "simplescaling/s1K-1.1",
     input_dataset_split: str = "train",
     input_dataset_config: str | None = None,
+    input_dataset_split: str = "train",
     prompt_column: str = "question",
     prompt_template: str | None = None,
     max_examples: int = -1,
@@ -144,8 +145,8 @@ def main(
     tasks: int = 10,
     workers: int = 10,
     local_execution: bool = False,
-    enable_datacard: bool = True,
     enable_monitoring: bool = False,
+    benchmark_mode: bool = False,  # Skip output writing for benchmarking
     # slurm settings
     name: str = "dataforge",
     time: str = "12:00:00",
@@ -154,12 +155,14 @@ def main(
 ) -> None:
     """Typer CLI entrypoint that runs the pipeline with provided options."""
 
-    # Check authentication early
-    check_hf_auth()  # Check authentication early to avoid errors later
-
-    full_repo_id = resolve_repo_id(output_dataset_name)  # Resolve full repo name for the output dataset
-
-    ensure_repo_exists(full_repo_id, private=output_private)  # Create the repository if it doesn't exist
+    # Skip HuggingFace setup in benchmark mode
+    full_repo_id = None
+    if benchmark_mode:
+        enable_monitoring = False
+    else:
+        check_hf_auth()  # Check authentication early to avoid errors later
+        full_repo_id = resolve_repo_id(output_dataset_name)  # Resolve full repo name for the output dataset
+        ensure_repo_exists(full_repo_id, private=output_private)  # Create the repository if it doesn't exist
 
     if local_execution:
         available_gpus = torch.cuda.device_count()
@@ -331,7 +334,7 @@ def main(
         )
         inference_executor.run()
 
-        if enable_datacard:
+        if not benchmark_mode:
             datacard_executor = LocalPipelineExecutor(
                 pipeline=datacard_pipeline,
                 logging_dir=str(datacard_logs_path),
@@ -385,7 +388,7 @@ def main(
 
             monitor_executor.run()
 
-        if enable_datacard:
+        if not benchmark_mode:
             datacard_executor = SlurmPipelineExecutor(
                 pipeline=datacard_pipeline,
                 logging_dir=str(datacard_logs_path),

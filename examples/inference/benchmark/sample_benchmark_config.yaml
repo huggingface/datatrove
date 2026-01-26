@@ -32,8 +32,7 @@ fixed_args:
   output-dataset-name: "s1K-1.1-benchmark"
   output-dir: "data"
 
-  enable-datacard: false
-  enable-monitoring: false
+  benchmark-mode: true
   
   workers: 1
   tasks: 1
