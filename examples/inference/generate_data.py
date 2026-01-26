@@ -212,7 +212,10 @@ def main(
                 content = content[:last_newline] if last_newline != -1 else content[:char_budget]
                 # Import logger inside the function to ensure it's available in pickled closures
                 from datatrove.utils.logging import logger as _logger
-                _logger.warning(f"Truncated content from {original_len} to {len(content)} chars (budget: {char_budget} chars)")
+
+                _logger.warning(
+                    f"Truncated content from {original_len} to {len(content)} chars (budget: {char_budget} chars)"
+                )
 
             messages.append({"role": "user", "content": content})
 
