@@ -19,7 +19,6 @@ Usage:
 
 import argparse
 import os
-from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from huggingface_hub import create_repo, get_full_repo_name, repo_exists, whoami
@@ -136,7 +135,7 @@ def main():
     monitor_logs_path = os.path.join(logs_dir, "monitor")
     datacard_logs_path = os.path.join(logs_dir, "datacard")
     checkpoints_path = os.path.join(final_output_dir, "checkpoints")
-    stats_path = Path(os.path.join(inference_logs_path, "stats.json"))
+    stats_path = os.path.join(inference_logs_path, "stats.json")
 
     # Dataset card parameters (shared between monitor and generator)
     dataset_card_params = InferenceDatasetCardParams(

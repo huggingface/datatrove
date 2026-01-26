@@ -266,7 +266,7 @@ def main(
         tp=tp,
         dp=dp,
         pp=pp,
-        server_log_folder=os.path.join(inference_logs_path, "server_logs"),
+        server_log_folder=str(inference_logs_path / "server_logs"),
     )
 
     inference_pipeline = [
@@ -309,7 +309,7 @@ def main(
             "model_max_context": model_max_context,
         },
         spec_config=normalized_spec,
-        stats_path=Path(os.path.join(inference_logs_path, "stats.json")),
+        stats_path=str(inference_logs_path / "stats.json"),
     )
 
     monitor_pipeline = [
@@ -325,7 +325,7 @@ def main(
     if local_execution:
         inference_executor = LocalPipelineExecutor(
             pipeline=inference_pipeline,
-            logging_dir=inference_logs_path,
+            logging_dir=str(inference_logs_path),
             tasks=tasks,
             workers=workers,
         )
@@ -334,7 +334,7 @@ def main(
         if enable_datacard:
             datacard_executor = LocalPipelineExecutor(
                 pipeline=datacard_pipeline,
-                logging_dir=datacard_logs_path,
+                logging_dir=str(datacard_logs_path),
                 tasks=1,
                 workers=1,
             )
@@ -343,7 +343,7 @@ def main(
     else:
         inference_executor = SlurmPipelineExecutor(
             pipeline=inference_pipeline,
-            logging_dir=inference_logs_path,
+            logging_dir=str(inference_logs_path),
             tasks=tasks,
             workers=workers,
             time=time,
@@ -371,7 +371,7 @@ def main(
 
             monitor_executor = SlurmPipelineExecutor(
                 pipeline=monitor_pipeline,
-                logging_dir=monitor_logs_path,
+                logging_dir=str(monitor_logs_path),
                 tasks=1,
                 workers=1,
                 time="7-00:00:00",  # Long enough to outlast inference
@@ -388,7 +388,7 @@ def main(
         if enable_datacard:
             datacard_executor = SlurmPipelineExecutor(
                 pipeline=datacard_pipeline,
-                logging_dir=datacard_logs_path,
+                logging_dir=str(datacard_logs_path),
                 tasks=1,
                 workers=1,
                 time="0:10:00",

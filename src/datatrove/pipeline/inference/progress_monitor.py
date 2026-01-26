@@ -11,6 +11,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pyarrow.parquet as pq
 from datasets import load_dataset, load_dataset_builder
@@ -321,7 +322,7 @@ class InferenceProgressMonitor(PipelineStep):
 
         while True:
             # Check if generation is complete (stats.json exists)
-            if self.params.stats_path.exists():
+            if Path(self.params.stats_path).exists():
                 logger.info("stats.json detected - generation complete!")
                 break
 
