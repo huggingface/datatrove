@@ -1,9 +1,9 @@
 """Utility functions for the vLLM benchmark scripts."""
 
 import json
+from typing import Any
 
 from huggingface_hub import create_repo, get_full_repo_name, repo_exists, whoami
-from transformers import AutoConfig
 
 from datatrove.utils.logging import logger
 
@@ -134,7 +134,7 @@ def validate_config(
     dp: int,
     nodes_per_task: int,
     optimization_level: int,
-    config: AutoConfig,
+    config: Any,
     prompt_template: str | None = None,
 ) -> None:
     """
