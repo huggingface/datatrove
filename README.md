@@ -52,7 +52,7 @@ pip install datatrove[FLAVOUR]
 ```
 Available flavours (combine them with `,` i.e. `[processing,s3]`):
 - `all` installs everything: `pip install datatrove[all]`
-- `io` dependencies to read `warc/arc/wet` files and arrow/parquet formats: `pip install datatrove[io]`
+- `io` dependencies to read `warc/arc/wet` files and arrow/parquet/[Optimized-parquet](https://huggingface.co/docs/hub/en/datasets-libraries#optimized-parquet-files) formats: `pip install datatrove[io]`
 - `processing` dependencies for text extraction, filtering and tokenization: `pip install datatrove[processing]`
 - `s3` s3 support: `pip install datatrove[s3]`
 - `cli` for command line tools: `pip install datatrove[cli]`
