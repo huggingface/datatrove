@@ -92,6 +92,16 @@ class CompileLockManager:
             logger.info("Compilation lock released")
 
 
+def _get_vllm_version() -> str:
+    """Get vLLM version string, or 'unknown' if not installed."""
+    try:
+        from vllm import __version__
+
+        return __version__
+    except ImportError:
+        return "unknown"
+
+
 def compute_config_hash(
     model_name_or_path: str,
     tp: int,
@@ -102,18 +112,26 @@ def compute_config_hash(
 ) -> str:
     """Compute a hash of vLLM config parameters for cache/lock identification.
 
+    This hash covers the same key factors as vLLM's VllmConfig.compute_hash():
+    - vLLM version (compilation may differ between versions)
+    - Model name/path (determines architecture)
+    - Parallelism settings (tp, pp, dp affect graph sharding)
+    - Max context length (affects tensor shapes)
+    - Model kwargs (captures dtype, quantization, etc. if specified)
+
     Args:
         model_name_or_path: Model name or path
         tp: Tensor parallelism
         pp: Pipeline parallelism
         dp: Data parallelism
         model_max_context: Maximum context length
-        model_kwargs: Additional model keyword arguments
+        model_kwargs: Additional model keyword arguments (e.g., dtype, quantization)
 
     Returns:
         12-character hex hash string
     """
     config_parts = [
+        _get_vllm_version(),
         model_name_or_path,
         str(tp),
         str(pp),

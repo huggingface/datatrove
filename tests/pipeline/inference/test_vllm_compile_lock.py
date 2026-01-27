@@ -10,6 +10,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from datatrove.pipeline.inference.servers.compile_lock import CompileLockManager, compute_config_hash
 
@@ -51,6 +52,16 @@ class TestComputeConfigHash(unittest.TestCase):
         hash2 = compute_config_hash("model", 1, 1, 1, 2048, model_kwargs=None)
 
         self.assertEqual(hash1, hash2)
+
+    def test_vllm_version_affects_hash(self):
+        """Test that different vLLM versions produce different hashes."""
+        with patch("datatrove.pipeline.inference.servers.compile_lock._get_vllm_version", return_value="0.6.0"):
+            hash_v060 = compute_config_hash("model", 1, 1, 1, 2048)
+
+        with patch("datatrove.pipeline.inference.servers.compile_lock._get_vllm_version", return_value="0.7.0"):
+            hash_v070 = compute_config_hash("model", 1, 1, 1, 2048)
+
+        self.assertNotEqual(hash_v060, hash_v070)
 
 
 class TestCompileLockManager(unittest.TestCase):
