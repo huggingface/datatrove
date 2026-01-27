@@ -15,7 +15,6 @@ python examples/inference/benchmark/launch_experiments.py \
 """
 
 import re
-import subprocess
 import sys
 import time
 from itertools import product
@@ -29,8 +28,8 @@ from datatrove.utils.logging import logger
 
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils import encode_spec_segment_for_log_dir, normalize_speculative
-
+# Import generate_data.main directly to avoid subprocess overhead (~10s per invocation)
+from generate_data import main as generate_data_main
 
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
@@ -160,58 +159,24 @@ class ExperimentLauncher:
 
         return expanded_runs
 
-    def _build_command(self, run_config: dict[str, Any]) -> list[str]:
-        """
-        Build command line from configuration.
-
-        Args:
-            run_config: Configuration for a specific run
-
-        Returns:
-            Command as list of strings
-        """
-        # Build base command - execute script directly
-        script = self.config["script"]
-        if script.endswith(".py"):
-            cmd = ["python", script]
-        else:
-            # Execute script directly (e.g., "rephrase" -> "rephrase")
-            cmd = [script]
-
-        # Add the run name as --name argument first
-        cmd.extend(["--name", run_config["name"]])
-
+    def _build_kwargs(self, run_config: dict[str, Any]) -> dict[str, Any]:
+        """Build kwargs dict for calling generate_data.main directly."""
         # Merge fixed_args and run args, with run args overriding fixed_args
-        fixed_args = self.config.get("fixed_args", {})
-        var_args = run_config.get("args", {})
-        merged_args = {**fixed_args, **var_args}
+        fixed_args = self.config.get("fixed_args", {}) or {}
+        var_args = run_config.get("args", {}) or {}
+        merged = {**fixed_args, **var_args, "name": run_config["name"]}
 
-        # Add merged arguments to command
-        for key, value in merged_args.items():
-            self._add_argument_to_command(cmd, key, value)
+        # Prepend experiment name to output-dir for directory grouping
+        if "experiment" in run_config and "output-dir" in merged:
+            merged["output-dir"] = f"{merged['output-dir']}/{run_config['experiment']}"
 
-        return cmd
+        # Convert CLI-style keys (with dashes) to Python kwargs (with underscores)
+        return {key.replace("-", "_"): value for key, value in merged.items()}
 
-    def _add_argument_to_command(self, cmd: list[str], key: str, value: Any) -> None:
-        """Add an argument to the command list based on its type."""
-        if isinstance(value, bool):
-            if value:
-                cmd.append(f"--{key}")
-            else:
-                # Typer supports --no-<flag> syntax for disabling boolean options
-                cmd.append(f"--no-{key}")
-        elif isinstance(value, list):
-            # Handle multiple values (e.g., --data path1 path2)
-            cmd.append(f"--{key}")
-            cmd.extend(str(v) for v in value)
-        else:
-            cmd.extend([f"--{key}", str(value)])
-
-    def _execute_command(self, cmd: list[str], run_name: str) -> tuple[int, bool]:
-        """Execute a command (Slurm job submission) and indicate if it was skipped."""
+    def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool]:
+        """Execute generate_data.main directly (no subprocess overhead)."""
         logger.info(f"\n{'=' * 60}")
         logger.info(f"Submitting Slurm job for run: {run_name}")
-        logger.info(f"Command: {' '.join(cmd)}")
         logger.info(f"{'=' * 60}")
 
         if self.dry_run:
@@ -219,25 +184,16 @@ class ExperimentLauncher:
             return 0, False
 
         try:
-            # Execute the command (which will submit a Slurm job)
-            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
-
-            # Print stdout/stderr for job submission feedback
-            if result.stdout:
-                logger.info(f"Job submission output: {result.stdout.strip()}")
-            if result.stderr:
-                logger.info(f"Job submission errors: {result.stderr.strip()}")
-            combined_output = "\n".join(filter(None, [result.stdout, result.stderr]))
-            skipped = "Skipping launch" in combined_output or "already been completed" in combined_output
-
-            if result.returncode != 0:
-                logger.error(f"❌ Failed to submit Slurm job for {run_name}")
-
-            return result.returncode, skipped
+            generate_data_main(**kwargs)
+            return 0, False
         except KeyboardInterrupt:
             logger.info(f"\nInterrupted during job submission for run: {run_name}")
             raise
         except Exception as e:
+            error_msg = str(e)
+            if "Skipping launch" in error_msg or "already been completed" in error_msg:
+                logger.info(f"Job skipped: {error_msg}")
+                return 0, True
             logger.error(f"Error submitting job for run {run_name}: {e}")
             return 1, False
 
@@ -267,9 +223,9 @@ class ExperimentLauncher:
         for run_config in expanded_runs:
             run_name = run_config["name"]
 
-            # Build and submit Slurm job
-            cmd = self._build_command(run_config)
-            exit_code, skipped = self._execute_command(cmd, run_name)
+            # Build kwargs and call generate_data.main directly (no subprocess overhead)
+            kwargs = self._build_kwargs(run_config)
+            exit_code, skipped = self._execute_direct(kwargs, run_name)
             results[run_name] = exit_code
             if skipped:
                 skipped_runs.add(run_name)
