@@ -9,14 +9,16 @@ from ..utils import require_datasets
 class TestHuggingFaceReader(unittest.TestCase):
     def test_read_dataset(self):
         reader = HuggingFaceDatasetReader(
-            "truthful_qa", dataset_options={"name": "generation", "split": "validation"}, text_key="question"
+            "truthfulqa/truthful_qa",
+            dataset_options={"name": "generation", "split": "validation"},
+            text_key="question",
         )
         data = list(reader())
         self.assertEqual(len(data), 817)
 
     def test_read_dataset_shuffle(self):
         reader = HuggingFaceDatasetReader(
-            "truthful_qa",
+            "truthfulqa/truthful_qa",
             dataset_options={"name": "generation", "split": "validation"},
             text_key="question",
             shuffle_files=True,
@@ -27,7 +29,7 @@ class TestHuggingFaceReader(unittest.TestCase):
 
     def test_read_streaming_dataset(self):
         reader = HuggingFaceDatasetReader(
-            "truthful_qa",
+            "truthfulqa/truthful_qa",
             dataset_options={"name": "generation", "split": "validation"},
             text_key="question",
             streaming=True,
@@ -37,7 +39,7 @@ class TestHuggingFaceReader(unittest.TestCase):
 
     def test_read_streaming_dataset_shuffle(self):
         reader = HuggingFaceDatasetReader(
-            "truthful_qa",
+            "truthfulqa/truthful_qa",
             dataset_options={"name": "generation", "split": "validation"},
             text_key="question",
             streaming=True,
