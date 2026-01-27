@@ -18,6 +18,7 @@ from datatrove.pipeline.inference.distributed.utils import (
     is_master_node,
 )
 from datatrove.pipeline.inference.servers import InferenceServer
+from datatrove.pipeline.inference.servers.compile_lock import CompileLockManager, compute_config_hash
 from datatrove.utils._import_utils import check_required_dependencies
 
 
@@ -38,6 +39,21 @@ class VLLMServer(InferenceServer):
         # Check required dependencies for VLLM server
         check_required_dependencies("VLLM server", ["vllm"])
         super().__init__(config, rank)
+        self._compile_lock: CompileLockManager | None = None
+
+    def _get_compile_lock(self) -> CompileLockManager:
+        """Get or create the compile lock manager for this config."""
+        if self._compile_lock is None:
+            config_hash = compute_config_hash(
+                model_name_or_path=self.config.model_name_or_path,
+                tp=self.config.tp,
+                pp=self.config.pp,
+                dp=self.config.dp,
+                model_max_context=self.config.model_max_context,
+                model_kwargs=self.config.model_kwargs,
+            )
+            self._compile_lock = CompileLockManager(config_hash)
+        return self._compile_lock
 
     async def _start_vllm_task(self) -> asyncio.subprocess.Process:
         """Start the VLLM server process."""
@@ -87,7 +103,15 @@ class VLLMServer(InferenceServer):
         )
 
     async def start_server(self) -> asyncio.subprocess.Process | None:
-        """Start the VLLM server process, handling distributed setup if needed."""
+        """Start the VLLM server process, handling distributed setup if needed.
+
+        Uses file locking to prevent concurrent torch.compile corruption when
+        multiple jobs with the same config start simultaneously on a shared filesystem.
+        The lock is only held during initial compilation; subsequent jobs use the
+        cached compilation without locking.
+        """
+        # Acquire lock to prevent concurrent torch.compile if cache doesn't exist
+        self._get_compile_lock().acquire()
         n_nodes = len(get_node_hosts())
         if n_nodes <= 1:
             return await self._start_vllm_task()
@@ -143,6 +167,10 @@ class VLLMServer(InferenceServer):
             if "Application startup complete" in line or "Uvicorn running on" in line:
                 server_printed_ready_message = True
                 logger.info("VLLM server startup complete")
+                # Mark cache as complete and release lock now that compilation is done
+                lock = self._get_compile_lock()
+                lock.mark_complete()
+                lock.release()
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
                 raise RuntimeError("CUDA out of memory error detected")
@@ -196,6 +224,9 @@ class VLLMServer(InferenceServer):
                 await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5.0)
 
     async def server_cleanup(self):
+        # Release compilation lock if still held (e.g., if server failed before becoming ready)
+        if self._compile_lock is not None:
+            self._compile_lock.release()
         await super().server_cleanup()
         if len(get_node_hosts()) > 1:
             cleanup_ray()
