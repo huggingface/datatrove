@@ -30,7 +30,7 @@ fixed_args:
   model-revision: "main"
   
   output-dataset-name: "s1K-1.1-benchmark"
-  output-dir: "data"
+  output-dir: "examples/inference/benchmark/results"
 
   benchmark-mode: true
   

@@ -10,11 +10,11 @@ Analyze benchmark experiment outputs and produce a summary CSV and formatted tab
 
 Usage:
 
-# Summarize experiments under the default 'data/' root and write CSV
+# Summarize experiments under the default 'examples/inference/benchmark/results' root and write CSV
 python examples/inference/benchmark/analyze_results.py
 
 # Summarize a specific root and set an explicit CSV path
-python examples/inference/benchmark/analyze_results.py --root data --out-csv data/benchmarking_results.csv
+python examples/inference/benchmark/analyze_results.py --root examples/inference/benchmark/results --out-csv examples/inference/benchmark/results/benchmarking_results.csv
 """
 
 import glob
@@ -478,8 +478,8 @@ def analyze(root: str, out_csv: str) -> int:
 
 
 def main(
-    root: str = "data",
-    out_csv: str = "data/benchmarking_results.csv",
+    root: str = "examples/inference/benchmark/results",
+    out_csv: str = "examples/inference/benchmark/results/benchmarking_results.csv",
 ) -> None:
     analyze(root, out_csv)
 
