@@ -83,10 +83,15 @@ multilingual = [
   "pyidaungsu-numpy2", # burmese
 ]
 inference = [
+  "datatrove[io]",
   "aiofiles",
   "orjson",
   "httpx",
   "aiosqlite",
+  "vllm",
+  "sglang",
+  "bitsandbytes",
+  "numpy>=2.0.0,<2.3", # numba requires numpy<=2.2
   "typer",
   "pyyaml",
   "pandas",
