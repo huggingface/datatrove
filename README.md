@@ -57,6 +57,9 @@ Available flavours (combine them with `,` i.e. `[processing,s3]`):
 - `s3` s3 support: `pip install datatrove[s3]`
 - `cli` for command line tools: `pip install datatrove[cli]`
 - `ray` for distributed compute engine: `pip install datatrove[ray]`
+- `inference` for LLM inference pipelines: `pip install datatrove[inference]`
+- `decont` for decontamination with lighteval: `pip install datatrove[decont]`
+- `multilingual` for multilingual text processing: `pip install datatrove[multilingual]`
 
 ## Quickstart examples
 You can check the following [examples](examples):
