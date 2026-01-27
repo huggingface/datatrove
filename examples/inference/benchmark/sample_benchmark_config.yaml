@@ -4,12 +4,10 @@
 # tensor parallelism (TP) and pipeline parallelism (PP) configurations.
 #
 # Launch with:
-#   python examples/inference/benchmark/launch_experiments.py \
-#       --config examples/inference/benchmark/sample_benchmark_config.yaml
+#   python examples/inference/benchmark/launch_experiments.py --config examples/inference/benchmark/sample_benchmark_config.yaml
 #
 # Dry run (no submission):
-#   python examples/inference/benchmark/launch_experiments.py \
-#       --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
+#   python examples/inference/benchmark/launch_experiments.py --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
 
 script: "examples/inference/generate_data.py"
 continue_on_failure: true
@@ -22,12 +20,9 @@ fixed_args:
   model-max-context: 2048
   max-tokens: 1024
 
-  metric-interval: 60  # seconds
-
   input-dataset-name: "simplescaling/s1K-1.1"
   input-dataset-split: "train"
   prompt-column: "question"
-  model-revision: "main"
   
   output-dataset-name: "s1K-1.1-benchmark"
   output-dir: "examples/inference/benchmark/results"

@@ -15,7 +15,7 @@ python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
-    --output-dataset-name s1K-1.1-dataforge \
+    --output-dataset-name s1K-1.1-datatrove \
     --examples-per-chunk 50 \
     --tasks 1 \
     --workers 1 \
@@ -30,7 +30,7 @@ python examples/inference/benchmark/generate_data.py \
     --examples-per-chunk 50
 
 # Generate synthetic data using a prompt template with [[DOCUMENT]] variable
-python dataforge/generate_data.py \
+python examples/inference/benchmark/generate_data.py \
     --input-dataset-name Salesforce/wikitext \
     --input-dataset-config wikitext-2-v1 \
     --prompt-column text \
@@ -107,7 +107,7 @@ def main(
     prompt_template: str | None = None,
     max_examples: int = -1,
     # Output dataset details
-    output_dataset_name: str = "s1K-1.1-dataforge",
+    output_dataset_name: str = "s1K-1.1-datatrove",
     output_private: bool = True,
     # Output logs and tmp files
     output_dir: str = "data",
@@ -147,7 +147,7 @@ def main(
     enable_monitoring: bool = False,
     benchmark_mode: bool = False,  # Skip output writing for benchmarking
     # slurm settings
-    name: str = "dataforge",
+    name: str = "synth",
     time: str = "12:00:00",
     qos: str = "low",
     reservation: str | None = None,
