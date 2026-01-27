@@ -332,6 +332,8 @@ def main(
     datacard_pipeline = [InferenceDatasetCardGenerator(params=dataset_card_params)]
 
     if local_execution:
+        from datatrove.executor import LocalPipelineExecutor  # Lazy import to speed up startup time
+
         inference_executor = LocalPipelineExecutor(
             pipeline=inference_pipeline,
             logging_dir=str(inference_logs_path),
