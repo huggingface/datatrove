@@ -15,7 +15,7 @@ class TestAdapterReader(unittest.TestCase):
             }
 
         reader = HuggingFaceDatasetReader(
-            "truthful_qa",
+            "truthfulqa/truthful_qa",
             dataset_options={"name": "generation", "split": "validation"},
             text_key="question",
             id_key="",
