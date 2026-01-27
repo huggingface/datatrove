@@ -15,7 +15,7 @@ python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
-    --output-dataset-name s1K-1.1-dataforge \
+    --output-dataset-name s1K-1.1-datatrove \
     --examples-per-chunk 50 \
     --tasks 1 \
     --workers 1 \
@@ -30,7 +30,7 @@ python examples/inference/benchmark/generate_data.py \
     --examples-per-chunk 50
 
 # Generate synthetic data using a prompt template with [[DOCUMENT]] variable
-python dataforge/generate_data.py \
+python examples/inference/benchmark/generate_data.py \
     --input-dataset-name Salesforce/wikitext \
     --input-dataset-config wikitext-2-v1 \
     --prompt-column text \
@@ -66,17 +66,14 @@ import sys
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-import torch
 import typer
 from transformers import AutoConfig, GenerationConfig
 
 from datatrove.data import Document
-from datatrove.executor import LocalPipelineExecutor, SlurmPipelineExecutor
 from datatrove.pipeline.inference.dataset_card_generator import (
     InferenceDatasetCardGenerator,
     InferenceDatasetCardParams,
 )
-from datatrove.pipeline.inference.progress_monitor import InferenceProgressMonitor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceResult, InferenceRunner
 from datatrove.pipeline.readers import HuggingFaceDatasetReader
 from datatrove.pipeline.writers import ParquetWriter
@@ -107,7 +104,7 @@ def main(
     prompt_template: str | None = None,
     max_examples: int = -1,
     # Output dataset details
-    output_dataset_name: str = "s1K-1.1-dataforge",
+    output_dataset_name: str = "s1K-1.1-datatrove",
     output_private: bool = True,
     # Output logs and tmp files
     output_dir: str = "data",
@@ -147,7 +144,7 @@ def main(
     enable_monitoring: bool = False,
     benchmark_mode: bool = False,  # Skip output writing for benchmarking
     # slurm settings
-    name: str = "dataforge",
+    name: str = "synth",
     time: str = "12:00:00",
     qos: str = "low",
     reservation: str | None = None,
@@ -164,6 +161,8 @@ def main(
         ensure_repo_exists(full_repo_id, private=output_private)  # Create the repository if it doesn't exist
 
     if local_execution:
+        import torch
+
         available_gpus = torch.cuda.device_count()
         if available_gpus == 0:
             raise ValueError("Local execution requires at least one CUDA GPU.")
@@ -330,17 +329,11 @@ def main(
         stats_path=str(inference_logs_path / "stats.json"),
     )
 
-    monitor_pipeline = [
-        InferenceProgressMonitor(
-            params=dataset_card_params,
-            max_examples=max_examples,
-            update_interval=60 if local_execution else 3600,  # 1 minute for debugging, 1 hour for slurm
-        )
-    ]
-
     datacard_pipeline = [InferenceDatasetCardGenerator(params=dataset_card_params)]
 
     if local_execution:
+        from datatrove.executor import LocalPipelineExecutor  # Lazy import to speed up startup time
+
         inference_executor = LocalPipelineExecutor(
             pipeline=inference_pipeline,
             logging_dir=str(inference_logs_path),
@@ -359,6 +352,8 @@ def main(
             # Monitor not supported in local execution as it would block
             datacard_executor.run()
     else:
+        from datatrove.executor import SlurmPipelineExecutor  # Lazy import to speed up startup time
+
         inference_executor = SlurmPipelineExecutor(
             pipeline=inference_pipeline,
             logging_dir=str(inference_logs_path),
@@ -384,6 +379,16 @@ def main(
         inference_executor.run()
 
         if enable_monitoring:
+            # Lazy import to speed up startup time
+            from datatrove.pipeline.inference.progress_monitor import InferenceProgressMonitor
+
+            monitor_pipeline = [
+                InferenceProgressMonitor(
+                    params=dataset_card_params,
+                    max_examples=max_examples,
+                    update_interval=60 if local_execution else 3600,  # 1 minute for debugging, 1 hour for slurm
+                )
+            ]
             # Update monitor with inference job id so it can stop if inference fails
             monitor_pipeline[0].inference_job_id = inference_executor.job_id
 

@@ -195,8 +195,11 @@ class ExperimentLauncher:
     def _add_argument_to_command(self, cmd: list[str], key: str, value: Any) -> None:
         """Add an argument to the command list based on its type."""
         if isinstance(value, bool):
-            if value:  # Only add flag if True
+            if value:
                 cmd.append(f"--{key}")
+            else:
+                # Typer supports --no-<flag> syntax for disabling boolean options
+                cmd.append(f"--no-{key}")
         elif isinstance(value, list):
             # Handle multiple values (e.g., --data path1 path2)
             cmd.append(f"--{key}")
