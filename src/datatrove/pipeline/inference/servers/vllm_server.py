@@ -79,6 +79,11 @@ class VLLMServer(InferenceServer):
         # vLLM initializes much faster without affecting throughput.
         env.setdefault("USE_TF", "0")
         env.setdefault("TRANSFORMERS_NO_TF", "1")
+        # Use unique cache directories per job to avoid corruption from concurrent writes
+        # on shared filesystems when multiple jobs compile the same model simultaneously
+        if job_id := os.environ.get("SLURM_JOB_ID"):
+            env.setdefault("VLLM_CACHE_ROOT", f"/tmp/vllm_cache_{job_id}")
+            env.setdefault("TORCH_COMPILE_CACHE_DIR", f"/tmp/torch_cache_{job_id}")
         return await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
