@@ -31,6 +31,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import generate_data.main directly to avoid subprocess overhead (~10s per invocation)
 from generate_data import main as generate_data_main
 
+from utils import encode_spec_segment_for_log_dir, normalize_speculative
+
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
 
