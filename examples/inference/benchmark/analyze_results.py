@@ -31,6 +31,21 @@ from datatrove.utils.logging import logger
 
 GPUS_PER_NODE = 8
 
+# Patterns indicating OOM errors in vLLM server logs
+OOM_PATTERNS = [
+    re.compile(r"torch\.OutOfMemoryError.*CUDA out of memory", re.IGNORECASE),
+    re.compile(r"ValueError.*No available memory for the cache blocks", re.IGNORECASE),
+    re.compile(r"OutOfMemoryError", re.IGNORECASE),
+]
+
+
+def check_oom_in_server_log(server_log_path: Path | None) -> bool:
+    """Check if a server log file contains OOM (Out of Memory) errors."""
+    if server_log_path is None or not server_log_path.exists():
+        return False
+    content = server_log_path.read_text()
+    return any(pattern.search(content) for pattern in OOM_PATTERNS)
+
 
 def parse_server_logs(server_log_path: Path) -> dict[str, float] | None:
     """
@@ -251,6 +266,23 @@ def analyze(root: str, out_csv: str) -> int:
         }
 
         stats_dir = Path(path).parent.parent  # .../inference_logs
+
+        # Find server log file (try node-specific pattern first, then fallback)
+        server_logs_dir = stats_dir / "server_logs"
+        candidates = (
+            sorted(server_logs_dir.glob("server_rank_*_node_*.log"))
+            or sorted(server_logs_dir.glob("server_rank_*.log"))
+            if server_logs_dir.exists()
+            else []
+        )
+        server_log_path = candidates[0] if candidates else None
+
+        # Check for OOM errors BEFORE stats.json - OOM failures prevent stats.json creation
+        if check_oom_in_server_log(server_log_path):
+            row["comment"] = "OOM"
+            rows.append(row)
+            continue
+
         stats_info = parse_stats_json(stats_dir / "stats.json")
 
         if stats_info is None:
@@ -262,17 +294,6 @@ def analyze(root: str, out_csv: str) -> int:
         row["completion_tokens_total"] = int(stats_info.get("output_tokens_total") or 0)
         row["successful_requests"] = stats_info.get("successful_requests_total")
         row["failed_requests"] = stats_info.get("failed_requests_total")
-
-        # Parse server logs for throughput metrics (excludes startup time)
-        # Try different naming patterns for server log files
-        server_log_path = None
-        server_logs_dir = stats_dir / "server_logs"
-        if server_logs_dir.exists():
-            # Try common patterns
-            # Use a glob pattern to match all likely server log files
-            candidates = sorted(server_logs_dir.glob("server_rank_*.log"))
-            if candidates:
-                server_log_path = candidates[0]  # Pick the first match (could refine selection if needed)
 
         server_metrics = parse_server_logs(server_log_path) if server_log_path else None
 
