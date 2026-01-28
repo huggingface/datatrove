@@ -295,17 +295,6 @@ def analyze(root: str, out_csv: str) -> int:
         row["successful_requests"] = stats_info.get("successful_requests_total")
         row["failed_requests"] = stats_info.get("failed_requests_total")
 
-        # Parse server logs for throughput metrics (excludes startup time)
-        # Try different naming patterns for server log files
-        server_log_path = None
-        server_logs_dir = stats_dir / "server_logs"
-        if server_logs_dir.exists():
-            # Try common patterns
-            # Use a glob pattern to match all likely server log files
-            candidates = sorted(server_logs_dir.glob("server_rank_*.log"))
-            if candidates:
-                server_log_path = candidates[0]  # Pick the first match (could refine selection if needed)
-
         server_metrics = parse_server_logs(server_log_path) if server_log_path else None
 
         if server_metrics is None:
