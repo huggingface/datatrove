@@ -80,7 +80,10 @@ from datatrove.pipeline.writers import ParquetWriter
 from datatrove.utils.logging import logger
 
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Add parent directory to path so utils can be imported
+# This path is also exported in SLURM jobs for unpickling
+EXAMPLES_INFERENCE_DIR = str(Path(__file__).parent)
+sys.path.insert(0, EXAMPLES_INFERENCE_DIR)
 from utils import (
     check_hf_auth,
     encode_spec_segment_for_log_dir,
@@ -354,6 +357,8 @@ def main(
     else:
         from datatrove.executor import SlurmPipelineExecutor  # Lazy import to speed up startup time
 
+        slurm_env_command = f"source .venv/bin/activate && export PYTHONPATH={EXAMPLES_INFERENCE_DIR}:$PYTHONPATH"
+
         inference_executor = SlurmPipelineExecutor(
             pipeline=inference_pipeline,
             logging_dir=str(inference_logs_path),
@@ -374,7 +379,7 @@ def main(
                 "mem-per-cpu": f"{mem_per_cpu_mb}M",
                 **({"reservation": reservation} if reservation else {}),
             },
-            venv_path=".venv/bin/activate",
+            env_command=slurm_env_command,
         )
         inference_executor.run()
 
@@ -403,7 +408,7 @@ def main(
                 job_name=f"{name}_monitor",
                 cpus_per_task=1,
                 sbatch_args={"mem-per-cpu": "4G", "requeue": ""},  # Requeue to handle long running jobs
-                venv_path=".venv/bin/activate",
+                env_command=slurm_env_command,
             )
 
             monitor_executor.run()
@@ -422,7 +427,7 @@ def main(
                 depends=inference_executor,
                 run_on_dependency_fail=False,  # use afterok
                 sbatch_args={"mem-per-cpu": "4G"},
-                venv_path=".venv/bin/activate",
+                env_command=slurm_env_command,
             )
             datacard_executor.run()
 
