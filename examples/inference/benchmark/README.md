@@ -32,7 +32,7 @@ fixed_args:
   output-dataset-name: "s1K-1.1-benchmark"
   output-dir: "data"
 
-runs:
+experiments:
   - name: "Qwen3-4B"
     args:
       model-name-or-path: "Qwen/Qwen3-4B-Thinking-2507"
@@ -73,52 +73,105 @@ python examples/inference/benchmark/analyze_results.py \
 
 ## Output Structure
 
-Results are expected under:
+Results are organized under:
 ```
-data/{model}/tp{TP}-pp{PP}-dp{DP}/{spec_config}/.../inference/
+{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/{spec}/{quant}/{kv}/inference_logs/
 ```
 
-Where:
-- `spec_none` indicates no speculative decoding
-- `spec_ngram_{N}` indicates N-gram speculative decoding (e.g., `spec_ngram_5`)
+Directory segments:
+- `{experiment}`: experiment name from config
+- `{model}`: model name (org prefix stripped, e.g., `gemma_3_1b_it`)
+- `tp{TP}-pp{PP}-dp{DP}`: parallelism config (e.g., `tp2-pp1-dp1`)
+- `mns_{N}`: max-num-seqs value (e.g., `mns_1024`)
+- `mnbt_{M}`: max-num-batched-tokens value (e.g., `mnbt_8192`)
+- `spec_*`: speculative config (see [Speculative Decoding](#speculative-decoding))
+- `quant_*`: quantization config (see [Quantization](#quantization))
+- `kv_*`: KV cache dtype (see [KV Cache Quantization](#kv-cache-quantization))
 
 ## Metrics
 
-The analyzer computes the following metrics:
+The analyzer outputs per-experiment CSV files and a combined CSV. Key columns:
 
-| Metric | Description |
-|--------|-------------|
-| `input_tps_per_gpu` | Input tokens per second per GPU |
-| `output_tps_per_gpu` | Output tokens per second per GPU |
-| `gpu_days_to_process_1b_tokens` | GPU-days required to generate 1B output tokens |
-| `node_days_to_process_1b_tokens` | Node-days (8 GPUs) to generate 1B output tokens |
-| `gpus_for_1b_tokens_per_hour` | Number of GPUs needed to generate 1B tokens/hour |
+| Column                          | Description                                |
+| ------------------------------- | ----------------------------------------- -|
+| `experiment`                    | Experiment name from config                |
+| `model`, `tp`, `pp`, `dp`       | Model and parallelism config               |
+| `mns`, `mnbt`                   | Batch size parameters                      |
+| `spec`, `quant`, `kv`           | Speculative, quantization, KV cache config |
+| `input_tps_per_gpu`             | Input tokens per second per GPU            |
+| `output_tps_per_gpu`            | Output tokens per second per GPU           |
+| `gpu_days_to_process_1b_tokens` | GPU-days to generate 1B output tokens      |
+| `gpus_for_1b_tokens_per_hour`   | GPUs needed for 1B tokens/hour             |
 
 ## Configuration Reference
 
 ### Top-Level Keys
 
-| Key | Description |
-|-----|-------------|
-| `script` | Path to the inference script to run |
-| `continue_on_failure` | If `true`, continue with other runs if one fails |
-| `fixed_args` | Arguments applied to all runs |
-| `runs` | List of experiment configurations |
+| Key                   | Description                                                      |
+| --------------------- | ---------------------------------------------------------------- |
+| `script`              | Path to the inference script to run                              |
+| `continue_on_failure` | If `true`, continue with other runs if one fails                 |
+| `fixed_args`          | Arguments applied to all experiments                             |
+| `experiments`         | List of experiment configurations (each can spawn multiple runs) |
 
-### Run Configuration
+### Experiment Configuration
 
-Each run can specify:
-- `name`: Base name for the experiment (auto-derived from model/TP if not unique)
-- `args`: Dictionary of arguments; list values are expanded into cartesian product
+Each experiment can specify:
+- `name`: Experiment name (top-level directory in output path)
+- `args`: Dictionary of arguments; list values are expanded into cartesian product, launching multiple runs per experiment
 
-### Supported Sweep Parameters
+## Speculative Decoding
 
-- `model-name-or-path`: Model to benchmark
-- `tp`: Tensor parallelism configurations (e.g., `[1, 2, 4, 8]`)
-- `pp`: Pipeline parallelism (for multi-node)
-- `dp`: Data parallelism
-- `nodes-per-task`: Number of nodes per task (for multi-node models)
-- `speculative-config`: Speculative decoding config (`None`, `"ngram:5"`, etc.)
+Speculative decoding can significantly improve throughput by speculatively generating multiple tokens in parallel.
+
+### Supported Methods
+
+| Method      | Config                                                        | Description                                      |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------ |
+| None        | `None`                                                        | No speculative decoding                          |
+| N-gram      | `'{"method": "ngram", "num_speculative_tokens": N}'`          | Uses prompt n-gram matching to speculate tokens  |
+| Suffix      | `'{"method": "suffix", "num_speculative_tokens": N}'`         | Uses suffix-based speculation from the prompt    |
+| Draft Model | `'{"model": "org/draft-model", "num_speculative_tokens": N}'` | Uses a smaller draft model to speculate tokens   |
+
+### Example Configuration
+
+```yaml
+experiments:
+  - name: "gemma-spec-sweep"
+    args:
+      model-name-or-path: "google/gemma-3-1b-it"
+      speculative-config:
+        - None  # No speculative decoding
+        - '{"method": "ngram", "num_speculative_tokens": 5}'  # N-gram
+        - '{"method": "suffix", "num_speculative_tokens": 32}'  # Suffix
+        # Draft model (not yet supported as of vLLM 0.14.0):
+        # - '{"model": "facebook/opt-125m", "num_speculative_tokens": 5}'
+```
+
+### Notes
+
+- **N-gram decoding**: Best for tasks where the output is likely to contain sequences from the prompt (e.g., summarization, extraction)
+- **Suffix decoding**: Uses the suffix of the input to speculate tokens; can be effective when outputs share patterns with inputs
+- **Draft model**:     Uses a smaller, faster model to speculate tokens that are then verified by the main model; best for maximum throughput when a compatible draft model is available
+
+## Quantization
+
+Reduce memory usage with model quantization:
+
+| Method       | Config           | Description                           |
+| ------------ | ---------------- | ------------------------------------- |
+| None         | `None`           | No quantization (default)             |
+| BitsAndBytes | `"bitsandbytes"` | 4-bit quantization using BitsAndBytes |
+
+## KV Cache Quantization
+
+Reduce KV cache memory with dtype quantization:
+
+| Option   | Config       | Description                                 |
+| -------- | ------------ | ------------------------------------------- |
+| Auto     | `"auto"`     | Model's default unquantized dtype (default) |
+| FP8 E4M3 | `"fp8_e4m3"` | FP8 E4M3 format (CUDA 11.8+)                |
+| FP8 E5M2 | `"fp8_e5m2"` | FP8 E5M2 format                             |
 
 ## Model Lineup
 
