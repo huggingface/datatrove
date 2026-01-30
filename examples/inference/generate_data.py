@@ -86,9 +86,15 @@ EXAMPLES_INFERENCE_DIR = str(Path(__file__).parent)
 sys.path.insert(0, EXAMPLES_INFERENCE_DIR)
 from utils import (
     check_hf_auth,
+    encode_kv_cache_segment_for_log_dir,
+    encode_mnbt_segment_for_log_dir,
+    encode_mns_segment_for_log_dir,
+    encode_quant_segment_for_log_dir,
     encode_spec_segment_for_log_dir,
     ensure_repo_exists,
     model_name_safe,
+    normalize_kv_cache_dtype,
+    normalize_quantization,
     normalize_speculative,
     resolve_repo_id,
     validate_config,
@@ -126,13 +132,17 @@ def main(
     pp: int = 1,
     dp: int = 1,
     nodes_per_task: int = 1,
-    max_num_seqs: int = 1000,  # reduce this if you run out of memory
     # vLLM server settings (there should be no need to change the defaults)
     max_concurrent_generations: int = 500,
     max_concurrent_documents: int = 500,
-    metric_interval: int = 120,
+    max_num_seqs: int = 1024,  # reduce this if you run out of memory
+    max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
+    gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
     speculative_config: str | None = None,
+    quantization: str | None = None,  # "bitsandbytes" for 4-bit quantization
+    kv_cache_dtype: str = "auto",  # "auto", "fp8_e4m3", or "fp8_e5m2"
     optimization_level: int = 3,  # Set to 0 for fastest startup, 3 for best throughput
+    metric_interval: int = 120,
     # Generation parameters
     temperature: float | None = None,
     top_k: int | None = None,
@@ -240,6 +250,10 @@ def main(
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
     top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
 
+    # Encode batch size parameters for path
+    mns_short = encode_mns_segment_for_log_dir(max_num_seqs)
+    mnbt_short = encode_mnbt_segment_for_log_dir(max_num_batched_tokens)
+
     # Normalize and encode speculative config; treat common "none" strings as disabled
     spec_raw = speculative_config
     if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
@@ -247,21 +261,54 @@ def main(
     normalized_spec = normalize_speculative(spec_raw)
     spec_short = encode_spec_segment_for_log_dir(normalized_spec)
 
-    # Build dynamic output directory: base/modelname/tp-pp-dp/spec_short
-    model_dir = model_name_safe(model_name_or_path)
-    final_output_dir = os.path.join(output_dir, model_dir, f"tp{tp}-pp{pp}-dp{dp}", spec_short)
-    logs_dir = os.path.join(final_output_dir, "logs")
-    inference_logs_path = os.path.join(logs_dir, "inference")
-    monitor_logs_path = os.path.join(logs_dir, "monitor")
-    datacard_logs_path = os.path.join(logs_dir, "datacard")
-    checkpoints_path = os.path.join(final_output_dir, "checkpoints")
+    # Normalize and encode quantization config
+    normalized_quant = normalize_quantization(quantization)
+    quant_short = encode_quant_segment_for_log_dir(normalized_quant)
+
+    # Normalize and encode KV cache dtype config
+    normalized_kv_dtype = normalize_kv_cache_dtype(kv_cache_dtype)
+    kv_short = encode_kv_cache_segment_for_log_dir(normalized_kv_dtype)
+
+    # Build dynamic output directory: base/modelname/tp-pp-dp/mns/mnbt/spec/quant/kv
+    run_path = (
+        Path(output_dir)
+        / model_name_safe(model_name_or_path)
+        / f"tp{tp}-pp{pp}-dp{dp}"
+        / mns_short
+        / mnbt_short
+        / spec_short
+        / quant_short
+        / kv_short
+    )
+    output_path = f"hf://datasets/{full_repo_id}" if not benchmark_mode else str(run_path / "output")
+    checkpoints_path = str(run_path / "checkpoints")
+    inference_logs_path = run_path / "inference_logs"
+    monitor_logs_path = run_path / "monitor_logs"
+    datacard_logs_path = run_path / "datacard_logs"
+
+    # Build quantization-specific kwargs for vLLM
+    quant_kwargs: dict[str, Any] = {}
+    if normalized_quant == "bitsandbytes":
+        # BitsAndBytes 4-bit quantization
+        quant_kwargs["quantization"] = "bitsandbytes"
+
+    # Build KV cache dtype kwargs for vLLM
+    kv_cache_kwargs: dict[str, Any] = {}
+    if normalized_kv_dtype != "auto":
+        # FP8 KV cache (reduces memory while maintaining quality)
+        kv_cache_kwargs["kv_cache_dtype"] = normalized_kv_dtype
+        kv_cache_kwargs["calculate_kv_scales"] = True
 
     _model_kwargs = {
         "revision": model_revision,
         "dtype": "bfloat16",
         "max_num_seqs": max_num_seqs,
-        "optimization-level": optimization_level,
+        "max_num_batched_tokens": max_num_batched_tokens,
         **({"speculative_config": normalized_spec} if normalized_spec else {}),
+        **quant_kwargs,
+        **kv_cache_kwargs,
+        "gpu-memory-utilization": gpu_memory_utilization,
+        "optimization-level": optimization_level,
     }
     # Datatrove's distributed Ray helpers interpret DATATROVE_MEM_PER_CPU as **MB**
     # (despite the executor naming it `mem_per_cpu_gb`). Keep the sbatch directive in MB
@@ -300,9 +347,10 @@ def main(
             rollout_fn=simple_rollout,
             config=inference_config,
             records_per_chunk=examples_per_chunk,
-            checkpoints_local_dir=checkpoints_path,
-            output_writer=ParquetWriter(  # The HuggingFaceDatasetWriter only uploads at the end, the ParquetWriter uploads incrementally
-                output_folder=f"hf://datasets/{full_repo_id}",
+            checkpoints_local_dir=checkpoints_path if not benchmark_mode else None,
+            # The HuggingFaceDatasetWriter only uploads at the end, the ParquetWriter uploads incrementally
+            output_writer=ParquetWriter(
+                output_folder=output_path,
                 output_filename="data/${rank}_${chunk_index}.parquet",
                 expand_metadata=True,
                 max_file_size=MB if local_execution else 256 * MB,  # ~1MB for debugging, ~256MB for slurm

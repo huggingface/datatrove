@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Analyze benchmark experiment outputs and produce a summary CSV and formatted table.
+Analyze benchmark experiment outputs and produce per-experiment CSV files and formatted tables.
 
 - Extract token counts and request stats from inference_logs/stats.json
 - Parse throughput metrics from server logs (excludes startup time)
 - Compute per-TP (per-GPU) throughput by dividing engine throughput by TP
 - Compute derived metrics: gpu_days, node_days, and gpus_for_1b_tokens_per_hour
-- Output one row per experiment folder (model/tp/spec_config) as CSV and formatted table
+- Output one table per experiment and save per-experiment CSV files named by experiment name
+- Also saves a combined CSV with all experiments
 
 Usage:
 
@@ -98,26 +99,56 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float] | None:
             if generation_throughputs_steady
             else None
         )
+        # Use mixed-phase generation throughput as fallback if no steady-state data
+        avg_gen_mixed = (
+            sum(generation_throughputs_mixed) / len(generation_throughputs_mixed)
+            if generation_throughputs_mixed
+            else None
+        )
 
-        if avg_prompt is None and avg_gen_steady is None:
+        if avg_prompt is None and avg_gen_steady is None and avg_gen_mixed is None:
             return None
 
         return {
             "avg_prompt_throughput": avg_prompt,
-            "avg_generation_throughput": avg_gen_steady,
+            # Prefer steady-state, fall back to mixed-phase for continuous workloads
+            "avg_generation_throughput": avg_gen_steady if avg_gen_steady is not None else avg_gen_mixed,
         }
     except Exception:
         return None
 
 
-def parse_path_fields(file_path: str) -> tuple[str, int | None, int | None, int | None, str]:
+def parse_path_fields(
+    file_path: str,
+    root: str = "examples/inference/benchmark/results",
+) -> tuple[str, str, int | None, int | None, int | None, int | None, int | None, str, str, str]:
+    """
+    Parse experiment, model, tp, pp, dp, mns, mnbt, spec_config, quant_config, and kv_cache_config from the file path.
+
+    Expected path structure:
+        {root}/{experiment}/model_name/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/spec_{...}/quant_{...}/kv_{...}/inference_logs/...
+
+    Returns:
+        Tuple of (experiment, model, tp, pp, dp, mns, mnbt, spec_config, quant_config, kv_cache_config)
+    """
     p = Path(file_path)
     parts = list(p.parts)
+    experiment: str = ""
     model: str = ""
     tp: int | None = None
     pp: int | None = None
     dp: int | None = None
+    mns: int | None = None
+    mnbt: int | None = None
     spec_config: str = ""
+    quant_config: str = ""
+    kv_cache_config: str = ""
+
+    # Extract experiment name: first directory after root
+    root_path = Path(root)
+    root_parts = list(root_path.parts)
+    if len(parts) > len(root_parts):
+        experiment = parts[len(root_parts)]
 
     # Find a 'tp' segment anywhere in the path, supporting 'tp_8', 'tp-8', or 'tp8-pp2-dp1'
     tp_idx = None
@@ -137,15 +168,53 @@ def parse_path_fields(file_path: str) -> tuple[str, int | None, int | None, int 
     if tp_idx is not None and tp_idx - 1 >= 0:
         model = parts[tp_idx - 1]
 
-    # Heuristic: spec segment comes right after 'tp_*'
+    # Parse mns segment (position tp_idx + 1)
     if tp_idx is not None and tp_idx + 1 < len(parts):
-        spec_part = parts[tp_idx + 1]
+        mns_part = parts[tp_idx + 1]
+        if isinstance(mns_part, str) and mns_part.startswith("mns_"):
+            try:
+                mns = int(mns_part[4:])
+            except ValueError:
+                mns = None
+
+    # Parse mnbt segment (position tp_idx + 2)
+    if tp_idx is not None and tp_idx + 2 < len(parts):
+        mnbt_part = parts[tp_idx + 2]
+        if isinstance(mnbt_part, str) and mnbt_part.startswith("mnbt_"):
+            try:
+                mnbt = int(mnbt_part[5:])
+            except ValueError:
+                mnbt = None
+
+    # Heuristic: spec segment comes at position tp_idx + 3
+    if tp_idx is not None and tp_idx + 3 < len(parts):
+        spec_part = parts[tp_idx + 3]
         if isinstance(spec_part, str) and spec_part.startswith("spec_"):
             spec_config = spec_part
         else:
             spec_config = "spec_none"
 
-    return model, tp, pp, dp, spec_config
+    # Heuristic: quant segment comes at position tp_idx + 4
+    if tp_idx is not None and tp_idx + 4 < len(parts):
+        quant_part = parts[tp_idx + 4]
+        if isinstance(quant_part, str) and quant_part.startswith("quant_"):
+            quant_config = quant_part
+        else:
+            quant_config = "quant_none"
+    else:
+        quant_config = "quant_none"
+
+    # Heuristic: kv_cache segment comes at position tp_idx + 5
+    if tp_idx is not None and tp_idx + 5 < len(parts):
+        kv_part = parts[tp_idx + 5]
+        if isinstance(kv_part, str) and kv_part.startswith("kv_"):
+            kv_cache_config = kv_part
+        else:
+            kv_cache_config = "kv_auto"
+    else:
+        kv_cache_config = "kv_auto"
+
+    return experiment, model, tp, pp, dp, mns, mnbt, spec_config, quant_config, kv_cache_config
 
 
 def _get_total_from_stat_field(val: object) -> float | None:
@@ -237,19 +306,26 @@ def compute_gpus_for_1b_per_hour_from_per_gpu(output_tps_per_gpu: float | None) 
 
 
 def analyze(root: str, out_csv: str) -> int:
-    files = sorted(glob.glob(os.path.join(root, "**", "logs", "inference", "slurm_logs", "*.out"), recursive=True))
+    files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
     rows: list[dict[str, object]] = []
 
     for path in files:
-        model, tp, pp, dp, spec_config = parse_path_fields(path)
+        experiment, model, tp, pp, dp, mns, mnbt, spec, quant, kv = parse_path_fields(path, root)
 
         # Create row template with default None values
+        # Note: util is kept in CSV but not parsed from path
         row = {
+            "experiment": experiment,
             "model": model,
             "tp": tp,
             "pp": pp,
             "dp": dp,
-            "spec_config": spec_config,
+            "mns": mns,
+            "mnbt": mnbt,
+            "util": None,
+            "spec": spec,
+            "quant": quant,
+            "kv": kv,
             "gpus_for_1b_tokens_per_hour": None,
             "node_days_to_process_1b_tokens": None,
             "gpu_days_to_process_1b_tokens": None,
@@ -338,17 +414,24 @@ def analyze(root: str, out_csv: str) -> int:
         rows.append(row)
 
     # Column order:
-    # - config columns
+    # - experiment name first
+    # - config columns (including quant_config and kv_cache_config after spec_config)
     # - per-sec cluster rates and per-TP rates
     # - gpu/node days (computed from per-TP output tokens)
     # - then: prompt_tokens_total, completion_tokens_total, successful_requests (immediately before path)
     # - path
     fieldnames = [
+        "experiment",
         "model",
         "tp",
         "pp",
         "dp",
-        "spec_config",
+        "mns",
+        "mnbt",
+        "util",
+        "spec",
+        "quant",
+        "kv",
         "gpus_for_1b_tokens_per_hour",
         "node_days_to_process_1b_tokens",
         "gpu_days_to_process_1b_tokens",
@@ -365,6 +448,12 @@ def analyze(root: str, out_csv: str) -> int:
 
     # Build pandas DataFrame
     df = pd.DataFrame(rows, columns=fieldnames)
+    # Ensure integer columns are properly typed (no floats like 1024.0)
+    for col in ["tp", "pp", "dp", "mns", "mnbt"]:
+        try:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+        except Exception:
+            pass
     # For CSV: ensure one row per actual experiment folder (model/tp/spec_config).
     metric_cols_csv = [
         "node_days_to_process_1b_tokens",
@@ -372,36 +461,37 @@ def analyze(root: str, out_csv: str) -> int:
         "input_tps_per_gpu",
         "output_tps_per_gpu",
     ]
+    # Columns used for deduplication (unique experiment identifier)
+    dedup_cols = ["experiment", "model", "tp", "pp", "dp", "mns", "mnbt", "spec", "quant", "kv"]
+
     df_out = df.copy()
     df_out["__metric_count__"] = df_out[metric_cols_csv].notna().sum(axis=1)
     df_out["__out_tok_tp__"] = df_out["output_tps_per_gpu"].fillna(-1)
     df_out = (
         df_out.sort_values(
-            by=["model", "tp", "pp", "dp", "spec_config", "__metric_count__", "__out_tok_tp__"],
-            ascending=[True, True, True, True, True, False, False],
+            by=dedup_cols + ["__metric_count__", "__out_tok_tp__"],
+            ascending=[True] * len(dedup_cols) + [False, False],
         )
-        .drop_duplicates(subset=["model", "tp", "pp", "dp", "spec_config"], keep="first")
+        .drop_duplicates(subset=dedup_cols, keep="first")
         .drop(columns=["__metric_count__", "__out_tok_tp__"], errors="ignore")
     )
-    # Ensure TP/PP/DP columns are integer-typed for clean CSV output (no decimal suffix)
-    for col in ["tp", "pp", "dp"]:
-        try:
-            df_out[col] = pd.to_numeric(df_out[col], errors="coerce").astype("Int64")
-        except Exception:
-            pass
-    # Save CSV (keep numeric precision for downstream analysis)
-    df_out.to_csv(out_csv, index=False, float_format="%.6f")
 
-    # Print Slack-friendly monospace table (padded columns)
-    columns_map = [
+    # Column mapping for table display (excludes experiment - shown in header)
+    # Config columns that may be constant or varying per experiment
+    config_columns = [
         ("model", "model", "left"),
         ("tp", "tp", "right"),
         ("pp", "pp", "right"),
         ("dp", "dp", "right"),
-        ("spec_config", "spec_config", "left"),
+        ("mns", "mns", "right"),
+        ("mnbt", "mnbt", "right"),
+        ("spec", "spec", "left"),
+        ("quant", "quant", "left"),
+        ("kv", "kv", "left"),
+    ]
+    # Metric columns always shown in table
+    metric_columns = [
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
-        ("node days", "node_days_to_process_1b_tokens", "right"),
-        ("gpu days", "gpu_days_to_process_1b_tokens", "right"),
         ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
         ("comment", "comment", "left"),
@@ -409,7 +499,7 @@ def analyze(root: str, out_csv: str) -> int:
 
     # Prepare display data:
     # - keep only rows that have at least one of the displayed metrics present
-    # - for duplicate (model, tp, spec_config) combinations, keep the row with the most
+    # - for duplicate experiment combinations, keep the row with the most
     #   available displayed metrics; if tied, keep the one with the highest out-tok/tp
     metric_cols = [
         "node_days_to_process_1b_tokens",
@@ -421,9 +511,9 @@ def analyze(root: str, out_csv: str) -> int:
     df_disp["__metric_count__"] = df_disp[metric_cols].notna().sum(axis=1)
     df_disp["__out_tok_tp__"] = df_disp["output_tps_per_gpu"].fillna(-1)
     df_disp = df_disp.sort_values(
-        by=["model", "tp", "pp", "dp", "spec_config", "__metric_count__", "__out_tok_tp__"],
-        ascending=[True, True, True, True, True, False, False],
-    ).drop_duplicates(subset=["model", "tp", "pp", "dp", "spec_config"], keep="first")
+        by=dedup_cols + ["__metric_count__", "__out_tok_tp__"],
+        ascending=[True] * len(dedup_cols) + [False, False],
+    ).drop_duplicates(subset=dedup_cols, keep="first")
     # Do not drop rows with no metrics; we still want one row per existing experiment folder
 
     def fmt(val: object, col_key: str) -> str:
@@ -447,55 +537,122 @@ def analyze(root: str, out_csv: str) -> int:
             if col_key in ("node_days_to_process_1b_tokens", "gpu_days_to_process_1b_tokens"):
                 # Show 3 decimals for day metrics
                 return f"{float(val):.3f}"
-            if col_key in ("input_tps_per_gpu", "output_tps_per_gpu", "tp", "pp", "dp", "gpus_for_1b_tokens_per_hour"):
-                # Show integer (rounded) for token rates per TP
+            if col_key in (
+                "input_tps_per_gpu",
+                "output_tps_per_gpu",
+                "tp",
+                "pp",
+                "dp",
+                "mns",
+                "mnbt",
+                "gpus_for_1b_tokens_per_hour",
+            ):
+                # Show integer (rounded) for token rates per TP and batch size params
                 try:
                     return f"{int(round(float(val)))}"
                 except Exception:
                     return ""
             # Fallback: one decimal for any other numeric column
             return f"{float(val):.1f}"
-        return str(val)
+        # Strip prefixes from config columns for narrower display
+        str_val = str(val)
+        if col_key == "spec" and str_val.startswith("spec_"):
+            return str_val[5:]  # Remove "spec_" prefix
+        if col_key == "quant" and str_val.startswith("quant_"):
+            return str_val[6:]  # Remove "quant_" prefix
+        if col_key == "kv" and str_val.startswith("kv_"):
+            return str_val[3:]  # Remove "kv_" prefix
+        return str_val
 
-    # Collect rows for width calc (use display-deduped frame)
-    header_labels = [h for (h, _, _) in columns_map]
-    data_rows: list[list[str]] = []
-    for _, row in df_disp.iterrows():
-        rendered = []
-        for _label, col_key, _align in columns_map:
-            rendered.append(f"{fmt(row.get(col_key), col_key)}")
-        data_rows.append(rendered)
+    def print_table(df_exp: pd.DataFrame, experiment_name: str) -> None:
+        """Print a formatted table for a single experiment with dynamic columns."""
+        # Identify which config columns have varying vs constant values
+        varying_configs: list[tuple[str, str, str]] = []
+        constant_configs: list[tuple[str, str]] = []  # (label, value)
 
-    # Compute widths
-    widths = [len(h) for h in header_labels]
-    for r in data_rows:
-        for i, cell in enumerate(r):
-            if len(cell) > widths[i]:
-                widths[i] = len(cell)
+        for label, col_key, align in config_columns:
+            unique_vals = df_exp[col_key].dropna().unique()
+            if len(unique_vals) <= 1:
+                # Constant column - show in header
+                val = fmt(unique_vals[0], col_key) if len(unique_vals) == 1 else ""
+                if val:  # Only include if there's a value
+                    constant_configs.append((label, val))
+            else:
+                # Varying column - show in table
+                varying_configs.append((label, col_key, align))
 
-    # Printer with alignment
-    def pad(cell: str, width: int, align: str) -> str:
-        return cell.rjust(width) if align == "right" else cell.ljust(width)
+        # Build dynamic columns_map for this experiment
+        dynamic_columns = varying_configs + metric_columns
 
-    aligns = [align for (_, _, align) in columns_map]
-    # Header
-    header_line = (
-        "| "
-        + " | ".join(
-            pad(h, widths[i], "left" if aligns[i] == "left" else "right") for i, h in enumerate(header_labels)
+        # Collect rows for width calc
+        header_labels = [h for (h, _, _) in dynamic_columns]
+        data_rows: list[list[str]] = []
+        for _, row in df_exp.iterrows():
+            rendered = [fmt(row[col_key], col_key) for _, col_key, _ in dynamic_columns]
+            data_rows.append(rendered)
+
+        # Compute widths
+        widths = [len(h) for h in header_labels]
+        for r in data_rows:
+            for i, cell in enumerate(r):
+                if len(cell) > widths[i]:
+                    widths[i] = len(cell)
+
+        # Printer with alignment
+        def pad(cell: str, width: int, align: str) -> str:
+            return cell.rjust(width) if align == "right" else cell.ljust(width)
+
+        aligns = [align for (_, _, align) in dynamic_columns]
+
+        # Print experiment header with constant config values
+        print(f"\n{'=' * 60}")
+        header_parts = [f"Experiment: {experiment_name}"]
+        if constant_configs:
+            constants_str = ", ".join(f"{label}={val}" for label, val in constant_configs)
+            header_parts.append(f"[{constants_str}]")
+        print(" ".join(header_parts))
+        print(f"{'=' * 60}")
+
+        # Header
+        header_line = (
+            "| "
+            + " | ".join(
+                pad(h, widths[i], "left" if aligns[i] == "left" else "right") for i, h in enumerate(header_labels)
+            )
+            + " |"
         )
-        + " |"
-    )
-    sep_line = "| " + " | ".join("-" * widths[i] for i in range(len(widths))) + " |"
-    print(header_line)
-    print(sep_line)
-    # Rows
-    for r in data_rows:
-        line = "| " + " | ".join(pad(r[i], widths[i], aligns[i]) for i in range(len(r))) + " |"
-        print(line)
+        sep_line = "| " + " | ".join("-" * widths[i] for i in range(len(widths))) + " |"
+        print(header_line)
+        print(sep_line)
+        # Rows
+        for r in data_rows:
+            line = "| " + " | ".join(pad(r[i], widths[i], aligns[i]) for i in range(len(r))) + " |"
+            print(line)
 
-    logger.info(f"Wrote {len(df_out)} rows to {out_csv}")
-    return len(df_out)
+    # Get unique experiments and process each one
+    experiments = df_disp["experiment"].unique()
+    out_csv_dir = Path(out_csv).parent
+    total_rows = 0
+
+    for experiment_name in sorted(experiments):
+        # Filter data for this experiment
+        df_exp_disp = df_disp[df_disp["experiment"] == experiment_name]
+        df_exp_out = df_out[df_out["experiment"] == experiment_name]
+
+        # Print table for this experiment
+        print_table(df_exp_disp, experiment_name)
+
+        # Save CSV for this experiment (named by experiment)
+        exp_csv_path = out_csv_dir / f"{experiment_name}.csv"
+        df_exp_out.to_csv(exp_csv_path, index=False, float_format="%.6f")
+        logger.info(f"Wrote {len(df_exp_out)} rows to {exp_csv_path}")
+        total_rows += len(df_exp_out)
+
+    # Also save combined CSV with all experiments
+    df_out.to_csv(out_csv, index=False, float_format="%.6f")
+    logger.info(f"Wrote {total_rows} total rows across {len(experiments)} experiments to {out_csv}")
+
+    return total_rows
 
 
 def main(
