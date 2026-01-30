@@ -10,6 +10,13 @@ from datatrove.utils.logging import logger
 
 MAX_GPUS_PER_NODE = 8
 
+# Valid quantization methods
+QUANTIZATION_METHODS = ("bitsandbytes",)
+
+
+# Valid KV cache dtype options
+KV_CACHE_DTYPE_OPTIONS = ("auto", "fp8_e4m3", "fp8_e5m2")
+
 
 def check_hf_auth() -> None:
     """
@@ -64,15 +71,30 @@ def ensure_repo_exists(repo_id: str, private: bool = True) -> None:
 
 
 def model_name_safe(model: str) -> str:
-    """Convert model name to a filesystem-safe string."""
-    return model.replace("/", "_").replace("-", "_")
+    """Convert model name to a filesystem-safe string, stripping the organization prefix."""
+    # Strip organization prefix (e.g., "google/gemma-3-1b-it" -> "gemma-3-1b-it")
+    if "/" in model:
+        model = model.split("/", 1)[1]
+    return model.replace("-", "_")
+
+
+def encode_mns_segment_for_log_dir(max_num_seqs: int) -> str:
+    """Encode max_num_seqs into a stable directory segment: 'mns_{value}'."""
+    return f"mns_{max_num_seqs}"
+
+
+def encode_mnbt_segment_for_log_dir(max_num_batched_tokens: int) -> str:
+    """Encode max_num_batched_tokens into a stable directory segment: 'mnbt_{value}'."""
+    return f"mnbt_{max_num_batched_tokens}"
 
 
 def normalize_speculative(spec) -> str:
     """
     Accepts dict/str/bool and returns a canonical JSON string or empty string.
-    Rule: prompt_lookup_max = num_speculative_tokens - 1 (if present).
-    Any provided prompt_lookup_max in the input is ignored and recomputed.
+
+    For ngram method: prompt_lookup_max = num_speculative_tokens - 1 (if present).
+    For suffix method: no additional parameters are added.
+    Any provided prompt_lookup_max in the input is ignored and recomputed for ngram.
     """
     if not spec:
         return ""
@@ -90,9 +112,11 @@ def normalize_speculative(spec) -> str:
         obj = None
 
     if isinstance(obj, dict):
-        if "num_speculative_tokens" in obj:
+        method = str(obj.get("method", "")).lower()
+        # Only add prompt_lookup_max for ngram method
+        if method == "ngram" and "num_speculative_tokens" in obj:
             try:
-                n = int(obj.get("num_speculative_tokens"))
+                n = int(obj["num_speculative_tokens"])
                 obj["prompt_lookup_max"] = max(n - 1, 0)
             except Exception:
                 obj.pop("prompt_lookup_max", None)
@@ -105,6 +129,8 @@ def encode_spec_segment_for_log_dir(spec_json: str) -> str:
     Encode speculative_config JSON into a stable directory segment:
     - "spec_none" when disabled or missing
     - "spec_ngram_{N}" when method == "ngram" with N tokens (N defaults to 0 if missing)
+    - "spec_suffix_{N}" when method == "suffix" with N tokens (N defaults to 0 if missing)
+    - "spec_{model}_{N}" when a draft model is specified (N defaults to 0 if missing)
     """
     if not spec_json:
         return "spec_none"
@@ -119,13 +145,112 @@ def encode_spec_segment_for_log_dir(spec_json: str) -> str:
             n_val = int(nst) if nst is not None else 0
         except Exception:
             n_val = 0
+
+        # Check for draft model speculative decoding (has "model" key for the draft model)
+        draft_model = obj.get("model")
+        if draft_model and isinstance(draft_model, str):
+            # Make the draft model name filesystem-safe
+            draft_model_safe = draft_model.replace("/", "_").replace("-", "_")
+            return f"spec_{draft_model_safe}_{n_val}"
+
         if method in ("", "none", "null"):
             return "spec_none"
         if method == "ngram":
             return f"spec_ngram_{n_val}"
-        # For now, only support the requested shapes; treat others as none
-        return "spec_none"
+        if method == "suffix":
+            return f"spec_suffix_{n_val}"
+        # Fallback: use the method name directly for future extensibility
+        return f"spec_{method}_{n_val}"
     return "spec_none"
+
+
+def normalize_quantization(quant: str | None) -> str | None:
+    """
+    Normalize quantization configuration string.
+
+    Args:
+        quant: Quantization method string or None
+
+    Returns:
+        Normalized quantization string or None if disabled.
+
+    Supported methods:
+        - "bitsandbytes": 4-bit quantization using BitsAndBytes
+    """
+    if quant is None:
+        return None
+    if isinstance(quant, str):
+        quant_lower = quant.strip().lower()
+        if quant_lower in ("none", "null", ""):
+            return None
+        if quant_lower in QUANTIZATION_METHODS:
+            return quant_lower
+        raise ValueError(f"Unknown quantization method: {quant}. Supported: {QUANTIZATION_METHODS}")
+    return None
+
+
+def encode_quant_segment_for_log_dir(quant: str | None) -> str:
+    """
+    Encode quantization config into a stable directory segment.
+
+    Returns:
+        - "quant_none" when disabled or missing
+        - "quant_bnb" for bitsandbytes 4-bit quantization
+    """
+    if not quant:
+        return "quant_none"
+    quant_lower = quant.strip().lower()
+    if quant_lower == "bitsandbytes":
+        return "quant_bnb"
+    # Fallback for future methods
+    return f"quant_{quant_lower.replace('-', '_')}"
+
+
+def normalize_kv_cache_dtype(kv_dtype: str | None) -> str:
+    """
+    Normalize KV cache dtype configuration string.
+
+    Args:
+        kv_dtype: KV cache dtype string or None
+
+    Returns:
+        Normalized KV cache dtype string. Defaults to "auto".
+
+    Supported options:
+        - "auto": Uses the model's default "unquantized" data type
+        - "fp8_e4m3": FP8 E4M3 format (CUDA 11.8+)
+        - "fp8_e5m2": FP8 E5M2 format (CUDA 11.8+)
+    """
+    if kv_dtype is None:
+        return "auto"
+    if isinstance(kv_dtype, str):
+        kv_lower = kv_dtype.strip().lower()
+        if kv_lower in ("none", "null", ""):
+            return "auto"
+        if kv_lower in KV_CACHE_DTYPE_OPTIONS:
+            return kv_lower
+        raise ValueError(f"Unknown kv_cache_dtype: {kv_dtype}. Supported: {KV_CACHE_DTYPE_OPTIONS}")
+    return "auto"
+
+
+def encode_kv_cache_segment_for_log_dir(kv_dtype: str) -> str:
+    """
+    Encode KV cache dtype config into a stable directory segment.
+
+    Returns:
+        - "kv_auto" for auto (default, unquantized)
+        - "kv_fp8e4m3" for fp8_e4m3
+        - "kv_fp8e5m2" for fp8_e5m2
+    """
+    kv_lower = kv_dtype.strip().lower() if kv_dtype else "auto"
+    if kv_lower in ("auto", "none", "null", ""):
+        return "kv_auto"
+    if kv_lower == "fp8_e4m3":
+        return "kv_fp8e4m3"
+    if kv_lower == "fp8_e5m2":
+        return "kv_fp8e5m2"
+    # Fallback for future options
+    return f"kv_{kv_lower.replace('-', '_')}"
 
 
 def validate_config(

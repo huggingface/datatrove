@@ -30,8 +30,18 @@ from datatrove.utils.logging import logger
 sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import generate_data.main directly to avoid subprocess overhead (~10s per invocation)
 from generate_data import main as generate_data_main
+from utils import (
+    encode_kv_cache_segment_for_log_dir,
+    encode_mnbt_segment_for_log_dir,
+    encode_mns_segment_for_log_dir,
+    encode_quant_segment_for_log_dir,
+    encode_spec_segment_for_log_dir,
+    model_name_safe,
+    normalize_kv_cache_dtype,
+    normalize_quantization,
+    normalize_speculative,
+)
 
-from utils import encode_spec_segment_for_log_dir, normalize_speculative
 
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
@@ -69,28 +79,28 @@ class ExperimentLauncher:
 
     def _validate_config(self) -> None:
         """Validate the configuration structure."""
-        required_keys = ["script", "runs"]
+        required_keys = ["script", "experiments"]
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(f"Missing required key in config: {key}")
 
-        # Validate runs structure
-        if not isinstance(self.config["runs"], list):
-            raise ValueError("'runs' must be a list of dictionaries")
+        # Validate experiments structure
+        if not isinstance(self.config["experiments"], list):
+            raise ValueError("'experiments' must be a list of dictionaries")
 
-        if len(self.config["runs"]) == 0:
-            raise ValueError("'runs' list cannot be empty")
+        if len(self.config["experiments"]) == 0:
+            raise ValueError("'experiments' list cannot be empty")
 
-        for i, run in enumerate(self.config["runs"]):
-            if not isinstance(run, dict):
-                raise ValueError(f"Run {i} must be a dictionary")
-            if "name" not in run:
-                raise ValueError(f"Run {i} missing required 'name' field")
-            # Validate that no run has 'name' in its args (since we auto-generate it)
-            if "name" in run.get("args", {}):
+        for i, experiment in enumerate(self.config["experiments"]):
+            if not isinstance(experiment, dict):
+                raise ValueError(f"Experiment {i} must be a dictionary")
+            if "name" not in experiment:
+                raise ValueError(f"Experiment {i} missing required 'name' field")
+            # Validate that no experiment has 'name' in its args (since we auto-generate run names)
+            if "name" in experiment.get("args", {}):
                 raise ValueError(
-                    f"Run '{run['name']}' should not have 'name' in its args. "
-                    f"The run name is automatically passed as --name to the script."
+                    f"Experiment '{experiment['name']}' should not have 'name' in its args. "
+                    f"Run names are automatically derived from the configuration."
                 )
 
     def _sanitize_for_name(self, value: Any) -> str:
@@ -111,32 +121,59 @@ class ExperimentLauncher:
         return val_str
 
     def _derive_run_name(self, args: dict[str, Any], fallback: str) -> str:
-        """Derive run name as {model}-tp_{tp}-{spec_short}."""
+        """Derive run name as {model}-tp{tp}-pp{pp}-dp{dp}-{mns}-{mnbt}-{spec}-{quant}-{kv}."""
         model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or fallback
-        # Keep hyphens, but avoid slashes in name
-        model_for_name = str(model_value).replace("/", "_")
+        model_for_name = model_name_safe(str(model_value))
         tp_value = args.get("tp")
         tp_str = str(tp_value) if tp_value is not None else "1"
+        pp_value = args.get("pp")
+        pp_str = str(pp_value) if pp_value is not None else "1"
+        dp_value = args.get("dp")
+        dp_str = str(dp_value) if dp_value is not None else "1"
+
+        # Handle batch size parameters
+        mns_raw = args.get("max-num-seqs") or args.get("max_num_seqs") or 1000
+        mns_short = encode_mns_segment_for_log_dir(int(mns_raw))
+        mnbt_raw = args.get("max-num-batched-tokens") or args.get("max_num_batched_tokens") or 8192
+        mnbt_short = encode_mnbt_segment_for_log_dir(int(mnbt_raw))
+
+        # Handle speculative config
         spec_raw = args.get("speculative-config") or args.get("speculative_config")
         if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
             spec_raw = None
         spec_norm = normalize_speculative(spec_raw)
         spec_short = encode_spec_segment_for_log_dir(spec_norm)
-        return f"{model_for_name}-tp_{tp_str}-{spec_short}"
 
-    def _expand_run(self, run_config: dict[str, Any]) -> list[dict[str, Any]]:
-        """Expand a single run config into multiple runs if any args values are lists.
+        # Handle quantization config
+        quant_raw = args.get("quantization")
+        if isinstance(quant_raw, str) and quant_raw.strip().lower() in ("none", "null", ""):
+            quant_raw = None
+        quant_norm = normalize_quantization(quant_raw)
+        quant_short = encode_quant_segment_for_log_dir(quant_norm)
+
+        # Handle KV cache dtype config
+        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype")
+        kv_norm = normalize_kv_cache_dtype(kv_raw)
+        kv_short = encode_kv_cache_segment_for_log_dir(kv_norm)
+
+        return f"{model_for_name}-tp{tp_str}-pp{pp_str}-dp{dp_str}-{mns_short}-{mnbt_short}-{spec_short}-{quant_short}-{kv_short}"
+
+    def _expand_experiment(self, experiment_config: dict[str, Any]) -> list[dict[str, Any]]:
+        """Expand a single experiment config into multiple runs if any args values are lists.
 
         If multiple args contain lists, generate the cartesian product (all permutations).
+        Each run corresponds to one SLURM job.
         """
-        args = run_config.get("args", {}) or {}
+        args = experiment_config.get("args", {}) or {}
+        experiment_name = experiment_config["name"]
         sweep_keys = [key for key, value in args.items() if isinstance(value, list) and len(value) > 0]
 
         if not sweep_keys:
-            derived_name = self._derive_run_name(args, run_config["name"])
+            derived_name = self._derive_run_name(args, experiment_name)
             return [
                 {
                     "name": derived_name,
+                    "experiment": experiment_name,
                     "args": args,
                 }
             ]
@@ -150,11 +187,12 @@ class ExperimentLauncher:
             for key, val in zip(ordered_keys, combo):
                 new_args[key] = val
 
-            new_name = self._derive_run_name(new_args, run_config["name"])
+            new_name = self._derive_run_name(new_args, experiment_name)
 
             expanded_runs.append(
                 {
                     "name": new_name,
+                    "experiment": experiment_name,
                     "args": new_args,
                 }
             )
@@ -217,10 +255,10 @@ class ExperimentLauncher:
         results = {}
         skipped_runs = set()
 
-        # Expand runs to handle sweeps (lists in args produce cartesian product of values)
+        # Expand experiments into runs (lists in args produce cartesian product of values)
         expanded_runs: list[dict[str, Any]] = []
-        for base_run in self.config["runs"]:
-            expanded_runs.extend(self._expand_run(base_run))
+        for experiment in self.config["experiments"]:
+            expanded_runs.extend(self._expand_experiment(experiment))
 
         for run_config in expanded_runs:
             run_name = run_config["name"]
