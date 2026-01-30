@@ -71,23 +71,33 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
     Parse vLLM server logs to extract throughput metrics, excluding server startup time.
 
     Returns:
-        Dict with avg_prompt_throughput and avg_generation_throughput (total for engine),
-        or None if parsing fails. Divide by TP to get per-GPU throughput.
+        Dict with avg_prompt_throughput, avg_generation_throughput (total for engine),
+        avg_gpu_kv_cache_usage, avg_prefix_cache_hit_rate, running_reqs, and waiting_reqs,
+        or None if parsing fails. Divide throughputs by TP to get per-GPU throughput.
     """
     if not server_log_path.exists():
         return None
 
-    # Pattern: "Avg prompt throughput: 6949.8 tokens/s, Avg generation throughput: 5108.0 tokens/s"
-    pattern = re.compile(
+    # Pattern to extract throughput and cache metrics from log lines like:
+    # "Avg prompt throughput: 6949.8 tokens/s, Avg generation throughput: 5108.0 tokens/s, Running: 2005 reqs, Waiting: 2995 reqs, GPU KV cache usage: 67.7%, Prefix cache hit rate: 4.4%"
+    throughput_pattern = re.compile(
         r"Avg prompt throughput:\s+([\d.]+)\s+tokens/s,\s+Avg generation throughput:\s+([\d.]+)\s+tokens/s"
     )
+    running_pattern = re.compile(r"Running:\s+(\d+)\s+reqs")
+    waiting_pattern = re.compile(r"Waiting:\s+(\d+)\s+reqs")
+    kv_cache_pattern = re.compile(r"GPU KV cache usage:\s+([\d.]+)%")
+    prefix_cache_pattern = re.compile(r"Prefix cache hit rate:\s+([\d.]+)%")
 
     prompt_throughputs: list[float] = []
     gen_steady: list[float] = []  # Pure generation phase (prompt=0)
     gen_mixed: list[float] = []  # Mixed phase (prompt>0)
+    running_reqs: list[int] = []
+    waiting_reqs: list[int] = []
+    kv_cache_usages: list[float] = []
+    prefix_cache_rates: list[float] = []
 
     for line in server_log_path.read_text().splitlines():
-        if match := pattern.search(line):
+        if match := throughput_pattern.search(line):
             prompt_thr, gen_thr = float(match.group(1)), float(match.group(2))
             if prompt_thr == 0.0:
                 gen_steady.append(gen_thr)
@@ -95,13 +105,34 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
                 prompt_throughputs.append(prompt_thr)
                 gen_mixed.append(gen_thr)
 
+            # Extract request counts and cache metrics from the same line
+            if running_match := running_pattern.search(line):
+                running_reqs.append(int(running_match.group(1)))
+            if waiting_match := waiting_pattern.search(line):
+                waiting_reqs.append(int(waiting_match.group(1)))
+            if kv_match := kv_cache_pattern.search(line):
+                kv_cache_usages.append(float(kv_match.group(1)))
+            if prefix_match := prefix_cache_pattern.search(line):
+                prefix_cache_rates.append(float(prefix_match.group(1)))
+
     avg_prompt = mean(prompt_throughputs) if prompt_throughputs else None
     avg_gen = mean(gen_steady) if gen_steady else (mean(gen_mixed) if gen_mixed else None)
+    avg_running = mean(running_reqs) if running_reqs else None
+    avg_waiting = mean(waiting_reqs) if waiting_reqs else None
+    avg_kv_cache = mean(kv_cache_usages) if kv_cache_usages else None
+    avg_prefix_cache = mean(prefix_cache_rates) if prefix_cache_rates else None
 
     if avg_prompt is None and avg_gen is None:
         return None
 
-    return {"avg_prompt_throughput": avg_prompt, "avg_generation_throughput": avg_gen}
+    return {
+        "avg_prompt_throughput": avg_prompt,
+        "avg_generation_throughput": avg_gen,
+        "avg_running_reqs": avg_running,
+        "avg_waiting_reqs": avg_waiting,
+        "avg_gpu_kv_cache_usage": avg_kv_cache,
+        "avg_prefix_cache_hit_rate": avg_prefix_cache,
+    }
 
 
 def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/results") -> PathFields:
@@ -247,6 +278,10 @@ def analyze(root: str, out_csv: str) -> int:
             "output_tps_per_gpu": None,
             "tokens_input_per_sec": None,
             "tokens_output_per_sec": None,
+            "avg_running_reqs": None,
+            "avg_waiting_reqs": None,
+            "avg_gpu_kv_cache_usage": None,
+            "avg_prefix_cache_hit_rate": None,
             "prompt_tokens_total": None,
             "completion_tokens_total": None,
             "successful_requests": None,
@@ -312,6 +347,10 @@ def analyze(root: str, out_csv: str) -> int:
         row["input_tps_per_gpu"] = avg_prompt_thr / gpu_divisor
         row["tokens_output_per_sec"] = avg_gen_thr
         row["output_tps_per_gpu"] = avg_gen_thr / gpu_divisor
+        row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
+        row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
+        row["avg_gpu_kv_cache_usage"] = server_metrics["avg_gpu_kv_cache_usage"]
+        row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
 
         gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
         row["gpu_days_to_process_1b_tokens"] = gpu_days
@@ -349,6 +388,10 @@ def analyze(root: str, out_csv: str) -> int:
         "output_tps_per_gpu",
         "tokens_input_per_sec",
         "tokens_output_per_sec",
+        "avg_running_reqs",
+        "avg_waiting_reqs",
+        "avg_gpu_kv_cache_usage",
+        "avg_prefix_cache_hit_rate",
         "prompt_tokens_total",
         "completion_tokens_total",
         "successful_requests",
@@ -407,6 +450,8 @@ def analyze(root: str, out_csv: str) -> int:
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
         ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
+        ("kv%", "avg_gpu_kv_cache_usage", "right"),
+        ("prefix%", "avg_prefix_cache_hit_rate", "right"),
         ("e2e/1k", "e2e_per_1k", "right"),
         ("comment", "comment", "left"),
     ]
@@ -424,6 +469,8 @@ def analyze(root: str, out_csv: str) -> int:
                 return f"{hours}:{minutes:02d}:{seconds:02d}"
             if col_key in ("node_days_to_process_1b_tokens", "gpu_days_to_process_1b_tokens"):
                 return f"{float(val):.3f}"
+            if col_key in ("avg_gpu_kv_cache_usage", "avg_prefix_cache_hit_rate"):
+                return f"{float(val):.1f}"
             if col_key in (
                 "input_tps_per_gpu",
                 "output_tps_per_gpu",
