@@ -174,8 +174,7 @@ def _get_total_from_stat_field(val: object) -> float | None:
 
 def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
     """
-    Parse a merged stats.json to extract token counts and request stats.
-    Does NOT extract timing information - use server logs for throughput metrics.
+    Parse a merged stats.json to extract token counts, request stats, and total time.
     """
     if not stats_path.exists():
         return None
@@ -184,7 +183,16 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
     if not isinstance(data, list):
         return None
 
-    # Find the "Model call" entry
+    # Calculate total e2e time by summing time_stats.global_mean (or total) from all entries
+    e2e_time = 0.0
+    for item in data:
+        if isinstance(item, dict) and "time_stats" in item:
+            ts = item["time_stats"]
+            if isinstance(ts, dict):
+                # Prefer global_mean for merged stats, fallback to total
+                e2e_time += ts.get("global_mean", ts.get("total", 0.0))
+
+    # Find the "Model call" entry for token counts
     entry = next(
         (item for item in data if isinstance(item, dict) and "name" in item and "Model call" in str(item["name"])),
         None,
@@ -192,7 +200,6 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
     if not entry or "stats" not in entry:
         return None
 
-    # Stats fields are optional, default to 0 if missing
     st = entry["stats"]
 
     def get_stat(key: str) -> float:
@@ -203,6 +210,7 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
         "output_tokens_total": get_stat("completion_tokens"),
         "successful_requests_total": int(get_stat("successful_requests")),
         "failed_requests_total": int(get_stat("failed_requests")),
+        "e2e_time": e2e_time,
     }
 
 
@@ -243,6 +251,8 @@ def analyze(root: str, out_csv: str) -> int:
             "completion_tokens_total": None,
             "successful_requests": None,
             "failed_requests": None,
+            "e2e_time": None,
+            "e2e_per_1k": None,
             "path": path,
             "comment": "",
         }
@@ -277,6 +287,10 @@ def analyze(root: str, out_csv: str) -> int:
         row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
         row["successful_requests"] = stats_info["successful_requests_total"]
         row["failed_requests"] = stats_info["failed_requests_total"]
+        row["e2e_time"] = stats_info["e2e_time"]
+        # Time to process 1000 examples
+        if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
+            row["e2e_per_1k"] = stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000
 
         server_metrics = parse_server_logs(server_log_path) if server_log_path else None
         if server_metrics is None:
@@ -338,6 +352,8 @@ def analyze(root: str, out_csv: str) -> int:
         "prompt_tokens_total",
         "completion_tokens_total",
         "successful_requests",
+        "e2e_time",
+        "e2e_per_1k",
         "path",
         "comment",
     ]
@@ -354,6 +370,8 @@ def analyze(root: str, out_csv: str) -> int:
         "gpu_days_to_process_1b_tokens",
         "input_tps_per_gpu",
         "output_tps_per_gpu",
+        "e2e_time",
+        "e2e_per_1k",
     ]
 
     # Deduplicate: keep row with most metrics; if tied, keep highest output_tps_per_gpu
@@ -389,6 +407,7 @@ def analyze(root: str, out_csv: str) -> int:
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
         ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
+        ("e2e/1k", "e2e_per_1k", "right"),
         ("comment", "comment", "left"),
     ]
 
@@ -397,6 +416,12 @@ def analyze(root: str, out_csv: str) -> int:
         if val is None or pd.isna(val):
             return ""
         if isinstance(val, (int, float)):
+            if col_key == "e2e_per_1k":
+                # Format as HH:MM:SS
+                total_secs = int(float(val))
+                hours, remainder = divmod(total_secs, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                return f"{hours}:{minutes:02d}:{seconds:02d}"
             if col_key in ("node_days_to_process_1b_tokens", "gpu_days_to_process_1b_tokens"):
                 return f"{float(val):.3f}"
             if col_key in (
