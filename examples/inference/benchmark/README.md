@@ -133,6 +133,8 @@ Speculative decoding can significantly improve throughput by speculatively gener
 | Suffix      | `'{"method": "suffix", "num_speculative_tokens": N}'`         | Uses suffix-based speculation from the prompt    |
 | Draft Model | `'{"model": "org/draft-model", "num_speculative_tokens": N}'` | Uses a smaller draft model to speculate tokens   |
 
+> **Note**: Suffix decoding (`'{"method": "suffix", ...}'`) requires the `arctic-inference` package which needs CUDA and GCC 10+ to build. Install manually on GPU nodes if needed: `pip install arctic-inference`
+
 ### Example Configuration
 
 ```yaml

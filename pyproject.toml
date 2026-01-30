@@ -95,7 +95,6 @@ inference = [
   "typer",
   "pyyaml",
   "pandas",
-  "arctic-inference", # suffix decoding (needs GCC 10), needs to be installed on GPU node
 ]
 ray = [
   "ray[default]",
