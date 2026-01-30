@@ -84,7 +84,7 @@ from datatrove.utils.logging import logger
 # This path is also exported in SLURM jobs for unpickling
 EXAMPLES_INFERENCE_DIR = str(Path(__file__).parent)
 sys.path.insert(0, EXAMPLES_INFERENCE_DIR)
-from utils import (
+from utils import (  # noqa: E402
     check_hf_auth,
     encode_kv_cache_segment_for_log_dir,
     encode_mnbt_segment_for_log_dir,
