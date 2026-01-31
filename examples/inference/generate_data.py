@@ -110,7 +110,7 @@ def main(
     input_dataset_config: str | None = None,
     input_dataset_split: str = "train",
     prompt_column: str = "question",
-    prompt_template: str | None = None,
+    prompt_template: str | list[str] | None = None,  # Can be "template" or ["name", "template"]
     max_examples: int = -1,
     # Output dataset details
     output_dataset_name: str = "s1K-1.1-datatrove",
@@ -186,6 +186,11 @@ def main(
 
     config = AutoConfig.from_pretrained(
         model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+    )
+
+    # Parse prompt_template: can be "template" or ["name", "template"]
+    prompt_template_name, prompt_template = (
+        prompt_template if isinstance(prompt_template, list) else ("default", prompt_template)
     )
 
     gpus_per_node = validate_config(
@@ -270,9 +275,10 @@ def main(
     normalized_kv_dtype = normalize_kv_cache_dtype(kv_cache_dtype)
     kv_short = encode_kv_cache_segment_for_log_dir(normalized_kv_dtype)
 
-    # Build dynamic output directory: base/modelname/tp-pp-dp/mns/mnbt/spec/quant/kv
+    # Build dynamic output directory: base/prompt_template_name/model_name/tp-pp-dp/mns/mnbt/spec/quant/kv
     run_path = (
         Path(output_dir)
+        / prompt_template_name
         / model_name_safe(model_name_or_path)
         / f"tp{tp}-pp{pp}-dp{dp}"
         / mns_short

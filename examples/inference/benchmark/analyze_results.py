@@ -40,6 +40,7 @@ class PathFields:
     """Parsed experiment configuration fields from a result file path."""
 
     experiment: str
+    prompt_template_name: str
     model: str
     tp: int | None
     pp: int | None
@@ -140,13 +141,16 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
     Parse experiment configuration from a result file path.
 
     Expected path structure:
-        {root}/{experiment}/model_name/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/spec_{...}/quant_{...}/kv_{...}/inference_logs/...
+        {root}/{experiment}/{prompt_template_name}/model_name/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/spec_{...}/quant_{...}/kv_{...}/inference_logs/...
     """
     parts = list(Path(file_path).parts)
     root_parts = list(Path(root).parts)
 
     # Extract experiment name: first directory after root
     experiment = parts[len(root_parts)] if len(parts) > len(root_parts) else ""
+
+    # Extract prompt_template_name: second directory after root
+    prompt_template_name = parts[len(root_parts) + 1] if len(parts) > len(root_parts) + 1 else "default"
 
     # Find the 'tp' segment and extract tp/pp/dp
     tp, pp, dp, tp_idx = None, None, None, None
@@ -178,6 +182,7 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
 
     return PathFields(
         experiment=experiment,
+        prompt_template_name=prompt_template_name,
         model=model,
         tp=tp,
         pp=pp,
@@ -371,6 +376,7 @@ def analyze(root: str, out_csv: str) -> int:
     # - path
     fieldnames = [
         "experiment",
+        "prompt_template_name",
         "model",
         "tp",
         "pp",
@@ -407,7 +413,19 @@ def analyze(root: str, out_csv: str) -> int:
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
     # Columns used for deduplication and metrics for sorting
-    dedup_cols = ["experiment", "model", "tp", "pp", "dp", "mns", "mnbt", "spec", "quant", "kv"]
+    dedup_cols = [
+        "experiment",
+        "prompt_template_name",
+        "model",
+        "tp",
+        "pp",
+        "dp",
+        "mns",
+        "mnbt",
+        "spec",
+        "quant",
+        "kv",
+    ]
     metric_cols = [
         "node_days_to_process_1b_tokens",
         "gpu_days_to_process_1b_tokens",
@@ -435,6 +453,7 @@ def analyze(root: str, out_csv: str) -> int:
 
     # Config columns for table display (may be constant or varying per experiment)
     config_columns = [
+        ("prompt", "prompt_template_name", "left"),
         ("model", "model", "left"),
         ("tp", "tp", "right"),
         ("pp", "pp", "right"),
