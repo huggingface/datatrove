@@ -208,6 +208,17 @@ def _get_total_from_stat_field(val: object) -> float | None:
     return None
 
 
+def _get_mean_from_stat_field(val: object) -> float | None:
+    """Extract the mean from a stats.json field that may be a dict with a 'mean' key."""
+    if val is None:
+        return None
+    if isinstance(val, dict) and "mean" in val:
+        m = val["mean"]
+        if isinstance(m, (int, float)):
+            return float(m)
+    return None
+
+
 def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
     """
     Parse a merged stats.json to extract token counts, request stats, and total time.
@@ -238,14 +249,19 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
 
     st = entry["stats"]
 
-    def get_stat(key: str) -> float:
+    def get_total(key: str) -> float:
         return _get_total_from_stat_field(st[key]) if key in st else 0.0
 
+    def get_mean(key: str) -> float | None:
+        return _get_mean_from_stat_field(st[key]) if key in st else None
+
     return {
-        "input_tokens_total": get_stat("prompt_tokens"),
-        "output_tokens_total": get_stat("completion_tokens"),
-        "successful_requests_total": int(get_stat("successful_requests")),
-        "failed_requests_total": int(get_stat("failed_requests")),
+        "input_tokens_total": get_total("prompt_tokens"),
+        "output_tokens_total": get_total("completion_tokens"),
+        "input_tokens_mean": get_mean("prompt_tokens"),
+        "output_tokens_mean": get_mean("completion_tokens"),
+        "successful_requests_total": int(get_total("successful_requests")),
+        "failed_requests_total": int(get_total("failed_requests")),
         "e2e_time": e2e_time,
     }
 
@@ -275,7 +291,6 @@ def analyze(root: str, out_csv: str) -> int:
         # Create row from path fields + additional metrics (default None)
         row: dict[str, object] = {
             **asdict(fields),
-            "util": None,
             "gpus_for_1b_tokens_per_hour": None,
             "node_days_to_process_1b_tokens": None,
             "gpu_days_to_process_1b_tokens": None,
@@ -289,6 +304,8 @@ def analyze(root: str, out_csv: str) -> int:
             "avg_prefix_cache_hit_rate": None,
             "prompt_tokens_total": None,
             "completion_tokens_total": None,
+            "mean_input_tokens": None,
+            "mean_output_tokens": None,
             "successful_requests": None,
             "failed_requests": None,
             "e2e_time": None,
@@ -325,6 +342,8 @@ def analyze(root: str, out_csv: str) -> int:
 
         row["prompt_tokens_total"] = int(stats_info["input_tokens_total"])
         row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
+        row["mean_input_tokens"] = stats_info["input_tokens_mean"]
+        row["mean_output_tokens"] = stats_info["output_tokens_mean"]
         row["successful_requests"] = stats_info["successful_requests_total"]
         row["failed_requests"] = stats_info["failed_requests_total"]
         row["e2e_time"] = stats_info["e2e_time"]
@@ -383,7 +402,6 @@ def analyze(root: str, out_csv: str) -> int:
         "dp",
         "mns",
         "mnbt",
-        "util",
         "spec",
         "quant",
         "kv",
@@ -400,6 +418,8 @@ def analyze(root: str, out_csv: str) -> int:
         "avg_prefix_cache_hit_rate",
         "prompt_tokens_total",
         "completion_tokens_total",
+        "mean_input_tokens",
+        "mean_output_tokens",
         "successful_requests",
         "e2e_time",
         "e2e_per_1k",
@@ -469,6 +489,8 @@ def analyze(root: str, out_csv: str) -> int:
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
         ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
+        ("mean_in", "mean_input_tokens", "right"),
+        ("mean_out", "mean_output_tokens", "right"),
         ("kv%", "avg_gpu_kv_cache_usage", "right"),
         ("prefix%", "avg_prefix_cache_hit_rate", "right"),
         ("e2e/1k", "e2e_per_1k", "right"),
@@ -493,6 +515,8 @@ def analyze(root: str, out_csv: str) -> int:
             if col_key in (
                 "input_tps_per_gpu",
                 "output_tps_per_gpu",
+                "mean_input_tokens",
+                "mean_output_tokens",
                 "tp",
                 "pp",
                 "dp",
