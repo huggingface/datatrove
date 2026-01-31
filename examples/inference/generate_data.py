@@ -149,6 +149,7 @@ def main(
     top_p: float | None = None,
     max_tokens: int = 16384,
     rollouts_per_document: int = 1,
+    seed: int | None = None,  # Random seed for reproducible generation
     # Processing settings
     examples_per_chunk: int = 500,
     tasks: int = 10,
@@ -163,7 +164,6 @@ def main(
     reservation: str | None = None,
 ) -> None:
     """Typer CLI entrypoint that runs the pipeline with provided options."""
-
     # Skip HuggingFace setup in benchmark mode
     full_repo_id = None
     if benchmark_mode:
@@ -240,6 +240,7 @@ def main(
                 "temperature": temperature,
                 "top_k": top_k,
                 "top_p": top_p,
+                **({"seed": seed} if seed is not None else {}),
             }
         )
 
@@ -370,11 +371,12 @@ def main(
         model_name=model_name_or_path,
         model_revision=model_revision,
         generation_kwargs={
+            "max_tokens": max_tokens,
+            "model_max_context": model_max_context,
             "temperature": temperature,
             "top_k": top_k,
             "top_p": top_p,
-            "max_tokens": max_tokens,
-            "model_max_context": model_max_context,
+            "seed": seed,
         },
         spec_config=normalized_spec,
         stats_path=str(inference_logs_path / "stats.json"),
