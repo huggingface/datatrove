@@ -351,30 +351,24 @@ def analyze(root: str, out_csv: str) -> int:
         if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
             row["e2e_per_1k"] = stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000
 
-        server_metrics = parse_server_logs(server_log_path) if server_log_path else None
-        if server_metrics is None:
-            row["comment"] = "server logs not found or unparseable"
-            rows.append(row)
-            continue
-
-        avg_prompt_thr = server_metrics["avg_prompt_throughput"]
-        avg_gen_thr = server_metrics["avg_generation_throughput"]
-        if avg_prompt_thr is None or avg_gen_thr is None:
-            row["comment"] = "throughput metrics not found in server logs"
-            rows.append(row)
-            continue
-
         # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
         gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
 
-        row["tokens_input_per_sec"] = avg_prompt_thr
-        row["input_tps_per_gpu"] = avg_prompt_thr / gpu_divisor
-        row["tokens_output_per_sec"] = avg_gen_thr
-        row["output_tps_per_gpu"] = avg_gen_thr / gpu_divisor
-        row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
-        row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
-        row["avg_gpu_kv_cache_usage"] = server_metrics["avg_gpu_kv_cache_usage"]
-        row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
+        # Calculate throughput from total tokens / e2e_time (more stable than server log averages)
+        e2e_time = stats_info["e2e_time"]
+        if e2e_time and e2e_time > 0:
+            row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / e2e_time
+            row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / e2e_time / gpu_divisor
+            row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / e2e_time
+            row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / e2e_time / gpu_divisor
+
+        # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
+        server_metrics = parse_server_logs(server_log_path) if server_log_path else None
+        if server_metrics:
+            row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
+            row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
+            row["avg_gpu_kv_cache_usage"] = server_metrics["avg_gpu_kv_cache_usage"]
+            row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
 
         gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
         row["gpu_days_to_process_1b_tokens"] = gpu_days
