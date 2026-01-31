@@ -120,43 +120,67 @@ class ExperimentLauncher:
         val_str = re.sub(r"_{2,}", "_", val_str).strip("_")
         return val_str
 
-    def _derive_run_name(self, args: dict[str, Any], fallback: str) -> str:
-        """Derive run name as {model}-tp{tp}-pp{pp}-dp{dp}-{mns}-{mnbt}-{spec}-{quant}-{kv}."""
-        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or fallback
-        model_for_name = model_name_safe(str(model_value))
-        tp_value = args.get("tp")
-        tp_str = str(tp_value) if tp_value is not None else "1"
-        pp_value = args.get("pp")
-        pp_str = str(pp_value) if pp_value is not None else "1"
-        dp_value = args.get("dp")
-        dp_str = str(dp_value) if dp_value is not None else "1"
+    def _derive_run_name(self, args: dict[str, Any]) -> str:
+        """Derive run name from non-default config values, matching path order.
 
-        # Handle batch size parameters
-        mns_raw = args.get("max-num-seqs") or args.get("max_num_seqs") or 1000
-        mns_short = encode_mns_segment_for_log_dir(int(mns_raw))
-        mnbt_raw = args.get("max-num-batched-tokens") or args.get("max_num_batched_tokens") or 8192
-        mnbt_short = encode_mnbt_segment_for_log_dir(int(mnbt_raw))
+        Order matches generate_data.py's run_path structure:
+        prompt_template_name / model / tp-pp-dp / mns / mnbt / spec / quant / kv
+        Only includes segments that differ from defaults to keep names short.
+        """
+        parts: list[str] = []
 
-        # Handle speculative config
+        # 1. Prompt template name (if specified as [name, template] tuple)
+        prompt_template = args.get("prompt-template") or args.get("prompt_template")
+        if isinstance(prompt_template, list) and len(prompt_template) >= 1:
+            parts.append(self._sanitize_for_name(prompt_template[0]))
+
+        # 2. Model name (always included)
+        default_model = "Qwen/Qwen3-0.6B"
+        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or default_model
+        parts.append(model_name_safe(str(model_value)))
+
+        # 3. Parallelism settings (defaults: tp=1, pp=1, dp=1)
+        tp = args.get("tp") or 1
+        pp = args.get("pp") or 1
+        dp = args.get("dp") or 1
+        if tp != 1:
+            parts.append(f"tp{tp}")
+        if pp != 1:
+            parts.append(f"pp{pp}")
+        if dp != 1:
+            parts.append(f"dp{dp}")
+
+        # 4. Batch size parameters (defaults: mns=1024, mnbt=8192)
+        mns = int(args.get("max-num-seqs") or args.get("max_num_seqs") or 1024)
+        mnbt = int(args.get("max-num-batched-tokens") or args.get("max_num_batched_tokens") or 8192)
+        if mns != 1024:
+            parts.append(encode_mns_segment_for_log_dir(mns))
+        if mnbt != 8192:
+            parts.append(encode_mnbt_segment_for_log_dir(mnbt))
+
+        # 5. Speculative config (default: None)
         spec_raw = args.get("speculative-config") or args.get("speculative_config")
         if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
             spec_raw = None
-        spec_norm = normalize_speculative(spec_raw)
-        spec_short = encode_spec_segment_for_log_dir(spec_norm)
+        if spec_raw:
+            spec_norm = normalize_speculative(spec_raw)
+            parts.append(encode_spec_segment_for_log_dir(spec_norm))
 
-        # Handle quantization config
+        # 6. Quantization config (default: None)
         quant_raw = args.get("quantization")
         if isinstance(quant_raw, str) and quant_raw.strip().lower() in ("none", "null", ""):
             quant_raw = None
-        quant_norm = normalize_quantization(quant_raw)
-        quant_short = encode_quant_segment_for_log_dir(quant_norm)
+        if quant_raw:
+            quant_norm = normalize_quantization(quant_raw)
+            parts.append(encode_quant_segment_for_log_dir(quant_norm))
 
-        # Handle KV cache dtype config
-        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype")
-        kv_norm = normalize_kv_cache_dtype(kv_raw)
-        kv_short = encode_kv_cache_segment_for_log_dir(kv_norm)
+        # 7. KV cache dtype config (default: "auto")
+        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype") or "auto"
+        if kv_raw.strip().lower() not in ("auto", "none", "null", ""):
+            kv_norm = normalize_kv_cache_dtype(kv_raw)
+            parts.append(encode_kv_cache_segment_for_log_dir(kv_norm))
 
-        return f"{model_for_name}-tp{tp_str}-pp{pp_str}-dp{dp_str}-{mns_short}-{mnbt_short}-{spec_short}-{quant_short}-{kv_short}"
+        return "-".join(parts)
 
     def _expand_experiment(self, experiment_config: dict[str, Any]) -> list[dict[str, Any]]:
         """Expand a single experiment config into multiple runs if any args values are lists.
@@ -164,30 +188,35 @@ class ExperimentLauncher:
         If multiple args contain lists, generate the cartesian product (all permutations).
         Each run corresponds to one SLURM job.
         """
-        args = experiment_config.get("args", {}) or {}
+        fixed_args = self.config.get("fixed_args", {}) or {}
+        exp_args = experiment_config.get("args", {}) or {}
         experiment_name = experiment_config["name"]
-        sweep_keys = [key for key, value in args.items() if isinstance(value, list) and len(value) > 0]
+        sweep_keys = [key for key, value in exp_args.items() if isinstance(value, list) and len(value) > 0]
 
         if not sweep_keys:
-            derived_name = self._derive_run_name(args, experiment_name)
+            # Merge fixed_args with exp_args for name derivation (exp_args override fixed_args)
+            merged_for_name = {**fixed_args, **exp_args}
+            derived_name = self._derive_run_name(merged_for_name)
             return [
                 {
                     "name": derived_name,
                     "experiment": experiment_name,
-                    "args": args,
+                    "args": exp_args,
                 }
             ]
 
         ordered_keys = sorted(sweep_keys)
-        value_lists = [args[key] for key in ordered_keys]
+        value_lists = [exp_args[key] for key in ordered_keys]
 
         expanded_runs: list[dict[str, Any]] = []
         for combo in product(*value_lists):
-            new_args = dict(args)
+            new_args = dict(exp_args)
             for key, val in zip(ordered_keys, combo):
                 new_args[key] = val
 
-            new_name = self._derive_run_name(new_args, experiment_name)
+            # Merge fixed_args with new_args for name derivation
+            merged_for_name = {**fixed_args, **new_args}
+            new_name = self._derive_run_name(merged_for_name)
 
             expanded_runs.append(
                 {

@@ -40,6 +40,7 @@ class PathFields:
     """Parsed experiment configuration fields from a result file path."""
 
     experiment: str
+    prompt_template_name: str
     model: str
     tp: int | None
     pp: int | None
@@ -140,13 +141,16 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
     Parse experiment configuration from a result file path.
 
     Expected path structure:
-        {root}/{experiment}/model_name/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/spec_{...}/quant_{...}/kv_{...}/inference_logs/...
+        {root}/{experiment}/{prompt_template_name}/model_name/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/spec_{...}/quant_{...}/kv_{...}/inference_logs/...
     """
     parts = list(Path(file_path).parts)
     root_parts = list(Path(root).parts)
 
     # Extract experiment name: first directory after root
     experiment = parts[len(root_parts)] if len(parts) > len(root_parts) else ""
+
+    # Extract prompt_template_name: second directory after root
+    prompt_template_name = parts[len(root_parts) + 1] if len(parts) > len(root_parts) + 1 else "default"
 
     # Find the 'tp' segment and extract tp/pp/dp
     tp, pp, dp, tp_idx = None, None, None, None
@@ -178,6 +182,7 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
 
     return PathFields(
         experiment=experiment,
+        prompt_template_name=prompt_template_name,
         model=model,
         tp=tp,
         pp=pp,
@@ -200,6 +205,17 @@ def _get_total_from_stat_field(val: object) -> float | None:
         t = val["total"]
         if isinstance(t, (int, float)):
             return float(t)
+    return None
+
+
+def _get_mean_from_stat_field(val: object) -> float | None:
+    """Extract the mean from a stats.json field that may be a dict with a 'mean' key."""
+    if val is None:
+        return None
+    if isinstance(val, dict) and "mean" in val:
+        m = val["mean"]
+        if isinstance(m, (int, float)):
+            return float(m)
     return None
 
 
@@ -233,14 +249,19 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
 
     st = entry["stats"]
 
-    def get_stat(key: str) -> float:
+    def get_total(key: str) -> float:
         return _get_total_from_stat_field(st[key]) if key in st else 0.0
 
+    def get_mean(key: str) -> float | None:
+        return _get_mean_from_stat_field(st[key]) if key in st else None
+
     return {
-        "input_tokens_total": get_stat("prompt_tokens"),
-        "output_tokens_total": get_stat("completion_tokens"),
-        "successful_requests_total": int(get_stat("successful_requests")),
-        "failed_requests_total": int(get_stat("failed_requests")),
+        "input_tokens_total": get_total("prompt_tokens"),
+        "output_tokens_total": get_total("completion_tokens"),
+        "input_tokens_mean": get_mean("prompt_tokens"),
+        "output_tokens_mean": get_mean("completion_tokens"),
+        "successful_requests_total": int(get_total("successful_requests")),
+        "failed_requests_total": int(get_total("failed_requests")),
         "e2e_time": e2e_time,
     }
 
@@ -270,7 +291,6 @@ def analyze(root: str, out_csv: str) -> int:
         # Create row from path fields + additional metrics (default None)
         row: dict[str, object] = {
             **asdict(fields),
-            "util": None,
             "gpus_for_1b_tokens_per_hour": None,
             "node_days_to_process_1b_tokens": None,
             "gpu_days_to_process_1b_tokens": None,
@@ -284,6 +304,8 @@ def analyze(root: str, out_csv: str) -> int:
             "avg_prefix_cache_hit_rate": None,
             "prompt_tokens_total": None,
             "completion_tokens_total": None,
+            "mean_input_tokens": None,
+            "mean_output_tokens": None,
             "successful_requests": None,
             "failed_requests": None,
             "e2e_time": None,
@@ -320,6 +342,8 @@ def analyze(root: str, out_csv: str) -> int:
 
         row["prompt_tokens_total"] = int(stats_info["input_tokens_total"])
         row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
+        row["mean_input_tokens"] = stats_info["input_tokens_mean"]
+        row["mean_output_tokens"] = stats_info["output_tokens_mean"]
         row["successful_requests"] = stats_info["successful_requests_total"]
         row["failed_requests"] = stats_info["failed_requests_total"]
         row["e2e_time"] = stats_info["e2e_time"]
@@ -327,30 +351,24 @@ def analyze(root: str, out_csv: str) -> int:
         if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
             row["e2e_per_1k"] = stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000
 
-        server_metrics = parse_server_logs(server_log_path) if server_log_path else None
-        if server_metrics is None:
-            row["comment"] = "server logs not found or unparseable"
-            rows.append(row)
-            continue
-
-        avg_prompt_thr = server_metrics["avg_prompt_throughput"]
-        avg_gen_thr = server_metrics["avg_generation_throughput"]
-        if avg_prompt_thr is None or avg_gen_thr is None:
-            row["comment"] = "throughput metrics not found in server logs"
-            rows.append(row)
-            continue
-
         # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
         gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
 
-        row["tokens_input_per_sec"] = avg_prompt_thr
-        row["input_tps_per_gpu"] = avg_prompt_thr / gpu_divisor
-        row["tokens_output_per_sec"] = avg_gen_thr
-        row["output_tps_per_gpu"] = avg_gen_thr / gpu_divisor
-        row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
-        row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
-        row["avg_gpu_kv_cache_usage"] = server_metrics["avg_gpu_kv_cache_usage"]
-        row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
+        # Calculate throughput from total tokens / e2e_time (more stable than server log averages)
+        e2e_time = stats_info["e2e_time"]
+        if e2e_time and e2e_time > 0:
+            row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / e2e_time
+            row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / e2e_time / gpu_divisor
+            row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / e2e_time
+            row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / e2e_time / gpu_divisor
+
+        # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
+        server_metrics = parse_server_logs(server_log_path) if server_log_path else None
+        if server_metrics:
+            row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
+            row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
+            row["avg_gpu_kv_cache_usage"] = server_metrics["avg_gpu_kv_cache_usage"]
+            row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
 
         gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
         row["gpu_days_to_process_1b_tokens"] = gpu_days
@@ -371,13 +389,13 @@ def analyze(root: str, out_csv: str) -> int:
     # - path
     fieldnames = [
         "experiment",
+        "prompt_template_name",
         "model",
         "tp",
         "pp",
         "dp",
         "mns",
         "mnbt",
-        "util",
         "spec",
         "quant",
         "kv",
@@ -394,6 +412,8 @@ def analyze(root: str, out_csv: str) -> int:
         "avg_prefix_cache_hit_rate",
         "prompt_tokens_total",
         "completion_tokens_total",
+        "mean_input_tokens",
+        "mean_output_tokens",
         "successful_requests",
         "e2e_time",
         "e2e_per_1k",
@@ -407,7 +427,19 @@ def analyze(root: str, out_csv: str) -> int:
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
     # Columns used for deduplication and metrics for sorting
-    dedup_cols = ["experiment", "model", "tp", "pp", "dp", "mns", "mnbt", "spec", "quant", "kv"]
+    dedup_cols = [
+        "experiment",
+        "prompt_template_name",
+        "model",
+        "tp",
+        "pp",
+        "dp",
+        "mns",
+        "mnbt",
+        "spec",
+        "quant",
+        "kv",
+    ]
     metric_cols = [
         "node_days_to_process_1b_tokens",
         "gpu_days_to_process_1b_tokens",
@@ -435,6 +467,7 @@ def analyze(root: str, out_csv: str) -> int:
 
     # Config columns for table display (may be constant or varying per experiment)
     config_columns = [
+        ("prompt", "prompt_template_name", "left"),
         ("model", "model", "left"),
         ("tp", "tp", "right"),
         ("pp", "pp", "right"),
@@ -450,6 +483,8 @@ def analyze(root: str, out_csv: str) -> int:
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
         ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
+        ("mean_in", "mean_input_tokens", "right"),
+        ("mean_out", "mean_output_tokens", "right"),
         ("kv%", "avg_gpu_kv_cache_usage", "right"),
         ("prefix%", "avg_prefix_cache_hit_rate", "right"),
         ("e2e/1k", "e2e_per_1k", "right"),
@@ -474,6 +509,8 @@ def analyze(root: str, out_csv: str) -> int:
             if col_key in (
                 "input_tps_per_gpu",
                 "output_tps_per_gpu",
+                "mean_input_tokens",
+                "mean_output_tokens",
                 "tp",
                 "pp",
                 "dp",
