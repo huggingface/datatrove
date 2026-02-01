@@ -52,30 +52,48 @@ class PathFields:
     kv: str
 
 
-# Patterns indicating OOM errors in vLLM server logs
-_OOM_PATTERN_STRINGS = [
-    r"torch\.OutOfMemoryError.*CUDA out of memory",
-    r"ValueError.*No available memory for the cache blocks",
-    r"OutOfMemoryError",
-    r"CUDA out of memory",
-    r"Failed to load model - not enough GPU memory",
+# Failure pattern definitions: (pattern_string, failure_reason)
+_FAILURE_PATTERNS: list[tuple[str, str]] = [
+    # OOM errors
+    (r"torch\.OutOfMemoryError.*CUDA out of memory", "OOM"),
+    (r"ValueError.*No available memory for the cache blocks", "OOM"),
+    (r"OutOfMemoryError", "OOM"),
+    (r"CUDA out of memory", "OOM"),
+    (r"Failed to load model - not enough GPU memory", "OOM"),
+    # Time limit exceeded
+    (r"DUE TO TIME LIMIT", "timeout"),
+    # Server startup failures
+    (r"Failed to start VLLMServer server", "server_fail"),
+    (r"Server encountered unrecoverable error", "server_fail"),
 ]
-OOM_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _OOM_PATTERN_STRINGS]
+FAILURE_PATTERNS = [(re.compile(p, re.IGNORECASE), reason) for p, reason in _FAILURE_PATTERNS]
 
 
-def check_oom_in_log(log_path: Path | None, max_bytes: int = 10_000_000) -> bool:
-    """Check if a log file contains OOM (Out of Memory) errors.
-
-    Args:
-        log_path: Path to the log file to check.
-        max_bytes: Maximum bytes to read from the file (default 10MB).
-    """
+def detect_failure_reason(log_path: Path | None, max_bytes: int = 5_000_000) -> str | None:
+    """Detect the failure reason from a log file by reading head and tail."""
     if log_path is None or not log_path.exists():
-        return False
-    # Read only first max_bytes to avoid memory issues with very large logs
+        return None
+
+    file_size = log_path.stat().st_size
+    if file_size == 0:
+        return None
+
     with open(log_path, errors="ignore") as f:
-        content = f.read(max_bytes)
-    return any(pattern.search(content) for pattern in OOM_PATTERNS)
+        # Read tail first (final status like timeout takes priority)
+        if file_size > max_bytes:
+            f.seek(file_size - max_bytes)
+        tail = f.read(max_bytes)
+
+        # Also read head for startup failures (OOM) if file is large
+        f.seek(0)
+        head = f.read(max_bytes) if file_size > max_bytes else ""
+
+    # Check tail first, then head
+    for content in (tail, head):
+        for pattern, reason in FAILURE_PATTERNS:
+            if pattern.search(content):
+                return reason
+    return None
 
 
 def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
@@ -339,11 +357,12 @@ def analyze(root: str, out_csv: str) -> int:
         )
         server_log_path = candidates[0] if candidates else None
 
-        # Check for OOM errors BEFORE stats.json - OOM failures prevent stats.json creation
-        # Check both SLURM output log and server log for OOM errors
+        # Check for failure patterns BEFORE stats.json - failures prevent stats.json creation
+        # Check both SLURM output log and server log for failure patterns
         slurm_log_path = Path(path)
-        if check_oom_in_log(slurm_log_path) or check_oom_in_log(server_log_path):
-            row["comment"] = "OOM"
+        failure_reason = detect_failure_reason(slurm_log_path) or detect_failure_reason(server_log_path)
+        if failure_reason:
+            row["comment"] = failure_reason
             rows.append(row)
             continue
 
