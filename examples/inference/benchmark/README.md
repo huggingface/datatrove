@@ -75,11 +75,12 @@ python examples/inference/benchmark/analyze_results.py \
 
 Results are organized under:
 ```
-{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}/inference_logs/
+{root}/{experiment}/{prompt}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}/inference_logs/
 ```
 
 Directory segments:
 - `{experiment}`: experiment name from config
+- `{prompt}`: prompt template name
 - `{model}`: model name (org prefix stripped, e.g., `gemma_3_1b_it`)
 - `tp{TP}-pp{PP}-dp{DP}`: parallelism config (e.g., `tp2-pp1-dp1`)
 - `mns_{N}`: max-num-seqs value (e.g., `mns_256`)

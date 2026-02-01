@@ -352,7 +352,7 @@ def build_run_path(
 ) -> Path:
     """Build the canonical run path for experiment outputs.
 
-    Path structure: {output_dir}/{prompt}/{model}/{tp-pp-dp}/{mns}/{mnbt}/{gmu}/{bs}/{kvc}/{spec}/{quant}
+    Path structure: {output_dir}/{prompt}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}
     """
     kv_norm = normalize_kvc_dtype(kv_cache_dtype)
     spec_norm = normalize_speculative(speculative_config) if speculative_config else None

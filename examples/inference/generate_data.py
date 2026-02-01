@@ -262,7 +262,7 @@ def main(
     normalized_quant = normalize_quantization(quantization)
     normalized_kv_dtype = normalize_kvc_dtype(kv_cache_dtype)
 
-    # Build dynamic output directory: {output_dir}/{prompt}/{model}/{tp-pp-dp}/{mns}/{mnbt}/{gmu}/{bs}/{kv}/{spec}/{quant}
+    # Build dynamic output directory: {output_dir}/{prompt}/{model}/{tp-pp-dp}/{mns}/{mnbt}/{gmu}/{bs}/{kvc}/{spec}/{quant}
     run_path = build_run_path(
         output_dir=output_dir,
         prompt_template_name=prompt_template_name,
