@@ -75,33 +75,53 @@ python examples/inference/benchmark/analyze_results.py \
 
 Results are organized under:
 ```
-{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/{spec}/{quant}/{kv}/inference_logs/
+{root}/{experiment}/{prompt}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}/inference_logs/
 ```
 
 Directory segments:
 - `{experiment}`: experiment name from config
+- `{prompt}`: prompt template name
 - `{model}`: model name (org prefix stripped, e.g., `gemma_3_1b_it`)
 - `tp{TP}-pp{PP}-dp{DP}`: parallelism config (e.g., `tp2-pp1-dp1`)
-- `mns_{N}`: max-num-seqs value (e.g., `mns_1024`)
+- `mns_{N}`: max-num-seqs value (e.g., `mns_256`)
 - `mnbt_{M}`: max-num-batched-tokens value (e.g., `mnbt_8192`)
+- `gmu_{P}`: gpu-memory-utilization as percentage (e.g., `gmu_90` for 0.9)
+- `bs_{N}`: block-size value (e.g., `bs_16`, `bs_32`)
+- `kvc_*`: KV cache dtype (see [KV Cache Quantization](#kv-cache-quantization))
 - `spec_*`: speculative config (see [Speculative Decoding](#speculative-decoding))
 - `quant_*`: quantization config (see [Quantization](#quantization))
-- `kv_*`: KV cache dtype (see [KV Cache Quantization](#kv-cache-quantization))
+
+## Tiered Optimization Approach
+
+The benchmark follows a sequential tiered approach where each tier builds on the optimal settings from previous tiers:
+
+| Tier | Parameters              | Goal                                                        |
+| ---- | ----------------------- | ----------------------------------------------------------- |
+| 0    | `tp`, `pp`, `nodes`     | **Make it run** - Find minimum parallelism to fit model     |
+| 1    | `mns`, `mnbt`           | **Batching** - Highest impact; maximize sequence throughput |
+| 2    | `gmu`, `kvc`, `bs`      | **Memory/KV cache** - Best use of available GPU memory      |
+| 3    | `spec`                  | **Speculative decoding** - Lossless speedup                 |
+| 4    | `quant`                 | **Quantization** - Lossy speedup as last resort             |
+
+Run tiers sequentially and use winners from each tier to inform the next. See [`sample_benchmark_config.yaml`](sample_benchmark_config.yaml) for a complete example.
 
 ## Metrics
 
 The analyzer outputs per-experiment CSV files and a combined CSV. Key columns:
 
-| Column                          | Description                                |
-| ------------------------------- | ----------------------------------------- -|
-| `experiment`                    | Experiment name from config                |
-| `model`, `tp`, `pp`, `dp`       | Model and parallelism config               |
-| `mns`, `mnbt`                   | Batch size parameters                      |
-| `spec`, `quant`, `kv`           | Speculative, quantization, KV cache config |
-| `input_tps_per_gpu`             | Input tokens per second per GPU            |
-| `output_tps_per_gpu`            | Output tokens per second per GPU           |
-| `gpu_days_to_process_1b_tokens` | GPU-days to generate 1B output tokens      |
-| `gpus_for_1b_tokens_per_hour`   | GPUs needed for 1B tokens/hour             |
+| Column                          | Description                                 |
+| ------------------------------- | ------------------------------------------- |
+| `experiment`, `prompt`          | Experiment and prompt template name         |
+| `model`                         | Model name (org prefix stripped)            |
+| `tp`, `pp`, `dp`                | Tier 0: Parallelism config                  |
+| `mns`, `mnbt`                   | Tier 1: Batching parameters                 |
+| `gmu`, `bs`, `kvc`              | Tier 2: Memory and KV cache config          |
+| `spec`                          | Tier 3: Speculative decoding config         |
+| `quant`                         | Tier 4: Quantization config                 |
+| `input_tps_per_gpu`             | Input tokens per second per GPU             |
+| `output_tps_per_gpu`            | Output tokens per second per GPU            |
+| `gpu_days_to_process_1b_tokens` | GPU-days to generate 1B output tokens       |
+| `gpus_for_1b_tokens_per_hour`   | GPUs needed for 1B tokens/hour              |
 
 ## Configuration Reference
 
@@ -146,7 +166,7 @@ experiments:
         - None  # No speculative decoding
         - '{"method": "ngram", "num_speculative_tokens": 5}'  # N-gram
         - '{"method": "suffix", "num_speculative_tokens": 32}'  # Suffix
-        # Draft model (not yet supported as of vLLM 0.14.0):
+        # Draft model (not yet supported as of vLLM 0.15.0):
         # - '{"model": "facebook/opt-125m", "num_speculative_tokens": 5}'
 ```
 

@@ -1,6 +1,7 @@
 """Utility functions for the vLLM benchmark scripts."""
 
 import json
+from pathlib import Path
 
 from huggingface_hub import create_repo, get_full_repo_name, repo_exists, whoami
 from transformers import AutoConfig
@@ -86,6 +87,20 @@ def encode_mns_segment_for_log_dir(max_num_seqs: int) -> str:
 def encode_mnbt_segment_for_log_dir(max_num_batched_tokens: int) -> str:
     """Encode max_num_batched_tokens into a stable directory segment: 'mnbt_{value}'."""
     return f"mnbt_{max_num_batched_tokens}"
+
+
+def encode_bs_segment_for_log_dir(block_size: int) -> str:
+    """Encode block_size into a stable directory segment: 'bs_{value}'."""
+    return f"bs_{block_size}"
+
+
+def encode_gmu_segment_for_log_dir(gpu_memory_utilization: float) -> str:
+    """Encode gpu_memory_utilization into a stable directory segment: 'gmu_{value}'.
+
+    Uses percentage format for readability (e.g., 0.9 -> 'gmu_90').
+    """
+    pct = int(gpu_memory_utilization * 100)
+    return f"gmu_{pct}"
 
 
 def normalize_speculative(spec) -> str:
@@ -206,7 +221,7 @@ def encode_quant_segment_for_log_dir(quant: str | None) -> str:
     return f"quant_{quant_lower.replace('-', '_')}"
 
 
-def normalize_kv_cache_dtype(kv_dtype: str | None) -> str:
+def normalize_kvc_dtype(kv_dtype: str | None) -> str:
     """
     Normalize KV cache dtype configuration string.
 
@@ -229,28 +244,28 @@ def normalize_kv_cache_dtype(kv_dtype: str | None) -> str:
             return "auto"
         if kv_lower in KV_CACHE_DTYPE_OPTIONS:
             return kv_lower
-        raise ValueError(f"Unknown kv_cache_dtype: {kv_dtype}. Supported: {KV_CACHE_DTYPE_OPTIONS}")
+        raise ValueError(f"Unknown kvc_dtype: {kv_dtype}. Supported: {KV_CACHE_DTYPE_OPTIONS}")
     return "auto"
 
 
-def encode_kv_cache_segment_for_log_dir(kv_dtype: str) -> str:
+def encode_kvc_segment_for_log_dir(kv_dtype: str) -> str:
     """
-    Encode KV cache dtype config into a stable directory segment.
+    Encode KV cache dtype config into a stable directory segment (kvc_*).
 
     Returns:
-        - "kv_auto" for auto (default, unquantized)
-        - "kv_fp8e4m3" for fp8_e4m3
-        - "kv_fp8e5m2" for fp8_e5m2
+        - "kvc_auto" for auto (default, unquantized)
+        - "kvc_fp8e4m3" for fp8_e4m3
+        - "kvc_fp8e5m2" for fp8_e5m2
     """
     kv_lower = kv_dtype.strip().lower() if kv_dtype else "auto"
     if kv_lower in ("auto", "none", "null", ""):
-        return "kv_auto"
+        return "kvc_auto"
     if kv_lower == "fp8_e4m3":
-        return "kv_fp8e4m3"
+        return "kvc_fp8e4m3"
     if kv_lower == "fp8_e5m2":
-        return "kv_fp8e5m2"
+        return "kvc_fp8e5m2"
     # Fallback for future options
-    return f"kv_{kv_lower.replace('-', '_')}"
+    return f"kvc_{kv_lower.replace('-', '_')}"
 
 
 def validate_config(
@@ -318,3 +333,41 @@ def validate_config(
         )
 
     return gpus_per_node
+
+
+def build_run_path(
+    output_dir: str,
+    prompt_template_name: str,
+    model_name_or_path: str,
+    tp: int = 1,
+    pp: int = 1,
+    dp: int = 1,
+    max_num_seqs: int = 256,
+    max_num_batched_tokens: int = 8192,
+    gpu_memory_utilization: float = 0.9,
+    block_size: int = 16,
+    kv_cache_dtype: str = "auto",
+    speculative_config: str | None = None,
+    quantization: str | None = None,
+) -> Path:
+    """Build the canonical run path for experiment outputs.
+
+    Path structure: {output_dir}/{prompt}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}
+    """
+    kv_norm = normalize_kvc_dtype(kv_cache_dtype)
+    spec_norm = normalize_speculative(speculative_config) if speculative_config else None
+    quant_norm = normalize_quantization(quantization) if quantization else None
+
+    return (
+        Path(output_dir)
+        / prompt_template_name
+        / model_name_safe(model_name_or_path)
+        / f"tp{tp}-pp{pp}-dp{dp}"
+        / encode_mns_segment_for_log_dir(max_num_seqs)
+        / encode_mnbt_segment_for_log_dir(max_num_batched_tokens)
+        / encode_gmu_segment_for_log_dir(gpu_memory_utilization)
+        / encode_bs_segment_for_log_dir(block_size)
+        / encode_kvc_segment_for_log_dir(kv_norm)
+        / encode_spec_segment_for_log_dir(spec_norm)
+        / encode_quant_segment_for_log_dir(quant_norm)
+    )

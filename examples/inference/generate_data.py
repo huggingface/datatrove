@@ -85,15 +85,10 @@ from datatrove.utils.logging import logger
 EXAMPLES_INFERENCE_DIR = str(Path(__file__).parent)
 sys.path.insert(0, EXAMPLES_INFERENCE_DIR)
 from utils import (  # noqa: E402
+    build_run_path,
     check_hf_auth,
-    encode_kv_cache_segment_for_log_dir,
-    encode_mnbt_segment_for_log_dir,
-    encode_mns_segment_for_log_dir,
-    encode_quant_segment_for_log_dir,
-    encode_spec_segment_for_log_dir,
     ensure_repo_exists,
-    model_name_safe,
-    normalize_kv_cache_dtype,
+    normalize_kvc_dtype,
     normalize_quantization,
     normalize_speculative,
     resolve_repo_id,
@@ -135,9 +130,10 @@ def main(
     # vLLM server settings (there should be no need to change the defaults)
     max_concurrent_generations: int = 500,
     max_concurrent_documents: int = 500,
-    max_num_seqs: int = 1024,  # reduce this if you run out of memory
+    max_num_seqs: int = 256,  # reduce this if you run out of memory
     max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
     gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
+    block_size: int = 16,  # KV cache block size (16 or 32)
     speculative_config: str | None = None,
     quantization: str | None = None,  # "bitsandbytes" for 4-bit quantization
     kv_cache_dtype: str = "auto",  # "auto", "fp8_e4m3", or "fp8_e5m2"
@@ -256,36 +252,31 @@ def main(
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
     top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
 
-    # Encode batch size parameters for path
-    mns_short = encode_mns_segment_for_log_dir(max_num_seqs)
-    mnbt_short = encode_mnbt_segment_for_log_dir(max_num_batched_tokens)
-
-    # Normalize and encode speculative config; treat common "none" strings as disabled
+    # Normalize speculative config; treat common "none" strings as disabled
     spec_raw = speculative_config
     if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
         spec_raw = None
     normalized_spec = normalize_speculative(spec_raw)
-    spec_short = encode_spec_segment_for_log_dir(normalized_spec)
 
-    # Normalize and encode quantization config
+    # Normalize quantization and KV cache dtype configs
     normalized_quant = normalize_quantization(quantization)
-    quant_short = encode_quant_segment_for_log_dir(normalized_quant)
+    normalized_kv_dtype = normalize_kvc_dtype(kv_cache_dtype)
 
-    # Normalize and encode KV cache dtype config
-    normalized_kv_dtype = normalize_kv_cache_dtype(kv_cache_dtype)
-    kv_short = encode_kv_cache_segment_for_log_dir(normalized_kv_dtype)
-
-    # Build dynamic output directory: base/prompt_template_name/model_name/tp-pp-dp/mns/mnbt/spec/quant/kv
-    run_path = (
-        Path(output_dir)
-        / prompt_template_name
-        / model_name_safe(model_name_or_path)
-        / f"tp{tp}-pp{pp}-dp{dp}"
-        / mns_short
-        / mnbt_short
-        / spec_short
-        / quant_short
-        / kv_short
+    # Build dynamic output directory: {output_dir}/{prompt}/{model}/{tp-pp-dp}/{mns}/{mnbt}/{gmu}/{bs}/{kvc}/{spec}/{quant}
+    run_path = build_run_path(
+        output_dir=output_dir,
+        prompt_template_name=prompt_template_name,
+        model_name_or_path=model_name_or_path,
+        tp=tp,
+        pp=pp,
+        dp=dp,
+        max_num_seqs=max_num_seqs,
+        max_num_batched_tokens=max_num_batched_tokens,
+        gpu_memory_utilization=gpu_memory_utilization,
+        block_size=block_size,
+        kv_cache_dtype=kv_cache_dtype,
+        speculative_config=spec_raw,
+        quantization=quantization,
     )
     output_path = f"hf://datasets/{full_repo_id}" if not benchmark_mode else str(run_path / "output")
     checkpoints_path = str(run_path / "checkpoints")
@@ -311,10 +302,11 @@ def main(
         "dtype": "bfloat16",
         "max_num_seqs": max_num_seqs,
         "max_num_batched_tokens": max_num_batched_tokens,
+        "block-size": block_size,
+        "gpu-memory-utilization": gpu_memory_utilization,
         **({"speculative_config": normalized_spec} if normalized_spec else {}),
         **quant_kwargs,
         **kv_cache_kwargs,
-        "gpu-memory-utilization": gpu_memory_utilization,
         "optimization-level": optimization_level,
     }
     # Datatrove's distributed Ray helpers interpret DATATROVE_MEM_PER_CPU as **MB**

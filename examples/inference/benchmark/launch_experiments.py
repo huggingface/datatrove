@@ -31,13 +31,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import generate_data.main directly to avoid subprocess overhead (~10s per invocation)
 from generate_data import main as generate_data_main
 from utils import (
-    encode_kv_cache_segment_for_log_dir,
+    build_run_path,
+    encode_bs_segment_for_log_dir,
+    encode_gmu_segment_for_log_dir,
+    encode_kvc_segment_for_log_dir,
     encode_mnbt_segment_for_log_dir,
     encode_mns_segment_for_log_dir,
     encode_quant_segment_for_log_dir,
     encode_spec_segment_for_log_dir,
     model_name_safe,
-    normalize_kv_cache_dtype,
+    normalize_kvc_dtype,
     normalize_quantization,
     normalize_speculative,
 )
@@ -123,8 +126,7 @@ class ExperimentLauncher:
     def _derive_run_name(self, args: dict[str, Any]) -> str:
         """Derive run name from non-default config values, matching path order.
 
-        Order matches generate_data.py's run_path structure:
-        prompt_template_name / model / tp-pp-dp / mns / mnbt / spec / quant / kv
+        Order: prompt / model / tp-pp-dp / mns / mnbt / gmu / bs / kvc / spec / quant
         Only includes segments that differ from defaults to keep names short.
         """
         parts: list[str] = []
@@ -135,14 +137,11 @@ class ExperimentLauncher:
             parts.append(self._sanitize_for_name(prompt_template[0]))
 
         # 2. Model name (always included)
-        default_model = "Qwen/Qwen3-0.6B"
-        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or default_model
+        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or "Qwen/Qwen3-0.6B"
         parts.append(model_name_safe(str(model_value)))
 
         # 3. Parallelism settings (defaults: tp=1, pp=1, dp=1)
-        tp = args.get("tp") or 1
-        pp = args.get("pp") or 1
-        dp = args.get("dp") or 1
+        tp, pp, dp = args.get("tp") or 1, args.get("pp") or 1, args.get("dp") or 1
         if tp != 1:
             parts.append(f"tp{tp}")
         if pp != 1:
@@ -150,15 +149,31 @@ class ExperimentLauncher:
         if dp != 1:
             parts.append(f"dp{dp}")
 
-        # 4. Batch size parameters (defaults: mns=1024, mnbt=8192)
-        mns = int(args.get("max-num-seqs") or args.get("max_num_seqs") or 1024)
+        # 4. Batch size parameters (defaults: mns=256, mnbt=8192)
+        mns = int(args.get("max-num-seqs") or args.get("max_num_seqs") or 256)
         mnbt = int(args.get("max-num-batched-tokens") or args.get("max_num_batched_tokens") or 8192)
-        if mns != 1024:
+        if mns != 256:
             parts.append(encode_mns_segment_for_log_dir(mns))
         if mnbt != 8192:
             parts.append(encode_mnbt_segment_for_log_dir(mnbt))
 
-        # 5. Speculative config (default: None)
+        # 5. GPU memory utilization (default: 0.9)
+        gmu = float(args.get("gpu-memory-utilization") or args.get("gpu_memory_utilization") or 0.9)
+        if gmu != 0.9:
+            parts.append(encode_gmu_segment_for_log_dir(gmu))
+
+        # 6. Block size (default: 16)
+        bs = int(args.get("block-size") or args.get("block_size") or 16)
+        if bs != 16:
+            parts.append(encode_bs_segment_for_log_dir(bs))
+
+        # 7. KV cache dtype config (default: "auto")
+        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype") or "auto"
+        if kv_raw.strip().lower() not in ("auto", "none", "null", ""):
+            kv_norm = normalize_kvc_dtype(kv_raw)
+            parts.append(encode_kvc_segment_for_log_dir(kv_norm))
+
+        # 8. Speculative config (default: None)
         spec_raw = args.get("speculative-config") or args.get("speculative_config")
         if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
             spec_raw = None
@@ -166,19 +181,13 @@ class ExperimentLauncher:
             spec_norm = normalize_speculative(spec_raw)
             parts.append(encode_spec_segment_for_log_dir(spec_norm))
 
-        # 6. Quantization config (default: None)
+        # 9. Quantization config (default: None)
         quant_raw = args.get("quantization")
         if isinstance(quant_raw, str) and quant_raw.strip().lower() in ("none", "null", ""):
             quant_raw = None
         if quant_raw:
             quant_norm = normalize_quantization(quant_raw)
             parts.append(encode_quant_segment_for_log_dir(quant_norm))
-
-        # 7. KV cache dtype config (default: "auto")
-        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype") or "auto"
-        if kv_raw.strip().lower() not in ("auto", "none", "null", ""):
-            kv_norm = normalize_kv_cache_dtype(kv_raw)
-            parts.append(encode_kv_cache_segment_for_log_dir(kv_norm))
 
         return "-".join(parts)
 
@@ -242,6 +251,28 @@ class ExperimentLauncher:
         # Convert CLI-style keys (with dashes) to Python kwargs (with underscores)
         return {key.replace("-", "_"): value for key, value in merged.items()}
 
+    def _is_already_completed(self, kwargs: dict[str, Any]) -> bool:
+        """Check if a run already has a stats.json file (completed successfully)."""
+        prompt_template = kwargs.get("prompt_template")
+        prompt_name = prompt_template[0] if isinstance(prompt_template, list) else "default"
+
+        run_path = build_run_path(
+            output_dir=kwargs.get("output_dir", ""),
+            prompt_template_name=prompt_name,
+            model_name_or_path=kwargs.get("model_name_or_path", ""),
+            tp=kwargs.get("tp") or 1,
+            pp=kwargs.get("pp") or 1,
+            dp=kwargs.get("dp") or 1,
+            max_num_seqs=int(kwargs.get("max_num_seqs") or 256),
+            max_num_batched_tokens=int(kwargs.get("max_num_batched_tokens") or 8192),
+            gpu_memory_utilization=float(kwargs.get("gpu_memory_utilization") or 0.9),
+            block_size=int(kwargs.get("block_size") or 16),
+            kv_cache_dtype=kwargs.get("kv_cache_dtype") or "auto",
+            speculative_config=kwargs.get("speculative_config"),
+            quantization=kwargs.get("quantization"),
+        )
+        return (run_path / "inference_logs" / "stats.json").exists()
+
     def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool]:
         """Execute generate_data.main directly (no subprocess overhead)."""
         logger.info(f"\n{'=' * 60}")
@@ -294,6 +325,14 @@ class ExperimentLauncher:
 
             # Build kwargs and call generate_data.main directly (no subprocess overhead)
             kwargs = self._build_kwargs(run_config)
+
+            # Skip runs that already have stats.json (completed successfully)
+            if self._is_already_completed(kwargs):
+                results[run_name] = 0
+                skipped_runs.add(run_name)
+                logger.info(f"⏭️ Skipping {run_name} (stats.json exists)")
+                continue
+
             exit_code, skipped = self._execute_direct(kwargs, run_name)
             results[run_name] = exit_code
             if skipped:
