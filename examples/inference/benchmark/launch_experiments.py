@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import generate_data.main directly to avoid subprocess overhead (~10s per invocation)
 from generate_data import main as generate_data_main
 from utils import (
+    build_run_path,
     encode_bs_segment_for_log_dir,
     encode_gmu_segment_for_log_dir,
     encode_kvc_segment_for_log_dir,
@@ -250,6 +251,28 @@ class ExperimentLauncher:
         # Convert CLI-style keys (with dashes) to Python kwargs (with underscores)
         return {key.replace("-", "_"): value for key, value in merged.items()}
 
+    def _is_already_completed(self, kwargs: dict[str, Any]) -> bool:
+        """Check if a run already has a stats.json file (completed successfully)."""
+        prompt_template = kwargs.get("prompt_template")
+        prompt_name = prompt_template[0] if isinstance(prompt_template, list) else "default"
+
+        run_path = build_run_path(
+            output_dir=kwargs.get("output_dir", ""),
+            prompt_template_name=prompt_name,
+            model_name_or_path=kwargs.get("model_name_or_path", ""),
+            tp=kwargs.get("tp") or 1,
+            pp=kwargs.get("pp") or 1,
+            dp=kwargs.get("dp") or 1,
+            max_num_seqs=int(kwargs.get("max_num_seqs") or 256),
+            max_num_batched_tokens=int(kwargs.get("max_num_batched_tokens") or 8192),
+            gpu_memory_utilization=float(kwargs.get("gpu_memory_utilization") or 0.9),
+            block_size=int(kwargs.get("block_size") or 16),
+            kv_cache_dtype=kwargs.get("kv_cache_dtype") or "auto",
+            speculative_config=kwargs.get("speculative_config"),
+            quantization=kwargs.get("quantization"),
+        )
+        return (run_path / "inference_logs" / "stats.json").exists()
+
     def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool]:
         """Execute generate_data.main directly (no subprocess overhead)."""
         logger.info(f"\n{'=' * 60}")
@@ -302,6 +325,14 @@ class ExperimentLauncher:
 
             # Build kwargs and call generate_data.main directly (no subprocess overhead)
             kwargs = self._build_kwargs(run_config)
+
+            # Skip runs that already have stats.json (completed successfully)
+            if self._is_already_completed(kwargs):
+                results[run_name] = 0
+                skipped_runs.add(run_name)
+                logger.info(f"⏭️ Skipping {run_name} (stats.json exists)")
+                continue
+
             exit_code, skipped = self._execute_direct(kwargs, run_name)
             results[run_name] = exit_code
             if skipped:
