@@ -86,6 +86,8 @@ EXAMPLES_INFERENCE_DIR = str(Path(__file__).parent)
 sys.path.insert(0, EXAMPLES_INFERENCE_DIR)
 from utils import (  # noqa: E402
     check_hf_auth,
+    encode_bs_segment_for_log_dir,
+    encode_gmu_segment_for_log_dir,
     encode_kv_cache_segment_for_log_dir,
     encode_mnbt_segment_for_log_dir,
     encode_mns_segment_for_log_dir,
@@ -138,6 +140,7 @@ def main(
     max_num_seqs: int = 1024,  # reduce this if you run out of memory
     max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
     gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
+    block_size: int = 16,  # KV cache block size (16 or 32)
     speculative_config: str | None = None,
     quantization: str | None = None,  # "bitsandbytes" for 4-bit quantization
     kv_cache_dtype: str = "auto",  # "auto", "fp8_e4m3", or "fp8_e5m2"
@@ -260,6 +263,10 @@ def main(
     mns_short = encode_mns_segment_for_log_dir(max_num_seqs)
     mnbt_short = encode_mnbt_segment_for_log_dir(max_num_batched_tokens)
 
+    # Encode block size and GPU memory utilization for path (only if non-default)
+    bs_short = encode_bs_segment_for_log_dir(block_size)
+    gmu_short = encode_gmu_segment_for_log_dir(gpu_memory_utilization)
+
     # Normalize and encode speculative config; treat common "none" strings as disabled
     spec_raw = speculative_config
     if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
@@ -275,7 +282,7 @@ def main(
     normalized_kv_dtype = normalize_kv_cache_dtype(kv_cache_dtype)
     kv_short = encode_kv_cache_segment_for_log_dir(normalized_kv_dtype)
 
-    # Build dynamic output directory: base/prompt_template_name/model_name/tp-pp-dp/mns/mnbt/spec/quant/kv
+    # Build dynamic output directory: base/prompt_template_name/model_name/tp-pp-dp/mns/mnbt/bs/gmu/spec/quant/kv
     run_path = (
         Path(output_dir)
         / prompt_template_name
@@ -283,6 +290,8 @@ def main(
         / f"tp{tp}-pp{pp}-dp{dp}"
         / mns_short
         / mnbt_short
+        / bs_short
+        / gmu_short
         / spec_short
         / quant_short
         / kv_short
@@ -311,10 +320,11 @@ def main(
         "dtype": "bfloat16",
         "max_num_seqs": max_num_seqs,
         "max_num_batched_tokens": max_num_batched_tokens,
+        "block-size": block_size,
+        "gpu-memory-utilization": gpu_memory_utilization,
         **({"speculative_config": normalized_spec} if normalized_spec else {}),
         **quant_kwargs,
         **kv_cache_kwargs,
-        "gpu-memory-utilization": gpu_memory_utilization,
         "optimization-level": optimization_level,
     }
     # Datatrove's distributed Ray helpers interpret DATATROVE_MEM_PER_CPU as **MB**

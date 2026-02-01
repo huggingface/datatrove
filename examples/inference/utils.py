@@ -88,6 +88,20 @@ def encode_mnbt_segment_for_log_dir(max_num_batched_tokens: int) -> str:
     return f"mnbt_{max_num_batched_tokens}"
 
 
+def encode_bs_segment_for_log_dir(block_size: int) -> str:
+    """Encode block_size into a stable directory segment: 'bs_{value}'."""
+    return f"bs_{block_size}"
+
+
+def encode_gmu_segment_for_log_dir(gpu_memory_utilization: float) -> str:
+    """Encode gpu_memory_utilization into a stable directory segment: 'gmu_{value}'.
+
+    Uses percentage format for readability (e.g., 0.9 -> 'gmu_90').
+    """
+    pct = int(gpu_memory_utilization * 100)
+    return f"gmu_{pct}"
+
+
 def normalize_speculative(spec) -> str:
     """
     Accepts dict/str/bool and returns a canonical JSON string or empty string.

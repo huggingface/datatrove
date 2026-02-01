@@ -31,6 +31,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Import generate_data.main directly to avoid subprocess overhead (~10s per invocation)
 from generate_data import main as generate_data_main
 from utils import (
+    encode_bs_segment_for_log_dir,
+    encode_gmu_segment_for_log_dir,
     encode_kv_cache_segment_for_log_dir,
     encode_mnbt_segment_for_log_dir,
     encode_mns_segment_for_log_dir,
@@ -124,7 +126,7 @@ class ExperimentLauncher:
         """Derive run name from non-default config values, matching path order.
 
         Order matches generate_data.py's run_path structure:
-        prompt_template_name / model / tp-pp-dp / mns / mnbt / spec / quant / kv
+        prompt_template_name / model / tp-pp-dp / mns / mnbt / bs / gmu / spec / quant / kv
         Only includes segments that differ from defaults to keep names short.
         """
         parts: list[str] = []
@@ -158,7 +160,17 @@ class ExperimentLauncher:
         if mnbt != 8192:
             parts.append(encode_mnbt_segment_for_log_dir(mnbt))
 
-        # 5. Speculative config (default: None)
+        # 5. Block size (default: 16)
+        bs = int(args.get("block-size") or args.get("block_size") or 16)
+        if bs != 16:
+            parts.append(encode_bs_segment_for_log_dir(bs))
+
+        # 6. GPU memory utilization (default: 0.9)
+        gmu = float(args.get("gpu-memory-utilization") or args.get("gpu_memory_utilization") or 0.9)
+        if gmu != 0.9:
+            parts.append(encode_gmu_segment_for_log_dir(gmu))
+
+        # 7. Speculative config (default: None)
         spec_raw = args.get("speculative-config") or args.get("speculative_config")
         if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
             spec_raw = None
@@ -166,7 +178,7 @@ class ExperimentLauncher:
             spec_norm = normalize_speculative(spec_raw)
             parts.append(encode_spec_segment_for_log_dir(spec_norm))
 
-        # 6. Quantization config (default: None)
+        # 8. Quantization config (default: None)
         quant_raw = args.get("quantization")
         if isinstance(quant_raw, str) and quant_raw.strip().lower() in ("none", "null", ""):
             quant_raw = None
@@ -174,7 +186,7 @@ class ExperimentLauncher:
             quant_norm = normalize_quantization(quant_raw)
             parts.append(encode_quant_segment_for_log_dir(quant_norm))
 
-        # 7. KV cache dtype config (default: "auto")
+        # 9. KV cache dtype config (default: "auto")
         kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype") or "auto"
         if kv_raw.strip().lower() not in ("auto", "none", "null", ""):
             kv_norm = normalize_kv_cache_dtype(kv_raw)
