@@ -462,18 +462,20 @@ def analyze(root: str, out_csv: str) -> int:
         "e2e_per_1k",
     ]
 
-    # Deduplicate: keep row with most metrics; if tied, keep highest output_tps_per_gpu
+    # Deduplicate: keep row with most metrics; if tied, keep highest output_tps_per_gpu; if still tied, keep most recent run
     def deduplicate(df_in: pd.DataFrame) -> pd.DataFrame:
         df_work = df_in.copy()
         df_work["__metric_count__"] = df_work[metric_cols].notna().sum(axis=1)
         df_work["__out_tok_tp__"] = df_work["output_tps_per_gpu"].fillna(-1)
+        # Extract job ID from path (e.g., ".../slurm_logs/21899807_0.out" -> 21899807) for recency tiebreaker
+        df_work["__job_id__"] = df_work["path"].str.extract(r"(\d+)_\d+\.out$").astype(float).fillna(0)
         return (
             df_work.sort_values(
-                by=dedup_cols + ["__metric_count__", "__out_tok_tp__"],
-                ascending=[True] * len(dedup_cols) + [False, False],
+                by=dedup_cols + ["__metric_count__", "__out_tok_tp__", "__job_id__"],
+                ascending=[True] * len(dedup_cols) + [False, False, False],
             )
             .drop_duplicates(subset=dedup_cols, keep="first")
-            .drop(columns=["__metric_count__", "__out_tok_tp__"])
+            .drop(columns=["__metric_count__", "__out_tok_tp__", "__job_id__"])
         )
 
     df_dedup = deduplicate(df)
