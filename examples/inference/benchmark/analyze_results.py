@@ -53,18 +53,29 @@ class PathFields:
 
 
 # Patterns indicating OOM errors in vLLM server logs
-OOM_PATTERNS = [
-    re.compile(r"torch\.OutOfMemoryError.*CUDA out of memory", re.IGNORECASE),
-    re.compile(r"ValueError.*No available memory for the cache blocks", re.IGNORECASE),
-    re.compile(r"OutOfMemoryError", re.IGNORECASE),
+_OOM_PATTERN_STRINGS = [
+    r"torch\.OutOfMemoryError.*CUDA out of memory",
+    r"ValueError.*No available memory for the cache blocks",
+    r"OutOfMemoryError",
+    r"CUDA out of memory",
+    r"Failed to load model - not enough GPU memory",
 ]
+OOM_PATTERNS = [re.compile(p, re.IGNORECASE) for p in _OOM_PATTERN_STRINGS]
 
 
-def check_oom_in_server_log(server_log_path: Path | None) -> bool:
-    """Check if a server log file contains OOM (Out of Memory) errors."""
-    if server_log_path is None or not server_log_path.exists():
+def check_oom_in_log(log_path: Path | None, max_bytes: int = 10_000_000) -> bool:
+    """Check if a log file contains OOM (Out of Memory) errors.
+
+    Args:
+        log_path: Path to the log file to check.
+        max_bytes: Maximum bytes to read from the file (default 10MB).
+    """
+    if log_path is None or not log_path.exists():
         return False
-    return any(pattern.search(server_log_path.read_text()) for pattern in OOM_PATTERNS)
+    # Read only first max_bytes to avoid memory issues with very large logs
+    with open(log_path, errors="ignore") as f:
+        content = f.read(max_bytes)
+    return any(pattern.search(content) for pattern in OOM_PATTERNS)
 
 
 def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
@@ -329,7 +340,9 @@ def analyze(root: str, out_csv: str) -> int:
         server_log_path = candidates[0] if candidates else None
 
         # Check for OOM errors BEFORE stats.json - OOM failures prevent stats.json creation
-        if check_oom_in_server_log(server_log_path):
+        # Check both SLURM output log and server log for OOM errors
+        slurm_log_path = Path(path)
+        if check_oom_in_log(slurm_log_path) or check_oom_in_log(server_log_path):
             row["comment"] = "OOM"
             rows.append(row)
             continue
