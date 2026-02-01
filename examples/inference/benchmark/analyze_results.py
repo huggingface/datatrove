@@ -47,9 +47,11 @@ class PathFields:
     dp: int | None
     mns: int | None
     mnbt: int | None
+    gmu: int | None  # GPU memory utilization as percentage (e.g., 90 for 0.9)
+    bs: int | None  # Block size
+    kvc: str  # KV cache dtype
     spec: str
     quant: str
-    kv: str
 
 
 # Failure pattern definitions: (pattern_string, failure_reason)
@@ -102,7 +104,7 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
 
     Returns:
         Dict with avg_prompt_throughput, avg_generation_throughput (total for engine),
-        avg_gpu_kv_cache_usage, avg_prefix_cache_hit_rate, running_reqs, and waiting_reqs,
+        avg_gpu_kvc_usage, avg_prefix_cache_hit_rate, running_reqs, and waiting_reqs,
         or None if parsing fails. Divide throughputs by TP to get per-GPU throughput.
     """
     if not server_log_path.exists():
@@ -160,7 +162,7 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
         "avg_generation_throughput": avg_gen,
         "avg_running_reqs": avg_running,
         "avg_waiting_reqs": avg_waiting,
-        "avg_gpu_kv_cache_usage": avg_kv_cache,
+        "avg_gpu_kvc_usage": avg_kv_cache,
         "avg_prefix_cache_hit_rate": avg_prefix_cache,
     }
 
@@ -170,7 +172,7 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
     Parse experiment configuration from a result file path.
 
     Expected path structure:
-        {root}/{experiment}/{prompt_template_name}/model_name/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/spec_{...}/quant_{...}/kv_{...}/inference_logs/...
+        {root}/{experiment}/{prompt}/{model}/tp{X}-pp{Y}-dp{Z}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}/inference_logs/...
     """
     parts = list(Path(file_path).parts)
     root_parts = list(Path(root).parts)
@@ -194,20 +196,24 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
     # Model is the directory right before the 'tp_*' segment
     model = parts[tp_idx - 1] if tp_idx and tp_idx >= 1 else ""
 
-    def parse_segment(offset: int, prefix: str, default: str | None = None) -> str | int | None:
-        """Parse a segment at tp_idx + offset with given prefix."""
+    def parse_int_segment(offset: int, prefix: str) -> int | None:
+        """Parse an integer segment at tp_idx + offset with given prefix."""
+        if tp_idx is None or tp_idx + offset >= len(parts):
+            return None
+        part = parts[tp_idx + offset]
+        if part.startswith(prefix):
+            try:
+                return int(part[len(prefix) :])
+            except ValueError:
+                return None
+        return None
+
+    def parse_str_segment(offset: int, prefix: str, default: str) -> str:
+        """Parse a string segment at tp_idx + offset with given prefix."""
         if tp_idx is None or tp_idx + offset >= len(parts):
             return default
         part = parts[tp_idx + offset]
-        if part.startswith(prefix):
-            suffix = part[len(prefix) :]
-            if prefix in ("mns_", "mnbt_"):
-                try:
-                    return int(suffix)
-                except ValueError:
-                    return None
-            return part
-        return default
+        return part if part.startswith(prefix) else default
 
     return PathFields(
         experiment=experiment,
@@ -216,11 +222,13 @@ def parse_path_fields(file_path: str, root: str = "examples/inference/benchmark/
         tp=tp,
         pp=pp,
         dp=dp,
-        mns=parse_segment(1, "mns_"),
-        mnbt=parse_segment(2, "mnbt_"),
-        spec=parse_segment(3, "spec_", "spec_none") or "spec_none",
-        quant=parse_segment(4, "quant_", "quant_none") or "quant_none",
-        kv=parse_segment(5, "kv_", "kv_auto") or "kv_auto",
+        mns=parse_int_segment(1, "mns_"),
+        mnbt=parse_int_segment(2, "mnbt_"),
+        gmu=parse_int_segment(3, "gmu_"),
+        bs=parse_int_segment(4, "bs_"),
+        kvc=parse_str_segment(5, "kvc_", "kvc_auto"),
+        spec=parse_str_segment(6, "spec_", "spec_none"),
+        quant=parse_str_segment(7, "quant_", "quant_none"),
     )
 
 
@@ -329,7 +337,7 @@ def analyze(root: str, out_csv: str) -> int:
             "tokens_output_per_sec": None,
             "avg_running_reqs": None,
             "avg_waiting_reqs": None,
-            "avg_gpu_kv_cache_usage": None,
+            "avg_gpu_kvc_usage": None,
             "avg_prefix_cache_hit_rate": None,
             "prompt_tokens_total": None,
             "completion_tokens_total": None,
@@ -399,7 +407,7 @@ def analyze(root: str, out_csv: str) -> int:
         if server_metrics:
             row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
             row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
-            row["avg_gpu_kv_cache_usage"] = server_metrics["avg_gpu_kv_cache_usage"]
+            row["avg_gpu_kvc_usage"] = server_metrics["avg_gpu_kvc_usage"]
             row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
 
         gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
@@ -412,14 +420,8 @@ def analyze(root: str, out_csv: str) -> int:
 
         rows.append(row)
 
-    # Column order:
-    # - experiment name first
-    # - config columns (including quant_config and kv_cache_config after spec_config)
-    # - per-sec cluster rates and per-TP rates
-    # - gpu/node days (computed from per-TP output tokens)
-    # - then: prompt_tokens_total, completion_tokens_total, successful_requests (immediately before path)
-    # - path
-    fieldnames = [
+    # Config columns used for deduplication (experiment + all config params)
+    config_cols = [
         "experiment",
         "prompt_template_name",
         "model",
@@ -428,9 +430,14 @@ def analyze(root: str, out_csv: str) -> int:
         "dp",
         "mns",
         "mnbt",
+        "gmu",
+        "bs",
+        "kvc",
         "spec",
         "quant",
-        "kv",
+    ]
+    # Full column order: config -> metrics -> totals -> path
+    fieldnames = config_cols + [
         "gpus_for_1b_tokens_per_hour",
         "node_days_to_process_1b_tokens",
         "gpu_days_to_process_1b_tokens",
@@ -440,7 +447,7 @@ def analyze(root: str, out_csv: str) -> int:
         "tokens_output_per_sec",
         "avg_running_reqs",
         "avg_waiting_reqs",
-        "avg_gpu_kv_cache_usage",
+        "avg_gpu_kvc_usage",
         "avg_prefix_cache_hit_rate",
         "prompt_tokens_total",
         "completion_tokens_total",
@@ -455,23 +462,9 @@ def analyze(root: str, out_csv: str) -> int:
 
     df = pd.DataFrame(rows, columns=fieldnames)
     # Ensure integer columns are properly typed
-    for col in ["tp", "pp", "dp", "mns", "mnbt"]:
+    for col in ["tp", "pp", "dp", "mns", "mnbt", "gmu", "bs"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
-    # Columns used for deduplication and metrics for sorting
-    dedup_cols = [
-        "experiment",
-        "prompt_template_name",
-        "model",
-        "tp",
-        "pp",
-        "dp",
-        "mns",
-        "mnbt",
-        "spec",
-        "quant",
-        "kv",
-    ]
     metric_cols = [
         "node_days_to_process_1b_tokens",
         "gpu_days_to_process_1b_tokens",
@@ -490,10 +483,10 @@ def analyze(root: str, out_csv: str) -> int:
         df_work["__job_id__"] = df_work["path"].str.extract(r"(\d+)_\d+\.out$").astype(float).fillna(0)
         return (
             df_work.sort_values(
-                by=dedup_cols + ["__metric_count__", "__out_tok_tp__", "__job_id__"],
-                ascending=[True] * len(dedup_cols) + [False, False, False],
+                by=config_cols + ["__metric_count__", "__out_tok_tp__", "__job_id__"],
+                ascending=[True] * len(config_cols) + [False, False, False],
             )
-            .drop_duplicates(subset=dedup_cols, keep="first")
+            .drop_duplicates(subset=config_cols, keep="first")
             .drop(columns=["__metric_count__", "__out_tok_tp__", "__job_id__"])
         )
 
@@ -508,9 +501,11 @@ def analyze(root: str, out_csv: str) -> int:
         ("dp", "dp", "right"),
         ("mns", "mns", "right"),
         ("mnbt", "mnbt", "right"),
+        ("gmu", "gmu", "right"),
+        ("bs", "bs", "right"),
+        ("kvc", "kvc", "left"),
         ("spec", "spec", "left"),
         ("quant", "quant", "left"),
-        ("kv", "kv", "left"),
     ]
     # Metric columns always shown in table
     display_metric_columns = [
@@ -519,7 +514,7 @@ def analyze(root: str, out_csv: str) -> int:
         ("out tps/gpu", "output_tps_per_gpu", "right"),
         ("mean_in", "mean_input_tokens", "right"),
         ("mean_out", "mean_output_tokens", "right"),
-        ("kv%", "avg_gpu_kv_cache_usage", "right"),
+        ("kvc%", "avg_gpu_kvc_usage", "right"),
         ("prefix%", "avg_prefix_cache_hit_rate", "right"),
         ("e2e/1k", "e2e_per_1k", "right"),
         ("comment", "comment", "left"),
@@ -538,7 +533,7 @@ def analyze(root: str, out_csv: str) -> int:
                 return f"{hours}:{minutes:02d}:{seconds:02d}"
             if col_key in ("node_days_to_process_1b_tokens", "gpu_days_to_process_1b_tokens"):
                 return f"{float(val):.3f}"
-            if col_key in ("avg_gpu_kv_cache_usage", "avg_prefix_cache_hit_rate"):
+            if col_key in ("avg_gpu_kvc_usage", "avg_prefix_cache_hit_rate"):
                 return f"{float(val):.1f}"
             if col_key in (
                 "input_tps_per_gpu",
@@ -556,7 +551,7 @@ def analyze(root: str, out_csv: str) -> int:
             return f"{float(val):.1f}"
         # Strip prefixes from config columns for narrower display
         str_val = str(val)
-        for prefix in [("spec", "spec_"), ("quant", "quant_"), ("kv", "kv_")]:
+        for prefix in [("spec", "spec_"), ("quant", "quant_"), ("kvc", "kvc_")]:
             if col_key == prefix[0] and str_val.startswith(prefix[1]):
                 return str_val[len(prefix[1]) :]
         return str_val

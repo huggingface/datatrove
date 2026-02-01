@@ -75,7 +75,7 @@ python examples/inference/benchmark/analyze_results.py \
 
 Results are organized under:
 ```
-{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/bs_{B}/gmu_{P}/{spec}/{quant}/{kv}/inference_logs/
+{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/gmu_{P}/bs_{B}/kvc_{...}/spec_{...}/quant_{...}/inference_logs/
 ```
 
 Directory segments:
@@ -84,11 +84,11 @@ Directory segments:
 - `tp{TP}-pp{PP}-dp{DP}`: parallelism config (e.g., `tp2-pp1-dp1`)
 - `mns_{N}`: max-num-seqs value (e.g., `mns_256`)
 - `mnbt_{M}`: max-num-batched-tokens value (e.g., `mnbt_8192`)
-- `bs_{N}`: block-size value (e.g., `bs_16`, `bs_32`)
 - `gmu_{P}`: gpu-memory-utilization as percentage (e.g., `gmu_90` for 0.9)
+- `bs_{N}`: block-size value (e.g., `bs_16`, `bs_32`)
+- `kvc_*`: KV cache dtype (see [KV Cache Quantization](#kv-cache-quantization))
 - `spec_*`: speculative config (see [Speculative Decoding](#speculative-decoding))
 - `quant_*`: quantization config (see [Quantization](#quantization))
-- `kv_*`: KV cache dtype (see [KV Cache Quantization](#kv-cache-quantization))
 
 ## Metrics
 

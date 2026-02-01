@@ -33,13 +33,13 @@ from generate_data import main as generate_data_main
 from utils import (
     encode_bs_segment_for_log_dir,
     encode_gmu_segment_for_log_dir,
-    encode_kv_cache_segment_for_log_dir,
+    encode_kvc_segment_for_log_dir,
     encode_mnbt_segment_for_log_dir,
     encode_mns_segment_for_log_dir,
     encode_quant_segment_for_log_dir,
     encode_spec_segment_for_log_dir,
     model_name_safe,
-    normalize_kv_cache_dtype,
+    normalize_kvc_dtype,
     normalize_quantization,
     normalize_speculative,
 )
@@ -125,8 +125,7 @@ class ExperimentLauncher:
     def _derive_run_name(self, args: dict[str, Any]) -> str:
         """Derive run name from non-default config values, matching path order.
 
-        Order matches generate_data.py's run_path structure:
-        prompt_template_name / model / tp-pp-dp / mns / mnbt / bs / gmu / spec / quant / kv
+        Order: prompt / model / tp-pp-dp / mns / mnbt / gmu / bs / kvc / spec / quant
         Only includes segments that differ from defaults to keep names short.
         """
         parts: list[str] = []
@@ -137,14 +136,11 @@ class ExperimentLauncher:
             parts.append(self._sanitize_for_name(prompt_template[0]))
 
         # 2. Model name (always included)
-        default_model = "Qwen/Qwen3-0.6B"
-        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or default_model
+        model_value = args.get("model-name-or-path") or args.get("model_name_or_path") or "Qwen/Qwen3-0.6B"
         parts.append(model_name_safe(str(model_value)))
 
         # 3. Parallelism settings (defaults: tp=1, pp=1, dp=1)
-        tp = args.get("tp") or 1
-        pp = args.get("pp") or 1
-        dp = args.get("dp") or 1
+        tp, pp, dp = args.get("tp") or 1, args.get("pp") or 1, args.get("dp") or 1
         if tp != 1:
             parts.append(f"tp{tp}")
         if pp != 1:
@@ -160,17 +156,23 @@ class ExperimentLauncher:
         if mnbt != 8192:
             parts.append(encode_mnbt_segment_for_log_dir(mnbt))
 
-        # 5. Block size (default: 16)
-        bs = int(args.get("block-size") or args.get("block_size") or 16)
-        if bs != 16:
-            parts.append(encode_bs_segment_for_log_dir(bs))
-
-        # 6. GPU memory utilization (default: 0.9)
+        # 5. GPU memory utilization (default: 0.9)
         gmu = float(args.get("gpu-memory-utilization") or args.get("gpu_memory_utilization") or 0.9)
         if gmu != 0.9:
             parts.append(encode_gmu_segment_for_log_dir(gmu))
 
-        # 7. Speculative config (default: None)
+        # 6. Block size (default: 16)
+        bs = int(args.get("block-size") or args.get("block_size") or 16)
+        if bs != 16:
+            parts.append(encode_bs_segment_for_log_dir(bs))
+
+        # 7. KV cache dtype config (default: "auto")
+        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype") or "auto"
+        if kv_raw.strip().lower() not in ("auto", "none", "null", ""):
+            kv_norm = normalize_kvc_dtype(kv_raw)
+            parts.append(encode_kvc_segment_for_log_dir(kv_norm))
+
+        # 8. Speculative config (default: None)
         spec_raw = args.get("speculative-config") or args.get("speculative_config")
         if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
             spec_raw = None
@@ -178,19 +180,13 @@ class ExperimentLauncher:
             spec_norm = normalize_speculative(spec_raw)
             parts.append(encode_spec_segment_for_log_dir(spec_norm))
 
-        # 8. Quantization config (default: None)
+        # 9. Quantization config (default: None)
         quant_raw = args.get("quantization")
         if isinstance(quant_raw, str) and quant_raw.strip().lower() in ("none", "null", ""):
             quant_raw = None
         if quant_raw:
             quant_norm = normalize_quantization(quant_raw)
             parts.append(encode_quant_segment_for_log_dir(quant_norm))
-
-        # 9. KV cache dtype config (default: "auto")
-        kv_raw = args.get("kv-cache-dtype") or args.get("kv_cache_dtype") or "auto"
-        if kv_raw.strip().lower() not in ("auto", "none", "null", ""):
-            kv_norm = normalize_kv_cache_dtype(kv_raw)
-            parts.append(encode_kv_cache_segment_for_log_dir(kv_norm))
 
         return "-".join(parts)
 
