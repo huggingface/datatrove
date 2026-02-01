@@ -17,9 +17,9 @@ from datatrove.utils._import_utils import check_required_dependencies
 
 # Constants
 WORKER_CHECK_INTERVAL_SECONDS = 2.0
-WORKER_CONNECTION_MAX_RETRIES = 5
+WORKER_CONNECTION_MAX_RETRIES = 30  # Increased from 5 to handle slow master startup
 WORKER_CONNECTION_RETRY_DELAY = 10.0
-PROCESS_TIMEOUT = 10.0
+PROCESS_TIMEOUT = 30.0  # Increased from 10s for slower head node startup
 
 
 def calculate_object_store_memory() -> int:
