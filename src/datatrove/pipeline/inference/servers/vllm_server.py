@@ -109,18 +109,19 @@ class VLLMServer(InferenceServer):
         multiple jobs with the same config start simultaneously on a shared filesystem.
         The lock is only held during initial compilation; subsequent jobs use the
         cached compilation without locking.
+
+        For multi-node setups, Ray initialization happens BEFORE compile lock
+        acquisition to avoid deadlock (worker holding lock while waiting for master).
         """
-        # Acquire lock to prevent concurrent torch.compile if cache doesn't exist
-        self._get_compile_lock().acquire()
         n_nodes = len(get_node_hosts())
+
+        # Single-node: just acquire lock and start
         if n_nodes <= 1:
+            self._get_compile_lock().acquire()
             return await self._start_vllm_task()
 
-        # VLLM has ray executor, which will create placement groups itself, however
-        # in ray executor manages placement groups itself and expects to run the workers
-        # itself. This is not compatible with VLLM multi-node setup as again VLLM expects to manage
-        # workers placement groups itself.
-        if n_nodes > 1 and get_distributed_environment() == "RAY":
+        # Multi-node: Ray initialization must happen BEFORE compile lock to avoid deadlock
+        if get_distributed_environment() == "RAY":
             raise RuntimeError(
                 "Datatrove Ray distributed executor doesn't support multi-node setup by specifying nodes=2+. Please unset the nodes=2+ parameter and let VLLM to allocate the number of nodes itself."
             )
@@ -131,12 +132,15 @@ class VLLMServer(InferenceServer):
         master_port = self.config.master_port
 
         if is_master:
+            # Master: initialize Ray cluster first (workers will connect), then acquire lock and start VLLM
             await init_ray_master(
                 master_port=master_port,
                 expected_workers=expected_workers,
             )
+            self._get_compile_lock().acquire()
             return await self._start_vllm_task()
         else:
+            # Worker: connect to Ray cluster (no compile lock needed, master handles compilation)
             await init_ray_worker(
                 master_ip=master_ip,
                 master_port=master_port,
