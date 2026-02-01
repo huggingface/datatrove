@@ -137,7 +137,7 @@ def main(
     # vLLM server settings (there should be no need to change the defaults)
     max_concurrent_generations: int = 500,
     max_concurrent_documents: int = 500,
-    max_num_seqs: int = 1024,  # reduce this if you run out of memory
+    max_num_seqs: int = 256,  # reduce this if you run out of memory
     max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
     gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
     block_size: int = 16,  # KV cache block size (16 or 32)

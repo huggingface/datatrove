@@ -82,7 +82,7 @@ Directory segments:
 - `{experiment}`: experiment name from config
 - `{model}`: model name (org prefix stripped, e.g., `gemma_3_1b_it`)
 - `tp{TP}-pp{PP}-dp{DP}`: parallelism config (e.g., `tp2-pp1-dp1`)
-- `mns_{N}`: max-num-seqs value (e.g., `mns_1024`)
+- `mns_{N}`: max-num-seqs value (e.g., `mns_256`)
 - `mnbt_{M}`: max-num-batched-tokens value (e.g., `mnbt_8192`)
 - `spec_*`: speculative config (see [Speculative Decoding](#speculative-decoding))
 - `quant_*`: quantization config (see [Quantization](#quantization))

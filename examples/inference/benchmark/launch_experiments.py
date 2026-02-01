@@ -152,10 +152,10 @@ class ExperimentLauncher:
         if dp != 1:
             parts.append(f"dp{dp}")
 
-        # 4. Batch size parameters (defaults: mns=1024, mnbt=8192)
-        mns = int(args.get("max-num-seqs") or args.get("max_num_seqs") or 1024)
+        # 4. Batch size parameters (defaults: mns=256, mnbt=8192)
+        mns = int(args.get("max-num-seqs") or args.get("max_num_seqs") or 256)
         mnbt = int(args.get("max-num-batched-tokens") or args.get("max_num_batched_tokens") or 8192)
-        if mns != 1024:
+        if mns != 256:
             parts.append(encode_mns_segment_for_log_dir(mns))
         if mnbt != 8192:
             parts.append(encode_mnbt_segment_for_log_dir(mnbt))
