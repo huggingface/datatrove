@@ -75,7 +75,7 @@ python examples/inference/benchmark/analyze_results.py \
 
 Results are organized under:
 ```
-{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/{spec}/{quant}/{kv}/inference_logs/
+{root}/{experiment}/{model}/tp{TP}-pp{PP}-dp{DP}/mns_{N}/mnbt_{M}/bs_{B}/gmu_{P}/{spec}/{quant}/{kv}/inference_logs/
 ```
 
 Directory segments:
@@ -84,6 +84,8 @@ Directory segments:
 - `tp{TP}-pp{PP}-dp{DP}`: parallelism config (e.g., `tp2-pp1-dp1`)
 - `mns_{N}`: max-num-seqs value (e.g., `mns_256`)
 - `mnbt_{M}`: max-num-batched-tokens value (e.g., `mnbt_8192`)
+- `bs_{N}`: block-size value (e.g., `bs_16`, `bs_32`)
+- `gmu_{P}`: gpu-memory-utilization as percentage (e.g., `gmu_90` for 0.9)
 - `spec_*`: speculative config (see [Speculative Decoding](#speculative-decoding))
 - `quant_*`: quantization config (see [Quantization](#quantization))
 - `kv_*`: KV cache dtype (see [KV Cache Quantization](#kv-cache-quantization))
@@ -96,7 +98,7 @@ The analyzer outputs per-experiment CSV files and a combined CSV. Key columns:
 | ------------------------------- | ----------------------------------------- -|
 | `experiment`                    | Experiment name from config                |
 | `model`, `tp`, `pp`, `dp`       | Model and parallelism config               |
-| `mns`, `mnbt`                   | Batch size parameters                      |
+| `mns`, `mnbt`, `bs`, `gmu`      | Batch size and memory parameters           |
 | `spec`, `quant`, `kv`           | Speculative, quantization, KV cache config |
 | `input_tps_per_gpu`             | Input tokens per second per GPU            |
 | `output_tps_per_gpu`            | Output tokens per second per GPU           |
