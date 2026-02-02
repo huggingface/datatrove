@@ -309,10 +309,8 @@ def main(
         **kv_cache_kwargs,
         "optimization-level": optimization_level,
     }
-    # Datatrove's distributed Ray helpers interpret DATATROVE_MEM_PER_CPU as **MB**
-    # (despite the executor naming it `mem_per_cpu_gb`). Keep the sbatch directive in MB
-    # and also pass the same MB value to the executor so Ray object store sizing is sane.
-    mem_per_cpu_mb = 22545
+    # Memory per CPU for slurm allocation (in GB)
+    mem_per_cpu_gb = 22
     if not local_execution and nodes_per_task > 1:
         # vLLM defaults to the mp backend when TP fits on a single host; but when TP spans
         # multiple nodes we must force the Ray backend so TP can exceed local GPU count.
@@ -418,13 +416,11 @@ def main(
             qos=qos,
             job_name=f"{name}_inference",
             cpus_per_task=gpus_per_node * 11,
-            # NOTE: Datatrove uses this value to size Ray object store memory (in MB).
-            mem_per_cpu_gb=mem_per_cpu_mb,
+            mem_per_cpu_gb=mem_per_cpu_gb,
             # Required so Datatrove starts Ray with GPUs; otherwise it launches Ray with `--num-gpus 0`.
             gpus_per_task=gpus_per_node,
             nodes_per_task=nodes_per_task,
             sbatch_args={
-                "mem-per-cpu": f"{mem_per_cpu_mb}M",
                 **({"reservation": reservation} if reservation else {}),
             },
             env_command=slurm_env_command,
