@@ -41,6 +41,12 @@ class VLLMServer(InferenceServer):
         super().__init__(config, rank)
         self._compile_lock: CompileLockManager | None = None
 
+    def _is_compilation_disabled(self) -> bool:
+        """Check if torch.compile is disabled via optimization-level 0."""
+        if not self.config.model_kwargs:
+            return False
+        return self.config.model_kwargs.get("optimization-level", 1) == 0
+
     def _get_compile_lock(self) -> CompileLockManager:
         """Get or create the compile lock manager for this config."""
         if self._compile_lock is None:
@@ -114,19 +120,19 @@ class VLLMServer(InferenceServer):
         Uses file locking to prevent concurrent torch.compile corruption when
         multiple jobs with the same config start simultaneously on a shared filesystem.
         The lock is only held during initial compilation; subsequent jobs use the
-        cached compilation without locking.
-
-        For multi-node setups, Ray initialization happens BEFORE compile lock
-        acquisition to avoid deadlock (worker holding lock while waiting for master).
+        cached compilation without locking. Lock is skipped when optimization-level=0
+        (torch.compile disabled).
         """
         n_nodes = len(get_node_hosts())
+        skip_lock = self._is_compilation_disabled()
 
-        # Single-node: just acquire lock and start
+        # Single-node: acquire lock (if needed) and start
         if n_nodes <= 1:
-            self._get_compile_lock().acquire()
+            if not skip_lock:
+                self._get_compile_lock().acquire()
             return await self._start_vllm_task()
 
-        # Multi-node: Ray initialization must happen BEFORE compile lock to avoid deadlock
+        # Multi-node setup
         if get_distributed_environment() == "RAY":
             raise RuntimeError(
                 "Datatrove Ray distributed executor doesn't support multi-node setup by specifying nodes=2+. Please unset the nodes=2+ parameter and let VLLM to allocate the number of nodes itself."
@@ -143,7 +149,8 @@ class VLLMServer(InferenceServer):
                 master_port=master_port,
                 expected_workers=expected_workers,
             )
-            self._get_compile_lock().acquire()
+            if not skip_lock:
+                self._get_compile_lock().acquire()
             return await self._start_vllm_task()
         else:
             # Worker: connect to Ray cluster (no compile lock needed, master handles compilation)
@@ -178,9 +185,9 @@ class VLLMServer(InferenceServer):
                 server_printed_ready_message = True
                 logger.info("VLLM server startup complete")
                 # Mark cache as complete and release lock now that compilation is done
-                lock = self._get_compile_lock()
-                lock.mark_complete()
-                lock.release()
+                if self._compile_lock is not None:
+                    self._compile_lock.mark_complete()
+                    self._compile_lock.release()
             # Check for common VLLM errors
             if "CUDA out of memory" in line:
                 raise RuntimeError("CUDA out of memory error detected")
