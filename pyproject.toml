@@ -88,7 +88,9 @@ inference = [
   "orjson",
   "httpx",
   "aiosqlite",
-  "vllm",
+  # vLLM 0.15.0+ has multi-node Ray cluster initialization issues with V1 engine
+  # that cause the server to hang during startup. Pin to <0.15.0 until fixed upstream.
+  "vllm<0.15.0",
   "sglang",
   "bitsandbytes",
   "numpy>=2.0.0,<2.3", # numba requires numpy<=2.2
