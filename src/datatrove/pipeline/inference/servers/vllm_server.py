@@ -95,6 +95,12 @@ class VLLMServer(InferenceServer):
         # vLLM initializes much faster without affecting throughput.
         env.setdefault("USE_TF", "0")
         env.setdefault("TRANSFORMERS_NO_TF", "1")
+        # Ensure PATH includes venv bin so Ray workers use the correct Python interpreter.
+        # Critical for multi-node setups where Ray spawns worker processes on remote nodes.
+        if "VIRTUAL_ENV" in env:
+            venv_bin = os.path.join(env["VIRTUAL_ENV"], "bin")
+            if venv_bin not in env.get("PATH", ""):
+                env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
         return await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
