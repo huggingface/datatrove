@@ -378,23 +378,25 @@ class ExperimentLauncher:
         logger.info(f"{'=' * 60}")
 
         for run_name, exit_code in results.items():
-            if self.dry_run:
+            if run_name in skipped_runs:
+                status = "⏭️ SKIPPED"
+            elif self.dry_run:
                 status = "✅ WOULD SUBMIT" if exit_code == 0 else f"❌ WOULD FAIL ({exit_code})"
             else:
-                if run_name in skipped_runs:
-                    status = "⏭️ SKIPPED"
-                else:
-                    status = "✅ SUBMITTED" if exit_code == 0 else f"❌ FAILED ({exit_code})"
+                status = "✅ SUBMITTED" if exit_code == 0 else f"❌ FAILED ({exit_code})"
             logger.info(f"{run_name:<30} {status}")
 
         if results:
             successful_submissions = sum(1 for name, code in results.items() if code == 0 and name not in skipped_runs)
+            skipped_count = len(skipped_runs)
             if self.dry_run:
-                logger.info(f"\n{successful_submissions}/{len(results)} jobs would be submitted successfully")
+                logger.info(f"\n{successful_submissions}/{len(results)} jobs would be submitted")
+                if skipped_count > 0:
+                    logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
             else:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs submitted successfully")
-                if skipped_runs:
-                    logger.info(f"{len(skipped_runs)} job(s) skipped (already completed)")
+                if skipped_count > 0:
+                    logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
                 if successful_submissions > 0:
                     logger.info("Use 'squeue -u $USER' to monitor job status")
                     logger.info("Use 'scancel <job_id>' to cancel jobs if needed")
