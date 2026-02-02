@@ -83,7 +83,6 @@ multilingual = [
 inference = [
   "datatrove[io]",
   "aiofiles",
-  "orjson",
   "httpx",
   "aiosqlite",
   "vllm",
@@ -117,7 +116,6 @@ testing = [
   "pytest-timeout",
   "pytest-xdist",
   "moto[s3,server]",
-  "spacy[ja]",
 ]
 all = [
   "datatrove[quality]",
