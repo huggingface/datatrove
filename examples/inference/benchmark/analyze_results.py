@@ -346,7 +346,7 @@ def analyze(root: str, out_csv: str) -> int:
             "successful_requests": None,
             "failed_requests": None,
             "e2e_time": None,
-            "e2e_per_1k": None,
+            "e2e_per_1k_per_gpu": None,
             "path": path,
             "comment": "",
         }
@@ -387,12 +387,15 @@ def analyze(root: str, out_csv: str) -> int:
         row["successful_requests"] = stats_info["successful_requests_total"]
         row["failed_requests"] = stats_info["failed_requests_total"]
         row["e2e_time"] = stats_info["e2e_time"]
-        # Time to process 1000 examples
-        if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
-            row["e2e_per_1k"] = stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000
 
         # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
         gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
+
+        # GPU-time to process 1000 examples (e2e_time * num_gpus / num_requests * 1000)
+        if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
+            row["e2e_per_1k_per_gpu"] = (
+                stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000 * gpu_divisor
+            )
 
         # Calculate throughput from total tokens / e2e_time (more stable than server log averages)
         e2e_time = stats_info["e2e_time"]
@@ -455,7 +458,7 @@ def analyze(root: str, out_csv: str) -> int:
         "mean_output_tokens",
         "successful_requests",
         "e2e_time",
-        "e2e_per_1k",
+        "e2e_per_1k_per_gpu",
         "path",
         "comment",
     ]
@@ -471,7 +474,7 @@ def analyze(root: str, out_csv: str) -> int:
         "input_tps_per_gpu",
         "output_tps_per_gpu",
         "e2e_time",
-        "e2e_per_1k",
+        "e2e_per_1k_per_gpu",
     ]
 
     # Deduplicate: keep row with most metrics; if tied, keep highest output_tps_per_gpu; if still tied, keep most recent run
@@ -516,7 +519,7 @@ def analyze(root: str, out_csv: str) -> int:
         ("mean_out", "mean_output_tokens", "right"),
         ("kvc%", "avg_gpu_kvc_usage", "right"),
         ("prefix%", "avg_prefix_cache_hit_rate", "right"),
-        ("e2e/1k", "e2e_per_1k", "right"),
+        ("e2e/1k/gpu", "e2e_per_1k_per_gpu", "right"),
         ("comment", "comment", "left"),
     ]
 
@@ -525,8 +528,8 @@ def analyze(root: str, out_csv: str) -> int:
         if val is None or pd.isna(val):
             return ""
         if isinstance(val, (int, float)):
-            if col_key == "e2e_per_1k":
-                # Format as HH:MM:SS
+            if col_key == "e2e_per_1k_per_gpu":
+                # Format as HH:MM:SS (GPU-time to process 1k examples)
                 total_secs = int(float(val))
                 hours, remainder = divmod(total_secs, 3600)
                 minutes, seconds = divmod(remainder, 60)
