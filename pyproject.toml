@@ -95,6 +95,7 @@ inference = [
   "typer",
   "pyyaml",
   "pandas",
+  "transformers>=4.57", # as long as vllm does not support v5
 ]
 ray = [
   "ray[default]",
