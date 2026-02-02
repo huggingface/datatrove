@@ -14,12 +14,14 @@ def get_available_memory_per_node() -> int:
     """Return the amount of available memory (MB) in the distributed environment.
     -1 signifies unknown memory.
     """
-    mem_per_cpu = int(os.environ.get("DATATROVE_MEM_PER_CPU", -1))
-    if mem_per_cpu == -1:
+    # DATATROVE_MEM_PER_CPU is set in GB by executors (e.g., slurm.py's mem_per_cpu_gb)
+    mem_per_cpu_gb = int(os.environ.get("DATATROVE_MEM_PER_CPU", -1))
+    if mem_per_cpu_gb == -1:
         return -1
 
     cpus = get_available_cpus_per_node()
-    return cpus * mem_per_cpu
+    # Convert GB to MB for callers (e.g., ray.py's calculate_object_store_memory)
+    return cpus * mem_per_cpu_gb * 1024
 
 
 def get_available_gpus_per_node() -> int:
