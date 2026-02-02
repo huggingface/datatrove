@@ -22,6 +22,7 @@ import glob
 import json
 import os
 import re
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean
@@ -30,6 +31,11 @@ import pandas as pd
 import typer
 
 from datatrove.utils.logging import logger
+
+
+# Import shared utilities
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import detect_failure_reason
 
 
 GPUS_PER_NODE = 8
@@ -52,50 +58,6 @@ class PathFields:
     kvc: str  # KV cache dtype
     spec: str
     quant: str
-
-
-# Failure pattern definitions: (pattern_string, failure_reason)
-_FAILURE_PATTERNS: list[tuple[str, str]] = [
-    # OOM errors
-    (r"torch\.OutOfMemoryError.*CUDA out of memory", "OOM"),
-    (r"ValueError.*No available memory for the cache blocks", "OOM"),
-    (r"OutOfMemoryError", "OOM"),
-    (r"CUDA out of memory", "OOM"),
-    (r"Failed to load model - not enough GPU memory", "OOM"),
-    # Time limit exceeded
-    (r"DUE TO TIME LIMIT", "timeout"),
-    # Server startup failures
-    (r"Failed to start VLLMServer server", "server_fail"),
-    (r"Server encountered unrecoverable error", "server_fail"),
-]
-FAILURE_PATTERNS = [(re.compile(p, re.IGNORECASE), reason) for p, reason in _FAILURE_PATTERNS]
-
-
-def detect_failure_reason(log_path: Path | None, max_bytes: int = 5_000_000) -> str | None:
-    """Detect the failure reason from a log file by reading head and tail."""
-    if log_path is None or not log_path.exists():
-        return None
-
-    file_size = log_path.stat().st_size
-    if file_size == 0:
-        return None
-
-    with open(log_path, errors="ignore") as f:
-        # Read tail first (final status like timeout takes priority)
-        if file_size > max_bytes:
-            f.seek(file_size - max_bytes)
-        tail = f.read(max_bytes)
-
-        # Also read head for startup failures (OOM) if file is large
-        f.seek(0)
-        head = f.read(max_bytes) if file_size > max_bytes else ""
-
-    # Check tail first, then head
-    for content in (tail, head):
-        for pattern, reason in FAILURE_PATTERNS:
-            if pattern.search(content):
-                return reason
-    return None
 
 
 def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:

@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from generate_data import main as generate_data_main
 from utils import (
     build_run_path,
+    detect_failure_reason,
     encode_bs_segment_for_log_dir,
     encode_gmu_segment_for_log_dir,
     encode_kvc_segment_for_log_dir,
@@ -251,12 +252,12 @@ class ExperimentLauncher:
         # Convert CLI-style keys (with dashes) to Python kwargs (with underscores)
         return {key.replace("-", "_"): value for key, value in merged.items()}
 
-    def _is_already_completed(self, kwargs: dict[str, Any]) -> bool:
-        """Check if a run already has a stats.json file (completed successfully)."""
+    def _get_run_path(self, kwargs: dict[str, Any]) -> Path:
+        """Build the run path from kwargs."""
         prompt_template = kwargs.get("prompt_template")
         prompt_name = prompt_template[0] if isinstance(prompt_template, list) else "default"
 
-        run_path = build_run_path(
+        return build_run_path(
             output_dir=kwargs.get("output_dir", ""),
             prompt_template_name=prompt_name,
             model_name_or_path=kwargs.get("model_name_or_path", ""),
@@ -271,7 +272,20 @@ class ExperimentLauncher:
             speculative_config=kwargs.get("speculative_config"),
             quantization=kwargs.get("quantization"),
         )
+
+    def _is_already_completed(self, kwargs: dict[str, Any]) -> bool:
+        """Check if a run already has a stats.json file (completed successfully)."""
+        run_path = self._get_run_path(kwargs)
         return (run_path / "inference_logs" / "stats.json").exists()
+
+    def _has_oom_failure(self, kwargs: dict[str, Any]) -> bool:
+        """Check if a previous run failed with OOM by scanning log files."""
+        inference_logs = self._get_run_path(kwargs) / "inference_logs"
+        if not inference_logs.exists():
+            return False
+
+        log_files = list(inference_logs.glob("slurm_logs/*.out")) + list(inference_logs.glob("server_logs/*.log"))
+        return any(detect_failure_reason(f) == "OOM" for f in log_files)
 
     def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool]:
         """Execute generate_data.main directly (no subprocess overhead)."""
@@ -331,6 +345,13 @@ class ExperimentLauncher:
                 results[run_name] = 0
                 skipped_runs.add(run_name)
                 logger.info(f"⏭️ Skipping {run_name} (stats.json exists)")
+                continue
+
+            # Skip runs that previously failed with OOM
+            if self._has_oom_failure(kwargs):
+                results[run_name] = 0
+                skipped_runs.add(run_name)
+                logger.info(f"⏭️ Skipping {run_name} (previous OOM failure)")
                 continue
 
             exit_code, skipped = self._execute_direct(kwargs, run_name)
