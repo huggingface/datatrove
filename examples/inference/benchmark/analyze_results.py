@@ -16,6 +16,9 @@ python examples/inference/benchmark/analyze_results.py
 
 # Summarize a specific root and set an explicit CSV path
 python examples/inference/benchmark/analyze_results.py --root examples/inference/benchmark/results --out-csv examples/inference/benchmark/results/benchmarking_results.csv
+
+# Control parallelism (default: -1 uses all CPUs, use 1 for sequential processing)
+python examples/inference/benchmark/analyze_results.py --n-jobs 8
 """
 
 import glob
@@ -29,6 +32,8 @@ from statistics import mean
 
 import pandas as pd
 import typer
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 from datatrove.utils.logging import logger
 
@@ -280,110 +285,120 @@ def compute_gpus_for_1b_per_hour_from_per_gpu(output_tps_per_gpu: float | None) 
     return 1_000_000_000.0 / (output_tps_per_gpu * 3600.0)
 
 
-def analyze(root: str, out_csv: str) -> int:
-    files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
-    rows: list[dict[str, object]] = []
+def process_single_file(path: str, root: str) -> dict[str, object]:
+    """Process a single log file and return a row dict with metrics."""
+    fields = parse_path_fields(path, root)
 
-    for path in files:
-        fields = parse_path_fields(path, root)
+    # Create row from path fields + additional metrics (default None)
+    row: dict[str, object] = {
+        **asdict(fields),
+        "gpus_for_1b_tokens_per_hour": None,
+        "node_days_to_process_1b_tokens": None,
+        "gpu_days_to_process_1b_tokens": None,
+        "input_tps_per_gpu": None,
+        "output_tps_per_gpu": None,
+        "tokens_input_per_sec": None,
+        "tokens_output_per_sec": None,
+        "avg_running_reqs": None,
+        "avg_waiting_reqs": None,
+        "avg_gpu_kvc_usage": None,
+        "avg_prefix_cache_hit_rate": None,
+        "prompt_tokens_total": None,
+        "completion_tokens_total": None,
+        "mean_input_tokens": None,
+        "mean_output_tokens": None,
+        "successful_requests": None,
+        "failed_requests": None,
+        "e2e_time": None,
+        "e2e_per_1k_per_gpu": None,
+        "path": path,
+        "comment": "",
+    }
 
-        # Create row from path fields + additional metrics (default None)
-        row: dict[str, object] = {
-            **asdict(fields),
-            "gpus_for_1b_tokens_per_hour": None,
-            "node_days_to_process_1b_tokens": None,
-            "gpu_days_to_process_1b_tokens": None,
-            "input_tps_per_gpu": None,
-            "output_tps_per_gpu": None,
-            "tokens_input_per_sec": None,
-            "tokens_output_per_sec": None,
-            "avg_running_reqs": None,
-            "avg_waiting_reqs": None,
-            "avg_gpu_kvc_usage": None,
-            "avg_prefix_cache_hit_rate": None,
-            "prompt_tokens_total": None,
-            "completion_tokens_total": None,
-            "mean_input_tokens": None,
-            "mean_output_tokens": None,
-            "successful_requests": None,
-            "failed_requests": None,
-            "e2e_time": None,
-            "e2e_per_1k_per_gpu": None,
-            "path": path,
-            "comment": "",
-        }
+    stats_dir = Path(path).parent.parent  # .../inference_logs
 
-        stats_dir = Path(path).parent.parent  # .../inference_logs
-
-        # Find server log file (try node-specific pattern first, then fallback)
-        server_logs_dir = stats_dir / "server_logs"
-        candidates = (
-            (
-                sorted(server_logs_dir.glob("server_rank_*_node_*.log"))
-                or sorted(server_logs_dir.glob("server_rank_*.log"))
-            )
-            if server_logs_dir.exists()
-            else []
+    # Find server log file (try node-specific pattern first, then fallback)
+    server_logs_dir = stats_dir / "server_logs"
+    candidates = (
+        (
+            sorted(server_logs_dir.glob("server_rank_*_node_*.log"))
+            or sorted(server_logs_dir.glob("server_rank_*.log"))
         )
-        server_log_path = candidates[0] if candidates else None
+        if server_logs_dir.exists()
+        else []
+    )
+    server_log_path = candidates[0] if candidates else None
 
-        # Check for failure patterns BEFORE stats.json - failures prevent stats.json creation
-        # Check both SLURM output log and server log for failure patterns
-        slurm_log_path = Path(path)
-        failure_reason = detect_failure_reason(slurm_log_path) or detect_failure_reason(server_log_path)
-        if failure_reason:
-            row["comment"] = failure_reason
-            rows.append(row)
-            continue
+    # Check for failure patterns BEFORE stats.json - failures prevent stats.json creation
+    slurm_log_path = Path(path)
+    failure_reason = detect_failure_reason(slurm_log_path) or detect_failure_reason(server_log_path)
+    if failure_reason:
+        row["comment"] = failure_reason
+        return row
 
-        stats_info = parse_stats_json(stats_dir / "stats.json")
-        if stats_info is None:
-            row["comment"] = "stats.json not found"
-            rows.append(row)
-            continue
+    stats_info = parse_stats_json(stats_dir / "stats.json")
+    if stats_info is None:
+        row["comment"] = "stats.json not found"
+        return row
 
-        row["prompt_tokens_total"] = int(stats_info["input_tokens_total"])
-        row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
-        row["mean_input_tokens"] = stats_info["input_tokens_mean"]
-        row["mean_output_tokens"] = stats_info["output_tokens_mean"]
-        row["successful_requests"] = stats_info["successful_requests_total"]
-        row["failed_requests"] = stats_info["failed_requests_total"]
-        row["e2e_time"] = stats_info["e2e_time"]
+    row["prompt_tokens_total"] = int(stats_info["input_tokens_total"])
+    row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
+    row["mean_input_tokens"] = stats_info["input_tokens_mean"]
+    row["mean_output_tokens"] = stats_info["output_tokens_mean"]
+    row["successful_requests"] = stats_info["successful_requests_total"]
+    row["failed_requests"] = stats_info["failed_requests_total"]
+    row["e2e_time"] = stats_info["e2e_time"]
 
-        # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
-        gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
+    # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
+    gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
 
-        # GPU-time to process 1000 examples (e2e_time * num_gpus / num_requests * 1000)
-        if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
-            row["e2e_per_1k_per_gpu"] = (
-                stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000 * gpu_divisor
-            )
+    # GPU-time to process 1000 examples (e2e_time * num_gpus / num_requests * 1000)
+    if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
+        row["e2e_per_1k_per_gpu"] = (
+            stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000 * gpu_divisor
+        )
 
-        # Calculate throughput from total tokens / e2e_time (more stable than server log averages)
-        e2e_time = stats_info["e2e_time"]
-        if e2e_time and e2e_time > 0:
-            row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / e2e_time
-            row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / e2e_time / gpu_divisor
-            row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / e2e_time
-            row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / e2e_time / gpu_divisor
+    # Calculate throughput from total tokens / e2e_time (more stable than server log averages)
+    e2e_time = stats_info["e2e_time"]
+    if e2e_time and e2e_time > 0:
+        row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / e2e_time
+        row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / e2e_time / gpu_divisor
+        row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / e2e_time
+        row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / e2e_time / gpu_divisor
 
-        # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
-        server_metrics = parse_server_logs(server_log_path) if server_log_path else None
-        if server_metrics:
-            row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
-            row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
-            row["avg_gpu_kvc_usage"] = server_metrics["avg_gpu_kvc_usage"]
-            row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
+    # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
+    server_metrics = parse_server_logs(server_log_path) if server_log_path else None
+    if server_metrics:
+        row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
+        row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
+        row["avg_gpu_kvc_usage"] = server_metrics["avg_gpu_kvc_usage"]
+        row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
 
-        gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
-        row["gpu_days_to_process_1b_tokens"] = gpu_days
-        row["node_days_to_process_1b_tokens"] = node_days
-        row["gpus_for_1b_tokens_per_hour"] = compute_gpus_for_1b_per_hour_from_per_gpu(row["output_tps_per_gpu"])
+    gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
+    row["gpu_days_to_process_1b_tokens"] = gpu_days
+    row["node_days_to_process_1b_tokens"] = node_days
+    row["gpus_for_1b_tokens_per_hour"] = compute_gpus_for_1b_per_hour_from_per_gpu(row["output_tps_per_gpu"])
 
-        if row["failed_requests"] and row["failed_requests"] > 0:
-            row["comment"] = f"failed_requests={row['failed_requests']}"
+    if row["failed_requests"] and row["failed_requests"] > 0:
+        row["comment"] = f"failed_requests={row['failed_requests']}"
 
-        rows.append(row)
+    return row
+
+
+def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
+    """Analyze benchmark results with parallel log processing.
+
+    Args:
+        root: Root directory containing experiment results.
+        out_csv: Path to write the combined CSV output.
+        n_jobs: Number of parallel jobs (-1 for all CPUs).
+    """
+    files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
+
+    # Process files in parallel with progress bar (threading backend for I/O-bound work)
+    rows: list[dict[str, object]] = Parallel(n_jobs=n_jobs, prefer="threads")(
+        delayed(process_single_file)(path, root) for path in tqdm(files, desc="Processing logs")
+    )
 
     # Config columns used for deduplication (experiment + all config params)
     config_cols = [
@@ -588,8 +603,16 @@ def analyze(root: str, out_csv: str) -> int:
 def main(
     root: str = "examples/inference/benchmark/results",
     out_csv: str = "examples/inference/benchmark/results/benchmarking_results.csv",
+    n_jobs: int = -1,
 ) -> None:
-    analyze(root, out_csv)
+    """Analyze benchmark results.
+
+    Args:
+        root: Root directory containing experiment results.
+        out_csv: Path to write the combined CSV output.
+        n_jobs: Number of parallel jobs for processing logs (-1 for all CPUs).
+    """
+    analyze(root, out_csv, n_jobs)
 
 
 if __name__ == "__main__":
