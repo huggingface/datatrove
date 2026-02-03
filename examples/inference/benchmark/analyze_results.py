@@ -475,7 +475,6 @@ def analyze(root: str, out_csv: str) -> int:
     # Metric columns always shown in table
     display_metric_columns = [
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
-        ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
         ("mean_in", "mean_input_tokens", "right"),
         ("mean_out", "mean_output_tokens", "right"),
