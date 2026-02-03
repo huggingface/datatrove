@@ -29,7 +29,7 @@ _FAILURE_PATTERNS: list[tuple[str, str]] = [
 FAILURE_PATTERNS = [(re.compile(p, re.IGNORECASE), reason) for p, reason in _FAILURE_PATTERNS]
 
 
-def detect_failure_reason(log_path: Path | None, max_bytes: int = 5_000_000) -> str | None:
+def detect_failure_reason(log_path: Path | None, max_bytes: int = 100_000) -> str | None:
     """Detect the failure reason from a log file by reading head and tail.
 
     Args:
