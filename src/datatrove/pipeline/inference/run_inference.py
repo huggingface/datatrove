@@ -11,6 +11,7 @@ Parts of this implementation are adapted from https://github.com/allenai/olmocr
 from __future__ import annotations
 
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
@@ -497,6 +498,9 @@ class InferenceRunner(PipelineStep):
                 # we are a worker, we do not send requests
                 return
 
+            # Start tracking inference time (excludes server startup)
+            inference_start_time = time.perf_counter()
+
             # 1. Initialize semaphore and request cache
             semaphore = asyncio.Semaphore(self.config.max_concurrent_generations)
 
@@ -568,6 +572,9 @@ class InferenceRunner(PipelineStep):
                             await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
                 completed_successfully = True
             finally:
+                # Record inference time (excludes server startup, includes only actual processing)
+                inference_time = time.perf_counter() - inference_start_time
+                self.stat_update("inference_time", value=inference_time, unit="seconds")
                 await self._cleanup(metrics_task, tasks_pool, delete_cache_file=completed_successfully)
 
     async def _cleanup(
