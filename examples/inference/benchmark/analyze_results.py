@@ -238,7 +238,7 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
                 # Prefer global_mean for merged stats, fallback to total
                 e2e_time += ts.get("global_mean", ts.get("total", 0.0))
 
-    # Find the "Model call" entry for token counts
+    # Find the "Model call" entry for token counts and timing stats
     entry = next(
         (item for item in data if isinstance(item, dict) and "name" in item and "Model call" in str(item["name"])),
         None,
@@ -254,6 +254,9 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
     def get_mean(key: str) -> float | None:
         return _get_mean_from_stat_field(st[key]) if key in st else None
 
+    # Extract inference_time if available
+    inference_time = get_total("inference_time") if "inference_time" in st else None
+
     return {
         "input_tokens_total": get_total("prompt_tokens"),
         "output_tokens_total": get_total("completion_tokens"),
@@ -262,6 +265,7 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
         "successful_requests_total": int(get_total("successful_requests")),
         "failed_requests_total": int(get_total("failed_requests")),
         "e2e_time": e2e_time,
+        "inference_time": inference_time,
     }
 
 
@@ -308,7 +312,9 @@ def analyze(root: str, out_csv: str) -> int:
             "successful_requests": None,
             "failed_requests": None,
             "e2e_time": None,
+            "inference_time": None,
             "e2e_per_1k_per_gpu": None,
+            "inference_per_1k_per_gpu": None,
             "path": path,
             "comment": "",
         }
@@ -349,6 +355,7 @@ def analyze(root: str, out_csv: str) -> int:
         row["successful_requests"] = stats_info["successful_requests_total"]
         row["failed_requests"] = stats_info["failed_requests_total"]
         row["e2e_time"] = stats_info["e2e_time"]
+        row["inference_time"] = stats_info["inference_time"]
 
         # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
         gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
@@ -359,13 +366,17 @@ def analyze(root: str, out_csv: str) -> int:
                 stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000 * gpu_divisor
             )
 
-        # Calculate throughput from total tokens / e2e_time (more stable than server log averages)
-        e2e_time = stats_info["e2e_time"]
-        if e2e_time and e2e_time > 0:
-            row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / e2e_time
-            row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / e2e_time / gpu_divisor
-            row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / e2e_time
-            row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / e2e_time / gpu_divisor
+        # Calculate throughput from inference_time only (excludes server startup)
+        inference_time = stats_info["inference_time"]
+        if inference_time and inference_time > 0:
+            row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / inference_time
+            row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / inference_time / gpu_divisor
+            row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / inference_time
+            row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / inference_time / gpu_divisor
+            if stats_info["successful_requests_total"] > 0:
+                row["inference_per_1k_per_gpu"] = (
+                    inference_time / stats_info["successful_requests_total"] * 1000 * gpu_divisor
+                )
 
         # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
         server_metrics = parse_server_logs(server_log_path) if server_log_path else None
@@ -420,7 +431,9 @@ def analyze(root: str, out_csv: str) -> int:
         "mean_output_tokens",
         "successful_requests",
         "e2e_time",
+        "inference_time",
         "e2e_per_1k_per_gpu",
+        "inference_per_1k_per_gpu",
         "path",
         "comment",
     ]
@@ -436,7 +449,9 @@ def analyze(root: str, out_csv: str) -> int:
         "input_tps_per_gpu",
         "output_tps_per_gpu",
         "e2e_time",
+        "inference_time",
         "e2e_per_1k_per_gpu",
+        "inference_per_1k_per_gpu",
     ]
 
     # Deduplicate: keep row with most metrics; if tied, keep highest output_tps_per_gpu; if still tied, keep most recent run
@@ -481,7 +496,7 @@ def analyze(root: str, out_csv: str) -> int:
         ("mean_out", "mean_output_tokens", "right"),
         ("kvc%", "avg_gpu_kvc_usage", "right"),
         ("prefix%", "avg_prefix_cache_hit_rate", "right"),
-        ("e2e/1k/gpu", "e2e_per_1k_per_gpu", "right"),
+        ("inf/1k/gpu", "inference_per_1k_per_gpu", "right"),
         ("comment", "comment", "left"),
     ]
 
@@ -490,7 +505,7 @@ def analyze(root: str, out_csv: str) -> int:
         if val is None or pd.isna(val):
             return ""
         if isinstance(val, (int, float)):
-            if col_key == "e2e_per_1k_per_gpu":
+            if col_key == "inference_per_1k_per_gpu":
                 # Format as HH:MM:SS (GPU-time to process 1k examples)
                 total_secs = int(float(val))
                 hours, remainder = divmod(total_secs, 3600)
