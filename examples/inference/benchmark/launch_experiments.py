@@ -297,19 +297,23 @@ class ExperimentLauncher:
         log_files = list(inference_logs.glob("slurm_logs/*.out")) + list(inference_logs.glob("server_logs/*.log"))
         return any(detect_failure_reason(f) == "OOM" for f in log_files)
 
-    def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool]:
-        """Execute generate_data.main directly (no subprocess overhead)."""
+    def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool, str | None]:
+        """Execute generate_data.main directly (no subprocess overhead).
+
+        Returns:
+            Tuple of (exit_code, skipped, job_id)
+        """
         logger.info(f"\n{'=' * 60}")
         logger.info(f"Submitting Slurm job for run: {run_name}")
         logger.info(f"{'=' * 60}")
 
         if self.dry_run:
             logger.info("[DRY RUN] Slurm job would be submitted")
-            return 0, False
+            return 0, False, None
 
         try:
-            generate_data_main(**kwargs)
-            return 0, False
+            job_id = generate_data_main(**kwargs)
+            return 0, False, job_id
         except KeyboardInterrupt:
             logger.info(f"\nInterrupted during job submission for run: {run_name}")
             raise
@@ -317,9 +321,9 @@ class ExperimentLauncher:
             error_msg = str(e)
             if "Skipping launch" in error_msg or "already been completed" in error_msg:
                 logger.info(f"Job skipped: {error_msg}")
-                return 0, True
+                return 0, True, None
             logger.error(f"Error submitting job for run {run_name}: {e}")
-            return 1, False
+            return 1, False, None
 
     def launch(self) -> dict[str, int]:
         """
@@ -338,6 +342,7 @@ class ExperimentLauncher:
 
         results = {}
         skipped_runs = set()
+        job_ids: list[str] = []
 
         # Expand experiments into runs (lists in args produce cartesian product of values)
         expanded_runs: list[dict[str, Any]] = []
@@ -364,10 +369,12 @@ class ExperimentLauncher:
                 logger.info(f"⏭️ Skipping {run_name} (previous OOM failure)")
                 continue
 
-            exit_code, skipped = self._execute_direct(kwargs, run_name)
+            exit_code, skipped, job_id = self._execute_direct(kwargs, run_name)
             results[run_name] = exit_code
             if skipped:
                 skipped_runs.add(run_name)
+            if job_id:
+                job_ids.append(str(job_id))
 
             if exit_code != 0:
                 logger.error(f"❌ Slurm job submission failed for {run_name} (exit code {exit_code})")
@@ -409,7 +416,8 @@ class ExperimentLauncher:
                     logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
                 if successful_submissions > 0:
                     logger.info("Use 'squeue -u $USER' to monitor job status")
-                    logger.info("Use 'scancel <job_id>' to cancel jobs if needed")
+                    if job_ids:
+                        logger.info(f"Cancel all launched jobs: scancel {' '.join(job_ids)}")
 
         return results
 

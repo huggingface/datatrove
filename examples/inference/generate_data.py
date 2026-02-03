@@ -471,6 +471,8 @@ def main(
             )
             datacard_executor.run()
 
+    return inference_executor.job_id
+
 
 if __name__ == "__main__":
     typer.run(main)
