@@ -320,10 +320,7 @@ def process_single_file(path: str, root: str) -> dict[str, object]:
     # Find server log file (try node-specific pattern first, then fallback)
     server_logs_dir = stats_dir / "server_logs"
     candidates = (
-        (
-            sorted(server_logs_dir.glob("server_rank_*_node_*.log"))
-            or sorted(server_logs_dir.glob("server_rank_*.log"))
-        )
+        (sorted(server_logs_dir.glob("server_rank_*_node_*.log")) or sorted(server_logs_dir.glob("server_rank_*.log")))
         if server_logs_dir.exists()
         else []
     )
