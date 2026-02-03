@@ -16,7 +16,6 @@ python examples/inference/benchmark/generate_data.py \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
     --output-dataset-name s1K-1.1-datatrove \
-    --examples-per-chunk 50 \
     --tasks 1 \
     --workers 1 \
     --local-execution
@@ -26,8 +25,7 @@ python examples/inference/benchmark/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
-    --output-dataset-name s1K-1.1-benchmark \
-    --examples-per-chunk 50
+    --output-dataset-name s1K-1.1-benchmark
 
 # Generate synthetic data using a prompt template with [[DOCUMENT]] variable
 python examples/inference/benchmark/generate_data.py \
@@ -37,7 +35,6 @@ python examples/inference/benchmark/generate_data.py \
     --prompt-template "Summarize the following document: [[DOCUMENT]]" \
     --model-name-or-path Qwen/Qwen3-0.6B \
     --output-dataset-name wikitext-summaries \
-    --examples-per-chunk 50 \
     --tasks 1 \
     --workers 1
 
@@ -50,7 +47,6 @@ python examples/inference/benchmark/generate_data.py \
     --max-tokens 8 \
     --trust-remote-code \
     --output-dataset-name s1K-1.1-benchmark-Kimi-K2-Instruct \
-    --examples-per-chunk 10 \
     --tasks 1 \
     --workers 1 \
     --max-examples 100 \
