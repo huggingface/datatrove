@@ -288,14 +288,21 @@ class ExperimentLauncher:
         run_path = self._get_run_path(kwargs)
         return (run_path / "inference_logs" / "stats.json").exists()
 
-    def _has_oom_failure(self, kwargs: dict[str, Any]) -> bool:
-        """Check if a previous run failed with OOM by scanning log files."""
+    # Failure reasons that should cause the run to be skipped
+    _SKIP_FAILURE_REASONS = {"OOM", "timeout", "server_fail"}
+
+    def _get_previous_failure_reason(self, kwargs: dict[str, Any]) -> str | None:
+        """Check if a previous run failed with a skipable reason by scanning log files."""
         inference_logs = self._get_run_path(kwargs) / "inference_logs"
         if not inference_logs.exists():
-            return False
+            return None
 
         log_files = list(inference_logs.glob("slurm_logs/*.out")) + list(inference_logs.glob("server_logs/*.log"))
-        return any(detect_failure_reason(f) == "OOM" for f in log_files)
+        for f in log_files:
+            reason = detect_failure_reason(f)
+            if reason in self._SKIP_FAILURE_REASONS:
+                return reason
+        return None
 
     def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool, str | None]:
         """Execute generate_data.main directly (no subprocess overhead).
@@ -362,11 +369,12 @@ class ExperimentLauncher:
                 logger.info(f"⏭️ Skipping {run_name} (stats.json exists)")
                 continue
 
-            # Skip runs that previously failed with OOM
-            if self._has_oom_failure(kwargs):
+            # Skip runs that previously failed with a non-recoverable reason
+            failure_reason = self._get_previous_failure_reason(kwargs)
+            if failure_reason:
                 results[run_name] = 0
                 skipped_runs.add(run_name)
-                logger.info(f"⏭️ Skipping {run_name} (previous OOM failure)")
+                logger.info(f"⏭️ Skipping {run_name} (previous {failure_reason} failure)")
                 continue
 
             exit_code, skipped, job_id = self._execute_direct(kwargs, run_name)
@@ -409,11 +417,11 @@ class ExperimentLauncher:
             if self.dry_run:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs would be submitted")
                 if skipped_count > 0:
-                    logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
+                    logger.info(f"{skipped_count} job(s) skipped (completed or previous failure)")
             else:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs submitted successfully")
                 if skipped_count > 0:
-                    logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
+                    logger.info(f"{skipped_count} job(s) skipped (completed or previous failure)")
                 if successful_submissions > 0:
                     logger.info("Use 'squeue -u $USER' to monitor job status")
                     if job_ids:
