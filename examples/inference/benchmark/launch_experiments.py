@@ -101,7 +101,7 @@ class ExperimentLauncher:
             if "name" not in experiment:
                 raise ValueError(f"Experiment {i} missing required 'name' field")
             # Validate that no experiment has 'name' in its args (since we auto-generate run names)
-            if "name" in experiment.get("args", {}):
+            if "name" in (experiment.get("args") or {}):
                 raise ValueError(
                     f"Experiment '{experiment['name']}' should not have 'name' in its args. "
                     f"Run names are automatically derived from the configuration."
@@ -192,41 +192,53 @@ class ExperimentLauncher:
 
         return "-".join(parts)
 
+    # Keys that are list-valued but should NOT be treated as sweep parameters
+    _NON_SWEEP_KEYS = {"prompt-template", "prompt_template"}
+
     def _expand_experiment(self, experiment_config: dict[str, Any]) -> list[dict[str, Any]]:
         """Expand a single experiment config into multiple runs if any args values are lists.
 
-        If multiple args contain lists, generate the cartesian product (all permutations).
-        Each run corresponds to one SLURM job.
+        If multiple args contain lists (in either fixed_args or experiment args),
+        generate the cartesian product (all permutations). Each run corresponds to one SLURM job.
+        Experiment args override fixed_args for the same key.
+
+        Note: Some keys like 'prompt-template' are list-valued by design (e.g., [name, template])
+        and are excluded from sweep expansion.
         """
-        fixed_args = self.config.get("fixed_args", {}) or {}
-        exp_args = experiment_config.get("args", {}) or {}
+        fixed_args = self.config.get("fixed_args") or {}
+        exp_args = experiment_config.get("args") or {}
         experiment_name = experiment_config["name"]
-        sweep_keys = [key for key, value in exp_args.items() if isinstance(value, list) and len(value) > 0]
+
+        # Merge fixed_args with exp_args (exp_args take precedence)
+        merged_args = {**fixed_args, **exp_args}
+
+        # Find all sweep keys (list values) in merged args, excluding non-sweep keys
+        sweep_keys = [
+            key
+            for key, value in merged_args.items()
+            if isinstance(value, list) and len(value) > 0 and key not in self._NON_SWEEP_KEYS
+        ]
 
         if not sweep_keys:
-            # Merge fixed_args with exp_args for name derivation (exp_args override fixed_args)
-            merged_for_name = {**fixed_args, **exp_args}
-            derived_name = self._derive_run_name(merged_for_name)
+            derived_name = self._derive_run_name(merged_args)
             return [
                 {
                     "name": derived_name,
                     "experiment": experiment_name,
-                    "args": exp_args,
+                    "args": merged_args,
                 }
             ]
 
         ordered_keys = sorted(sweep_keys)
-        value_lists = [exp_args[key] for key in ordered_keys]
+        value_lists = [merged_args[key] for key in ordered_keys]
 
         expanded_runs: list[dict[str, Any]] = []
         for combo in product(*value_lists):
-            new_args = dict(exp_args)
+            new_args = dict(merged_args)
             for key, val in zip(ordered_keys, combo):
                 new_args[key] = val
 
-            # Merge fixed_args with new_args for name derivation
-            merged_for_name = {**fixed_args, **new_args}
-            new_name = self._derive_run_name(merged_for_name)
+            new_name = self._derive_run_name(new_args)
 
             expanded_runs.append(
                 {
@@ -240,10 +252,8 @@ class ExperimentLauncher:
 
     def _build_kwargs(self, run_config: dict[str, Any]) -> dict[str, Any]:
         """Build kwargs dict for calling generate_data.main directly."""
-        # Merge fixed_args and run args, with run args overriding fixed_args
-        fixed_args = self.config.get("fixed_args", {}) or {}
-        var_args = run_config.get("args", {}) or {}
-        merged = {**fixed_args, **var_args, "name": run_config["name"]}
+        # Args are already merged in _expand_experiment
+        merged = {**(run_config.get("args") or {}), "name": run_config["name"]}
 
         # Prepend experiment name to output-dir for directory grouping
         if "experiment" in run_config and "output-dir" in merged:
