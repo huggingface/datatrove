@@ -574,6 +574,115 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
         for r in data_rows:
             print("| " + " | ".join(pad(r[i], widths[i], aligns[i]) for i in range(len(r))) + " |")
 
+    def print_optimization_summary(df_all: pd.DataFrame) -> pd.DataFrame:
+        """
+        Print optimization summary comparing baseline vs best config for each model.
+
+        Baseline defaults: tp=1, mns=256, mnbt=8192 (vLLM defaults).
+        Aggregates across all experiments to find the best config per model.
+        Returns a DataFrame with the summary for CSV export.
+        """
+        # Baseline defaults (vLLM defaults + common benchmark settings)
+        baseline_defaults: dict[str, object] = {
+            "tp": 1,
+            "mns": 256,
+            "mnbt": 8192,
+            "gmu": 90,
+            "bs": 16,
+            "kvc": "kvc_auto",
+            "spec": "spec_none",
+            "quant": "quant_none",
+        }
+        tunable_params = list(baseline_defaults.keys())
+
+        summary_rows: list[dict[str, object]] = []
+
+        for model in sorted(df_all["model"].unique()):
+            df_model = df_all[df_all["model"] == model].copy()
+            df_valid = df_model[df_model["output_tps_per_gpu"].notna()]
+
+            if df_valid.empty:
+                continue
+
+            # Find baseline row matching all default parameters
+            baseline_mask = pd.Series(True, index=df_valid.index)
+            for param, default_val in baseline_defaults.items():
+                baseline_mask &= df_valid[param] == default_val
+            df_baseline = df_valid[baseline_mask]
+
+            # Find best row (highest output_tps_per_gpu)
+            best_idx = df_valid["output_tps_per_gpu"].idxmax()
+            best_row = df_valid.loc[best_idx]
+            best_tps = best_row["output_tps_per_gpu"]
+
+            if df_baseline.empty:
+                # No exact baseline match - use lowest config as proxy
+                baseline_idx = df_valid["output_tps_per_gpu"].idxmin()
+                baseline_row = df_valid.loc[baseline_idx]
+            else:
+                # Multiple baseline matches possible (different experiments) - pick best one
+                baseline_idx = df_baseline["output_tps_per_gpu"].idxmax()
+                baseline_row = df_baseline.loc[baseline_idx]
+            baseline_tps = baseline_row["output_tps_per_gpu"]
+
+            speedup = best_tps / baseline_tps if baseline_tps > 0 else None
+
+            # Identify parameters that deviate from baseline defaults
+            deviations: list[str] = []
+            for param, default_val in baseline_defaults.items():
+                best_val = best_row[param]
+                if pd.notna(best_val) and best_val != default_val:
+                    deviations.append(f"{param}={best_val}")
+
+            summary_rows.append({
+                "model": model,
+                "baseline_tps": int(round(baseline_tps)),
+                "optimized_tps": int(round(best_tps)),
+                "speedup": speedup,
+                "optimized_params": ", ".join(deviations) if deviations else "(baseline is optimal)",
+            })
+
+        if not summary_rows:
+            return pd.DataFrame()
+
+        df_summary = pd.DataFrame(summary_rows)
+
+        # Print summary table
+        print(f"\n{'=' * 80}")
+        print("Optimization Summary (All Models)")
+        print(f"{'=' * 80}")
+        baseline_str = ", ".join(f"{k}={v}" for k, v in baseline_defaults.items())
+        print(f"Baseline: {baseline_str}")
+        print()
+
+        # Calculate column widths
+        headers = ["Model", "Baseline tps/gpu", "Optimized tps/gpu", "Speedup", "Optimized Parameters"]
+        col_keys = ["model", "baseline_tps", "optimized_tps", "speedup", "optimized_params"]
+
+        def fmt_cell(val: object, key: str) -> str:
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return "-"
+            if key == "speedup":
+                return f"{val:.2f}x"
+            return str(val)
+
+        data_rows = [[fmt_cell(row[k], k) for k in col_keys] for row in summary_rows]
+        widths = [max(len(h), max((len(r[i]) for r in data_rows), default=0)) for i, h in enumerate(headers)]
+
+        # Print header
+        print("| " + " | ".join(h.ljust(widths[i]) for i, h in enumerate(headers)) + " |")
+        print("| " + " | ".join("-" * w for w in widths) + " |")
+
+        # Print data rows
+        aligns = ["left", "right", "right", "right", "left"]
+        for r in data_rows:
+            cells = []
+            for i, cell in enumerate(r):
+                cells.append(cell.rjust(widths[i]) if aligns[i] == "right" else cell.ljust(widths[i]))
+            print("| " + " | ".join(cells) + " |")
+
+        return df_summary
+
     # Process each experiment
     out_csv_dir = Path(out_csv).parent
     total_rows = 0
@@ -587,6 +696,13 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
         df_exp.to_csv(exp_csv_path, index=False, float_format="%.6f")
         logger.info(f"Wrote {len(df_exp)} rows to {exp_csv_path}")
         total_rows += len(df_exp)
+
+    # Print combined optimization summary across all models
+    df_opt_summary = print_optimization_summary(df_dedup)
+    if not df_opt_summary.empty:
+        opt_csv_path = out_csv_dir / "optimization_summary.csv"
+        df_opt_summary.to_csv(opt_csv_path, index=False)
+        logger.info(f"Wrote optimization summary to {opt_csv_path}")
 
     # Save combined CSV
     df_dedup.to_csv(out_csv, index=False, float_format="%.6f")
