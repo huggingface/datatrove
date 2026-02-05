@@ -6,16 +6,16 @@ Analyze benchmark experiment outputs and produce per-experiment CSV files and fo
 - Parse throughput metrics from server logs (excludes startup time)
 - Compute per-TP (per-GPU) throughput by dividing engine throughput by TP
 - Compute derived metrics: gpu_days, node_days, and gpus_for_1b_tokens_per_hour
-- Output one table per experiment and save per-experiment CSV files named by experiment name
-- Also saves a combined CSV with all experiments
+- Output one table per experiment and save per-experiment CSV files named by experiment name to the root directory
+- Also saves a combined CSV with all experiments to the root directory
 
 Usage:
 
 # Summarize experiments under the default 'examples/inference/benchmark/results' root and write CSV
 python examples/inference/benchmark/analyze_results.py
 
-# Summarize a specific root and set an explicit CSV path
-python examples/inference/benchmark/analyze_results.py --root examples/inference/benchmark/results --out-csv examples/inference/benchmark/results/benchmarking_results.csv
+# Summarize a specific root and write CSVs to that root
+python examples/inference/benchmark/analyze_results.py --root examples/inference/benchmark/results
 
 # Control parallelism (default: -1 uses all CPUs, use 1 for sequential processing)
 python examples/inference/benchmark/analyze_results.py --n-jobs 8
@@ -391,12 +391,12 @@ def process_single_file(path: str, root: str) -> dict[str, object]:
 
     return row
 
-def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
+
+def analyze(root: str, n_jobs: int = -1) -> int:
     """Analyze benchmark results with parallel log processing.
 
     Args:
         root: Root directory containing experiment results.
-        out_csv: Path to write the combined CSV output.
         n_jobs: Number of parallel jobs (-1 for all CPUs).
     """
     root_path = Path(root)
@@ -616,7 +616,6 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
             "spec": "spec_none",
             "quant": "quant_none",
         }
-        tunable_params = list(baseline_defaults.keys())
 
         summary_rows: list[dict[str, object]] = []
 
@@ -657,13 +656,15 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
                 if pd.notna(best_val) and best_val != default_val:
                     deviations.append(f"{param}={best_val}")
 
-            summary_rows.append({
-                "model": model,
-                "baseline_tps": int(round(baseline_tps)),
-                "optimized_tps": int(round(best_tps)),
-                "speedup": speedup,
-                "optimized_params": ", ".join(deviations) if deviations else "(baseline is optimal)",
-            })
+            summary_rows.append(
+                {
+                    "model": model,
+                    "baseline_tps": int(round(baseline_tps)),
+                    "optimized_tps": int(round(best_tps)),
+                    "speedup": speedup,
+                    "optimized_params": ", ".join(deviations) if deviations else "(baseline is optimal)",
+                }
+            )
 
         if not summary_rows:
             return pd.DataFrame()
@@ -707,7 +708,6 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
         return df_summary
 
     # Process each experiment
-    out_csv_dir = Path(out_csv).parent
     total_rows = 0
 
     for experiment_name in sorted(df_dedup["experiment"].unique()):
@@ -715,40 +715,39 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
         print_table(df_exp, experiment_name)
 
         # Save CSV for this experiment
-        exp_csv_path = out_csv_dir / f"{experiment_name}.csv"
+        exp_csv_path = root_path / f"{experiment_name}.csv"
         df_exp.to_csv(exp_csv_path, index=False, float_format="%.6f")
         logger.info(f"Wrote {len(df_exp)} rows to {exp_csv_path}")
         total_rows += len(df_exp)
 
+    # Save combined CSV
+    out_csv_path = root_path / "benchmarking_results.csv"
+    df_dedup.to_csv(out_csv_path, index=False, float_format="%.6f")
+    logger.info(
+        f"Wrote {total_rows} total rows across {len(df_dedup['experiment'].unique())} experiments to {out_csv_path}"
+    )
+
     # Print combined optimization summary across all models
     df_opt_summary = print_optimization_summary(df_dedup)
     if not df_opt_summary.empty:
-        opt_csv_path = out_csv_dir / "optimization_summary.csv"
+        opt_csv_path = root_path / "optimization_summary.csv"
         df_opt_summary.to_csv(opt_csv_path, index=False)
         logger.info(f"Wrote optimization summary to {opt_csv_path}")
-
-    # Save combined CSV
-    df_dedup.to_csv(out_csv, index=False, float_format="%.6f")
-    logger.info(
-        f"Wrote {total_rows} total rows across {len(df_dedup['experiment'].unique())} experiments to {out_csv}"
-    )
 
     return total_rows
 
 
 def main(
     root: str = "examples/inference/benchmark/results",
-    out_csv: str = "examples/inference/benchmark/results/benchmarking_results.csv",
     n_jobs: int = -1,
 ) -> None:
     """Analyze benchmark results.
 
     Args:
         root: Root directory containing experiment results.
-        out_csv: Path to write the combined CSV output.
         n_jobs: Number of parallel jobs for processing logs (-1 for all CPUs).
     """
-    analyze(root, out_csv, n_jobs)
+    analyze(root, n_jobs)
 
 
 if __name__ == "__main__":

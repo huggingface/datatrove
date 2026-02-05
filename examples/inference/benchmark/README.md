@@ -67,9 +67,10 @@ After jobs complete, analyze the results:
 
 ```bash
 python examples/inference/benchmark/analyze_results.py \
-    --root data \
-    --out-csv data/benchmark_results.csv
+    --root data
 ```
+
+This writes per-experiment CSVs plus `benchmarking_results.csv` and `optimization_summary.csv` into the root directory.
 
 ## Output Structure
 
