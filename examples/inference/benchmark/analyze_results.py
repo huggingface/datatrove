@@ -254,7 +254,7 @@ def parse_stats_json(stats_path: Path) -> dict[str, float | int] | None:
     def get_mean(key: str) -> float | None:
         return _get_mean_from_stat_field(st[key]) if key in st else None
 
-    # Extract inference_time if available
+    # Extract inference_time if available (saved as TimingStats under stats)
     inference_time = get_total("inference_time") if "inference_time" in st else None
 
     return {
