@@ -399,6 +399,16 @@ def analyze(root: str, out_csv: str, n_jobs: int = -1) -> int:
         out_csv: Path to write the combined CSV output.
         n_jobs: Number of parallel jobs (-1 for all CPUs).
     """
+    root_path = Path(root)
+    if not root_path.is_dir():
+        message = f"Root directory does not exist: {root_path}"
+        logger.error(message)
+        raise FileNotFoundError(message)
+    if not any(root_path.iterdir()):
+        message = f"Root directory is empty: {root_path}"
+        logger.error(message)
+        raise ValueError(message)
+
     files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
 
     # Process files in parallel with progress bar (threading backend for I/O-bound work)
