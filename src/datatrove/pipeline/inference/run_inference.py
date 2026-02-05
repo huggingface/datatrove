@@ -33,6 +33,7 @@ from datatrove.pipeline.inference.servers import (
 )
 from datatrove.pipeline.inference.types import InferenceError, InferenceResult, RolloutFunction, ServerError
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.utils.stats import TimingStats
 
 
 # --------------------------------------------------------------------------- #
@@ -510,62 +511,75 @@ class InferenceRunner(PipelineStep):
             tasks_pool: set[asyncio.Task] = set()
             chunk_index: int | None = None
             completed_successfully = False
+            if "inference_time" not in self.stats.stats or not isinstance(
+                self.stats.stats["inference_time"], TimingStats
+            ):
+                self.stats.stats["inference_time"] = TimingStats(unit="seconds")
+            inference_timer = self.stats.stats["inference_time"]
+            inference_timer.unit = "seconds"
             try:
-                with self.output_writer as output_writer_context, self.get_shared_context_cm() as shared_context_data:
-                    # Wrap the rollout function with the shared context
-                    rollout_fn: RolloutFunction = partial(self.rollout_fn, **shared_context_data)
+                # Track inference time (excludes server startup and cleanup)
+                with inference_timer:
+                    with (
+                        self.output_writer as output_writer_context,
+                        self.get_shared_context_cm() as shared_context_data,
+                    ):
+                        # Wrap the rollout function with the shared context
+                        rollout_fn: RolloutFunction = partial(self.rollout_fn, **shared_context_data)
 
-                    # this will also upload locally cached documents to the output writer
-                    documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
-                        rank, output_writer_context
-                    )
-                    if documents_to_skip > 0:
-                        logger.info(
-                            f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents"
+                        # this will also upload locally cached documents to the output writer
+                        documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
+                            rank, output_writer_context
                         )
-
-                    # process remaining documents
-                    record_idx = -1
-                    chunk_index_gen = self.checkpoint_manager.chunk_index_gen()
-                    async for record in self._async_data_gen(data_gen):
-                        record_idx += 1
-                        chunk_index = next(chunk_index_gen)
-                        # Skip documents if resuming from checkpoint
-                        if record_idx < documents_to_skip:
-                            continue
-                        elif record_idx == documents_to_skip and documents_to_skip > 0:
-                            logger.info(f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}")
-
-                        # skip already processed documents from chunks in progress
-                        if record.id in processed_ids:
-                            processed_ids.remove(record.id)
-                            continue
-
-                        # Throttle by task pool size
-                        while len(tasks_pool) >= self.config.max_concurrent_documents:
-                            done, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
-                            for task in done:
-                                await task  # Re-raises any unhandled exception
-
-                        # Add task for current record
-                        task = asyncio.create_task(
-                            self._handle_record(
-                                record,
-                                rank,
-                                chunk_index,
-                                rollout_fn,
-                                output_writer_context,
-                                inference_server,
-                                semaphore,
+                        if documents_to_skip > 0:
+                            logger.info(
+                                f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents"
                             )
-                        )
-                        tasks_pool.add(task)
 
-                    # 3. Wait for all remaining tasks to complete
-                    if tasks_pool:
-                        await asyncio.gather(*tasks_pool)
-                        if chunk_index is not None:
-                            await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
+                        # process remaining documents
+                        record_idx = -1
+                        chunk_index_gen = self.checkpoint_manager.chunk_index_gen()
+                        async for record in self._async_data_gen(data_gen):
+                            record_idx += 1
+                            chunk_index = next(chunk_index_gen)
+                            # Skip documents if resuming from checkpoint
+                            if record_idx < documents_to_skip:
+                                continue
+                            elif record_idx == documents_to_skip and documents_to_skip > 0:
+                                logger.info(
+                                    f"Skipped {documents_to_skip} documents. Resuming from chunk {chunk_index}"
+                                )
+
+                            # skip already processed documents from chunks in progress
+                            if record.id in processed_ids:
+                                processed_ids.remove(record.id)
+                                continue
+
+                            # Throttle by task pool size
+                            while len(tasks_pool) >= self.config.max_concurrent_documents:
+                                done, tasks_pool = await asyncio.wait(tasks_pool, return_when=asyncio.FIRST_COMPLETED)
+                                for task in done:
+                                    await task  # Re-raises any unhandled exception
+
+                            # Add task for current record
+                            task = asyncio.create_task(
+                                self._handle_record(
+                                    record,
+                                    rank,
+                                    chunk_index,
+                                    rollout_fn,
+                                    output_writer_context,
+                                    inference_server,
+                                    semaphore,
+                                )
+                            )
+                            tasks_pool.add(task)
+
+                        # 3. Wait for all remaining tasks to complete
+                        if tasks_pool:
+                            await asyncio.gather(*tasks_pool)
+                            if chunk_index is not None:
+                                await self.checkpoint_manager.cleanup_last_chunk(rank, chunk_index)
                 completed_successfully = True
             finally:
                 await self._cleanup(metrics_task, tasks_pool, delete_cache_file=completed_successfully)
