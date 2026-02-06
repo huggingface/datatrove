@@ -95,7 +95,7 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
     kv_cache_usages: list[float] = []
     prefix_cache_rates: list[float] = []
 
-    for line in server_log_path.read_text().splitlines():
+    for line in server_log_path.read_text(errors="replace").splitlines():
         if match := throughput_pattern.search(line):
             prompt_thr, gen_thr = float(match.group(1)), float(match.group(2))
             if prompt_thr == 0.0:
