@@ -32,6 +32,7 @@ from joblib import Parallel, delayed
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -133,8 +134,7 @@ def _num_rows_from_parquet_metadata(hf_id: str, config: str | None) -> int:
 
     # Cap concurrency to avoid HF Hub rate limits (429s)
     row_counts = Parallel(n_jobs=16, backend="threading")(
-        delayed(_read_num_rows)(p)
-        for p in tqdm(parquet_paths, desc="  Reading parquet metadata", unit="file")
+        delayed(_read_num_rows)(p) for p in tqdm(parquet_paths, desc="  Reading parquet metadata", unit="file")
     )
 
     total = sum(row_counts)
@@ -219,9 +219,7 @@ def estimate_avg_tokens(
                 rel_change = abs(avg - prev_avg) / avg
                 if rel_change < THRESHOLD:
                     pbar.close()
-                    logger.info(
-                        f"  Converged: n={n_docs:,}  avg_tok={avg:.1f}  Δ={rel_change:.6f}"
-                    )
+                    logger.info(f"  Converged: n={n_docs:,}  avg_tok={avg:.1f}  Δ={rel_change:.6f}")
                     return avg, n_docs
             prev_avg = avg
 
