@@ -12,6 +12,18 @@ python examples/inference/benchmark/launch_experiments.py \
 
 python examples/inference/benchmark/launch_experiments.py \
     --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
+
+Retry only OOM failures (skip timeout and server_fail but re-run OOM):
+
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml \
+    --skip-failure-reasons timeout,server_fail
+
+Re-run all previously failed experiments (skip nothing):
+
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml \
+    --skip-failure-reasons none
 """
 
 import re
@@ -50,16 +62,27 @@ from utils import (
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
 
-    def __init__(self, config_path: str, dry_run: bool = False):
+    # All recognized failure reasons from detect_failure_reason
+    ALL_FAILURE_REASONS = {"OOM", "timeout", "server_fail"}
+
+    def __init__(
+        self,
+        config_path: str,
+        dry_run: bool = False,
+        skip_failure_reasons: set[str] | None = None,
+    ):
         """
         Initialize the experiment launcher.
 
         Args:
             config_path: Path to YAML configuration file
             dry_run: If True, print commands without executing
+            skip_failure_reasons: Failure reasons that cause a run to be skipped.
+                Defaults to all reasons: {"OOM", "timeout", "server_fail"}.
         """
         self.config_path = Path(config_path)
         self.dry_run = dry_run
+        self.skip_failure_reasons = skip_failure_reasons if skip_failure_reasons is not None else self.ALL_FAILURE_REASONS
 
         # Load and validate configuration
         self.config = self._load_config()
@@ -288,11 +311,11 @@ class ExperimentLauncher:
         run_path = self._get_run_path(kwargs)
         return (run_path / "inference_logs" / "stats.json").exists()
 
-    # Failure reasons that should cause the run to be skipped
-    _SKIP_FAILURE_REASONS = {"OOM", "timeout", "server_fail"}
-
     def _get_previous_failure_reason(self, kwargs: dict[str, Any]) -> str | None:
         """Check if a previous run failed with a skipable reason by scanning log files."""
+        if not self.skip_failure_reasons:
+            return None
+
         inference_logs = self._get_run_path(kwargs) / "inference_logs"
         if not inference_logs.exists():
             return None
@@ -300,7 +323,7 @@ class ExperimentLauncher:
         log_files = list(inference_logs.glob("slurm_logs/*.out")) + list(inference_logs.glob("server_logs/*.log"))
         for f in log_files:
             reason = detect_failure_reason(f)
-            if reason in self._SKIP_FAILURE_REASONS:
+            if reason in self.skip_failure_reasons:
                 return reason
         return None
 
@@ -341,6 +364,10 @@ class ExperimentLauncher:
         """
         logger.info(f"Configuration: {self.config_path}")
         logger.info(f"Timestamp: {self.timestamp}")
+        if self.skip_failure_reasons:
+            logger.info(f"Skipping previous failures: {sorted(self.skip_failure_reasons)}")
+        else:
+            logger.info("Not skipping any previous failures (will re-run all)")
 
         if self.dry_run:
             logger.info("\n*** DRY RUN MODE - No Slurm jobs will be submitted ***")
@@ -348,7 +375,7 @@ class ExperimentLauncher:
             logger.info("\n*** SUBMITTING SLURM JOBS ***")
 
         results = {}
-        skipped_runs = set()
+        skip_reasons: dict[str, str] = {}  # run_name -> reason for skipping
         job_ids: list[str] = []
 
         # Expand experiments into runs (lists in args produce cartesian product of values)
@@ -365,7 +392,7 @@ class ExperimentLauncher:
             # Skip runs that already have stats.json (completed successfully)
             if self._is_already_completed(kwargs):
                 results[run_name] = 0
-                skipped_runs.add(run_name)
+                skip_reasons[run_name] = "completed"
                 logger.info(f"⏭️ Skipping {run_name} (stats.json exists)")
                 continue
 
@@ -373,14 +400,14 @@ class ExperimentLauncher:
             failure_reason = self._get_previous_failure_reason(kwargs)
             if failure_reason:
                 results[run_name] = 0
-                skipped_runs.add(run_name)
+                skip_reasons[run_name] = failure_reason
                 logger.info(f"⏭️ Skipping {run_name} (previous {failure_reason} failure)")
                 continue
 
             exit_code, skipped, job_id = self._execute_direct(kwargs, run_name)
             results[run_name] = exit_code
             if skipped:
-                skipped_runs.add(run_name)
+                skip_reasons[run_name] = "already completed"
             if job_id:
                 job_ids.append(str(job_id))
 
@@ -403,8 +430,8 @@ class ExperimentLauncher:
         logger.info(f"{'=' * 60}")
 
         for run_name, exit_code in results.items():
-            if run_name in skipped_runs:
-                status = "⏭️ SKIPPED"
+            if run_name in skip_reasons:
+                status = f"⏭️ SKIPPED ({skip_reasons[run_name]})"
             elif self.dry_run:
                 status = "✅ WOULD SUBMIT" if exit_code == 0 else f"❌ WOULD FAIL ({exit_code})"
             else:
@@ -412,8 +439,8 @@ class ExperimentLauncher:
             logger.info(f"{run_name:<30} {status}")
 
         if results:
-            successful_submissions = sum(1 for name, code in results.items() if code == 0 and name not in skipped_runs)
-            skipped_count = len(skipped_runs)
+            successful_submissions = sum(1 for name, code in results.items() if code == 0 and name not in skip_reasons)
+            skipped_count = len(skip_reasons)
             if self.dry_run:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs would be submitted")
                 if skipped_count > 0:
@@ -433,11 +460,15 @@ class ExperimentLauncher:
 def main(
     config: str = "examples/inference/benchmark/sample_benchmark_config.yaml",
     dry_run: bool = False,
+    skip_failure_reasons: str = "OOM,timeout,server_fail",
 ) -> None:
+    # "none" sentinel means skip nothing (re-run all failures)
+    reasons = set() if skip_failure_reasons.strip().lower() == "none" else {r.strip() for r in skip_failure_reasons.split(",") if r.strip()}
     try:
         launcher = ExperimentLauncher(
             config_path=config,
             dry_run=dry_run,
+            skip_failure_reasons=reasons,
         )
 
         results = launcher.launch()
