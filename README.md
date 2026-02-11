@@ -66,6 +66,7 @@ You can check the following [examples](examples):
 - [fineweb.py](examples/fineweb.py) full reproduction of the [FineWeb dataset](https://huggingface.co/datasets/HuggingFaceFW/fineweb)
 - [process_common_crawl_dump.py](examples/process_common_crawl_dump.py) full pipeline to read commoncrawl warc files, extract their text content, filters and save the resulting data to s3. Runs on slurm
 - [tokenize_c4.py](examples/tokenize_c4.py) reads data directly from huggingface's hub to tokenize the english portion of the C4 dataset using the `gpt2` tokenizer
+- [estimate_tokens.py](examples/estimate_tokens.py) estimate total token counts for large HF datasets — needed to set the correct `SamplerFilter` rate when creating a random shuffled subsample (e.g. 100B tokens from a multi-trillion-token dataset). Streams a small sample per dataset, converges on the average tokens/doc, and multiplies by the total row count.
 - [minhash_deduplication.py](examples/minhash_deduplication.py) full pipeline to run minhash deduplication of text data
 - [sentence_deduplication.py](examples/sentence_deduplication.py) example to run sentence level exact deduplication
 - [exact_substrings.py](examples/exact_substrings.py) example to run ExactSubstr (requires [this repo](https://github.com/google-research/deduplicate-text-datasets))
