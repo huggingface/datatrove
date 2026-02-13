@@ -609,17 +609,34 @@ def analyze(root: str, n_jobs: int = -1) -> int:
     }
     TP_BASELINE_FALLBACK: tuple[int, ...] = (1, 2, 4, 8)
 
+    def _find_best_tps(df_valid: pd.DataFrame) -> tuple[pd.Series | None, float | None]:
+        """Find the row with the highest output_tps_per_gpu. Returns (row, tps) or (None, None)."""
+        if df_valid.empty:
+            return None, None
+        best_idx = df_valid["output_tps_per_gpu"].idxmax()
+        best_row = df_valid.loc[best_idx]
+        return best_row, best_row["output_tps_per_gpu"]
+
+    def _deviations_from_baseline(best_row: pd.Series, baseline_defaults: dict[str, object]) -> str:
+        """List parameters that differ from baseline defaults."""
+        deviations = [
+            f"{param}={best_row[param]}"
+            for param, default_val in baseline_defaults.items()
+            if param in best_row.index and pd.notna(best_row[param]) and best_row[param] != default_val
+        ]
+        return ", ".join(deviations) if deviations else "(baseline is optimal)"
+
     def print_optimization_summary(df_all: pd.DataFrame) -> pd.DataFrame:
         """
-        Print optimization summary comparing baseline vs best config per model (across all experiments).
+        Print optimization summary showing baseline, tier0-best, and tier1-best per model.
 
-        Baseline is model-specific: try tp=1 with other defaults, then tp=2, then tp=4, then tp=8;
-        first tp with at least one successful run is the baseline. Models with no matching baseline are skipped.
+        Tier0 experiments optimize tp/mns/mnbt. Tier1 experiments additionally optimize gmu/spec.
+        This shows the incremental improvement from each optimization tier.
         """
         summary_rows: list[dict[str, object]] = []
 
         for model in sorted(df_all["model"].unique()):
-            df_model = df_all[df_all["model"] == model].copy()
+            df_model = df_all[df_all["model"] == model]
             df_valid = df_model[df_model["output_tps_per_gpu"].notna()]
 
             if df_valid.empty:
@@ -629,7 +646,7 @@ def analyze(root: str, n_jobs: int = -1) -> int:
             baseline_row = None
             baseline_tp_used: int | None = None
             for tp in TP_BASELINE_FALLBACK:
-                baseline_mask = (df_valid["tp"] == tp)
+                baseline_mask = df_valid["tp"] == tp
                 for param, default_val in BASELINE_NON_TP_DEFAULTS.items():
                     baseline_mask &= df_valid[param] == default_val
                 df_baseline = df_valid[baseline_mask]
@@ -642,30 +659,32 @@ def analyze(root: str, n_jobs: int = -1) -> int:
             if baseline_row is None:
                 continue
             baseline_tps = baseline_row["output_tps_per_gpu"]
+            baseline_defaults = {"tp": baseline_tp_used, **BASELINE_NON_TP_DEFAULTS}
 
-            best_idx = df_valid["output_tps_per_gpu"].idxmax()
-            best_row = df_valid.loc[best_idx]
-            best_tps = best_row["output_tps_per_gpu"]
-            speedup = best_tps / baseline_tps if baseline_tps > 0 else None
+            # Split by tier: tier0 experiments start with "tier0", tier1 with "tier1"
+            df_tier0 = df_valid[df_valid["experiment"].str.startswith("tier0")]
+            df_tier1 = df_valid[df_valid["experiment"].str.startswith("tier1")]
 
-            # Deviations from baseline (tp used for baseline + other defaults)
-            baseline_defaults_used = {"tp": baseline_tp_used, **BASELINE_NON_TP_DEFAULTS}
-            deviations: list[str] = []
-            for param, default_val in baseline_defaults_used.items():
-                if param not in best_row.index:
-                    continue
-                best_val = best_row[param]
-                if pd.notna(best_val) and best_val != default_val:
-                    deviations.append(f"{param}={best_val}")
+            tier0_row, tier0_tps = _find_best_tps(df_tier0)
+            tier1_row, tier1_tps = _find_best_tps(df_tier1)
+
+            # Overall best across all tiers
+            overall_row, overall_tps = _find_best_tps(df_valid)
 
             summary_rows.append(
                 {
                     "model": model,
                     "baseline_tp": baseline_tp_used,
                     "baseline_tps": int(round(baseline_tps)),
-                    "optimized_tps": int(round(best_tps)),
-                    "speedup": speedup,
-                    "optimized_params": ", ".join(deviations) if deviations else "(baseline is optimal)",
+                    "tier0_tps": int(round(tier0_tps)) if tier0_tps else None,
+                    "tier0_speedup": tier0_tps / baseline_tps if tier0_tps and baseline_tps > 0 else None,
+                    "tier0_params": _deviations_from_baseline(tier0_row, baseline_defaults) if tier0_row is not None else "-",
+                    "tier1_tps": int(round(tier1_tps)) if tier1_tps else None,
+                    "tier1_speedup": tier1_tps / baseline_tps if tier1_tps and baseline_tps > 0 else None,
+                    "tier1_params": _deviations_from_baseline(tier1_row, baseline_defaults) if tier1_row is not None else "-",
+                    "overall_tps": int(round(overall_tps)) if overall_tps else None,
+                    "overall_speedup": overall_tps / baseline_tps if overall_tps and baseline_tps > 0 else None,
+                    "overall_params": _deviations_from_baseline(overall_row, baseline_defaults) if overall_row is not None else "-",
                 }
             )
 
@@ -680,13 +699,29 @@ def analyze(root: str, n_jobs: int = -1) -> int:
         print(f"Baseline: tp in {TP_BASELINE_FALLBACK} (first with data), {', '.join(f'{k}={v}' for k, v in BASELINE_NON_TP_DEFAULTS.items())}")
         print()
 
-        headers = ["Model", "Baseline tp", "Baseline tps/gpu", "Optimized tps/gpu", "Speedup", "Optimized Parameters"]
-        col_keys = ["model", "baseline_tp", "baseline_tps", "optimized_tps", "speedup", "optimized_params"]
+        headers = [
+            "Model", "Base tp", "Base tps/gpu",
+            "Tier0 tps/gpu", "T0 Speedup", "Tier0 Parameters",
+            "Tier1 tps/gpu", "T1 Speedup", "Tier1 Parameters",
+            "Best tps/gpu", "Speedup", "Best Parameters",
+        ]
+        col_keys = [
+            "model", "baseline_tp", "baseline_tps",
+            "tier0_tps", "tier0_speedup", "tier0_params",
+            "tier1_tps", "tier1_speedup", "tier1_params",
+            "overall_tps", "overall_speedup", "overall_params",
+        ]
+        aligns = [
+            "left", "right", "right",
+            "right", "right", "left",
+            "right", "right", "left",
+            "right", "right", "left",
+        ]
 
         def fmt_cell(val: object, key: str) -> str:
             if val is None or (isinstance(val, float) and pd.isna(val)):
                 return "-"
-            if key == "speedup":
+            if "speedup" in key:
                 return f"{val:.2f}x"
             return str(val)
 
@@ -696,7 +731,6 @@ def analyze(root: str, n_jobs: int = -1) -> int:
         print("| " + " | ".join(h.ljust(widths[i]) for i, h in enumerate(headers)) + " |")
         print("| " + " | ".join("-" * w for w in widths) + " |")
 
-        aligns = ["left", "right", "right", "right", "right", "left"]
         for r in data_rows:
             cells = [r[i].rjust(widths[i]) if aligns[i] == "right" else r[i].ljust(widths[i]) for i in range(len(r))]
             print("| " + " | ".join(cells) + " |")
