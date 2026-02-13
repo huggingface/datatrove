@@ -678,13 +678,19 @@ def analyze(root: str, n_jobs: int = -1) -> int:
                     "baseline_tps": int(round(baseline_tps)),
                     "tier0_tps": int(round(tier0_tps)) if tier0_tps else None,
                     "tier0_speedup": tier0_tps / baseline_tps if tier0_tps and baseline_tps > 0 else None,
-                    "tier0_params": _deviations_from_baseline(tier0_row, baseline_defaults) if tier0_row is not None else "-",
+                    "tier0_params": _deviations_from_baseline(tier0_row, baseline_defaults)
+                    if tier0_row is not None
+                    else "-",
                     "tier1_tps": int(round(tier1_tps)) if tier1_tps else None,
                     "tier1_speedup": tier1_tps / baseline_tps if tier1_tps and baseline_tps > 0 else None,
-                    "tier1_params": _deviations_from_baseline(tier1_row, baseline_defaults) if tier1_row is not None else "-",
+                    "tier1_params": _deviations_from_baseline(tier1_row, baseline_defaults)
+                    if tier1_row is not None
+                    else "-",
                     "overall_tps": int(round(overall_tps)) if overall_tps else None,
                     "overall_speedup": overall_tps / baseline_tps if overall_tps and baseline_tps > 0 else None,
-                    "overall_params": _deviations_from_baseline(overall_row, baseline_defaults) if overall_row is not None else "-",
+                    "overall_params": _deviations_from_baseline(overall_row, baseline_defaults)
+                    if overall_row is not None
+                    else "-",
                 }
             )
 
@@ -696,26 +702,52 @@ def analyze(root: str, n_jobs: int = -1) -> int:
         print(f"\n{'=' * 80}")
         print("Optimization Summary (All Models)")
         print(f"{'=' * 80}")
-        print(f"Baseline: tp in {TP_BASELINE_FALLBACK} (first with data), {', '.join(f'{k}={v}' for k, v in BASELINE_NON_TP_DEFAULTS.items())}")
+        print(
+            f"Baseline: tp in {TP_BASELINE_FALLBACK} (first with data), {', '.join(f'{k}={v}' for k, v in BASELINE_NON_TP_DEFAULTS.items())}"
+        )
         print()
 
         headers = [
-            "Model", "Base tp", "Base tps/gpu",
-            "Tier0 tps/gpu", "T0 Speedup", "Tier0 Parameters",
-            "Tier1 tps/gpu", "T1 Speedup", "Tier1 Parameters",
-            "Best tps/gpu", "Speedup", "Best Parameters",
+            "Model",
+            "Base tp",
+            "Base tps/gpu",
+            "Tier0 tps/gpu",
+            "T0 Speedup",
+            "Tier0 Parameters",
+            "Tier1 tps/gpu",
+            "T1 Speedup",
+            "Tier1 Parameters",
+            "Best tps/gpu",
+            "Speedup",
+            "Best Parameters",
         ]
         col_keys = [
-            "model", "baseline_tp", "baseline_tps",
-            "tier0_tps", "tier0_speedup", "tier0_params",
-            "tier1_tps", "tier1_speedup", "tier1_params",
-            "overall_tps", "overall_speedup", "overall_params",
+            "model",
+            "baseline_tp",
+            "baseline_tps",
+            "tier0_tps",
+            "tier0_speedup",
+            "tier0_params",
+            "tier1_tps",
+            "tier1_speedup",
+            "tier1_params",
+            "overall_tps",
+            "overall_speedup",
+            "overall_params",
         ]
         aligns = [
-            "left", "right", "right",
-            "right", "right", "left",
-            "right", "right", "left",
-            "right", "right", "left",
+            "left",
+            "right",
+            "right",
+            "right",
+            "right",
+            "left",
+            "right",
+            "right",
+            "left",
+            "right",
+            "right",
+            "left",
         ]
 
         def fmt_cell(val: object, key: str) -> str:

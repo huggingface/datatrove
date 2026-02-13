@@ -22,8 +22,6 @@
 script: "examples/inference/generate_data.py"
 continue_on_failure: true
 
-# TODO: merge finaliize-benchmark branch
-
 # Fixed arguments applied to all runs
 fixed_args:
   benchmark-mode: true
@@ -112,7 +110,6 @@ experiments:
     args:
       model-name-or-path: 
         - "openai/gpt-oss-120b"  # 120B-A12B MoE
-        - "Qwen/Qwen3-235B-A22B-Instruct-2507"  # 235B-A22B MoE
       tp: [1, 2, 4, 8]
       max-num-seqs: [256, 512, 1024, 2048, 4096]
       max-num-batched-tokens: [8192, 16384, 32768]

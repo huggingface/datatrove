@@ -82,7 +82,9 @@ class ExperimentLauncher:
         """
         self.config_path = Path(config_path)
         self.dry_run = dry_run
-        self.skip_failure_reasons = skip_failure_reasons if skip_failure_reasons is not None else self.ALL_FAILURE_REASONS
+        self.skip_failure_reasons = (
+            skip_failure_reasons if skip_failure_reasons is not None else self.ALL_FAILURE_REASONS
+        )
 
         # Load and validate configuration
         self.config = self._load_config()
@@ -463,7 +465,11 @@ def main(
     skip_failure_reasons: str = "OOM,timeout,server_fail",
 ) -> None:
     # "none" sentinel means skip nothing (re-run all failures)
-    reasons = set() if skip_failure_reasons.strip().lower() == "none" else {r.strip() for r in skip_failure_reasons.split(",") if r.strip()}
+    reasons = (
+        set()
+        if skip_failure_reasons.strip().lower() == "none"
+        else {r.strip() for r in skip_failure_reasons.split(",") if r.strip()}
+    )
     try:
         launcher = ExperimentLauncher(
             config_path=config,
