@@ -59,7 +59,19 @@ python examples/inference/benchmark/launch_experiments.py \
     --config examples/inference/benchmark/sample_benchmark_config.yaml
 ```
 
-Just re-run this script until all jobs complete successfully. Completed jobs will be skipped.
+Just re-run this script until all jobs complete successfully. Completed jobs and previous failures (OOM, timeout, server_fail) are skipped by default. To re-run only specific failure types:
+
+```bash
+# Re-run timeouts and server failures, but still skip OOM
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml \
+    --skip-failure-reasons OOM
+
+# Re-run all previously failed experiments
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml \
+    --skip-failure-reasons none
+```
 
 ### 4. Analyze Results
 
@@ -94,15 +106,12 @@ Directory segments:
 
 ## Tiered Optimization Approach
 
-The benchmark follows a sequential tiered approach where each tier builds on the optimal settings from previous tiers:
+The benchmark follows a sequential two-tier approach where Tier 1 builds on the optimal settings from Tier 0:
 
-| Tier | Parameters              | Goal                                                        |
-| ---- | ----------------------- | ----------------------------------------------------------- |
-| 0    | `tp`, `pp`, `nodes`     | **Make it run** - Find minimum parallelism to fit model     |
-| 1    | `mns`, `mnbt`           | **Batching** - Highest impact; maximize sequence throughput |
-| 2    | `gmu`, `kvc`, `bs`      | **Memory/KV cache** - Best use of available GPU memory      |
-| 3    | `spec`                  | **Speculative decoding** - Lossless speedup                 |
-| 4    | `quant`                 | **Quantization** - Lossy speedup as last resort             |
+| Tier | Parameters              | Goal                                                                |
+| ---- | ----------------------- | ------------------------------------------------------------------- |
+| 0    | `tp`, `mns`, `mnbt`    | **Parallelism & Batching** - Find optimal parallelism and batch sizes |
+| 1    | `spec`, `gmu`          | **SpecDec & GMU** - Lossless speedup via speculative decoding and memory tuning |
 
 Run tiers sequentially and use winners from each tier to inform the next. See [`sample_benchmark_config.yaml`](sample_benchmark_config.yaml) for a complete example.
 
@@ -114,12 +123,11 @@ The analyzer outputs per-experiment CSV files and a combined CSV. Key columns:
 | ------------------------------- | ------------------------------------------- |
 | `experiment`, `prompt`          | Experiment and prompt template name         |
 | `model`                         | Model name (org prefix stripped)            |
-| `tp`, `pp`, `dp`                | Tier 0: Parallelism config                  |
-| `mns`, `mnbt`                   | Tier 1: Batching parameters                 |
-| `gmu`, `bs`, `kvc`              | Tier 2: Memory and KV cache config          |
-| `spec`                          | Tier 3: Speculative decoding config         |
-| `quant`                         | Tier 4: Quantization config                 |
-| `input_tps_per_gpu`             | Input tokens per second per GPU             |
+| `tp`, `pp`, `dp`                | Parallelism config                          |
+| `mns`, `mnbt`                   | Batching parameters                         |
+| `gmu`, `bs`, `kvc`              | Memory and KV cache config                  |
+| `spec`                          | Speculative decoding config                 |
+| `quant`                         | Quantization config                         |
 | `output_tps_per_gpu`            | Output tokens per second per GPU            |
 | `gpu_days_to_process_1b_tokens` | GPU-days to generate 1B output tokens       |
 | `gpus_for_1b_tokens_per_hour`   | GPUs needed for 1B tokens/hour              |
@@ -139,7 +147,7 @@ The analyzer outputs per-experiment CSV files and a combined CSV. Key columns:
 
 Each experiment can specify:
 - `name`: Experiment name (top-level directory in output path)
-- `args`: Dictionary of arguments; list values are expanded into cartesian product, launching multiple runs per experiment
+- `args`: Dictionary of arguments; list values are expanded into cartesian product, launching multiple runs per experiment. Experiment args override `fixed_args` for the same key. List values in `fixed_args` are also expanded as sweeps.
 
 ## Speculative Decoding
 
@@ -196,36 +204,44 @@ Reduce KV cache memory with dtype quantization:
 | FP8 E4M3 | `"fp8_e4m3"` | FP8 E4M3 format (CUDA 11.8+)                |
 | FP8 E5M2 | `"fp8_e5m2"` | FP8 E5M2 format                             |
 
-## Model Lineup
+## Optimization Results
 
-We have benchmarked DataTrove with a variety of models to determine the best throughput and number of GPUs required to 
-generate 1 billion tokens per hour. The following table provides an overview of these optimised configurations:
+Results from a two-tier optimization sweep on 80GB H100 GPUs. Baseline uses vLLM defaults: `tp` in (1, 2, 4, 8) (first that fits), `mns=256`, `mnbt=8192`, `gmu=90`, `bs=16`, `kvc=auto`, `spec=none`, `quant=none`.
 
+| Model                       | Base TP | Base tps/gpu | Best tps/gpu | Speedup | Best Parameters                                   |
+| :-------------------------- | ------: | -----------: | -----------: | ------: | :------------------------------------------------- |
+| SmolLM2-135M-Instruct       |       1 |        28391 |        45540 |   1.60x | mns=512, mnbt=32768, spec=ngram_6                 |
+| SmolLM2-360M-Instruct       |       1 |        17887 |        23996 |   1.34x | mns=512, spec=ngram_6                             |
+| Qwen3-0.6B                  |       1 |        13527 |        14069 |   1.04x | mns=512                                           |
+| gemma-3-270m-it              |       1 |        22996 |        23585 |   1.03x | mnbt=32768                                        |
+| gemma-3-1b-it                |       1 |        14838 |        16762 |   1.13x | mns=4096, mnbt=32768                              |
+| SmolLM2-1.7B-Instruct       |       1 |         5255 |         9220 |   1.75x | mns=2048, mnbt=32768, gmu=95, spec=suffix_32      |
+| Qwen3-1.7B                  |       1 |        11710 |        12313 |   1.05x | mnbt=32768                                        |
+| Qwen3-4B                    |       1 |         7919 |         8086 |   1.02x | mnbt=32768                                        |
+| gemma-3-4b-it                |       1 |         8501 |         9253 |   1.09x | mns=1024, mnbt=32768                              |
+| Qwen3-8B                    |       1 |         6338 |         6443 |   1.02x | gmu=95                                            |
+| gemma-3-12b-it               |       1 |         2999 |         3046 |   1.02x | gmu=95                                            |
+| Qwen3-14B                   |       1 |         4414 |         4549 |   1.03x | tp=2                                              |
+| gpt-oss-20b                 |       1 |        12432 |        14671 |   1.18x | mns=512, mnbt=16384                               |
+| gemma-3-27b-it               |       2 |         1724 |         1724 |   1.00x | (baseline is optimal)                             |
+| Qwen3-30B-A3B-Thinking-2507 |       1 |         2977 |         5310 |   1.78x | tp=2, mns=512, mnbt=32768                         |
+| Qwen3-32B                   |       4 |         1987 |         2078 |   1.05x | mns=512, mnbt=16384, gmu=95                       |
+| Qwen3-Next-80B-A3B-Thinking |       4 |         2034 |         2678 |   1.32x | mns=512                                           |
+| gpt-oss-120b                |       1 |         3138 |         6117 |   1.95x | tp=2, mns=1024, mnbt=32768                        |
 
-| Model name                                                                                                      | Architecture | Size        | TP | PP | Input TPS/GPU | Output TPS/GPU | GPUs/1B/h |
-| :-------------------------------------------------------------------------------------------------------------- | :----------- | :---------- | -: | -: | ------------: | -------------: | --------: |
-| [google/gemma-3-1b-it](https://huggingface.co/google/gemma-3-1b-it)                                             | 🧱 Dense      | 🐣 Compact  |  1 |  1 |          2565 |          16616 |        17 |
-| [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B)                                                       | 🧱 Dense      | 🐣 Compact  |  1 |  1 |          2523 |          15397 |        18 |
-| [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it)                                             | 🧱 Dense      | 🐣 Compact  |  1 |  1 |           760 |           5427 |        51 |
-| [Qwen/Qwen3-4B-Thinking-2507](https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507)                               | 🧱 Dense      | 🐣 Compact  |  1 |  1 |           942 |           7038 |        39 |
-| [openai/gpt-oss-20b](https://huggingface.co/openai/gpt-oss-20b)                                                 | 🔀 MoE        | 🦅 Medium   |  1 |  1 |          1330 |           6962 |        40 |
-| [nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16) | 🔀 MoE        | 🦅 Medium   |  1 |  1 |          1253 |           5490 |        51 |
-| [nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8)   | 🔀 MoE        | 🦅 Medium   |  1 |  1 |          3447 |           9274 |        30 |
-| [Qwen/Qwen3-30B-A3B-Thinking-2507](https://huggingface.co/Qwen/Qwen3-30B-A3B-Thinking-2507)                     | 🔀 MoE        | 🦅 Medium   |  1 |  1 |           483 |           3612 |        77 |
-| [Qwen/Qwen3-Next-80B-A3B-Thinking](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking)                     | 🔀 MoE        | 🦅 Medium   |  4 |  1 |           136 |           1017 |       273 |
-| [openai/gpt-oss-120b](https://huggingface.co/openai/gpt-oss-120b)                                               | 🔀 MoE        | 🦖 Large    |  2 |  1 |           518 |           2704 |       103 |
-| [Qwen/Qwen3-235B-A22B-Thinking-2507](https://huggingface.co/Qwen/Qwen3-235B-A22B-Thinking-2507)                 | 🔀 MoE        | 🦖 Large    |  8 |  1 |            32 |            239 |      1161 |
-| [moonshotai/Kimi-K2-Instruct](https://huggingface.co/moonshotai/Kimi-K2-Instruct)                               | 🔀 MoE        | 🐋 Enormous |  8 |  2 |             5 |             26 |     10645 |
+### Key Takeaways
 
-### Architecture
+- **Speculative decoding** provides the largest wins for small models (up to 1.75x for SmolLM2-1.7B with suffix decoding, 1.60x for SmolLM2-135M with n-gram)
+- **Batch size tuning** (`mns`, `mnbt`) is the most consistently impactful lever across all model sizes
+- **MoE models** benefit significantly from TP tuning (gpt-oss-120b: 1.95x with tp=2, Qwen3-30B-A3B: 1.78x with tp=2)
+- **Large dense models** (gemma-3-27b) are already well-optimized at baseline defaults
 
-- 🧱 Dense: Standard transformer architecture with all parameters active
-- 🔀 MoE:   Mixture of Experts architecture with sparse activation
+### Environment
 
-### Model Sizes (total parameters)
-
-- 🐣 Compact:   <4B parameters
-- 🦆 Small:     4B-10B parameters
-- 🦅 Medium:    10B-100B parameters
-- 🦖 Large:     100B-500B parameters
-- 🐋 Enormous:  500B+ parameters
+| Library      | Version       |
+| ------------ | ------------- |
+| vLLM         | 0.15.0        |
+| PyTorch      | 2.9.1         |
+| Transformers | 4.57.6        |
+| DataTrove    | 0.8.0         |
+| CUDA         | 12.8          |
