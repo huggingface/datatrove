@@ -12,6 +12,18 @@ python examples/inference/benchmark/launch_experiments.py \
 
 python examples/inference/benchmark/launch_experiments.py \
     --config examples/inference/benchmark/sample_benchmark_config.yaml --dry-run
+
+Retry only OOM failures (skip timeout and server_fail but re-run OOM):
+
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml \
+    --skip-failure-reasons timeout,server_fail
+
+Re-run all previously failed experiments (skip nothing):
+
+python examples/inference/benchmark/launch_experiments.py \
+    --config examples/inference/benchmark/sample_benchmark_config.yaml \
+    --skip-failure-reasons none
 """
 
 import re
@@ -50,16 +62,29 @@ from utils import (
 class ExperimentLauncher:
     """Launches experiments based on YAML configuration."""
 
-    def __init__(self, config_path: str, dry_run: bool = False):
+    # All recognized failure reasons from detect_failure_reason
+    ALL_FAILURE_REASONS = {"OOM", "timeout", "server_fail"}
+
+    def __init__(
+        self,
+        config_path: str,
+        dry_run: bool = False,
+        skip_failure_reasons: set[str] | None = None,
+    ):
         """
         Initialize the experiment launcher.
 
         Args:
             config_path: Path to YAML configuration file
             dry_run: If True, print commands without executing
+            skip_failure_reasons: Failure reasons that cause a run to be skipped.
+                Defaults to all reasons: {"OOM", "timeout", "server_fail"}.
         """
         self.config_path = Path(config_path)
         self.dry_run = dry_run
+        self.skip_failure_reasons = (
+            skip_failure_reasons if skip_failure_reasons is not None else self.ALL_FAILURE_REASONS
+        )
 
         # Load and validate configuration
         self.config = self._load_config()
@@ -101,7 +126,7 @@ class ExperimentLauncher:
             if "name" not in experiment:
                 raise ValueError(f"Experiment {i} missing required 'name' field")
             # Validate that no experiment has 'name' in its args (since we auto-generate run names)
-            if "name" in experiment.get("args", {}):
+            if "name" in (experiment.get("args") or {}):
                 raise ValueError(
                     f"Experiment '{experiment['name']}' should not have 'name' in its args. "
                     f"Run names are automatically derived from the configuration."
@@ -192,41 +217,53 @@ class ExperimentLauncher:
 
         return "-".join(parts)
 
+    # Keys that are list-valued but should NOT be treated as sweep parameters
+    _NON_SWEEP_KEYS = {"prompt-template", "prompt_template"}
+
     def _expand_experiment(self, experiment_config: dict[str, Any]) -> list[dict[str, Any]]:
         """Expand a single experiment config into multiple runs if any args values are lists.
 
-        If multiple args contain lists, generate the cartesian product (all permutations).
-        Each run corresponds to one SLURM job.
+        If multiple args contain lists (in either fixed_args or experiment args),
+        generate the cartesian product (all permutations). Each run corresponds to one SLURM job.
+        Experiment args override fixed_args for the same key.
+
+        Note: Some keys like 'prompt-template' are list-valued by design (e.g., [name, template])
+        and are excluded from sweep expansion.
         """
-        fixed_args = self.config.get("fixed_args", {}) or {}
-        exp_args = experiment_config.get("args", {}) or {}
+        fixed_args = self.config.get("fixed_args") or {}
+        exp_args = experiment_config.get("args") or {}
         experiment_name = experiment_config["name"]
-        sweep_keys = [key for key, value in exp_args.items() if isinstance(value, list) and len(value) > 0]
+
+        # Merge fixed_args with exp_args (exp_args take precedence)
+        merged_args = {**fixed_args, **exp_args}
+
+        # Find all sweep keys (list values) in merged args, excluding non-sweep keys
+        sweep_keys = [
+            key
+            for key, value in merged_args.items()
+            if isinstance(value, list) and len(value) > 0 and key not in self._NON_SWEEP_KEYS
+        ]
 
         if not sweep_keys:
-            # Merge fixed_args with exp_args for name derivation (exp_args override fixed_args)
-            merged_for_name = {**fixed_args, **exp_args}
-            derived_name = self._derive_run_name(merged_for_name)
+            derived_name = self._derive_run_name(merged_args)
             return [
                 {
                     "name": derived_name,
                     "experiment": experiment_name,
-                    "args": exp_args,
+                    "args": merged_args,
                 }
             ]
 
         ordered_keys = sorted(sweep_keys)
-        value_lists = [exp_args[key] for key in ordered_keys]
+        value_lists = [merged_args[key] for key in ordered_keys]
 
         expanded_runs: list[dict[str, Any]] = []
         for combo in product(*value_lists):
-            new_args = dict(exp_args)
+            new_args = dict(merged_args)
             for key, val in zip(ordered_keys, combo):
                 new_args[key] = val
 
-            # Merge fixed_args with new_args for name derivation
-            merged_for_name = {**fixed_args, **new_args}
-            new_name = self._derive_run_name(merged_for_name)
+            new_name = self._derive_run_name(new_args)
 
             expanded_runs.append(
                 {
@@ -240,10 +277,8 @@ class ExperimentLauncher:
 
     def _build_kwargs(self, run_config: dict[str, Any]) -> dict[str, Any]:
         """Build kwargs dict for calling generate_data.main directly."""
-        # Merge fixed_args and run args, with run args overriding fixed_args
-        fixed_args = self.config.get("fixed_args", {}) or {}
-        var_args = run_config.get("args", {}) or {}
-        merged = {**fixed_args, **var_args, "name": run_config["name"]}
+        # Args are already merged in _expand_experiment
+        merged = {**(run_config.get("args") or {}), "name": run_config["name"]}
 
         # Prepend experiment name to output-dir for directory grouping
         if "experiment" in run_config and "output-dir" in merged:
@@ -278,28 +313,39 @@ class ExperimentLauncher:
         run_path = self._get_run_path(kwargs)
         return (run_path / "inference_logs" / "stats.json").exists()
 
-    def _has_oom_failure(self, kwargs: dict[str, Any]) -> bool:
-        """Check if a previous run failed with OOM by scanning log files."""
+    def _get_previous_failure_reason(self, kwargs: dict[str, Any]) -> str | None:
+        """Check if a previous run failed with a skipable reason by scanning log files."""
+        if not self.skip_failure_reasons:
+            return None
+
         inference_logs = self._get_run_path(kwargs) / "inference_logs"
         if not inference_logs.exists():
-            return False
+            return None
 
         log_files = list(inference_logs.glob("slurm_logs/*.out")) + list(inference_logs.glob("server_logs/*.log"))
-        return any(detect_failure_reason(f) == "OOM" for f in log_files)
+        for f in log_files:
+            reason = detect_failure_reason(f)
+            if reason in self.skip_failure_reasons:
+                return reason
+        return None
 
-    def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool]:
-        """Execute generate_data.main directly (no subprocess overhead)."""
+    def _execute_direct(self, kwargs: dict[str, Any], run_name: str) -> tuple[int, bool, str | None]:
+        """Execute generate_data.main directly (no subprocess overhead).
+
+        Returns:
+            Tuple of (exit_code, skipped, job_id)
+        """
         logger.info(f"\n{'=' * 60}")
         logger.info(f"Submitting Slurm job for run: {run_name}")
         logger.info(f"{'=' * 60}")
 
         if self.dry_run:
             logger.info("[DRY RUN] Slurm job would be submitted")
-            return 0, False
+            return 0, False, None
 
         try:
-            generate_data_main(**kwargs)
-            return 0, False
+            job_id = generate_data_main(**kwargs)
+            return 0, False, job_id
         except KeyboardInterrupt:
             logger.info(f"\nInterrupted during job submission for run: {run_name}")
             raise
@@ -307,9 +353,9 @@ class ExperimentLauncher:
             error_msg = str(e)
             if "Skipping launch" in error_msg or "already been completed" in error_msg:
                 logger.info(f"Job skipped: {error_msg}")
-                return 0, True
+                return 0, True, None
             logger.error(f"Error submitting job for run {run_name}: {e}")
-            return 1, False
+            return 1, False, None
 
     def launch(self) -> dict[str, int]:
         """
@@ -320,6 +366,10 @@ class ExperimentLauncher:
         """
         logger.info(f"Configuration: {self.config_path}")
         logger.info(f"Timestamp: {self.timestamp}")
+        if self.skip_failure_reasons:
+            logger.info(f"Skipping previous failures: {sorted(self.skip_failure_reasons)}")
+        else:
+            logger.info("Not skipping any previous failures (will re-run all)")
 
         if self.dry_run:
             logger.info("\n*** DRY RUN MODE - No Slurm jobs will be submitted ***")
@@ -327,7 +377,8 @@ class ExperimentLauncher:
             logger.info("\n*** SUBMITTING SLURM JOBS ***")
 
         results = {}
-        skipped_runs = set()
+        skip_reasons: dict[str, str] = {}  # run_name -> reason for skipping
+        job_ids: list[str] = []
 
         # Expand experiments into runs (lists in args produce cartesian product of values)
         expanded_runs: list[dict[str, Any]] = []
@@ -343,21 +394,24 @@ class ExperimentLauncher:
             # Skip runs that already have stats.json (completed successfully)
             if self._is_already_completed(kwargs):
                 results[run_name] = 0
-                skipped_runs.add(run_name)
+                skip_reasons[run_name] = "completed"
                 logger.info(f"⏭️ Skipping {run_name} (stats.json exists)")
                 continue
 
-            # Skip runs that previously failed with OOM
-            if self._has_oom_failure(kwargs):
+            # Skip runs that previously failed with a non-recoverable reason
+            failure_reason = self._get_previous_failure_reason(kwargs)
+            if failure_reason:
                 results[run_name] = 0
-                skipped_runs.add(run_name)
-                logger.info(f"⏭️ Skipping {run_name} (previous OOM failure)")
+                skip_reasons[run_name] = failure_reason
+                logger.info(f"⏭️ Skipping {run_name} (previous {failure_reason} failure)")
                 continue
 
-            exit_code, skipped = self._execute_direct(kwargs, run_name)
+            exit_code, skipped, job_id = self._execute_direct(kwargs, run_name)
             results[run_name] = exit_code
             if skipped:
-                skipped_runs.add(run_name)
+                skip_reasons[run_name] = "already completed"
+            if job_id:
+                job_ids.append(str(job_id))
 
             if exit_code != 0:
                 logger.error(f"❌ Slurm job submission failed for {run_name} (exit code {exit_code})")
@@ -378,8 +432,8 @@ class ExperimentLauncher:
         logger.info(f"{'=' * 60}")
 
         for run_name, exit_code in results.items():
-            if run_name in skipped_runs:
-                status = "⏭️ SKIPPED"
+            if run_name in skip_reasons:
+                status = f"⏭️ SKIPPED ({skip_reasons[run_name]})"
             elif self.dry_run:
                 status = "✅ WOULD SUBMIT" if exit_code == 0 else f"❌ WOULD FAIL ({exit_code})"
             else:
@@ -387,19 +441,20 @@ class ExperimentLauncher:
             logger.info(f"{run_name:<30} {status}")
 
         if results:
-            successful_submissions = sum(1 for name, code in results.items() if code == 0 and name not in skipped_runs)
-            skipped_count = len(skipped_runs)
+            successful_submissions = sum(1 for name, code in results.items() if code == 0 and name not in skip_reasons)
+            skipped_count = len(skip_reasons)
             if self.dry_run:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs would be submitted")
                 if skipped_count > 0:
-                    logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
+                    logger.info(f"{skipped_count} job(s) skipped (completed or previous failure)")
             else:
                 logger.info(f"\n{successful_submissions}/{len(results)} jobs submitted successfully")
                 if skipped_count > 0:
-                    logger.info(f"{skipped_count} job(s) skipped (completed or OOM)")
+                    logger.info(f"{skipped_count} job(s) skipped (completed or previous failure)")
                 if successful_submissions > 0:
                     logger.info("Use 'squeue -u $USER' to monitor job status")
-                    logger.info("Use 'scancel <job_id>' to cancel jobs if needed")
+                    if job_ids:
+                        logger.info(f"Cancel all launched jobs: scancel {' '.join(job_ids)}")
 
         return results
 
@@ -407,11 +462,19 @@ class ExperimentLauncher:
 def main(
     config: str = "examples/inference/benchmark/sample_benchmark_config.yaml",
     dry_run: bool = False,
+    skip_failure_reasons: str = "OOM,timeout,server_fail",
 ) -> None:
+    # "none" sentinel means skip nothing (re-run all failures)
+    reasons = (
+        set()
+        if skip_failure_reasons.strip().lower() == "none"
+        else {r.strip() for r in skip_failure_reasons.split(",") if r.strip()}
+    )
     try:
         launcher = ExperimentLauncher(
             config_path=config,
             dry_run=dry_run,
+            skip_failure_reasons=reasons,
         )
 
         results = launcher.launch()

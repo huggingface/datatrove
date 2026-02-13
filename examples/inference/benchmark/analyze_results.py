@@ -6,16 +6,19 @@ Analyze benchmark experiment outputs and produce per-experiment CSV files and fo
 - Parse throughput metrics from server logs (excludes startup time)
 - Compute per-TP (per-GPU) throughput by dividing engine throughput by TP
 - Compute derived metrics: gpu_days, node_days, and gpus_for_1b_tokens_per_hour
-- Output one table per experiment and save per-experiment CSV files named by experiment name
-- Also saves a combined CSV with all experiments
+- Output one table per experiment and save per-experiment CSV files named by experiment name to the root directory
+- Also saves a combined CSV with all experiments to the root directory
 
 Usage:
 
 # Summarize experiments under the default 'examples/inference/benchmark/results' root and write CSV
 python examples/inference/benchmark/analyze_results.py
 
-# Summarize a specific root and set an explicit CSV path
-python examples/inference/benchmark/analyze_results.py --root examples/inference/benchmark/results --out-csv examples/inference/benchmark/results/benchmarking_results.csv
+# Summarize a specific root and write CSVs to that root
+python examples/inference/benchmark/analyze_results.py --root examples/inference/benchmark/results
+
+# Control parallelism (default: -1 uses all CPUs, use 1 for sequential processing)
+python examples/inference/benchmark/analyze_results.py --n-jobs 8
 """
 
 import glob
@@ -29,6 +32,8 @@ from statistics import mean
 
 import pandas as pd
 import typer
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 from datatrove.utils.logging import logger
 
@@ -90,7 +95,7 @@ def parse_server_logs(server_log_path: Path) -> dict[str, float | None] | None:
     kv_cache_usages: list[float] = []
     prefix_cache_rates: list[float] = []
 
-    for line in server_log_path.read_text().splitlines():
+    for line in server_log_path.read_text(errors="replace").splitlines():
         if match := throughput_pattern.search(line):
             prompt_thr, gen_thr = float(match.group(1)), float(match.group(2))
             if prompt_thr == 0.0:
@@ -284,117 +289,132 @@ def compute_gpus_for_1b_per_hour_from_per_gpu(output_tps_per_gpu: float | None) 
     return 1_000_000_000.0 / (output_tps_per_gpu * 3600.0)
 
 
-def analyze(root: str, out_csv: str) -> int:
-    files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
-    rows: list[dict[str, object]] = []
+def process_single_file(path: str, root: str) -> dict[str, object]:
+    """Process a single log file and return a row dict with metrics."""
+    fields = parse_path_fields(path, root)
 
-    for path in files:
-        fields = parse_path_fields(path, root)
+    # Create row from path fields + additional metrics (default None)
+    row: dict[str, object] = {
+        **asdict(fields),
+        "gpus_for_1b_tokens_per_hour": None,
+        "node_days_to_process_1b_tokens": None,
+        "gpu_days_to_process_1b_tokens": None,
+        "input_tps_per_gpu": None,
+        "output_tps_per_gpu": None,
+        "tokens_input_per_sec": None,
+        "tokens_output_per_sec": None,
+        "avg_running_reqs": None,
+        "avg_waiting_reqs": None,
+        "avg_gpu_kvc_usage": None,
+        "avg_prefix_cache_hit_rate": None,
+        "prompt_tokens_total": None,
+        "completion_tokens_total": None,
+        "mean_input_tokens": None,
+        "mean_output_tokens": None,
+        "successful_requests": None,
+        "failed_requests": None,
+        "e2e_time": None,
+        "inference_time": None,
+        "e2e_per_1k_per_gpu": None,
+        "inference_per_1k_per_gpu": None,
+        "path": path,
+        "comment": "",
+    }
+    stats_dir = Path(path).parent.parent  # .../inference_logs
 
-        # Create row from path fields + additional metrics (default None)
-        row: dict[str, object] = {
-            **asdict(fields),
-            "gpus_for_1b_tokens_per_hour": None,
-            "node_days_to_process_1b_tokens": None,
-            "gpu_days_to_process_1b_tokens": None,
-            "input_tps_per_gpu": None,
-            "output_tps_per_gpu": None,
-            "tokens_input_per_sec": None,
-            "tokens_output_per_sec": None,
-            "avg_running_reqs": None,
-            "avg_waiting_reqs": None,
-            "avg_gpu_kvc_usage": None,
-            "avg_prefix_cache_hit_rate": None,
-            "prompt_tokens_total": None,
-            "completion_tokens_total": None,
-            "mean_input_tokens": None,
-            "mean_output_tokens": None,
-            "successful_requests": None,
-            "failed_requests": None,
-            "e2e_time": None,
-            "inference_time": None,
-            "e2e_per_1k_per_gpu": None,
-            "inference_per_1k_per_gpu": None,
-            "path": path,
-            "comment": "",
-        }
+    # Find server log file (try node-specific pattern first, then fallback)
+    server_logs_dir = stats_dir / "server_logs"
+    candidates = (
+        (sorted(server_logs_dir.glob("server_rank_*_node_*.log")) or sorted(server_logs_dir.glob("server_rank_*.log")))
+        if server_logs_dir.exists()
+        else []
+    )
+    server_log_path = candidates[0] if candidates else None
 
-        stats_dir = Path(path).parent.parent  # .../inference_logs
+    # Check for failure patterns BEFORE stats.json - failures prevent stats.json creation
+    slurm_log_path = Path(path)
+    failure_reason = detect_failure_reason(slurm_log_path) or detect_failure_reason(server_log_path)
+    if failure_reason:
+        row["comment"] = failure_reason
+        return row
 
-        # Find server log file (try node-specific pattern first, then fallback)
-        server_logs_dir = stats_dir / "server_logs"
-        candidates = (
-            (
-                sorted(server_logs_dir.glob("server_rank_*_node_*.log"))
-                or sorted(server_logs_dir.glob("server_rank_*.log"))
-            )
-            if server_logs_dir.exists()
-            else []
+    stats_info = parse_stats_json(stats_dir / "stats.json")
+    if stats_info is None:
+        row["comment"] = "stats.json not found"
+        return row
+
+    row["prompt_tokens_total"] = int(stats_info["input_tokens_total"])
+    row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
+    row["mean_input_tokens"] = stats_info["input_tokens_mean"]
+    row["mean_output_tokens"] = stats_info["output_tokens_mean"]
+    row["successful_requests"] = stats_info["successful_requests_total"]
+    row["failed_requests"] = stats_info["failed_requests_total"]
+    row["e2e_time"] = stats_info["e2e_time"]
+    row["inference_time"] = stats_info["inference_time"]
+
+    # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
+    gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
+
+    # GPU-time to process 1000 examples (e2e_time * num_gpus / num_requests * 1000)
+    if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
+        row["e2e_per_1k_per_gpu"] = (
+            stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000 * gpu_divisor
         )
-        server_log_path = candidates[0] if candidates else None
 
-        # Check for failure patterns BEFORE stats.json - failures prevent stats.json creation
-        # Check both SLURM output log and server log for failure patterns
-        slurm_log_path = Path(path)
-        failure_reason = detect_failure_reason(slurm_log_path) or detect_failure_reason(server_log_path)
-        if failure_reason:
-            row["comment"] = failure_reason
-            rows.append(row)
-            continue
-
-        stats_info = parse_stats_json(stats_dir / "stats.json")
-        if stats_info is None:
-            row["comment"] = "stats.json not found"
-            rows.append(row)
-            continue
-
-        row["prompt_tokens_total"] = int(stats_info["input_tokens_total"])
-        row["completion_tokens_total"] = int(stats_info["output_tokens_total"])
-        row["mean_input_tokens"] = stats_info["input_tokens_mean"]
-        row["mean_output_tokens"] = stats_info["output_tokens_mean"]
-        row["successful_requests"] = stats_info["successful_requests_total"]
-        row["failed_requests"] = stats_info["failed_requests_total"]
-        row["e2e_time"] = stats_info["e2e_time"]
-        row["inference_time"] = stats_info["inference_time"]
-
-        # Total GPUs contributing to this throughput = TP * PP (normalize to 1 if None/0)
-        gpu_divisor = (fields.tp or 1) * (fields.pp or 1)
-
-        # GPU-time to process 1000 examples (e2e_time * num_gpus / num_requests * 1000)
-        if stats_info["successful_requests_total"] > 0 and stats_info["e2e_time"] > 0:
-            row["e2e_per_1k_per_gpu"] = (
-                stats_info["e2e_time"] / stats_info["successful_requests_total"] * 1000 * gpu_divisor
+    # Calculate throughput from inference_time only (excludes server startup)
+    inference_time = stats_info["inference_time"]
+    if inference_time and inference_time > 0:
+        row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / inference_time
+        row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / inference_time / gpu_divisor
+        row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / inference_time
+        row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / inference_time / gpu_divisor
+        if stats_info["successful_requests_total"] > 0:
+            row["inference_per_1k_per_gpu"] = (
+                inference_time / stats_info["successful_requests_total"] * 1000 * gpu_divisor
             )
 
-        # Calculate throughput from inference_time only (excludes server startup)
-        inference_time = stats_info["inference_time"]
-        if inference_time and inference_time > 0:
-            row["tokens_input_per_sec"] = stats_info["input_tokens_total"] / inference_time
-            row["input_tps_per_gpu"] = stats_info["input_tokens_total"] / inference_time / gpu_divisor
-            row["tokens_output_per_sec"] = stats_info["output_tokens_total"] / inference_time
-            row["output_tps_per_gpu"] = stats_info["output_tokens_total"] / inference_time / gpu_divisor
-            if stats_info["successful_requests_total"] > 0:
-                row["inference_per_1k_per_gpu"] = (
-                    inference_time / stats_info["successful_requests_total"] * 1000 * gpu_divisor
-                )
+    # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
+    server_metrics = parse_server_logs(server_log_path) if server_log_path else None
+    if server_metrics:
+        row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
+        row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
+        row["avg_gpu_kvc_usage"] = server_metrics["avg_gpu_kvc_usage"]
+        row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
 
-        # Parse server logs for additional metrics (kv cache, prefix cache, etc.)
-        server_metrics = parse_server_logs(server_log_path) if server_log_path else None
-        if server_metrics:
-            row["avg_running_reqs"] = server_metrics["avg_running_reqs"]
-            row["avg_waiting_reqs"] = server_metrics["avg_waiting_reqs"]
-            row["avg_gpu_kvc_usage"] = server_metrics["avg_gpu_kvc_usage"]
-            row["avg_prefix_cache_hit_rate"] = server_metrics["avg_prefix_cache_hit_rate"]
+    gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
+    row["gpu_days_to_process_1b_tokens"] = gpu_days
+    row["node_days_to_process_1b_tokens"] = node_days
+    row["gpus_for_1b_tokens_per_hour"] = compute_gpus_for_1b_per_hour_from_per_gpu(row["output_tps_per_gpu"])
 
-        gpu_days, node_days = compute_days_for_1b_from_per_gpu(row["output_tps_per_gpu"])
-        row["gpu_days_to_process_1b_tokens"] = gpu_days
-        row["node_days_to_process_1b_tokens"] = node_days
-        row["gpus_for_1b_tokens_per_hour"] = compute_gpus_for_1b_per_hour_from_per_gpu(row["output_tps_per_gpu"])
+    if row["failed_requests"] and row["failed_requests"] > 0:
+        row["comment"] = f"failed_requests={row['failed_requests']}"
 
-        if row["failed_requests"] and row["failed_requests"] > 0:
-            row["comment"] = f"failed_requests={row['failed_requests']}"
+    return row
 
-        rows.append(row)
+
+def analyze(root: str, n_jobs: int = -1) -> int:
+    """Analyze benchmark results with parallel log processing.
+
+    Args:
+        root: Root directory containing experiment results.
+        n_jobs: Number of parallel jobs (-1 for all CPUs).
+    """
+    root_path = Path(root)
+    if not root_path.is_dir():
+        message = f"Root directory does not exist: {root_path}"
+        logger.error(message)
+        raise FileNotFoundError(message)
+    if not any(root_path.iterdir()):
+        message = f"Root directory is empty: {root_path}"
+        logger.error(message)
+        raise ValueError(message)
+
+    files = sorted(glob.glob(os.path.join(root, "**", "inference_logs", "slurm_logs", "*.out"), recursive=True))
+
+    # Process files in parallel with progress bar (threading backend for I/O-bound work)
+    rows: list[dict[str, object]] = Parallel(n_jobs=n_jobs, prefer="threads")(
+        delayed(process_single_file)(path, root) for path in tqdm(files, desc="Processing logs")
+    )
 
     # Config columns used for deduplication (experiment + all config params)
     config_cols = [
@@ -490,7 +510,6 @@ def analyze(root: str, out_csv: str) -> int:
     # Metric columns always shown in table
     display_metric_columns = [
         ("gpus/1b/h", "gpus_for_1b_tokens_per_hour", "right"),
-        ("in tps/gpu", "input_tps_per_gpu", "right"),
         ("out tps/gpu", "output_tps_per_gpu", "right"),
         ("mean_in", "mean_input_tokens", "right"),
         ("mean_out", "mean_output_tokens", "right"),
@@ -578,8 +597,179 @@ def analyze(root: str, out_csv: str) -> int:
         for r in data_rows:
             print("| " + " | ".join(pad(r[i], widths[i], aligns[i]) for i in range(len(r))) + " |")
 
+    # Baseline defaults (vLLM defaults + common benchmark settings). tp is tried in fallback order.
+    BASELINE_NON_TP_DEFAULTS: dict[str, object] = {
+        "mns": 256,
+        "mnbt": 8192,
+        "gmu": 90,
+        "bs": 16,
+        "kvc": "kvc_auto",
+        "spec": "spec_none",
+        "quant": "quant_none",
+    }
+    TP_BASELINE_FALLBACK: tuple[int, ...] = (1, 2, 4, 8)
+
+    def _find_best_tps(df_valid: pd.DataFrame) -> tuple[pd.Series | None, float | None]:
+        """Find the row with the highest output_tps_per_gpu. Returns (row, tps) or (None, None)."""
+        if df_valid.empty:
+            return None, None
+        best_idx = df_valid["output_tps_per_gpu"].idxmax()
+        best_row = df_valid.loc[best_idx]
+        return best_row, best_row["output_tps_per_gpu"]
+
+    def _deviations_from_baseline(best_row: pd.Series, baseline_defaults: dict[str, object]) -> str:
+        """List parameters that differ from baseline defaults."""
+        deviations = [
+            f"{param}={best_row[param]}"
+            for param, default_val in baseline_defaults.items()
+            if param in best_row.index and pd.notna(best_row[param]) and best_row[param] != default_val
+        ]
+        return ", ".join(deviations) if deviations else "(baseline is optimal)"
+
+    def print_optimization_summary(df_all: pd.DataFrame) -> pd.DataFrame:
+        """
+        Print optimization summary showing baseline, tier0-best, and tier1-best per model.
+
+        Tier0 experiments optimize tp/mns/mnbt. Tier1 experiments additionally optimize gmu/spec.
+        This shows the incremental improvement from each optimization tier.
+        """
+        summary_rows: list[dict[str, object]] = []
+
+        for model in sorted(df_all["model"].unique()):
+            df_model = df_all[df_all["model"] == model]
+            df_valid = df_model[df_model["output_tps_per_gpu"].notna()]
+
+            if df_valid.empty:
+                continue
+
+            # Find baseline: first tp in fallback order that has a run matching other defaults
+            baseline_row = None
+            baseline_tp_used: int | None = None
+            for tp in TP_BASELINE_FALLBACK:
+                baseline_mask = df_valid["tp"] == tp
+                for param, default_val in BASELINE_NON_TP_DEFAULTS.items():
+                    baseline_mask &= df_valid[param] == default_val
+                df_baseline = df_valid[baseline_mask]
+                if not df_baseline.empty:
+                    baseline_idx = df_baseline["output_tps_per_gpu"].idxmax()
+                    baseline_row = df_valid.loc[baseline_idx]
+                    baseline_tp_used = int(tp)
+                    break
+
+            if baseline_row is None:
+                continue
+            baseline_tps = baseline_row["output_tps_per_gpu"]
+            baseline_defaults = {"tp": baseline_tp_used, **BASELINE_NON_TP_DEFAULTS}
+
+            # Split by tier: tier0 experiments start with "tier0", tier1 with "tier1"
+            df_tier0 = df_valid[df_valid["experiment"].str.startswith("tier0")]
+            df_tier1 = df_valid[df_valid["experiment"].str.startswith("tier1")]
+
+            tier0_row, tier0_tps = _find_best_tps(df_tier0)
+            tier1_row, tier1_tps = _find_best_tps(df_tier1)
+
+            # Overall best across all tiers
+            overall_row, overall_tps = _find_best_tps(df_valid)
+
+            summary_rows.append(
+                {
+                    "model": model,
+                    "baseline_tp": baseline_tp_used,
+                    "baseline_tps": int(round(baseline_tps)),
+                    "tier0_tps": int(round(tier0_tps)) if tier0_tps else None,
+                    "tier0_speedup": tier0_tps / baseline_tps if tier0_tps and baseline_tps > 0 else None,
+                    "tier0_params": _deviations_from_baseline(tier0_row, baseline_defaults)
+                    if tier0_row is not None
+                    else "-",
+                    "tier1_tps": int(round(tier1_tps)) if tier1_tps else None,
+                    "tier1_speedup": tier1_tps / baseline_tps if tier1_tps and baseline_tps > 0 else None,
+                    "tier1_params": _deviations_from_baseline(tier1_row, baseline_defaults)
+                    if tier1_row is not None
+                    else "-",
+                    "overall_tps": int(round(overall_tps)) if overall_tps else None,
+                    "overall_speedup": overall_tps / baseline_tps if overall_tps and baseline_tps > 0 else None,
+                    "overall_params": _deviations_from_baseline(overall_row, baseline_defaults)
+                    if overall_row is not None
+                    else "-",
+                }
+            )
+
+        if not summary_rows:
+            return pd.DataFrame()
+
+        df_summary = pd.DataFrame(summary_rows)
+
+        print(f"\n{'=' * 80}")
+        print("Optimization Summary (All Models)")
+        print(f"{'=' * 80}")
+        print(
+            f"Baseline: tp in {TP_BASELINE_FALLBACK} (first with data), {', '.join(f'{k}={v}' for k, v in BASELINE_NON_TP_DEFAULTS.items())}"
+        )
+        print()
+
+        headers = [
+            "Model",
+            "Base tp",
+            "Base tps/gpu",
+            "Tier0 tps/gpu",
+            "T0 Speedup",
+            "Tier0 Parameters",
+            "Tier1 tps/gpu",
+            "T1 Speedup",
+            "Tier1 Parameters",
+            "Best tps/gpu",
+            "Speedup",
+            "Best Parameters",
+        ]
+        col_keys = [
+            "model",
+            "baseline_tp",
+            "baseline_tps",
+            "tier0_tps",
+            "tier0_speedup",
+            "tier0_params",
+            "tier1_tps",
+            "tier1_speedup",
+            "tier1_params",
+            "overall_tps",
+            "overall_speedup",
+            "overall_params",
+        ]
+        aligns = [
+            "left",
+            "right",
+            "right",
+            "right",
+            "right",
+            "left",
+            "right",
+            "right",
+            "left",
+            "right",
+            "right",
+            "left",
+        ]
+
+        def fmt_cell(val: object, key: str) -> str:
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return "-"
+            if "speedup" in key:
+                return f"{val:.2f}x"
+            return str(val)
+
+        data_rows = [[fmt_cell(row[k], k) for k in col_keys] for row in summary_rows]
+        widths = [max(len(h), max((len(str(r[i])) for r in data_rows), default=0)) for i, h in enumerate(headers)]
+
+        print("| " + " | ".join(h.ljust(widths[i]) for i, h in enumerate(headers)) + " |")
+        print("| " + " | ".join("-" * w for w in widths) + " |")
+
+        for r in data_rows:
+            cells = [r[i].rjust(widths[i]) if aligns[i] == "right" else r[i].ljust(widths[i]) for i in range(len(r))]
+            print("| " + " | ".join(cells) + " |")
+
+        return df_summary
+
     # Process each experiment
-    out_csv_dir = Path(out_csv).parent
     total_rows = 0
 
     for experiment_name in sorted(df_dedup["experiment"].unique()):
@@ -587,25 +777,39 @@ def analyze(root: str, out_csv: str) -> int:
         print_table(df_exp, experiment_name)
 
         # Save CSV for this experiment
-        exp_csv_path = out_csv_dir / f"{experiment_name}.csv"
+        exp_csv_path = root_path / f"{experiment_name}.csv"
         df_exp.to_csv(exp_csv_path, index=False, float_format="%.6f")
         logger.info(f"Wrote {len(df_exp)} rows to {exp_csv_path}")
         total_rows += len(df_exp)
 
     # Save combined CSV
-    df_dedup.to_csv(out_csv, index=False, float_format="%.6f")
+    out_csv_path = root_path / "benchmarking_results.csv"
+    df_dedup.to_csv(out_csv_path, index=False, float_format="%.6f")
     logger.info(
-        f"Wrote {total_rows} total rows across {len(df_dedup['experiment'].unique())} experiments to {out_csv}"
+        f"Wrote {total_rows} total rows across {len(df_dedup['experiment'].unique())} experiments to {out_csv_path}"
     )
+
+    # Optimization summary at the end (model-specific baseline with tp fallback 1→2→4→8)
+    df_opt_summary = print_optimization_summary(df_dedup)
+    if not df_opt_summary.empty:
+        opt_csv_path = root_path / "optimization_summary.csv"
+        df_opt_summary.to_csv(opt_csv_path, index=False)
+        logger.info(f"Wrote optimization summary to {opt_csv_path}")
 
     return total_rows
 
 
 def main(
     root: str = "examples/inference/benchmark/results",
-    out_csv: str = "examples/inference/benchmark/results/benchmarking_results.csv",
+    n_jobs: int = -1,
 ) -> None:
-    analyze(root, out_csv)
+    """Analyze benchmark results.
+
+    Args:
+        root: Root directory containing experiment results.
+        n_jobs: Number of parallel jobs for processing logs (-1 for all CPUs).
+    """
+    analyze(root, n_jobs)
 
 
 if __name__ == "__main__":

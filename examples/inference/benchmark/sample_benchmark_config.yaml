@@ -3,19 +3,15 @@
 # TIERED APPROACH: Run tiers sequentially, use winners from each tier to inform the next.
 #
 # Tiers:
-#   0. Make it run (tp, pp, nodes) - Prerequisites to even start. Required for large models.
-#   1. Batching (mns, mnbt) - Highest impact lever. How many sequences can we push through?
-#   2. Memory/KV cache (gmu, kv-cache-dtype, bs) - Make best use of available GPU memory.
-#   3. Speculative decoding - Lossless speedup, especially beneficial for large models.
-#   4. Quantization - Lossy speedup as last resort when memory-bound.
+#   0. Parallelism and Batching (tp, mns, mnbt) - Find optimal parallelism and batch sizes.
+#   1. SpecDec and GMU (speculative-config, gmu) - Lossless speedup and memory utilization.
 #
 # Model size categories:
 #   - Tiny:     <1B params
-#   - Compact:  1B-5B params
-#   - Small:    5B-10B params
+#   - Small:    1B-10B params
 #   - Medium:   10B-100B params
 #   - Large:    100B-500B params
-#   - Enormous: >500B params
+#   - Enormous: >500B params (leaving out for now, potential models to test are: GLM-4.7, DeepSeek-V3.1, Kimi-K2-Instruct)
 #
 # Launch with:
 #   python examples/inference/benchmark/launch_experiments.py --config examples/inference/benchmark/sample_benchmark_config.yaml
@@ -30,9 +26,9 @@ continue_on_failure: true
 fixed_args:
   benchmark-mode: true
   qos: "high"
-  time: "2:00:00"
+  time: "1:59:00" # Fairly low because we are only interested in the best configurations, so we just let bad ones time out
 
-  model-max-context: 16384
+  model-max-context: 8192 # So we can also test SmolLM2
   max-tokens: 4096
 
   input-dataset-name: "HuggingFaceFW/fineweb-edu"
@@ -40,7 +36,7 @@ fixed_args:
   input-dataset-split: "train"
   prompt-column: "text"
   prompt-template: ["tutorial", "Rewrite the document as a clear, step-by-step tutorial or instructional guide. Use numbered steps or bullet points where appropriate to enhance clarity. Preserve all essential information while ensuring the style feels didactic and easy to follow. Output only the tutorial, nothing else.\n\nDocument: [[DOCUMENT]]"]
-  max-examples: 10000
+  max-examples: 10000 # To make sure we have at least 2.5x the max-num-seqs
 
   output-dataset-name: "fineweb-edu-benchmark"
   output-dir: "examples/inference/benchmark/results"
@@ -58,641 +54,331 @@ fixed_args:
   trust-remote-code: true
 
 # =============================================================================
-# TIER 0: MAKE IT RUN (tp, pp, nodes)
+# TIER 0: PARALLELISM AND BATCHING (tp, mns, mnbt)
 # =============================================================================
-# Goal: Find minimum parallelism configuration to fit model in memory and run.
-# This is a prerequisite - without it, we cannot even start.
-# Mainly an issue for large models that don't fit on a single GPU.
+# Goal: Find optimal parallelism and batch size configuration.
+# This is the HIGHEST IMPACT lever - how many sequences can we push through?
 #
-# Use mns=16 to minimize memory pressure during initial testing.
-# Focus on finding the minimum tp/pp/nodes that allows the model to load.
+# tp: Tensor parallelism - split model across GPUs
+# max-num-seqs: How many sequences can be batched together
+# max-num-batched-tokens: Total tokens per forward pass (prefill + decode)
 # =============================================================================
 experiments:
   # --- TINY (<1B) - Should fit easily on 1 GPU ---
   - name: "tier0-tiny"
     args:
       model-name-or-path:
+        - "HuggingFaceTB/SmolLM2-135M-Instruct"  # 0.135B
+        - "HuggingFaceTB/SmolLM2-360M-Instruct"  # 0.6B
         - "google/gemma-3-270m-it"  # 270M
         - "Qwen/Qwen3-0.6B"  # 0.6B
-      max-num-seqs: 16
-      tp: 1
-      pp: 1
+      tp: [1]
+      max-num-seqs: [256, 512, 1024, 2048, 4096]
+      max-num-batched-tokens: [8192, 16384, 32768]
 
-  # --- COMPACT (1B-5B) - Should fit on 1 GPU ---
-  - name: "tier0-compact"
+  # --- SMALL (1B-10B) - Should fit on 1-2 GPUs ---
+  - name: "tier0-small"
     args:
       model-name-or-path:
+        - "HuggingFaceTB/SmolLM2-1.7B-Instruct"  # 1.35B
         - "google/gemma-3-1b-it"  # 1B
         - "google/gemma-3-4b-it"  # 4B
         - "Qwen/Qwen3-1.7B"  # 1.7B
         - "Qwen/Qwen3-4B"  # 4B
-      max-num-seqs: 16
-      tp: 1
-      pp: 1
-
-  # --- SMALL (5B-10B) - May need 2 GPUs ---
-  - name: "tier0-small"
-    args:
-      model-name-or-path:
         - "Qwen/Qwen3-8B"  # 8B
-      max-num-seqs: 16
       tp: [1, 2]
-      pp: 1
+      max-num-seqs: [256, 512, 1024, 2048, 4096]
+      max-num-batched-tokens: [8192, 16384, 32768]
 
   # --- MEDIUM (10B-100B) - Likely needs multiple GPUs ---
   - name: "tier0-medium"
     args:
       model-name-or-path:
         - "google/gemma-3-12b-it"  # 12B
-        - "Qwen/Qwen3-14B"  # 14B
-        - "openai/gpt-oss-20b"  # 20B-A2B MoE
         - "google/gemma-3-27b-it"  # 27B
-        - "Qwen/Qwen3-30B-A3B-Thinking-2507"  # 30B-A3B MoE
-        - "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"  # 30B-A3B MoE
+        - "Qwen/Qwen3-14B"  # 14B
         - "Qwen/Qwen3-32B"  # 32B
+        - "Qwen/Qwen3-30B-A3B-Thinking-2507"  # 30B-A3B MoE
         - "Qwen/Qwen3-Next-80B-A3B-Thinking"  # 80B-A3B MoE
-      max-num-seqs: 16
+        - "openai/gpt-oss-20b"  # 20B-A2B MoE
       tp: [1, 2, 4]
-      pp: 1
+      max-num-seqs: [256, 512, 1024, 2048, 4096]
+      max-num-batched-tokens: [8192, 16384, 32768]
 
   # --- LARGE (100B-500B) - Definitely needs multiple GPUs ---
-  - name: "tier0-large-gpt-oss-120b"
+  - name: "tier0-large"
     args:
-      model-name-or-path: "openai/gpt-oss-120b"  # 120B-A12B MoE
-      max-num-seqs: 16
-      tp: [2, 4, 8]
-      pp: 1
-
-  - name: "tier0-large-qwen3-235b"
-    args:
-      model-name-or-path: "Qwen/Qwen3-235B-A22B-Instruct-2507"  # 235B-A22B MoE
-      max-num-seqs: 16
-      tp: [4, 8]
-      pp: 1
-
-  - name: "tier0-large-glm-minimax"
-    args:
-      model-name-or-path:
-        - "zai-org/GLM-4.7"  # 355B-A32B MoE
-        - "MiniMaxAI/MiniMax-M2.1"  # 230B-A10B MoE
-      max-num-seqs: 16
-      tp: 8
-      pp: 1
-
-  # --- ENORMOUS (>500B) - Needs multiple nodes ---
-  # Single-node config (tp=8, pp=1)
-  - name: "tier0-enormous-1node"
-    args:
-      model-name-or-path:
-        - "moonshotai/Kimi-K2-Instruct"  # 1T-A32B MoE
-        - "deepseek-ai/DeepSeek-V3.1"  # 671B-A37B MoE
-      max-num-seqs: 16
-      tp: 8
-      pp: 1
-      nodes-per-task: 1
-
-  # Multi-node config (tp=8, pp=2 requires 16 GPUs = 2 nodes)
-  - name: "tier0-enormous-2node"
-    args:
-      model-name-or-path:
-        - "moonshotai/Kimi-K2-Instruct"  # 1T-A32B MoE
-        - "deepseek-ai/DeepSeek-V3.1"  # 671B-A37B MoE
-      max-num-seqs: 16
-      tp: 8
-      pp: 2
-      nodes-per-task: 2
+      model-name-or-path: 
+        - "openai/gpt-oss-120b"  # 120B-A12B MoE
+      tp: [1, 2, 4, 8]
+      max-num-seqs: [256, 512, 1024, 2048, 4096]
+      max-num-batched-tokens: [8192, 16384, 32768]
 
 # =============================================================================
-# TIER 1: BATCHING (mns, mnbt)
+# TIER 1: SPECDEC AND GMU (speculative-config, gmu)
 # =============================================================================
-# Goal: Maximize throughput by finding optimal batch size parameters.
-# This is the HIGHEST IMPACT lever - how many sequences can we push through?
-#
-# max-num-seqs: How many sequences can be batched together
-# max-num-batched-tokens: Total tokens per forward pass (prefill + decode)
-#
-# Uncomment after Tier 0 completes. Update tp/pp to winners from Tier 0.
-# =============================================================================
-#  # --- TINY (<1B) ---
-#  - name: "tier1-tiny"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-270m-it"
-#        - "Qwen/Qwen3-0.6B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: [64, 128, 256, 512, 1024]
-#      max-num-batched-tokens: [8192, 16384, 32768, 65536]
-#
-#  # --- COMPACT (1B-5B) ---
-#  - name: "tier1-compact"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-1.7B"
-#        - "google/gemma-3-1b-it"
-#        - "google/gemma-3-4b-it"
-#        - "Qwen/Qwen3-4B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: [64, 128, 256, 512, 1024]
-#      max-num-batched-tokens: [8192, 16384, 32768, 65536]
-#
-#  # --- SMALL (5B-10B) ---
-#  - name: "tier1-small"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-8B"
-#      tp: 1  # Update from Tier 0
-#      pp: 1
-#      max-num-seqs: [64, 128, 256, 512]
-#      max-num-batched-tokens: [8192, 16384, 32768]
-#
-#  # --- MEDIUM (10B-100B) ---
-#  - name: "tier1-medium"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-12b-it"
-#        - "Qwen/Qwen3-14B"
-#        - "openai/gpt-oss-20b"
-#        - "google/gemma-3-27b-it"
-#        - "Qwen/Qwen3-30B-A3B-Thinking-2507"
-#        - "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
-#        - "Qwen/Qwen3-32B"
-#        - "Qwen/Qwen3-Next-80B-A3B-Thinking"
-#      tp: 1  # Update from Tier 0
-#      pp: 1
-#      max-num-seqs: [32, 64, 128, 256]
-#      max-num-batched-tokens: [8192, 16384, 32768]
-#
-#  # --- LARGE (100B-500B) ---
-#  - name: "tier1-large-gpt-oss-120b"
-#    args:
-#      model-name-or-path: "openai/gpt-oss-120b"
-#      tp: 2  # Update from Tier 0
-#      pp: 1
-#      max-num-seqs: [16, 32, 64, 128]
-#      max-num-batched-tokens: [8192, 16384, 32768]
-#
-#  - name: "tier1-large-qwen3-235b"
-#    args:
-#      model-name-or-path: "Qwen/Qwen3-235B-A22B-Instruct-2507"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: [8, 16, 32, 64]
-#      max-num-batched-tokens: [8192, 16384]
-#
-#  - name: "tier1-large-glm-minimax"
-#    args:
-#      model-name-or-path:
-#        - "zai-org/GLM-4.7"
-#        - "MiniMaxAI/MiniMax-M2.1"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: [8, 16, 32, 64]
-#      max-num-batched-tokens: [8192, 16384]
-#
-#  # --- ENORMOUS (>500B) ---
-#  - name: "tier1-enormous"
-#    args:
-#      model-name-or-path:
-#        - "moonshotai/Kimi-K2-Instruct"
-#        - "deepseek-ai/DeepSeek-V3.1"
-#      tp: 8
-#      pp: 2  # Update from Tier 0
-#      nodes-per-task: 2
-#      max-num-seqs: [4, 8, 16, 32]
-#      max-num-batched-tokens: [4096, 8192, 16384]
-
-# =============================================================================
-# TIER 2: MEMORY & KV CACHE (gmu, kv-cache-dtype, bs)
-# =============================================================================
-# Goal: Make the best use of available GPU memory.
-#
-# gpu-memory-utilization: Fraction of GPU memory to use (higher = larger KV cache)
-# kv-cache-dtype: FP8 halves KV cache memory, allowing larger batches
-# block-size: KV cache block granularity (16 or 32)
-#
-# Uncomment after Tier 1 completes. Update mns/mnbt to winners from Tier 1.
-# =============================================================================
-#  # --- TINY (<1B) ---
-#  - name: "tier2-tiny"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-270m-it"
-#        - "Qwen/Qwen3-0.6B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 256  # Update from Tier 1
-#      max-num-batched-tokens: 32768  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  # --- COMPACT (1B-5B) ---
-#  - name: "tier2-compact"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-1.7B"
-#        - "google/gemma-3-1b-it"
-#        - "google/gemma-3-4b-it"
-#        - "Qwen/Qwen3-4B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 256  # Update from Tier 1
-#      max-num-batched-tokens: 32768  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  # --- SMALL (5B-10B) ---
-#  - name: "tier2-small"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-8B"
-#      tp: 1  # Update from Tier 0
-#      pp: 1
-#      max-num-seqs: 128  # Update from Tier 1
-#      max-num-batched-tokens: 16384  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  # --- MEDIUM (10B-100B) ---
-#  - name: "tier2-medium"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-12b-it"
-#        - "Qwen/Qwen3-14B"
-#        - "openai/gpt-oss-20b"
-#        - "google/gemma-3-27b-it"
-#        - "Qwen/Qwen3-30B-A3B-Thinking-2507"
-#        - "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
-#        - "Qwen/Qwen3-32B"
-#        - "Qwen/Qwen3-Next-80B-A3B-Thinking"
-#      tp: 1  # Update from Tier 0
-#      pp: 1
-#      max-num-seqs: 64  # Update from Tier 1
-#      max-num-batched-tokens: 16384  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  # --- LARGE (100B-500B) ---
-#  - name: "tier2-large-gpt-oss-120b"
-#    args:
-#      model-name-or-path: "openai/gpt-oss-120b"
-#      tp: 2  # Update from Tier 0
-#      pp: 1
-#      max-num-seqs: 32  # Update from Tier 1
-#      max-num-batched-tokens: 16384  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  - name: "tier2-large-qwen3-235b"
-#    args:
-#      model-name-or-path: "Qwen/Qwen3-235B-A22B-Instruct-2507"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: 16  # Update from Tier 1
-#      max-num-batched-tokens: 8192  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  - name: "tier2-large-glm-minimax"
-#    args:
-#      model-name-or-path:
-#        - "zai-org/GLM-4.7"
-#        - "MiniMaxAI/MiniMax-M2.1"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: 16  # Update from Tier 1
-#      max-num-batched-tokens: 8192  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-#
-#  # --- ENORMOUS (>500B) ---
-#  - name: "tier2-enormous"
-#    args:
-#      model-name-or-path:
-#        - "moonshotai/Kimi-K2-Instruct"
-#        - "deepseek-ai/DeepSeek-V3.1"
-#      tp: 8
-#      pp: 2
-#      nodes-per-task: 2
-#      max-num-seqs: 8  # Update from Tier 1
-#      max-num-batched-tokens: 8192  # Update from Tier 1
-#      gpu-memory-utilization: [0.85, 0.9, 0.95]
-#      kv-cache-dtype: [auto, fp8_e4m3]
-#      block-size: [16, 32]
-
-# =============================================================================
-# TIER 3: SPECULATIVE DECODING (method, num_speculative_tokens)
-# =============================================================================
-# Goal: Achieve LOSSLESS speedup through speculative decoding.
+# Goal: Achieve LOSSLESS speedup through speculative decoding and memory tuning.
 # Especially beneficial for large models where decode is memory-bound.
 #
-# ngram: Uses prompt n-grams to speculate tokens (good for extraction/summarization)
-# suffix: Uses suffix matching from input (good when output resembles input)
+# speculative-config: Speculative decoding configuration
+#   - ngram: Uses prompt n-grams to speculate tokens (good for extraction/summarization)
+#   - suffix: Uses suffix matching from input (good when output resembles input)
+# gpu-memory-utilization: Fraction of GPU memory to use (higher = larger KV cache)
 #
-# Uncomment after Tier 2 completes. Use optimal config from previous tiers.
+# Uncomment after Tier 0 completes. Use optimal config from previous tier.
 # =============================================================================
-#  # --- TINY (<1B) ---
-#  - name: "tier3-tiny"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-270m-it"
-#        - "Qwen/Qwen3-0.6B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 256  # Optimal from Tier 1
-#      max-num-batched-tokens: 32768  # Optimal from Tier 1
-#      gpu-memory-utilization: 0.9  # Optimal from Tier 2
-#      kv-cache-dtype: auto  # Optimal from Tier 2
-#      block-size: 16  # Optimal from Tier 2
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  # --- COMPACT (1B-5B) ---
-#  - name: "tier3-compact"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-1.7B"
-#        - "google/gemma-3-1b-it"
-#        - "google/gemma-3-4b-it"
-#        - "Qwen/Qwen3-4B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 256
-#      max-num-batched-tokens: 32768
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  # --- SMALL (5B-10B) ---
-#  - name: "tier3-small"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-8B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 128
-#      max-num-batched-tokens: 16384
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  # --- MEDIUM (10B-100B) ---
-#  - name: "tier3-medium"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-12b-it"
-#        - "Qwen/Qwen3-14B"
-#        - "openai/gpt-oss-20b"
-#        - "google/gemma-3-27b-it"
-#        - "Qwen/Qwen3-30B-A3B-Thinking-2507"
-#        - "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
-#        - "Qwen/Qwen3-32B"
-#        - "Qwen/Qwen3-Next-80B-A3B-Thinking"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 64
-#      max-num-batched-tokens: 16384
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  # --- LARGE (100B-500B) - Spec dec especially helpful here ---
-#  - name: "tier3-large-gpt-oss-120b"
-#    args:
-#      model-name-or-path: "openai/gpt-oss-120b"
-#      tp: 2
-#      pp: 1
-#      max-num-seqs: 32
-#      max-num-batched-tokens: 16384
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  - name: "tier3-large-qwen3-235b"
-#    args:
-#      model-name-or-path: "Qwen/Qwen3-235B-A22B-Instruct-2507"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: 16
-#      max-num-batched-tokens: 8192
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  - name: "tier3-large-glm-minimax"
-#    args:
-#      model-name-or-path:
-#        - "zai-org/GLM-4.7"
-#        - "MiniMaxAI/MiniMax-M2.1"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: 16
-#      max-num-batched-tokens: 8192
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config:
-#        - None
-#        - '{"method": "ngram", "num_speculative_tokens": 4}'
-#        - '{"method": "ngram", "num_speculative_tokens": 6}'
-#        - '{"method": "ngram", "num_speculative_tokens": 8}'
-#        - '{"method": "ngram", "num_speculative_tokens": 10}'
-#        - '{"method": "suffix", "num_speculative_tokens": 16}'
-#        - '{"method": "suffix", "num_speculative_tokens": 32}'
-#
-#  # --- ENORMOUS (>500B) - Skip, too memory constrained for spec dec ---
+  # --- TINY (<1B) ---
+  # SmolLM2-135M: mns=512, mnbt=32768
+  - name: "tier1-tiny"
+    args:
+      model-name-or-path: "HuggingFaceTB/SmolLM2-135M-Instruct"  # 0.135B
+      tp: 1
+      max-num-seqs: 512
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
 
-# =============================================================================
-# TIER 4: QUANTIZATION
-# =============================================================================
-# Goal: LOSSY speedup as a last resort when memory-bound.
-# Trade-off: Reduces quality but can enable larger batches or fit on fewer GPUs.
-#
-# bitsandbytes: 4-bit quantization, ~4x memory reduction for weights
-#
-# Only use if previous tiers hit memory limits. Compare quality carefully.
-# Uncomment after Tier 3 completes. Use optimal config from previous tiers.
-# =============================================================================
-#  # --- TINY (<1B) - Skip, already small enough ---
-#
-#  # --- COMPACT (1B-5B) ---
-#  - name: "tier4-compact"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-1.7B"
-#        - "google/gemma-3-1b-it"
-#        - "google/gemma-3-4b-it"
-#        - "Qwen/Qwen3-4B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 256
-#      max-num-batched-tokens: 32768
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None  # Optimal from Tier 3
-#      quantization:
-#        - None
-#        - bitsandbytes
-#
-#  # --- SMALL (5B-10B) ---
-#  - name: "tier4-small"
-#    args:
-#      model-name-or-path:
-#        - "Qwen/Qwen3-8B"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 128
-#      max-num-batched-tokens: 16384
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None
-#      quantization:
-#        - None
-#        - bitsandbytes
-#
-#  # --- MEDIUM (10B-100B) ---
-#  - name: "tier4-medium"
-#    args:
-#      model-name-or-path:
-#        - "google/gemma-3-12b-it"
-#        - "Qwen/Qwen3-14B"
-#        - "openai/gpt-oss-20b"
-#        - "google/gemma-3-27b-it"
-#        - "Qwen/Qwen3-30B-A3B-Thinking-2507"
-#        - "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
-#        - "Qwen/Qwen3-32B"
-#        - "Qwen/Qwen3-Next-80B-A3B-Thinking"
-#      tp: 1
-#      pp: 1
-#      max-num-seqs: 64
-#      max-num-batched-tokens: 16384
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None
-#      quantization:
-#        - None
-#        - bitsandbytes
-#
-#  # --- LARGE (100B-500B) ---
-#  - name: "tier4-large-gpt-oss-120b"
-#    args:
-#      model-name-or-path: "openai/gpt-oss-120b"
-#      tp: 2
-#      pp: 1
-#      max-num-seqs: 32
-#      max-num-batched-tokens: 16384
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None
-#      quantization:
-#        - None
-#        - bitsandbytes
-#
-#  - name: "tier4-large-qwen3-235b"
-#    args:
-#      model-name-or-path: "Qwen/Qwen3-235B-A22B-Instruct-2507"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: 16
-#      max-num-batched-tokens: 8192
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None
-#      quantization:
-#        - None
-#        - bitsandbytes
-#
-#  - name: "tier4-large-glm-minimax"
-#    args:
-#      model-name-or-path:
-#        - "zai-org/GLM-4.7"
-#        - "MiniMaxAI/MiniMax-M2.1"
-#      tp: 8
-#      pp: 1
-#      max-num-seqs: 16
-#      max-num-batched-tokens: 8192
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None
-#      quantization:
-#        - None
-#        - bitsandbytes
-#
-#  # --- ENORMOUS (>500B) ---
-#  - name: "tier4-enormous"
-#    args:
-#      model-name-or-path:
-#        - "moonshotai/Kimi-K2-Instruct"
-#        - "deepseek-ai/DeepSeek-V3.1"
-#      tp: 8
-#      pp: 2
-#      nodes-per-task: 2
-#      max-num-seqs: 8
-#      max-num-batched-tokens: 8192
-#      gpu-memory-utilization: 0.9
-#      kv-cache-dtype: auto
-#      block-size: 16
-#      speculative-config: None
-#      quantization:
-#        - None
-#        - bitsandbytes
+  # SmolLM2-360M: mns=512
+  - name: "tier1-tiny"
+    args:
+      model-name-or-path: "HuggingFaceTB/SmolLM2-360M-Instruct"  # 0.36B
+      tp: 1
+      max-num-seqs: 512
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # gemma-3-270m: mnbt=32768
+  - name: "tier1-tiny"
+    args:
+      model-name-or-path: "google/gemma-3-270m-it"  # 270M
+      tp: 1
+      max-num-seqs: 256
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-0.6B: mns=512
+  - name: "tier1-tiny"
+    args:
+      model-name-or-path: "Qwen/Qwen3-0.6B"  # 0.6B
+      tp: 1
+      max-num-seqs: 512
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # --- SMALL (1B-10B) ---
+  # SmolLM2-1.7B: mns=2048, mnbt=32768
+  - name: "tier1-small"
+    args:
+      model-name-or-path: "HuggingFaceTB/SmolLM2-1.7B-Instruct"  # 1.7B
+      tp: 1
+      max-num-seqs: 2048
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # gemma-3-1b: mns=4096, mnbt=32768
+  - name: "tier1-small"
+    args:
+      model-name-or-path: "google/gemma-3-1b-it"  # 1B
+      tp: 1
+      max-num-seqs: 4096
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # gemma-3-4b: mns=1024, mnbt=32768
+  - name: "tier1-small"
+    args:
+      model-name-or-path: "google/gemma-3-4b-it"  # 4B
+      tp: 1
+      max-num-seqs: 1024
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-1.7B: mnbt=32768
+  - name: "tier1-small"
+    args:
+      model-name-or-path: "Qwen/Qwen3-1.7B"  # 1.7B
+      tp: 1
+      max-num-seqs: 256
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-4B: mnbt=32768
+  - name: "tier1-small"
+    args:
+      model-name-or-path: "Qwen/Qwen3-4B"  # 4B
+      tp: 1
+      max-num-seqs: 256
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-8B: baseline is optimal (tp=1, mns=256, mnbt=8192)
+  - name: "tier1-small"
+    args:
+      model-name-or-path: "Qwen/Qwen3-8B"  # 8B
+      tp: 1
+      max-num-seqs: 256
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # --- MEDIUM (10B-100B) ---
+  # gemma-3-12b: baseline is optimal (tp=1, mns=256, mnbt=8192)
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "google/gemma-3-12b-it"  # 12B
+      tp: 1
+      max-num-seqs: 256
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # gemma-3-27b: baseline is optimal (tp=2, mns=256, mnbt=8192)
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "google/gemma-3-27b-it"  # 27B
+      tp: 2
+      max-num-seqs: 256
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-14B: tp=2
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "Qwen/Qwen3-14B"  # 14B
+      tp: 2
+      max-num-seqs: 256
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-32B: tp=4, mns=512, mnbt=16384
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "Qwen/Qwen3-32B"  # 32B
+      tp: 4
+      max-num-seqs: 512
+      max-num-batched-tokens: 16384
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-30B-A3B: tp=2, mns=512, mnbt=32768
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "Qwen/Qwen3-30B-A3B-Thinking-2507"  # 30B-A3B MoE
+      tp: 2
+      max-num-seqs: 512
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # Qwen3-Next-80B-A3B: tp=4, mns=512
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "Qwen/Qwen3-Next-80B-A3B-Thinking"  # 80B-A3B MoE
+      tp: 4
+      max-num-seqs: 512
+      max-num-batched-tokens: 8192
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # gpt-oss-20b: mns=512, mnbt=16384
+  - name: "tier1-medium"
+    args:
+      model-name-or-path: "openai/gpt-oss-20b"  # 20B-A2B MoE
+      tp: 1
+      max-num-seqs: 512
+      max-num-batched-tokens: 16384
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
+
+  # --- LARGE (100B-500B) - Spec dec especially helpful here ---
+  # gpt-oss-120b: tp=2, mns=1024, mnbt=32768
+  - name: "tier1-large"
+    args:
+      model-name-or-path: "openai/gpt-oss-120b"  # 120B-A12B MoE
+      tp: 2
+      max-num-seqs: 1024
+      max-num-batched-tokens: 32768
+      gpu-memory-utilization: [0.9, 0.95]
+      speculative-config:
+        - None
+        - '{"method": "ngram", "num_speculative_tokens": 6}'
+        - '{"method": "ngram", "num_speculative_tokens": 8}'
+        - '{"method": "suffix", "num_speculative_tokens": 32}'
