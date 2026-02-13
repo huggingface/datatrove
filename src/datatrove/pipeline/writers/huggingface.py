@@ -117,20 +117,18 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 )
                 break
             except HfHubHTTPError as e:
-                if (
-                    "A commit has happened since" in e.server_message
-                    or "maximum queue size reached" in e.server_message
-                    or "maximum time in concurrency queue reached" in e.server_message
-                ):
-                    if retries >= MAX_RETRIES:
-                        logger.error(f"Failed to create commit after {MAX_RETRIES=}. Giving up.")
-                        raise e
-                    logger.info("Commit creation race condition issue. Waiting...")
-                    time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
-                    retries += 1
-                else:
-                    logger.error(f"Failed to create commit: {e.server_message}")
+                is_retryable = (
+                    "A commit has happened since" in (e.server_message or "")
+                    or "maximum queue size reached" in (e.server_message or "")
+                    or "maximum time in concurrency queue reached" in (e.server_message or "")
+                    or (e.response is not None and e.response.status_code >= 500)
+                )
+                if not is_retryable or retries >= MAX_RETRIES:
+                    logger.error(f"Failed to create commit after {retries} retries: {e.server_message}")
                     raise e
+                logger.info(f"Retryable commit error (attempt {retries + 1}/{MAX_RETRIES}): {e.server_message}")
+                time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
+                retries += 1
 
     def _on_file_switch(self, original_name, old_filename, new_filename):
         """
