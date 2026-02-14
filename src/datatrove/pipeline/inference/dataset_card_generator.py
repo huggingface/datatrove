@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from huggingface_hub import dataset_info, upload_file, whoami
+import yaml
+from huggingface_hub import dataset_info, hf_hub_download, upload_file, whoami
 
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
@@ -22,6 +23,7 @@ class InferenceDatasetCardParams:
     input_dataset_config: str | None
     prompt_column: str
     prompt_template: str | None
+    prompt_template_name: str  # "default" or a named config like "math", "faq", etc.
     system_prompt: str | None
     model_name: str
     model_revision: str
@@ -207,6 +209,81 @@ def _render_template(context: dict[str, str]) -> str:
     return rendered
 
 
+def _build_config_entry(config_name: str, split: str, data_path: str) -> dict[str, Any]:
+    """Build a single HF dataset config entry."""
+    return {
+        "config_name": config_name,
+        "data_files": [{"split": split, "path": data_path}],
+    }
+
+
+def _fetch_existing_configs(repo_id: str) -> list[dict[str, Any]]:
+    """Fetch existing configs from the HF repo's README.md YAML frontmatter.
+
+    Returns an empty list if the README doesn't exist or has no configs.
+    """
+    try:
+        readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="dataset")
+        content = Path(readme_path).read_text(encoding="utf-8")
+        # Parse YAML frontmatter between --- markers
+        if content.startswith("---"):
+            end = content.index("---", 3)
+            frontmatter = yaml.safe_load(content[3:end])
+            return frontmatter.get("configs", []) if frontmatter else []
+    except Exception:
+        pass
+    return []
+
+
+def _merge_configs(
+    existing_configs: list[dict[str, Any]],
+    new_config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Merge a new config into existing configs, replacing any with the same config_name."""
+    configs = [c for c in existing_configs if c["config_name"] != new_config["config_name"]]
+    configs.append(new_config)
+    return sorted(configs, key=lambda c: c["config_name"])
+
+
+def _render_configs_block(configs: list[dict[str, Any]], split: str) -> str:
+    """Render the configs and train-eval-index YAML block for the dataset card frontmatter."""
+    lines = ["configs:"]
+    for cfg in configs:
+        lines.append(f"- config_name: {cfg['config_name']}")
+        lines.append("  data_files:")
+        for df in cfg["data_files"]:
+            lines.append(f"  - split: {df['split']}")
+            lines.append(f"    path: {df['path']}")
+
+    # train-eval-index references the first config
+    first_config = configs[0]["config_name"] if configs else "default"
+    lines.extend([
+        "train-eval-index:",
+        f"- config: {first_config}",
+        "  task: text-generation",
+        "  task_id: language-modeling",
+        "  splits:",
+        f"    train_split: {split}",
+        "    eval_split:",
+        "  col_mapping:",
+        "    text: text",
+    ])
+    return "\n".join(lines)
+
+
+def _render_load_dataset_example(repo_id: str, configs: list[dict[str, Any]]) -> str:
+    """Render the load_dataset usage example for the dataset card."""
+    has_named_configs = any(c["config_name"] != "default" for c in configs)
+    lines = ["You can load the dataset using", "```python", "from datasets import load_dataset", ""]
+    if has_named_configs:
+        for cfg in configs:
+            lines.append(f'ds_{cfg["config_name"]} = load_dataset("{repo_id}", "{cfg["config_name"]}")')
+    else:
+        lines.append(f'ds = load_dataset("{repo_id}")')
+    lines.append("```")
+    return "\n".join(lines)
+
+
 def build_and_upload_dataset_card(
     *,
     params: InferenceDatasetCardParams,
@@ -287,6 +364,17 @@ def build_and_upload_dataset_card(
     else:
         user_prompt_info = f"Column `{params.prompt_column}`"
 
+    # Build HF dataset configs: merge this job's config with any existing ones in the repo
+    split = params.input_dataset_split or "train"
+    config_name = params.prompt_template_name
+    if config_name == "default":
+        data_path = "data/*.parquet"
+    else:
+        data_path = f"{config_name}/**/*.parquet"
+    new_config = _build_config_entry(config_name, split, data_path)
+    existing_configs = _fetch_existing_configs(params.output_repo_id)
+    merged_configs = _merge_configs(existing_configs, new_config)
+
     context = {
         "repo_id": params.output_repo_id,
         "hf_user": hf_user,
@@ -295,7 +383,7 @@ def build_and_upload_dataset_card(
         "tags_block": _format_block(tags, "- dataforge"),
         "size_category": size_category,
         "source_datasets_block": _format_block([source_dataset_full], f"- {source_dataset_full}"),
-        "input_dataset_split": params.input_dataset_split or "train",
+        "input_dataset_split": split,
         "model_name": params.model_name,
         "model_revision": params.model_revision,
         "source_dataset_full": source_dataset_full,
@@ -311,6 +399,8 @@ def build_and_upload_dataset_card(
         "job_stats_table": job_stats_table,
         "progress_section": progress_section,
         "stats_summary": stats_summary,
+        "configs_block": _render_configs_block(merged_configs, split),
+        "load_dataset_example": _render_load_dataset_example(params.output_repo_id, merged_configs),
     }
 
     content = _render_template(context)

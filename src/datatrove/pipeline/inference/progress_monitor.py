@@ -21,6 +21,7 @@ from huggingface_hub.errors import HfHubHTTPError
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.dataset_card_generator import (
     InferenceDatasetCardParams,
+    _fetch_existing_configs,
     build_and_upload_dataset_card,
     format_number,
 )
@@ -80,12 +81,16 @@ def repo_has_parquet_data(repo_id: str) -> bool:
     return has_parquet
 
 
-def count_documents_in_repo(repo_id: str) -> int:
+def count_documents_in_repo(repo_id: str, config_name: str = "default") -> int:
     """
     Count total documents in uploaded parquet files in HF repo by reading parquet metadata.
 
     This approach reads only the file headers (a few KB per file) without downloading
     the actual data, making it efficient for large datasets and avoiding disk bloat.
+
+    Args:
+        repo_id: HuggingFace dataset repository ID.
+        config_name: Dataset config name. "default" searches data/, named configs search {config_name}/.
 
     Returns 0 if repo doesn't exist or has no data yet.
     """
@@ -94,12 +99,13 @@ def count_documents_in_repo(repo_id: str) -> int:
         # The filesystem caches directory listings, which prevents us from seeing new files
         fs = HfFileSystem()
 
-        # Invalidate the cache for this specific path to get fresh file listing
-        cache_path = f"datasets/{repo_id}/data"
+        # Parquet files live under data/ for default config, or {config_name}/ for named configs
+        subdir = "data" if config_name == "default" else config_name
+        cache_path = f"datasets/{repo_id}/{subdir}"
         fs.invalidate_cache(cache_path)
 
         # Find all parquet files in the repo's data directory
-        parquet_files = fs.glob(f"datasets/{repo_id}/data/*.parquet")
+        parquet_files = fs.glob(f"datasets/{repo_id}/{subdir}/**/*.parquet")
 
         if not parquet_files:
             logger.info(f"No parquet files found yet in {repo_id}")
@@ -201,55 +207,90 @@ def calculate_eta(completed: int, total: int, elapsed_time: float) -> tuple[floa
 
 
 def render_progress_bar(completed: int, total: int, start_time: float, current_time: float) -> str:
+    """Render a progress bar with ETA.
+
+    Format: [●●●●●●●●●●●●○○○○○○○○] 60% • 3,000/5,000 docs • ⏱️ 2h 15m remaining • 📅 Nov 27, 18:30 UTC
     """
-    Render progress bar with dots format.
-
-    Format: [●●●●●●●●●●●●○○○○○○○○] 60% • 3,000/5,000 documents processed • ⏱️ 2h 15m remaining • 📅 Nov 27, 18:30 UTC
-    """
-    # Calculate percentage
-    if total == 0:
-        percentage = 0
-    else:
-        percentage = int((completed / total) * 100)
-
-    # Create progress bar with 20 dots
-    filled_dots = int((completed / total) * 20) if total > 0 else 0
-    empty_dots = 20 - filled_dots
-    bar = "[" + "●" * filled_dots + "○" * empty_dots + "]"
-
-    # Format document count
-    doc_text = f"{format_number(completed)}/{format_number(total)} documents processed"
-
-    progress_text = f"{bar} {percentage}% • {doc_text}"
-
-    # Calculate ETA
+    bar_text = _render_bar_and_counts(completed, total)
     elapsed_time = current_time - start_time
     if completed > 0 and completed < total:
         seconds_remaining, completion_dt = calculate_eta(completed, total, elapsed_time)
         time_text = f"⏱️ {format_time_remaining(seconds_remaining)} remaining"
         date_text = f"📅 {format_completion_datetime(completion_dt.timestamp())}"
-        return f"{progress_text} • {time_text} • {date_text}"
+        return f"{bar_text} • {time_text} • {date_text}"
     elif completed == 0:
-        return f"{progress_text} • ⏱️ calculating..."
+        return f"{bar_text} • ⏱️ calculating..."
     else:
-        return f"{progress_text} • ✅ Complete"
+        return f"{bar_text} • ✅ Complete"
 
 
-def create_progress_section_markdown(completed: int, total: int, start_time: float, current_time: float) -> str:
+def _render_bar_and_counts(completed: int, total: int) -> str:
+    """Render just the progress bar and document counts (no ETA)."""
+    percentage = int((completed / total) * 100) if total > 0 else 0
+    filled_dots = int((completed / total) * 20) if total > 0 else 0
+    empty_dots = 20 - filled_dots
+    bar = "[" + "●" * filled_dots + "○" * empty_dots + "]"
+    doc_text = f"{format_number(completed)}/{format_number(total)} docs"
+    return f"{bar} {percentage}% • {doc_text}"
+
+
+def create_progress_section_markdown(
+    config_progress: dict[str, int],
+    total_per_config: int,
+    start_time: float,
+    current_time: float,
+) -> str:
+    """Create the full progress section for the dataset card.
+
+    Args:
+        config_progress: Mapping of config_name -> completed documents.
+        total_per_config: Total expected documents per config (same for all).
+        start_time: Timestamp when monitoring started.
+        current_time: Current timestamp.
+
+    Returns:
+        Markdown text to be inserted into the dataset card.
     """
-    Create the full progress section for the dataset card.
+    lines = ["", "## 🔄 Generation Progress", ""]
+    has_named_configs = any(name != "default" for name in config_progress)
+    elapsed_time = current_time - start_time
 
-    Returns markdown text to be inserted into the dataset card.
-    """
-    progress_bar = render_progress_bar(completed, total, start_time, current_time)
+    if has_named_configs:
+        # Per-config progress bars with individual ETAs
+        max_seconds_remaining = 0.0
+        max_completion_dt = datetime.now(timezone.utc)
+        for name in sorted(config_progress):
+            completed = config_progress[name]
+            bar = render_progress_bar(completed, total_per_config, start_time, current_time)
+            lines.append(f"**{name}**: {bar}")
+            # Track the slowest config for the overall ETA
+            if 0 < completed < total_per_config and elapsed_time > 0:
+                secs, dt = calculate_eta(completed, total_per_config, elapsed_time)
+                if secs > max_seconds_remaining:
+                    max_seconds_remaining = secs
+                    max_completion_dt = dt
+        lines.append("")
 
-    return f"""
-## 🔄 Generation Progress
+        # Overall bar: percentage + counts, ETA = slowest config (since they run in parallel)
+        total_completed = sum(config_progress.values())
+        total_expected = total_per_config * len(config_progress)
+        overall_text = _render_bar_and_counts(total_completed, total_expected)
+        if total_completed == total_expected:
+            lines.append(f"**Overall**: {overall_text} • ✅ Complete")
+        elif max_seconds_remaining > 0:
+            time_text = f"⏱️ {format_time_remaining(max_seconds_remaining)} remaining"
+            date_text = f"📅 {format_completion_datetime(max_completion_dt.timestamp())}"
+            lines.append(f"**Overall**: {overall_text} • {time_text} • {date_text}")
+        else:
+            lines.append(f"**Overall**: {overall_text} • ⏱️ calculating...")
+    else:
+        # Single config: just show one bar with ETA
+        config_name = next(iter(config_progress))
+        lines.append(render_progress_bar(config_progress[config_name], total_per_config, start_time, current_time))
 
-{progress_bar}
-
-*Last updated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}*
-"""
+    lines.append("")
+    lines.append(f"*Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}*")
+    return "\n".join(lines)
 
 
 @dataclass
@@ -336,19 +377,25 @@ class InferenceProgressMonitor(PipelineStep):
                 )
                 break
 
-            # Get current progress
             current_time = time.time()
-            completed_docs = count_documents_in_repo(self.params.output_repo_id)
 
-            logger.info(f"Progress: {format_number(completed_docs)}/{format_number(total_docs)} documents")
+            # Discover all configs from the HF repo README and count documents per config
+            existing_configs = _fetch_existing_configs(self.params.output_repo_id)
+            config_names = [c["config_name"] for c in existing_configs] if existing_configs else [self.params.prompt_template_name]
+            config_progress = {
+                name: count_documents_in_repo(self.params.output_repo_id, name)
+                for name in config_names
+            }
 
-            # Create progress section
+            total_completed = sum(config_progress.values())
+            total_expected = total_docs * len(config_names)
+            logger.info(f"Progress: {format_number(total_completed)}/{format_number(total_expected)} documents across {len(config_names)} config(s)")
+
+            # Create progress section and update dataset card
             try:
                 progress_section = create_progress_section_markdown(
-                    completed_docs, total_docs, start_time, current_time
+                    config_progress, total_docs, start_time, current_time
                 )
-
-                # Update dataset card with progress (without waiting for stats.json)
                 build_and_upload_dataset_card(
                     params=self.params,
                     progress_section=progress_section,

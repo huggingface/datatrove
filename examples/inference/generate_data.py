@@ -274,7 +274,9 @@ def main(
         speculative_config=spec_raw,
         quantization=quantization,
     )
-    output_path = f"hf://datasets/{full_repo_id}" if not benchmark_mode else str(run_path / "output")
+    output_path = (
+        f"hf://datasets/{full_repo_id}/{prompt_template_name}" if not benchmark_mode else str(run_path / "output")
+    )
     checkpoints_path = str(run_path / "checkpoints")
     inference_logs_path = run_path / "inference_logs"
     monitor_logs_path = run_path / "monitor_logs"
@@ -359,6 +361,7 @@ def main(
         input_dataset_config=input_dataset_config,
         prompt_column=prompt_column,
         prompt_template=prompt_template,
+        prompt_template_name=prompt_template_name,
         system_prompt=system_prompt,
         model_name=model_name_or_path,
         model_revision=model_revision,
