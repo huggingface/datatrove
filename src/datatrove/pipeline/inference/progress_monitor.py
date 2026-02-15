@@ -7,7 +7,10 @@ This module provides the ProgressMonitor PipelineStep that:
 - Updates the dataset card with a progress bar and ETA
 """
 
+import os
+import re
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,70 +18,118 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 from datasets import load_dataset, load_dataset_builder
-from huggingface_hub import HfFileSystem, list_repo_files
-from huggingface_hub.errors import HfHubHTTPError
+from huggingface_hub import HfFileSystem, hf_hub_download, upload_file
 
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.dataset_card_generator import (
     InferenceDatasetCardParams,
-    _fetch_existing_configs,
     build_and_upload_dataset_card,
     format_number,
+    patch_readme_configs,
+    patch_readme_prompt,
 )
 from datatrove.utils.logging import logger
 
 
-def format_time_remaining(seconds: float) -> str:
-    """
-    Convert seconds to human-readable format.
+_PROGRESS_SECTION_HEADER = "## 🔄 Generation Progress"
+_OVERALL_LINE_PATTERN = re.compile(r"^\*\*Overall\*\*:.*\n?", re.MULTILINE)
+_TIMESTAMP_LINE_PATTERN = re.compile(r"^\*Last updated:.*$", re.MULTILINE)
 
-    Examples:
-        - 90 -> "1m"
-        - 3600 -> "1h"
-        - 5400 -> "1h 30m"
-        - 7200 -> "2h"
+
+def format_time_remaining(seconds: float) -> str:
+    """Convert seconds to human-readable format with appropriate units.
+
+    Picks the two largest non-zero units for readability:
+        - 90s       -> "1m"
+        - 5400s     -> "1h 30m"
+        - 90000s    -> "1d 1h"
+        - 700000s   -> "1w 1d"
+        - 3000000s  -> "1mo 4d"
+        - 40000000s -> "1y 3mo"
     """
     if seconds < 60:
         return "< 1m"
 
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
+    # Define units from largest to smallest
+    units = [
+        ("y", 365.25 * 24 * 3600),
+        ("mo", 30.44 * 24 * 3600),
+        ("w", 7 * 24 * 3600),
+        ("d", 24 * 3600),
+        ("h", 3600),
+        ("m", 60),
+    ]
 
-    if hours > 0 and minutes > 0:
-        return f"{hours}h {minutes}m"
-    elif hours > 0:
-        return f"{hours}h"
-    else:
-        return f"{minutes}m"
+    parts: list[str] = []
+    remaining = seconds
+    for label, unit_seconds in units:
+        if remaining >= unit_seconds:
+            count = int(remaining // unit_seconds)
+            remaining %= unit_seconds
+            parts.append(f"{count}{label}")
+            if len(parts) == 2:
+                break
+
+    return " ".join(parts)
 
 
 def format_completion_datetime(timestamp: float) -> str:
     """
     Format completion timestamp as readable date/time.
 
-    Example: "Nov 27, 18:30 UTC"
+    Example: "Nov 27 2026, 18:30 UTC"
     """
     dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-    return dt.strftime("%b %d, %H:%M UTC")
+    return dt.strftime("%b %d %Y, %H:%M UTC")
 
 
-def repo_has_parquet_data(repo_id: str) -> bool:
-    """
-    Check whether a dataset repo contains any parquet data files.
+def _download_readme(repo_id: str) -> str | None:
+    """Download the current README.md content from the HF repo.
 
-    Returns:
-        True if at least one parquet file is found, False otherwise.
+    Returns None if the README doesn't exist yet.
     """
     try:
-        files = list_repo_files(repo_id=repo_id, repo_type="dataset")
-    except HfHubHTTPError as e:
-        logger.warning(f"Could not list files for {repo_id}: {e}")
-        return False
+        readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="dataset")
+        return Path(readme_path).read_text(encoding="utf-8")
+    except Exception:
+        return None
 
-    has_parquet = any(file.lower().endswith(".parquet") for file in files)
-    if not has_parquet:
-        logger.info(f"No parquet files found yet in {repo_id}; skipping dataset load")
-    return has_parquet
+
+def _parse_progress_counts(content: str) -> dict[str, int]:
+    """Parse per-config completed doc counts from the progress section.
+
+    Matches lines like: **math**: [●●○○...] 42% • 1,234/10,000 docs ...
+
+    Returns:
+        Mapping of config_name -> completed document count.
+    """
+    progress: dict[str, int] = {}
+    for match in re.finditer(
+        r"\*\*(\w+)\*\*:\s*\[.*?\]\s*\d+%\s*•\s*([\d,]+)/",
+        content,
+    ):
+        config_name = match.group(1)
+        if config_name == "Overall":
+            continue
+        count_str = match.group(2).replace(",", "")
+        progress[config_name] = int(count_str)
+    return progress
+
+
+def _upload_readme(repo_id: str, content: str) -> None:
+    """Upload README.md content to the HF repo."""
+    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+    try:
+        upload_file(
+            path_or_fileobj=tmp_path,
+            path_in_repo="README.md",
+            repo_id=repo_id,
+            repo_type="dataset",
+        )
+    finally:
+        os.remove(tmp_path)
 
 
 def count_documents_in_repo(repo_id: str, config_name: str = "default") -> int:
@@ -206,22 +257,26 @@ def calculate_eta(completed: int, total: int, elapsed_time: float) -> tuple[floa
     return seconds_remaining, completion_dt
 
 
-def render_progress_bar(completed: int, total: int, start_time: float, current_time: float) -> str:
+def render_progress_bar(
+    completed: int,
+    total: int,
+    start_time: float,
+    current_time: float,
+) -> str:
     """Render a progress bar with ETA.
 
     Format: [●●●●●●●●●●●●○○○○○○○○] 60% • 3,000/5,000 docs • ⏱️ 2h 15m remaining • 📅 Nov 27, 18:30 UTC
     """
     bar_text = _render_bar_and_counts(completed, total)
     elapsed_time = current_time - start_time
-    if completed > 0 and completed < total:
+    if 0 < completed < total:
         seconds_remaining, completion_dt = calculate_eta(completed, total, elapsed_time)
         time_text = f"⏱️ {format_time_remaining(seconds_remaining)} remaining"
         date_text = f"📅 {format_completion_datetime(completion_dt.timestamp())}"
         return f"{bar_text} • {time_text} • {date_text}"
-    elif completed == 0:
-        return f"{bar_text} • ⏱️ calculating..."
-    else:
+    if completed >= total > 0:
         return f"{bar_text} • ✅ Complete"
+    return f"{bar_text} • ⏱️ calculating..."
 
 
 def _render_bar_and_counts(completed: int, total: int) -> str:
@@ -234,62 +289,124 @@ def _render_bar_and_counts(completed: int, total: int) -> str:
     return f"{bar} {percentage}% • {doc_text}"
 
 
-def create_progress_section_markdown(
-    config_progress: dict[str, int],
+def _render_overall_line(readme_content: str, total_per_config: int) -> str | None:
+    """Recompute the Overall progress line from all per-config lines in the README.
+
+    Returns None if there's only one config (Overall is redundant).
+    """
+    counts = _parse_progress_counts(readme_content)
+    if len(counts) < 2:
+        return None
+    total_completed = sum(counts.values())
+    total_expected = total_per_config * len(counts)
+    overall_text = _render_bar_and_counts(total_completed, total_expected)
+    if total_completed >= total_expected > 0:
+        return f"**Overall**: {overall_text} • ✅ Complete"
+    return f"**Overall**: {overall_text}"
+
+
+def _render_timestamp_line() -> str:
+    return f"*Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}*"
+
+
+def _upsert_config_progress_line(readme_content: str, config_name: str, new_config_line: str) -> str | None:
+    """Insert or replace the progress line for a single config."""
+    config_pattern = re.compile(rf"^\*\*{re.escape(config_name)}\*\*:.*$", re.MULTILINE)
+    if config_pattern.search(readme_content):
+        return config_pattern.sub(new_config_line, readme_content)
+
+    if _PROGRESS_SECTION_HEADER not in readme_content:
+        logger.warning("No progress section found in README; this is unexpected during monitoring")
+        return None
+
+    insert_pattern = re.compile(r"^(\*\*Overall\*\*:.*$|\*Last updated:.*$)", re.MULTILINE)
+    match = insert_pattern.search(readme_content)
+    if match:
+        return readme_content[: match.start()] + new_config_line + "\n\n" + readme_content[match.start() :]
+
+    # Append at end of progress section if no Overall/timestamp lines exist yet.
+    idx = readme_content.index(_PROGRESS_SECTION_HEADER)
+    next_section = re.search(r"\n## [^🔄]", readme_content[idx + 1 :])
+    insert_pos = idx + 1 + next_section.start() if next_section else len(readme_content)
+    return readme_content[:insert_pos] + new_config_line + "\n\n" + readme_content[insert_pos:]
+
+
+def _upsert_overall_progress_line(readme_content: str, total_per_config: int) -> str:
+    """Update the Overall line for multi-config repos, or remove stale line for single-config repos."""
+    new_overall = _render_overall_line(readme_content, total_per_config)
+    if new_overall:
+        if _OVERALL_LINE_PATTERN.search(readme_content):
+            return _OVERALL_LINE_PATTERN.sub(new_overall + "\n", readme_content)
+        ts_match = _TIMESTAMP_LINE_PATTERN.search(readme_content)
+        if ts_match:
+            return readme_content[: ts_match.start()] + new_overall + "\n\n" + readme_content[ts_match.start() :]
+        return readme_content
+
+    return _OVERALL_LINE_PATTERN.sub("", readme_content)
+
+
+def _replace_timestamp_line(readme_content: str) -> str:
+    """Refresh the Last updated timestamp line."""
+    return _TIMESTAMP_LINE_PATTERN.sub(_render_timestamp_line(), readme_content)
+
+
+def patch_readme_progress(
+    readme_content: str,
+    config_name: str,
+    completed: int,
     total_per_config: int,
     start_time: float,
     current_time: float,
 ) -> str:
-    """Create the full progress section for the dataset card.
+    """Patch only the owned config's progress line, the Overall line, and the
+    timestamp in an existing README. All other lines are left untouched.
+
+    If the progress section or the config line doesn't exist yet, they are
+    created / appended.
 
     Args:
-        config_progress: Mapping of config_name -> completed documents.
-        total_per_config: Total expected documents per config (same for all).
-        start_time: Timestamp when monitoring started.
+        readme_content: Current full README text.
+        config_name: The config this monitor owns (e.g. "math").
+        completed: Number of documents completed for this config.
+        total_per_config: Total expected documents per config.
+        start_time: When this monitor started (for ETA).
         current_time: Current timestamp.
 
     Returns:
-        Markdown text to be inserted into the dataset card.
+        Updated README text.
     """
-    lines = ["", "## 🔄 Generation Progress", ""]
-    has_named_configs = any(name != "default" for name in config_progress)
-    elapsed_time = current_time - start_time
+    new_bar = render_progress_bar(completed, total_per_config, start_time, current_time)
+    new_config_line = f"**{config_name}**: {new_bar}"
 
-    if has_named_configs:
-        # Per-config progress bars with individual ETAs
-        max_seconds_remaining = 0.0
-        max_completion_dt = datetime.now(timezone.utc)
-        for name in sorted(config_progress):
-            completed = config_progress[name]
-            bar = render_progress_bar(completed, total_per_config, start_time, current_time)
-            lines.append(f"**{name}**: {bar}")
-            # Track the slowest config for the overall ETA
-            if 0 < completed < total_per_config and elapsed_time > 0:
-                secs, dt = calculate_eta(completed, total_per_config, elapsed_time)
-                if secs > max_seconds_remaining:
-                    max_seconds_remaining = secs
-                    max_completion_dt = dt
-        lines.append("")
+    updated = _upsert_config_progress_line(readme_content, config_name, new_config_line)
+    if updated is None:
+        return readme_content
 
-        # Overall bar: percentage + counts, ETA = slowest config (since they run in parallel)
-        total_completed = sum(config_progress.values())
-        total_expected = total_per_config * len(config_progress)
-        overall_text = _render_bar_and_counts(total_completed, total_expected)
-        if total_completed == total_expected:
-            lines.append(f"**Overall**: {overall_text} • ✅ Complete")
-        elif max_seconds_remaining > 0:
-            time_text = f"⏱️ {format_time_remaining(max_seconds_remaining)} remaining"
-            date_text = f"📅 {format_completion_datetime(max_completion_dt.timestamp())}"
-            lines.append(f"**Overall**: {overall_text} • {time_text} • {date_text}")
-        else:
-            lines.append(f"**Overall**: {overall_text} • ⏱️ calculating...")
-    else:
-        # Single config: just show one bar with ETA
-        config_name = next(iter(config_progress))
-        lines.append(render_progress_bar(config_progress[config_name], total_per_config, start_time, current_time))
+    updated = _upsert_overall_progress_line(updated, total_per_config)
+    return _replace_timestamp_line(updated)
 
-    lines.append("")
-    lines.append(f"*Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}*")
+
+def create_progress_section_markdown(
+    config_name: str,
+    completed: int,
+    total_per_config: int,
+    start_time: float,
+    current_time: float,
+) -> str:
+    """Create the initial progress section for a single config.
+
+    Used only when the README has no progress section yet (first update).
+    Subsequent updates use patch_readme_progress instead.
+    """
+    bar = render_progress_bar(completed, total_per_config, start_time, current_time)
+    lines = [
+        "",
+        _PROGRESS_SECTION_HEADER,
+        "",
+        f"**{config_name}**: {bar}",
+        "",
+        _render_timestamp_line(),
+    ]
     return "\n".join(lines)
 
 
@@ -379,27 +496,37 @@ class InferenceProgressMonitor(PipelineStep):
 
             current_time = time.time()
 
-            # Discover all configs from the HF repo README and count documents per config
-            existing_configs = _fetch_existing_configs(self.params.output_repo_id)
-            config_names = [c["config_name"] for c in existing_configs] if existing_configs else [self.params.prompt_template_name]
-            config_progress = {
-                name: count_documents_in_repo(self.params.output_repo_id, name)
-                for name in config_names
-            }
+            # Count documents for THIS config only
+            my_config = self.params.prompt_template_name
+            my_count = count_documents_in_repo(self.params.output_repo_id, my_config)
+            logger.info(f"Progress ({my_config}): {format_number(my_count)}/{format_number(total_docs)} documents")
 
-            total_completed = sum(config_progress.values())
-            total_expected = total_docs * len(config_names)
-            logger.info(f"Progress: {format_number(total_completed)}/{format_number(total_expected)} documents across {len(config_names)} config(s)")
-
-            # Create progress section and update dataset card
             try:
-                progress_section = create_progress_section_markdown(
-                    config_progress, total_docs, start_time, current_time
-                )
-                build_and_upload_dataset_card(
-                    params=self.params,
-                    progress_section=progress_section,
-                )
+                readme_content = _download_readme(self.params.output_repo_id)
+
+                if readme_content and _PROGRESS_SECTION_HEADER in readme_content:
+                    # Patch progress, prompt, and configs for this config
+                    updated = patch_readme_progress(
+                        readme_content, my_config, my_count, total_docs, start_time, current_time
+                    )
+                    if self.params.prompt_template:
+                        updated = patch_readme_prompt(updated, my_config, self.params.prompt_template)
+                    updated = patch_readme_configs(
+                        updated,
+                        self.params.output_repo_id,
+                        my_config,
+                        self.params.input_dataset_split or "train",
+                    )
+                    _upload_readme(self.params.output_repo_id, updated)
+                else:
+                    # First update: build the full card with an initial progress section
+                    progress_section = create_progress_section_markdown(
+                        my_config, my_count, total_docs, start_time, current_time
+                    )
+                    build_and_upload_dataset_card(
+                        params=self.params,
+                        progress_section=progress_section,
+                    )
                 logger.info("Dataset card updated with progress")
             except Exception as e:
                 logger.warning(f"Warning: Failed to update dataset card: {e}")

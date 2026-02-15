@@ -1,8 +1,10 @@
 import json
 import os
+import re
 import tempfile
 import time
 from dataclasses import dataclass
+from html import unescape
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -11,6 +13,12 @@ from huggingface_hub import dataset_info, hf_hub_download, upload_file, whoami
 
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
+
+
+_PROMPT_BLOCK_PATTERN = re.compile(
+    r"<summary><b>(\w+)</b> prompt</summary>\s*\n\s*<(?P<tag>pre|div)[^>]*>(?P<body>.*?)</(?P=tag)>",
+    re.DOTALL,
+)
 
 
 @dataclass
@@ -220,6 +228,10 @@ def _build_config_entry(config_name: str, split: str, data_path: str) -> dict[st
     }
 
 
+def _data_path_for_config(config_name: str) -> str:
+    return f"{config_name}/**/*.parquet"
+
+
 def _fetch_existing_configs(repo_id: str) -> list[dict[str, Any]]:
     """Fetch existing configs from the HF repo's README.md YAML frontmatter.
 
@@ -248,6 +260,32 @@ def _merge_configs(
     return sorted(configs, key=lambda c: c["config_name"])
 
 
+def _add_all_config(configs: list[dict[str, Any]], split: str) -> list[dict[str, Any]]:
+    """Add an 'all' config that unions all named configs' data files.
+
+    Only added when there are multiple non-default configs.
+    """
+    named = [c for c in configs if c["config_name"] not in ("default", "all")]
+    if len(named) < 2:
+        return configs
+
+    # Collect all data paths from named configs
+    all_paths = []
+    for cfg in named:
+        for df in cfg["data_files"]:
+            all_paths.append(df["path"])
+
+    all_config = {
+        "config_name": "all",
+        "data_files": [{"split": split, "path": p} for p in all_paths],
+    }
+
+    # Remove any existing "all" config, then prepend
+    result = [c for c in configs if c["config_name"] != "all"]
+    result.insert(0, all_config)
+    return result
+
+
 def _render_configs_block(configs: list[dict[str, Any]], split: str) -> str:
     """Render the configs and train-eval-index YAML block for the dataset card frontmatter."""
     lines = ["configs:"]
@@ -258,29 +296,203 @@ def _render_configs_block(configs: list[dict[str, Any]], split: str) -> str:
             lines.append(f"  - split: {df['split']}")
             lines.append(f"    path: {df['path']}")
 
-    # train-eval-index references the first config
-    first_config = configs[0]["config_name"] if configs else "default"
-    lines.extend([
-        "train-eval-index:",
-        f"- config: {first_config}",
-        "  task: text-generation",
-        "  task_id: language-modeling",
-        "  splits:",
-        f"    train_split: {split}",
-        "    eval_split:",
-        "  col_mapping:",
-        "    text: text",
-    ])
+    # train-eval-index references the "all" config if present, else the first config
+    default_config = next(
+        (c["config_name"] for c in configs if c["config_name"] == "all"),
+        configs[0]["config_name"] if configs else "default",
+    )
+    lines.extend(
+        [
+            "train-eval-index:",
+            f"- config: {default_config}",
+            "  task: text-generation",
+            "  task_id: language-modeling",
+            "  splits:",
+            f"    train_split: {split}",
+            "    eval_split:",
+            "  col_mapping:",
+            "    text: text",
+        ]
+    )
     return "\n".join(lines)
+
+
+def _parse_existing_prompts(repo_id: str) -> dict[str, str]:
+    """Parse existing per-config prompt templates from the README.
+
+    Looks for <pre> blocks inside <details> tags with summary like:
+        <summary><b>faq</b> prompt</summary>
+    followed by a <pre> block containing the template text.
+
+    Returns:
+        Mapping of config_name -> raw prompt template string.
+    """
+    try:
+        readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="dataset")
+        content = Path(readme_path).read_text(encoding="utf-8")
+    except Exception:
+        return {}
+
+    return _extract_prompt_templates(content)
+
+
+def _decode_prompt_html_content(content: str) -> str:
+    """Decode prompt HTML body back into raw template text."""
+    with_newlines = re.sub(r"<br\s*/?>", "\n", content, flags=re.IGNORECASE)
+    return unescape(with_newlines).strip()
+
+
+def _extract_prompt_templates(content: str) -> dict[str, str]:
+    prompts: dict[str, str] = {}
+    for match in _PROMPT_BLOCK_PATTERN.finditer(content):
+        prompts[match.group(1)] = _decode_prompt_html_content(match.group("body"))
+    return prompts
+
+
+def _render_prompt_pre(template: str) -> str:
+    """Render a prompt template in a word-wrapping <pre> block.
+
+    Uses white-space:pre-wrap so actual newlines in the template are preserved
+    but long lines wrap instead of showing a horizontal scrollbar.
+
+    Newlines are encoded as <br/> so the markdown source contains no raw
+    newline inside the tag body, which prevents HF markdown from leaking text
+    out of the block.
+    """
+    safe = template.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    safe = safe.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br/>")
+    return f'<pre style="white-space: pre-wrap;">{safe}</pre>'
+
+
+def _render_user_prompt_info(
+    current_config: str,
+    current_template: str | None,
+    prompt_column: str,
+    existing_prompts: dict[str, str],
+) -> str:
+    """Render the user prompt section, merging current config with existing ones.
+
+    For multiple named configs, renders collapsible details per config, indented
+    under the "User prompts" bullet. For a single "default" config, renders a
+    simple inline description.
+    """
+    all_prompts = dict(existing_prompts)
+    if current_template:
+        all_prompts[current_config] = current_template
+
+    if not all_prompts or (len(all_prompts) == 1 and current_config == "default"):
+        if current_template:
+            pre = _render_prompt_pre(current_template)
+            return (
+                f" * User prompt: Template with content from column `{prompt_column}`\n\n"
+                f"   <details>\n   <summary>Prompt template</summary>\n\n"
+                f"   {pre}\n\n"
+                f"   </details>"
+            )
+        return f" * User prompt: Column `{prompt_column}`"
+
+    return _render_user_prompts_block(prompt_column, all_prompts)
+
+
+def _render_user_prompts_block(prompt_column: str, prompts: dict[str, str]) -> str:
+    """Render a stable, indentation-safe multi-config user prompts section."""
+    lines = [f" * User prompts (from column `{prompt_column}`):", "   "]
+    for name in sorted(prompts):
+        pre = _render_prompt_pre(prompts[name])
+        lines.append("   <details>")
+        lines.append(f"   <summary><b>{name}</b> prompt</summary>")
+        lines.append("   ")
+        lines.append(f"   {pre}")
+        lines.append("   ")
+        lines.append("   </details>")
+        lines.append("   ")
+    return "\n".join(lines).rstrip()
+
+
+def patch_readme_prompt(readme_content: str, config_name: str, template: str) -> str:
+    """Upsert a config prompt by re-rendering the full user prompts section."""
+    section_header_match = re.search(
+        r"^\s*\* User prompts? \(from column `([^`]+)`\):\s*$", readme_content, re.MULTILINE
+    )
+    if not section_header_match:
+        return readme_content
+
+    prompt_column = section_header_match.group(1)
+    section_start = section_header_match.start()
+
+    next_section_match = re.search(r"^\s*##\s+", readme_content[section_header_match.end() :], re.MULTILINE)
+    if not next_section_match:
+        section_end = len(readme_content)
+    else:
+        section_end = section_header_match.end() + next_section_match.start()
+
+    section_text = readme_content[section_start:section_end]
+    existing_prompts = _extract_prompt_templates(section_text)
+    existing_prompts[config_name] = template
+    rebuilt_section = _render_user_prompts_block(prompt_column, existing_prompts)
+
+    trailing = readme_content[section_end:].lstrip("\n")
+    return readme_content[:section_start] + rebuilt_section + "\n\n" + trailing
+
+
+def patch_readme_configs(readme_content: str, repo_id: str, config_name: str, split: str) -> str:
+    """Patch the YAML frontmatter configs and load_dataset example for a new config.
+
+    Merges the new config into existing ones, adds the "all" config if needed,
+    and regenerates the configs YAML block and load_dataset example.
+    """
+    # Parse existing configs from frontmatter
+    existing_configs: list[dict[str, Any]] = []
+    if readme_content.startswith("---"):
+        end = readme_content.index("---", 3)
+        frontmatter = yaml.safe_load(readme_content[3:end])
+        existing_configs = (frontmatter or {}).get("configs", [])
+
+    # Check if this config already exists
+    if any(c["config_name"] == config_name for c in existing_configs):
+        return readme_content
+
+    # Build and merge the new config
+    data_path = _data_path_for_config(config_name)
+    new_config = _build_config_entry(config_name, split, data_path)
+    merged = _merge_configs(existing_configs, new_config)
+    merged = _add_all_config(merged, split)
+
+    # Replace the configs + train-eval-index block in the YAML frontmatter
+    new_block = _render_configs_block(merged, split)
+    # Match from "configs:" to the end of the frontmatter (the closing ---)
+    readme_content = re.sub(
+        r"configs:.*?(?=\n---)",
+        new_block,
+        readme_content,
+        count=1,
+        flags=re.DOTALL,
+    )
+
+    # Replace the load_dataset example
+    new_example = _render_load_dataset_example(repo_id, merged)
+    readme_content = re.sub(
+        r"You can load the dataset using\n```python\n.*?```",
+        new_example,
+        readme_content,
+        count=1,
+        flags=re.DOTALL,
+    )
+
+    return readme_content
 
 
 def _render_load_dataset_example(repo_id: str, configs: list[dict[str, Any]]) -> str:
     """Render the load_dataset usage example for the dataset card."""
-    has_named_configs = any(c["config_name"] != "default" for c in configs)
+    has_named_configs = any(c["config_name"] not in ("default",) for c in configs)
     lines = ["You can load the dataset using", "```python", "from datasets import load_dataset", ""]
     if has_named_configs:
+        # Show "all" first if present, then individual configs
         for cfg in configs:
-            lines.append(f'ds_{cfg["config_name"]} = load_dataset("{repo_id}", "{cfg["config_name"]}")')
+            name = cfg["config_name"]
+            var_name = f"ds_{name}" if name != "all" else "ds"
+            comment = "  # all subsets combined" if name == "all" else ""
+            lines.append(f'{var_name} = load_dataset("{repo_id}", "{name}"){comment}')
     else:
         lines.append(f'ds = load_dataset("{repo_id}")')
     lines.append("```")
@@ -361,22 +573,20 @@ def build_and_upload_dataset_card(
     except Exception:
         hf_user = "hf_user"
 
-    # Format user prompt info based on whether template is used
-    if params.prompt_template:
-        user_prompt_info = f"Template `{params.prompt_template}` with content from column `{params.prompt_column}`"
-    else:
-        user_prompt_info = f"Column `{params.prompt_column}`"
+    # Format user prompt info, merging with any existing configs' prompts in the README
+    existing_prompts = _parse_existing_prompts(params.output_repo_id)
+    user_prompt_info = _render_user_prompt_info(
+        params.prompt_template_name, params.prompt_template, params.prompt_column, existing_prompts
+    )
 
     # Build HF dataset configs: merge this job's config with any existing ones in the repo
     split = params.input_dataset_split or "train"
     config_name = params.prompt_template_name
-    if config_name == "default":
-        data_path = "data/*.parquet"
-    else:
-        data_path = f"{config_name}/**/*.parquet"
+    data_path = _data_path_for_config(config_name)
     new_config = _build_config_entry(config_name, split, data_path)
     existing_configs = _fetch_existing_configs(params.output_repo_id)
     merged_configs = _merge_configs(existing_configs, new_config)
+    merged_configs = _add_all_config(merged_configs, split)
 
     context = {
         "repo_id": params.output_repo_id,
