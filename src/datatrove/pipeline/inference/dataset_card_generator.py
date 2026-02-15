@@ -179,18 +179,21 @@ def _render_job_stats(stats: JobStats | None) -> str:
 
 
 def format_number(n: int | None) -> str:
-    """Format number with human-readable suffix if > 1M."""
+    """Format number with human-readable suffix if > 1M.
+
+    Uses ≈ instead of ~ to avoid markdown strikethrough interpretation.
+    """
     if n is None:
         n = 0
     if n >= 1_000_000_000_000:  # 1 trillion
         trillions = n / 1_000_000_000_000
-        return f"{n:,} (~{trillions:.1f}T)"
+        return f"{n:,} (≈{trillions:.1f}T)"
     elif n >= 1_000_000_000:  # 1 billion
         billions = n / 1_000_000_000
-        return f"{n:,} (~{billions:.1f}B)"
+        return f"{n:,} (≈{billions:.1f}B)"
     elif n >= 1_000_000:  # 1 million
         millions = n / 1_000_000
-        return f"{n:,} (~{millions:.1f}M)"
+        return f"{n:,} (≈{millions:.1f}M)"
     return f"{n:,}"
 
 
@@ -387,6 +390,7 @@ def build_and_upload_dataset_card(
         "model_name": params.model_name,
         "model_revision": params.model_revision,
         "source_dataset_full": source_dataset_full,
+        "source_dataset_link": params.input_dataset_name,
         "model_max_context": str(params.generation_kwargs.get("model_max_context")),
         "temperature": str(params.generation_kwargs.get("temperature")),
         "top_p": str(params.generation_kwargs.get("top_p")),
