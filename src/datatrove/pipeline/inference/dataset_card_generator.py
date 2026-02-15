@@ -386,7 +386,11 @@ def build_and_upload_dataset_card(
         "tags_block": _format_block(tags, "- dataforge"),
         "size_category": size_category,
         "source_datasets_block": _format_block([source_dataset_full], f"- {source_dataset_full}"),
-        "input_dataset_split": split,
+        "source_dataset_info": (
+            f"`{params.input_dataset_config}` config, `{split}` split"
+            if params.input_dataset_config
+            else f"`{split}` split"
+        ),
         "model_name": params.model_name,
         "model_revision": params.model_revision,
         "source_dataset_full": source_dataset_full,
