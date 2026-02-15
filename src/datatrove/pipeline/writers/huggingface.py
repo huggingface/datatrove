@@ -17,10 +17,6 @@ from datatrove.pipeline.writers import ParquetWriter
 from datatrove.utils.logging import logger
 
 
-MAX_RETRIES = 12
-BASE_DELAY = 0.1
-
-
 class HuggingFaceDatasetWriter(ParquetWriter):
     default_output_filename: str = "data/${rank}.parquet"
     name = "🤗 HuggingFace"
@@ -117,16 +113,12 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 )
                 break
             except HfHubHTTPError as e:
-                if (
-                    "A commit has happened since" in e.server_message
-                    or "maximum queue size reached" in e.server_message
-                    or "maximum time in concurrency queue reached" in e.server_message
-                ):
-                    if retries >= MAX_RETRIES:
-                        logger.error(f"Failed to create commit after {MAX_RETRIES=}. Giving up.")
+                if self.is_retryable_hf_hub_error(e.server_message):
+                    if retries >= self.HF_COMMIT_MAX_RETRIES:
+                        logger.error(f"Failed to create commit after {self.HF_COMMIT_MAX_RETRIES=}. Giving up.")
                         raise e
                     logger.info("Commit creation race condition issue. Waiting...")
-                    time.sleep(BASE_DELAY * 2**retries + random.uniform(0, 2))
+                    time.sleep(self.HF_COMMIT_BASE_DELAY * 2**retries + random.uniform(0, 2))
                     retries += 1
                 else:
                     logger.error(f"Failed to create commit: {e.server_message}")
