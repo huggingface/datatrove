@@ -275,7 +275,9 @@ def main(
         quantization=quantization,
     )
     output_path = (
-        f"hf://datasets/{full_repo_id}/{prompt_template_name}" if not benchmark_mode else str(run_path / "output")
+        f"hf://datasets/{full_repo_id}/{prompt_template_name}"
+        if not benchmark_mode
+        else str(run_path / "output" / "data")
     )
     checkpoints_path = str(run_path / "checkpoints")
     inference_logs_path = run_path / "inference_logs"
@@ -346,7 +348,7 @@ def main(
             # The HuggingFaceDatasetWriter only uploads at the end, the ParquetWriter uploads incrementally
             output_writer=ParquetWriter(
                 output_folder=output_path,
-                output_filename="data/${rank}_${chunk_index}.parquet",
+                output_filename="${rank}_${chunk_index}.parquet",
                 expand_metadata=True,
                 max_file_size=MB if local_execution else 256 * MB,  # ~1MB for debugging, ~256MB for slurm
                 batch_size=10 if local_execution else 1000,
