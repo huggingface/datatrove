@@ -214,8 +214,8 @@ def main(
             content = prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
 
             # Truncate content if too long to avoid server errors
-            # Uses ~3 chars per token as a conservative approximation
-            char_budget = (model_max_context - max_tokens) * 3
+            # Uses ~2.5 chars per token as a conservative approximation
+            char_budget = int((model_max_context - max_tokens) * 2.5)
             if len(content) > char_budget:
                 original_len = len(content)
                 # Try to truncate at a newline boundary for cleaner cuts
