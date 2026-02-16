@@ -214,8 +214,8 @@ def main(
             content = prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
 
             # Truncate content if too long to avoid server errors
-            # Uses ~2.5 chars per token as a conservative approximation
-            char_budget = int((model_max_context - max_tokens) * 2.5)
+            CHAR_PER_TOKEN = 3 # Uses ~3 chars per token as a conservative approximation
+            char_budget = int((model_max_context - max_tokens) * CHAR_PER_TOKEN)
             if len(content) > char_budget:
                 original_len = len(content)
                 # Try to truncate at a newline boundary for cleaner cuts
@@ -345,6 +345,7 @@ def main(
             config=inference_config,
             records_per_chunk=examples_per_chunk,
             checkpoints_local_dir=checkpoints_path if not benchmark_mode else None,
+            skip_bad_requests=True,
             # The HuggingFaceDatasetWriter only uploads at the end, the ParquetWriter uploads incrementally
             output_writer=ParquetWriter(
                 output_folder=output_path,
