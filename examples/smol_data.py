@@ -1,5 +1,7 @@
 """Smol data: Create ~100B token subsets, 50-30-20 mixtures, and shuffled versions.
 
+This script created this dataset: https://huggingface.co/collections/HuggingFaceFW/smol-data
+
 Creates:
   - Individual ~100B subsets: dclm_100BT, fineweb_100BT, fineweb_edu_100BT, finepdfs_100BT, finepdfs_edu_100BT
   - Mix 1 (100B): finepdfs_50BT-dclm_30BT-fineweb_edu_20BT
