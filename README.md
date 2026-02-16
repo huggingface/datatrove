@@ -358,6 +358,7 @@ For a ready-to-use script for synthetic data generation at scale (supporting mod
 Recoverable generation:
 - Setting `checkpoints_local_dir` together with `records_per_chunk` writes every `Document` to local chunk files (remember to include `${chunk_index}` in the output filename template), then uploads them via the configured writer. Failed tasks automatically resume from the last finished chunk.
 - When checkpointing is enabled a sqlite-backed `RequestCache` deduplicates individual rollouts via payload hashes (requires `xxhash` and `aiosqlite`) so completed generations are never re-sent during retries.
+- Set `skip_bad_requests=True` on `InferenceRunner` to skip provider-side `BadRequestError`s (for example, context/window overflows) and keep the remaining documents running.
 
 Tune batching with `max_concurrent_generations` and, when pre/post-processing is heavy, raise `max_concurrent_documents` to allow more rollout coroutines to build payloads while requests are in flight.
 
@@ -383,6 +384,7 @@ Tune batching with `max_concurrent_generations` and, when pre/post-processing is
           InferenceRunner(
               rollout_fn=simple_rollout,
               config=config,
+              skip_bad_requests=True,
               records_per_chunk=500,
               checkpoints_local_dir="/fsx/.../translate-checkpoints",
               output_writer=JsonlWriter("s3://.../final_output_data", output_filename="${rank}_chunk_${chunk_index}.jsonl"),
