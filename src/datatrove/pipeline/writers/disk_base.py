@@ -1,5 +1,7 @@
 import dataclasses
 import os.path
+import random
+import time
 from abc import ABC, abstractmethod
 from collections import Counter
 from string import Template
@@ -11,6 +13,13 @@ from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import logger
 from datatrove.utils.typeshelper import StatHints
+
+
+HF_RETRYABLE_MESSAGES = (
+    "A commit has happened since",
+    "maximum queue size reached",
+    "maximum time in concurrency queue reached",
+)
 
 
 class DiskWriter(PipelineStep, ABC):
@@ -26,6 +35,14 @@ class DiskWriter(PipelineStep, ABC):
 
     default_output_filename: str = None
     type = "💽 - WRITER"
+
+    HF_COMMIT_MAX_RETRIES = 12
+    HF_COMMIT_BASE_DELAY = 0.1
+
+    @staticmethod
+    def is_retryable_hf_hub_error(error_message: str) -> bool:
+        """Return True for HF Hub errors we explicitly retry."""
+        return any(message in error_message for message in HF_RETRYABLE_MESSAGES)
 
     def __init__(
         self,
@@ -140,14 +157,49 @@ class DiskWriter(PipelineStep, ABC):
         self.close_file(old_filename)
 
     def close_file(self, filename):
-        """
-            Close a file and remove it from the output manager
+        """Close a file and remove it from the output manager.
+
+        Retries on known HF Hub commit race/congestion errors with exponential
+        backoff. On failure, fsspec marks the file closed but the temp file
+        persists, so we retry the upload_file call directly.
+
         Args:
             filename: filename to close
         """
         if self.max_file_size > 0 and filename not in self.output_mg.get_open_files():
             filename = self._get_filename_with_file_id(filename)
-        self.output_mg.pop(filename).close()
+        file_obj = self.output_mg.pop(filename)
+        try:
+            file_obj.close()
+        except Exception as e:
+            err_str = str(e)
+            if not self.is_retryable_hf_hub_error(err_str) or not hasattr(file_obj, "fs"):
+                raise
+            # fsspec marks the file closed, but the temp file still exists on disk.
+            # Retry the HF upload_file call directly with exponential backoff.
+            api = file_obj.fs._api
+            for attempt in range(self.HF_COMMIT_MAX_RETRIES):
+                delay = self.HF_COMMIT_BASE_DELAY * 2**attempt + random.uniform(0, 2)
+                logger.warning(
+                    f"HF Hub upload error for {filename}, retrying in {delay:.1f}s "
+                    f"({attempt + 1}/{self.HF_COMMIT_MAX_RETRIES})..."
+                )
+                time.sleep(delay)
+                try:
+                    api.upload_file(
+                        path_or_fileobj=file_obj.temp_file.name,
+                        path_in_repo=file_obj.resolved_path.path_in_repo,
+                        repo_id=file_obj.resolved_path.repo_id,
+                        token=file_obj.fs.token,
+                        repo_type=file_obj.resolved_path.repo_type,
+                        revision=file_obj.resolved_path.revision,
+                    )
+                    os.remove(file_obj.temp_file.name)
+                    return
+                except Exception as retry_err:
+                    if not self.is_retryable_hf_hub_error(str(retry_err)):
+                        raise
+            raise
 
     def _get_filename_with_file_id(self, filename):
         """
