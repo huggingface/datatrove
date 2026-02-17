@@ -264,20 +264,19 @@ def _add_all_config(configs: list[dict[str, Any]], split: str) -> list[dict[str,
     """Add an 'all' config that unions all named configs' data files.
 
     Only added when there are multiple non-default configs.
+    Uses a single data_files entry with a list of paths to avoid
+    duplicate split names (which HuggingFace rejects).
     """
     named = [c for c in configs if c["config_name"] not in ("default", "all")]
     if len(named) < 2:
         return configs
 
-    # Collect all data paths from named configs
-    all_paths = []
-    for cfg in named:
-        for df in cfg["data_files"]:
-            all_paths.append(df["path"])
+    # Collect all data paths from named configs into a single split entry
+    all_paths = [df["path"] for cfg in named for df in cfg["data_files"]]
 
     all_config = {
         "config_name": "all",
-        "data_files": [{"split": split, "path": p} for p in all_paths],
+        "data_files": [{"split": split, "path": all_paths}],
     }
 
     # Remove any existing "all" config, then prepend
@@ -294,7 +293,13 @@ def _render_configs_block(configs: list[dict[str, Any]], split: str) -> str:
         lines.append("  data_files:")
         for df in cfg["data_files"]:
             lines.append(f"  - split: {df['split']}")
-            lines.append(f"    path: {df['path']}")
+            path = df["path"]
+            if isinstance(path, list):
+                lines.append("    path:")
+                for p in path:
+                    lines.append(f"    - {p}")
+            else:
+                lines.append(f"    path: {path}")
 
     # train-eval-index references the "all" config if present, else the first config
     default_config = next(
