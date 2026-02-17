@@ -62,6 +62,10 @@ class InferenceConfig:
         model_kwargs: Additional keyword arguments passed to model initialization.
         server_log_folder: Optional directory for server logs. Creates one log per rank when set.
         master_port: Port of the master node used for distributed settings. (default: 9810)
+        server_start_timeout_sec: Timeout for launching the server process.
+        server_ready_max_attempts: Number of readiness polls before failing startup.
+        server_ready_delay_sec: Delay between readiness polls.
+        server_start_max_retries: Number of retries after a failed startup attempt.
     """
 
     # server and model
@@ -89,8 +93,28 @@ class InferenceConfig:
     # distributed, we could probably init inside the server class, so that we can run multiple jobs on same nodes, but this use-case
     # doesn't make much sense, so keep it as is now.
     master_port: int = 9810
+    # Server startup policy (kept configurable because vLLM cold-start time varies
+    # a lot with model size, optimization settings, and node contention).
+    # Wall-clock timeout for spawning the server subprocess.
+    server_start_timeout_sec: float = 60.0
+    # Number of readiness probes before startup is treated as failed.
+    # Total readiness window = server_ready_max_attempts * server_ready_delay_sec.
+    server_ready_max_attempts: int = 300
+    # Delay between readiness probes in seconds; higher values reduce probe pressure.
+    server_ready_delay_sec: float = 5.0
+    # Additional full startup attempts after the initial attempt (0 means no retry).
+    server_start_max_retries: int = 1
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        if self.server_start_timeout_sec <= 0:
+            raise ValueError("server_start_timeout_sec must be > 0.")
+        if self.server_ready_max_attempts < 1:
+            raise ValueError("server_ready_max_attempts must be >= 1.")
+        if self.server_ready_delay_sec <= 0:
+            raise ValueError("server_ready_delay_sec must be > 0.")
+        if self.server_start_max_retries < 0:
+            raise ValueError("server_start_max_retries must be >= 0.")
+
         if self.max_concurrent_documents is None:
             self.max_concurrent_documents = max(1, self.max_concurrent_generations // self.rollouts_per_document)
 
@@ -119,6 +143,7 @@ class InferenceRunner(PipelineStep):
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
         metadata_key: str = "rollout_results",
+        skip_bad_requests: bool = False,
     ):
         """
         Initialize the inference runner.
@@ -136,6 +161,8 @@ class InferenceRunner(PipelineStep):
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             metadata_key: Key to use for storing the rollout results in the document metadata. Default: "rollout_results".
+            skip_bad_requests: If True, documents that trigger a provider-side BadRequestError are skipped instead of
+                aborting the whole task. Default: False.
         """
         super().__init__()
 
@@ -143,6 +170,7 @@ class InferenceRunner(PipelineStep):
         self.rollout_fn = rollout_fn
         self.shared_context = shared_context
         self.metadata_key = metadata_key
+        self.skip_bad_requests = skip_bad_requests
 
         self.output_writer = output_writer
 
@@ -179,6 +207,10 @@ class InferenceRunner(PipelineStep):
     # --------------------------------------------------------------------- #
     # Helpers
     # --------------------------------------------------------------------- #
+    @staticmethod
+    def _is_bad_request_error(error: str | Exception) -> bool:
+        return "BadRequestError" in str(error)
+
     def _init_server(self, rank: int) -> InferenceServer:
         """
         Spawn the requested inference server (non-blocking).
@@ -310,7 +342,7 @@ class InferenceRunner(PipelineStep):
             doc_id, rollout_idx, payload_hash=payload_hash
         )
         if cached_result is not None or cached_error is not None:
-            if cached_error is not None and "BadRequestError" in cached_error:
+            if cached_error is not None and self._is_bad_request_error(cached_error):
                 raise InferenceError(None, cached_error, payload=payload)
             elif cached_result is not None:
                 return InferenceResult(
@@ -322,7 +354,7 @@ class InferenceRunner(PipelineStep):
         try:
             result = await self._send_request(server, payload, semaphore)
         except InferenceError as e:
-            if "BadRequestError" in str(e):
+            if self._is_bad_request_error(e):
                 await self.request_cache.store_error(
                     chunk_index=chunk_index,
                     doc_id=doc_id,
@@ -471,7 +503,13 @@ class InferenceRunner(PipelineStep):
             await self._save_document(doc, output_writer_context, rank, chunk_index)
             await self.request_cache.mark_document_complete(doc.id)
         except InferenceError as e:
-            raise e
+            if self.skip_bad_requests and self._is_bad_request_error(e):
+                logger.warning(f"Skipping document {doc.id} due to bad request: {e.error}")
+                self.stat_update("skipped_bad_requests", value=1, unit="document")
+                self.stat_update("failed_rollouts", value=self.config.rollouts_per_document, unit="document")
+                await self.request_cache.mark_document_complete(doc.id)
+                return
+            raise
         except (ServerError, asyncio.CancelledError):
             raise
         except Exception as e:

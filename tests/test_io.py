@@ -56,24 +56,27 @@ class TestIO(unittest.TestCase):
             )
         ):
             manager = multiprocessing.Manager()
-            counter = manager.Value("i", 0)
-            lock = manager.Lock()
+            try:
+                counter = manager.Value("i", 0)
+                lock = manager.Lock()
 
-            file_path = os.path.join(self.tmp_dir, str(runi), "myfile")
-            os.makedirs(os.path.join(self.tmp_dir, str(runi)))
+                file_path = os.path.join(self.tmp_dir, str(runi), "myfile")
+                os.makedirs(os.path.join(self.tmp_dir, str(runi)))
 
-            with manager.Pool(2) as pool:
-                if completed_exists:
-                    open(file_path + ".completed", "a").close()
-                if lock_exists:
-                    open(file_path + ".lock", "a").close()
+                with manager.Pool(2) as pool:
+                    if completed_exists:
+                        open(file_path + ".completed", "a").close()
+                    if lock_exists:
+                        open(file_path + ".lock", "a").close()
 
-                pool.starmap(
-                    partial(safely_create_file, do_processing=partial(fake_do_download, cc=counter, ll=lock)),
-                    [(file_path,) for _ in range(2)],
-                )
+                    pool.starmap(
+                        partial(safely_create_file, do_processing=partial(fake_do_download, cc=counter, ll=lock)),
+                        [(file_path,) for _ in range(2)],
+                    )
 
-                self.assertEqual(counter.value, expec_calls)
+                    self.assertEqual(counter.value, expec_calls)
+            finally:
+                manager.shutdown()
 
     def test_get_shard_from_paths_file_with_compression(self):
         """Test that get_shard_from_paths_file supports compression='infer'"""

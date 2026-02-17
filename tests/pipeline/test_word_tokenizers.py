@@ -1,6 +1,11 @@
 import unittest
 
-from datatrove.utils.word_tokenizers import TibetanTokenizer, load_tokenizer_assignments, load_word_tokenizer
+from datatrove.utils.word_tokenizers import (
+    TibetanTokenizer,
+    WhitespaceTokenizer,
+    load_tokenizer_assignments,
+    load_word_tokenizer,
+)
 
 
 SAMPLE_TEXT = (
@@ -21,6 +26,13 @@ def get_unique_tokenizers():
 
 
 class TestWordTokenizers(unittest.TestCase):
+    @classmethod
+    def tearDownClass(cls) -> None:
+        """Release tokenizer caches before interpreter shutdown."""
+        load_word_tokenizer.cache_clear()
+        load_tokenizer_assignments.cache_clear()
+        WhitespaceTokenizer._spacy_xx.fget.cache_clear()  # type: ignore[union-attr]
+
     def test_word_tokenizers(self):
         for language, tokenizer in get_unique_tokenizers():
             tokens = tokenizer.word_tokenize(SAMPLE_TEXT)
