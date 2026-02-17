@@ -62,6 +62,10 @@ class InferenceConfig:
         model_kwargs: Additional keyword arguments passed to model initialization.
         server_log_folder: Optional directory for server logs. Creates one log per rank when set.
         master_port: Port of the master node used for distributed settings. (default: 9810)
+        server_start_timeout_sec: Timeout for launching the server process.
+        server_ready_max_attempts: Number of readiness polls before failing startup.
+        server_ready_delay_sec: Delay between readiness polls.
+        server_start_max_retries: Number of retries after a failed startup attempt.
     """
 
     # server and model
@@ -89,8 +93,28 @@ class InferenceConfig:
     # distributed, we could probably init inside the server class, so that we can run multiple jobs on same nodes, but this use-case
     # doesn't make much sense, so keep it as is now.
     master_port: int = 9810
+    # Server startup policy (kept configurable because vLLM cold-start time varies
+    # a lot with model size, optimization settings, and node contention).
+    # Wall-clock timeout for spawning the server subprocess.
+    server_start_timeout_sec: float = 60.0
+    # Number of readiness probes before startup is treated as failed.
+    # Total readiness window = server_ready_max_attempts * server_ready_delay_sec.
+    server_ready_max_attempts: int = 300
+    # Delay between readiness probes in seconds; higher values reduce probe pressure.
+    server_ready_delay_sec: float = 5.0
+    # Additional full startup attempts after the initial attempt (0 means no retry).
+    server_start_max_retries: int = 1
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        if self.server_start_timeout_sec <= 0:
+            raise ValueError("server_start_timeout_sec must be > 0.")
+        if self.server_ready_max_attempts < 1:
+            raise ValueError("server_ready_max_attempts must be >= 1.")
+        if self.server_ready_delay_sec <= 0:
+            raise ValueError("server_ready_delay_sec must be > 0.")
+        if self.server_start_max_retries < 0:
+            raise ValueError("server_start_max_retries must be >= 0.")
+
         if self.max_concurrent_documents is None:
             self.max_concurrent_documents = max(1, self.max_concurrent_generations // self.rollouts_per_document)
 
