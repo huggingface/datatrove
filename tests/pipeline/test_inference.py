@@ -70,6 +70,31 @@ def test_inference_config_sets_default_concurrency():
     assert config.max_concurrent_documents == 2
 
 
+@pytest.mark.parametrize(
+    ("field_name", "value", "message"),
+    [
+        ("server_start_timeout_sec", 0, "server_start_timeout_sec must be > 0."),
+        ("server_ready_max_attempts", 0, "server_ready_max_attempts must be >= 1."),
+        ("server_ready_delay_sec", 0, "server_ready_delay_sec must be > 0."),
+        ("server_start_max_retries", -1, "server_start_max_retries must be >= 0."),
+    ],
+)
+def test_inference_config_validates_server_startup_policy(field_name, value, message):
+    config_kwargs = {
+        "server_type": "dummy",
+        "model_name_or_path": "test-model",
+        "model_max_context": 4096,
+        "metric_interval": 60,
+        "rollouts_per_document": 1,
+        "max_concurrent_generations": 1,
+        "max_concurrent_documents": 1,
+    }
+    config_kwargs[field_name] = value
+
+    with pytest.raises(ValueError, match=message):
+        InferenceConfig(**config_kwargs)
+
+
 def test_multiple_rollouts_collect_results(tmp_path):
     output_dir = tmp_path / "multi_rollouts"
     documents = [Document(text="hello world", id="multi-1")]
