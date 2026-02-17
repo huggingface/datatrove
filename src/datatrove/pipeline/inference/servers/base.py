@@ -385,17 +385,14 @@ class InferenceServer(ABC):
     # Server lifecycle methods
     # --------------------------------------------------------------------------- #
 
-    async def bg_start_server(self, max_retries: int = 1) -> None:
+    async def bg_start_server(self) -> None:
         """
         Start the server with retry logic.
 
-        Attempts to start the server process, with optional retries on failure.
+        Attempts to start the server process, with retries on failure.
         Uses a lock to ensure only one start attempt happens at a time. If the
         server is already ready, returns immediately. If it has permanently
         failed, re-raises the exception.
-
-        Args:
-            max_retries: Maximum number of start attempts. Default is 1.
 
         Raises:
             ServerError: If the server fails to start after all
@@ -408,18 +405,24 @@ class InferenceServer(ABC):
                 if self._server_ready.done():
                     return
 
-                for retry in range(max_retries + 1):
+                for retry in range(self.config.server_start_max_retries + 1):
                     # Cleanup the server if it is already running
                     await self.server_cleanup()
 
                     # Find available port for this attempt
                     self._port = _find_available_port(self._rank)
                     try:
-                        self._server_process = await asyncio.wait_for(self.start_server(), timeout=60.0)
+                        self._server_process = await asyncio.wait_for(
+                            self.start_server(),
+                            timeout=self.config.server_start_timeout_sec,
+                        )
                         self._server_monitoring_task = asyncio.create_task(self._monitor_server())
                         # We have no way to know if the server is ready from child process
                         if self._is_master:
-                            await self._wait_until_ready()
+                            await self._wait_until_ready(
+                                max_attempts=self.config.server_ready_max_attempts,
+                                delay_sec=self.config.server_ready_delay_sec,
+                            )
                             # Signal success
                             if not self._server_ready.done():
                                 self._server_ready.set_result(True)
@@ -431,12 +434,19 @@ class InferenceServer(ABC):
                     except asyncio.CancelledError:
                         raise
                     except asyncio.TimeoutError:
-                        logger.warning(f"Server start attempt {retry + 1}/{max_retries} timed out")
+                        logger.warning(
+                            f"Server start attempt {retry + 1}/{self.config.server_start_max_retries} timed out"
+                        )
                     except Exception as e:
-                        logger.warning(f"Server start attempt {retry + 1}/{max_retries} failed: {e}")
+                        logger.warning(
+                            f"Server start attempt {retry + 1}/{self.config.server_start_max_retries} failed: {e}"
+                        )
 
                 # Failed after all retries - signal error to all waiters
-                error_msg = f"Failed to start {self.__class__.__name__} server after {max_retries} retries"
+                error_msg = (
+                    f"Failed to start {self.__class__.__name__} server after "
+                    f"{self.config.server_start_max_retries} retries"
+                )
                 raise ServerError(error_msg)
             except Exception as e:
                 if not self._server_ready.done():

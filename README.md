@@ -67,6 +67,7 @@ You can check the following [examples](examples):
 - [process_common_crawl_dump.py](examples/process_common_crawl_dump.py) full pipeline to read commoncrawl warc files, extract their text content, filters and save the resulting data to s3. Runs on slurm
 - [tokenize_c4.py](examples/tokenize_c4.py) reads data directly from huggingface's hub to tokenize the english portion of the C4 dataset using the `gpt2` tokenizer
 - [estimate_tokens.py](examples/estimate_tokens.py) estimate total token counts for large HF datasets — needed to set the correct `SamplerFilter` rate when creating a random shuffled subsample (e.g. 100B tokens from a multi-trillion-token dataset). Streams a small sample per dataset, converges on the average tokens/doc, and multiplies by the total row count.
+- [smol_data.py](examples/smol_data.py) builds ~100B token subsets, 50-30-20 mixtures, and shuffled variants for several large Hugging Face datasets
 - [minhash_deduplication.py](examples/minhash_deduplication.py) full pipeline to run minhash deduplication of text data
 - [sentence_deduplication.py](examples/sentence_deduplication.py) example to run sentence level exact deduplication
 - [exact_substrings.py](examples/exact_substrings.py) example to run ExactSubstr (requires [this repo](https://github.com/google-research/deduplicate-text-datasets))
@@ -358,6 +359,7 @@ For a ready-to-use script for synthetic data generation at scale (supporting mod
 Recoverable generation:
 - Setting `checkpoints_local_dir` together with `records_per_chunk` writes every `Document` to local chunk files (remember to include `${chunk_index}` in the output filename template), then uploads them via the configured writer. Failed tasks automatically resume from the last finished chunk.
 - When checkpointing is enabled a sqlite-backed `RequestCache` deduplicates individual rollouts via payload hashes (requires `xxhash` and `aiosqlite`) so completed generations are never re-sent during retries.
+- Set `skip_bad_requests=True` on `InferenceRunner` to skip provider-side `BadRequestError`s (for example, context/window overflows) and keep the remaining documents running.
 
 Tune batching with `max_concurrent_generations` and, when pre/post-processing is heavy, raise `max_concurrent_documents` to allow more rollout coroutines to build payloads while requests are in flight.
 
@@ -383,6 +385,7 @@ Tune batching with `max_concurrent_generations` and, when pre/post-processing is
           InferenceRunner(
               rollout_fn=simple_rollout,
               config=config,
+              skip_bad_requests=True,
               records_per_chunk=500,
               checkpoints_local_dir="/fsx/.../translate-checkpoints",
               output_writer=JsonlWriter("s3://.../final_output_data", output_filename="${rank}_chunk_${chunk_index}.jsonl"),
