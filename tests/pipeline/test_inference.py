@@ -14,7 +14,7 @@ from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
-from datatrove.pipeline.inference.types import ServerError
+from datatrove.pipeline.inference.types import InferenceError, ServerError
 from datatrove.pipeline.writers import JsonlWriter
 
 
@@ -316,6 +316,90 @@ def test_async_query_builder_none_payload_skips_document(tmp_path):
     assert not output_file.exists() or output_file.read_text().strip() == "", (
         "No output should be written when rollout returns None"
     )
+
+
+def test_bad_request_raises_by_default(tmp_path):
+    output_dir = tmp_path / "bad_request_default"
+    documents = [Document(text="bad doc", id="bad-default")]
+
+    async def bad_rollout(document, generate, **kwargs):
+        raise InferenceError(document, "Got BadRequestError from server: invalid request")
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=bad_rollout,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    with pytest.raises(InferenceError, match="BadRequestError"):
+        asyncio.run(runner.run_async(documents, rank=0))
+
+
+def test_skip_bad_requests_continues_processing(tmp_path):
+    output_dir = tmp_path / "skip_bad_request_output"
+    documents = [Document(text="bad doc", id="bad"), Document(text="good doc", id="good")]
+
+    async def mixed_rollout(document, generate, **kwargs):
+        if document.id == "bad":
+            raise InferenceError(
+                document,
+                "Got BadRequestError from server: invalid request",
+                payload={"doc_id": document.id},
+            )
+        result = await generate(
+            {
+                "messages": [{"role": "user", "content": [{"type": "text", "text": document.text}]}],
+                "max_tokens": 100,
+            }
+        )
+        return {
+            "text": result.text,
+            "finish_reason": result.finish_reason,
+            "usage": result.usage,
+        }
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=mixed_rollout,
+        config=config,
+        output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        skip_bad_requests=True,
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    bad_doc = documents[0]
+    good_doc = documents[1]
+    assert "rollout_results" not in bad_doc.metadata, "Bad-request document should be skipped"
+    assert "rollout_results" in good_doc.metadata, "Other documents should keep processing"
+    assert len(good_doc.metadata["rollout_results"]) == 1
+
+    output_file = output_dir / "00000.jsonl"
+    assert output_file.exists()
+    with output_file.open("r") as f:
+        lines = [line for line in f if line.strip()]
+    assert len(lines) == 1, "Only non-skipped documents should be written"
+    saved_doc = json.loads(lines[0])
+    assert saved_doc["id"] == "good"
 
 
 def read_output_files(output_path):

@@ -119,6 +119,7 @@ class InferenceRunner(PipelineStep):
         checkpoints_local_dir: str | None = None,
         records_per_chunk: int = 6000,
         metadata_key: str = "rollout_results",
+        skip_bad_requests: bool = False,
     ):
         """
         Initialize the inference runner.
@@ -136,6 +137,8 @@ class InferenceRunner(PipelineStep):
             checkpoints_local_dir: Local directory to store checkpoints. We save individual files of records_per_chunk documents each locally as a "copy" of the output_writer documents. If a task fails, we will take the locally saved files and re-upload their documents.
             records_per_chunk: Ignored if checkpoints_local_dir is not provided. Default: 6000.
             metadata_key: Key to use for storing the rollout results in the document metadata. Default: "rollout_results".
+            skip_bad_requests: If True, documents that trigger a provider-side BadRequestError are skipped instead of
+                aborting the whole task. Default: False.
         """
         super().__init__()
 
@@ -143,6 +146,7 @@ class InferenceRunner(PipelineStep):
         self.rollout_fn = rollout_fn
         self.shared_context = shared_context
         self.metadata_key = metadata_key
+        self.skip_bad_requests = skip_bad_requests
 
         self.output_writer = output_writer
 
@@ -179,6 +183,10 @@ class InferenceRunner(PipelineStep):
     # --------------------------------------------------------------------- #
     # Helpers
     # --------------------------------------------------------------------- #
+    @staticmethod
+    def _is_bad_request_error(error: str | Exception) -> bool:
+        return "BadRequestError" in str(error)
+
     def _init_server(self, rank: int) -> InferenceServer:
         """
         Spawn the requested inference server (non-blocking).
@@ -310,7 +318,7 @@ class InferenceRunner(PipelineStep):
             doc_id, rollout_idx, payload_hash=payload_hash
         )
         if cached_result is not None or cached_error is not None:
-            if cached_error is not None and "BadRequestError" in cached_error:
+            if cached_error is not None and self._is_bad_request_error(cached_error):
                 raise InferenceError(None, cached_error, payload=payload)
             elif cached_result is not None:
                 return InferenceResult(
@@ -322,7 +330,7 @@ class InferenceRunner(PipelineStep):
         try:
             result = await self._send_request(server, payload, semaphore)
         except InferenceError as e:
-            if "BadRequestError" in str(e):
+            if self._is_bad_request_error(e):
                 await self.request_cache.store_error(
                     chunk_index=chunk_index,
                     doc_id=doc_id,
@@ -471,7 +479,13 @@ class InferenceRunner(PipelineStep):
             await self._save_document(doc, output_writer_context, rank, chunk_index)
             await self.request_cache.mark_document_complete(doc.id)
         except InferenceError as e:
-            raise e
+            if self.skip_bad_requests and self._is_bad_request_error(e):
+                logger.warning(f"Skipping document {doc.id} due to bad request: {e.error}")
+                self.stat_update("skipped_bad_requests", value=1, unit="document")
+                self.stat_update("failed_rollouts", value=self.config.rollouts_per_document, unit="document")
+                await self.request_cache.mark_document_complete(doc.id)
+                return
+            raise
         except (ServerError, asyncio.CancelledError):
             raise
         except Exception as e:
