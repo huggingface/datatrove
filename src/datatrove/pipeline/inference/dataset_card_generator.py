@@ -16,9 +16,10 @@ from datatrove.utils.logging import logger
 
 
 _PROMPT_BLOCK_PATTERN = re.compile(
-    r"<summary><b>(\w+)</b> prompt</summary>\s*\n\s*<(?P<tag>pre|div)[^>]*>(?P<body>.*?)</(?P=tag)>",
+    r"<summary><b>(?P<name>[^<]+)</b> prompt</summary>\s*<(?P<tag>pre|div)[^>]*>(?P<body>.*?)</(?P=tag)>",
     re.DOTALL,
 )
+_PROMPT_SECTION_HEADER_PATTERN = re.compile(r"^\s*\* User prompts? \(from column `([^`]+)`\):\s*$", re.MULTILINE)
 
 
 @dataclass
@@ -350,7 +351,7 @@ def _decode_prompt_html_content(content: str) -> str:
 def _extract_prompt_templates(content: str) -> dict[str, str]:
     prompts: dict[str, str] = {}
     for match in _PROMPT_BLOCK_PATTERN.finditer(content):
-        prompts[match.group(1)] = _decode_prompt_html_content(match.group("body"))
+        prompts[match.group("name")] = _decode_prompt_html_content(match.group("body"))
     return prompts
 
 
@@ -416,20 +417,18 @@ def _render_user_prompts_block(prompt_column: str, prompts: dict[str, str]) -> s
 
 def patch_readme_prompt(readme_content: str, config_name: str, template: str) -> str:
     """Upsert a config prompt by re-rendering the full user prompts section."""
-    section_header_match = re.search(
-        r"^\s*\* User prompts? \(from column `([^`]+)`\):\s*$", readme_content, re.MULTILINE
-    )
+    section_header_match = _PROMPT_SECTION_HEADER_PATTERN.search(readme_content)
     if not section_header_match:
         return readme_content
-
     prompt_column = section_header_match.group(1)
     section_start = section_header_match.start()
+    section_content_start = section_header_match.end()
 
-    next_section_match = re.search(r"^\s*##\s+", readme_content[section_header_match.end() :], re.MULTILINE)
+    next_section_match = re.search(r"^\s*##\s+", readme_content[section_content_start:], re.MULTILINE)
     if not next_section_match:
         section_end = len(readme_content)
     else:
-        section_end = section_header_match.end() + next_section_match.start()
+        section_end = section_content_start + next_section_match.start()
 
     section_text = readme_content[section_start:section_end]
     existing_prompts = _extract_prompt_templates(section_text)

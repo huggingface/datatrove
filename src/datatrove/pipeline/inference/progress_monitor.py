@@ -32,7 +32,6 @@ from datatrove.utils.logging import logger
 
 
 _PROGRESS_SECTION_HEADER = "## 🔄 Generation Progress"
-_OVERALL_LINE_PATTERN = re.compile(r"^\*\*Overall\*\*:.*\n?", re.MULTILINE)
 _TIMESTAMP_LINE_PATTERN = re.compile(r"^\*Last updated:.*$", re.MULTILINE)
 
 
@@ -93,27 +92,6 @@ def _download_readme(repo_id: str) -> str | None:
         return Path(readme_path).read_text(encoding="utf-8")
     except Exception:
         return None
-
-
-def _parse_progress_counts(content: str) -> dict[str, int]:
-    """Parse per-config completed doc counts from the progress section.
-
-    Matches lines like: **math**: [●●○○...] 42% • 1,234/10,000 docs ...
-
-    Returns:
-        Mapping of config_name -> completed document count.
-    """
-    progress: dict[str, int] = {}
-    for match in re.finditer(
-        r"\*\*(\w+)\*\*:\s*\[.*?\]\s*\d+%\s*•\s*([\d,]+)/",
-        content,
-    ):
-        config_name = match.group(1)
-        if config_name == "Overall":
-            continue
-        count_str = match.group(2).replace(",", "")
-        progress[config_name] = int(count_str)
-    return progress
 
 
 def _upload_readme(repo_id: str, content: str) -> None:
@@ -289,22 +267,6 @@ def _render_bar_and_counts(completed: int, total: int) -> str:
     return f"{bar} {percentage}% • {doc_text}"
 
 
-def _render_overall_line(readme_content: str, total_per_config: int) -> str | None:
-    """Recompute the Overall progress line from all per-config lines in the README.
-
-    Returns None if there's only one config (Overall is redundant).
-    """
-    counts = _parse_progress_counts(readme_content)
-    if len(counts) < 2:
-        return None
-    total_completed = sum(counts.values())
-    total_expected = total_per_config * len(counts)
-    overall_text = _render_bar_and_counts(total_completed, total_expected)
-    if total_completed >= total_expected > 0:
-        return f"**Overall**: {overall_text} • ✅ Complete"
-    return f"**Overall**: {overall_text}"
-
-
 def _render_timestamp_line() -> str:
     return f"*Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}*"
 
@@ -319,30 +281,15 @@ def _upsert_config_progress_line(readme_content: str, config_name: str, new_conf
         logger.warning("No progress section found in README; this is unexpected during monitoring")
         return None
 
-    insert_pattern = re.compile(r"^(\*\*Overall\*\*:.*$|\*Last updated:.*$)", re.MULTILINE)
-    match = insert_pattern.search(readme_content)
+    match = _TIMESTAMP_LINE_PATTERN.search(readme_content)
     if match:
         return readme_content[: match.start()] + new_config_line + "\n\n" + readme_content[match.start() :]
 
-    # Append at end of progress section if no Overall/timestamp lines exist yet.
+    # Append at end of progress section if no timestamp line exists yet.
     idx = readme_content.index(_PROGRESS_SECTION_HEADER)
     next_section = re.search(r"\n## [^🔄]", readme_content[idx + 1 :])
     insert_pos = idx + 1 + next_section.start() if next_section else len(readme_content)
     return readme_content[:insert_pos] + new_config_line + "\n\n" + readme_content[insert_pos:]
-
-
-def _upsert_overall_progress_line(readme_content: str, total_per_config: int) -> str:
-    """Update the Overall line for multi-config repos, or remove stale line for single-config repos."""
-    new_overall = _render_overall_line(readme_content, total_per_config)
-    if new_overall:
-        if _OVERALL_LINE_PATTERN.search(readme_content):
-            return _OVERALL_LINE_PATTERN.sub(new_overall + "\n", readme_content)
-        ts_match = _TIMESTAMP_LINE_PATTERN.search(readme_content)
-        if ts_match:
-            return readme_content[: ts_match.start()] + new_overall + "\n\n" + readme_content[ts_match.start() :]
-        return readme_content
-
-    return _OVERALL_LINE_PATTERN.sub("", readme_content)
 
 
 def _replace_timestamp_line(readme_content: str) -> str:
@@ -358,8 +305,8 @@ def patch_readme_progress(
     start_time: float,
     current_time: float,
 ) -> str:
-    """Patch only the owned config's progress line, the Overall line, and the
-    timestamp in an existing README. All other lines are left untouched.
+    """Patch only the owned config's progress line and the timestamp
+    in an existing README.
 
     If the progress section or the config line doesn't exist yet, they are
     created / appended.
@@ -368,7 +315,7 @@ def patch_readme_progress(
         readme_content: Current full README text.
         config_name: The config this monitor owns (e.g. "math").
         completed: Number of documents completed for this config.
-        total_per_config: Total expected documents per config.
+        total_per_config: Total expected documents for this config.
         start_time: When this monitor started (for ETA).
         current_time: Current timestamp.
 
@@ -382,7 +329,6 @@ def patch_readme_progress(
     if updated is None:
         return readme_content
 
-    updated = _upsert_overall_progress_line(updated, total_per_config)
     return _replace_timestamp_line(updated)
 
 
