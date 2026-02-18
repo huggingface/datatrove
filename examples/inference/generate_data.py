@@ -95,6 +95,23 @@ from utils import (  # noqa: E402
 MB = 1024 * 1024
 
 
+def _compute_reader_limit(max_examples: int, tasks: int) -> int:
+    """Compute per-rank reader limit so max_examples stays global.
+
+    The HuggingFace reader applies `limit` on each rank independently. For
+    multi-task runs this means `limit=max_examples` would multiply total output
+    by the number of tasks. We split the global budget across tasks instead.
+    """
+    if max_examples <= 0:
+        return max_examples
+    if tasks < 1:
+        raise ValueError("tasks must be >= 1 when max_examples is set.")
+    reader_limit = (max_examples + tasks - 1) // tasks
+    if tasks > 1:
+        logger.info(f"Applying global max_examples={max_examples} across {tasks} tasks ({reader_limit} docs per task)")
+    return reader_limit
+
+
 def main(
     # Input data details
     input_dataset_name: str = "simplescaling/s1K-1.1",
@@ -334,7 +351,7 @@ def main(
             dataset=input_dataset_name,
             dataset_options={"name": input_dataset_config, "split": input_dataset_split},
             text_key=prompt_column,
-            limit=max_examples,
+            limit=_compute_reader_limit(max_examples=max_examples, tasks=tasks),
         ),
         InferenceRunner(
             rollout_fn=simple_rollout,
