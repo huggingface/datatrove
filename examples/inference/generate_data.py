@@ -448,7 +448,7 @@ def main(
                 InferenceProgressMonitor(
                     params=dataset_card_params,
                     max_examples=max_examples,
-                    update_interval=60 if local_execution else 60,  # 1 minute for debugging, 1 hour for slurm
+                    update_interval=60 if local_execution else 3600,  # 1 minute for debugging, 1 hour for slurm
                 )
             ]
             # Update monitor with inference job id so it can stop if inference fails
