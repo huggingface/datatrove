@@ -33,6 +33,7 @@ from datatrove.utils.logging import logger
 
 _PROGRESS_SECTION_HEADER = "## 🔄 Generation Progress"
 _TIMESTAMP_LINE_PATTERN = re.compile(r"^\*Last updated:.*$", re.MULTILINE)
+_CONFIG_NAME_PATTERN = re.compile(r"^\s*-\s*config_name:\s*(?P<name>[^\s#]+)\s*$", re.MULTILINE)
 
 
 def format_time_remaining(seconds: float) -> str:
@@ -80,6 +81,17 @@ def format_completion_datetime(timestamp: float) -> str:
     """
     dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
     return dt.strftime("%b %d %Y, %H:%M UTC")
+
+
+def _bounded_completed(completed: int, total: int) -> int:
+    """Clamp completed count to a valid display range."""
+    if total <= 0:
+        return 0
+    if completed < 0:
+        return 0
+    if completed > total:
+        return total
+    return completed
 
 
 def _download_readme(repo_id: str) -> str | None:
@@ -245,25 +257,27 @@ def render_progress_bar(
 
     Format: [●●●●●●●●●●●●○○○○○○○○] 60% • 3,000/5,000 docs • ⏱️ 2h 15m remaining • 📅 Nov 27, 18:30 UTC
     """
-    bar_text = _render_bar_and_counts(completed, total)
+    bounded_completed = _bounded_completed(completed, total)
+    bar_text = _render_bar_and_counts(bounded_completed, total)
     elapsed_time = current_time - start_time
-    if 0 < completed < total:
-        seconds_remaining, completion_dt = calculate_eta(completed, total, elapsed_time)
+    if 0 < bounded_completed < total:
+        seconds_remaining, completion_dt = calculate_eta(bounded_completed, total, elapsed_time)
         time_text = f"⏱️ {format_time_remaining(seconds_remaining)} remaining"
         date_text = f"📅 {format_completion_datetime(completion_dt.timestamp())}"
         return f"{bar_text} • {time_text} • {date_text}"
-    if completed >= total > 0:
+    if bounded_completed >= total > 0:
         return f"{bar_text} • ✅ Complete"
-    return f"{bar_text} • ⏱️ calculating..."
+    return f"{bar_text} • ⏱️ waiting for first shard upload..."
 
 
 def _render_bar_and_counts(completed: int, total: int) -> str:
     """Render just the progress bar and document counts (no ETA)."""
-    percentage = int((completed / total) * 100) if total > 0 else 0
-    filled_dots = int((completed / total) * 20) if total > 0 else 0
+    bounded_completed = _bounded_completed(completed, total)
+    percentage = int((bounded_completed / total) * 100) if total > 0 else 0
+    filled_dots = int((bounded_completed / total) * 20) if total > 0 else 0
     empty_dots = 20 - filled_dots
     bar = "[" + "●" * filled_dots + "○" * empty_dots + "]"
-    doc_text = f"{format_number(completed)}/{format_number(total)} docs"
+    doc_text = f"{format_number(bounded_completed)}/{format_number(total)} docs"
     return f"{bar} {percentage}% • {doc_text}"
 
 
@@ -354,6 +368,30 @@ def create_progress_section_markdown(
         _render_timestamp_line(),
     ]
     return "\n".join(lines)
+
+
+def _extract_config_names(readme_content: str, current_config: str) -> list[str]:
+    """Extract config names from README frontmatter and prioritize current config."""
+    config_names = [current_config]
+    seen = {current_config}
+    for match in _CONFIG_NAME_PATTERN.finditer(readme_content):
+        config_name = match.group("name").strip()
+        if config_name in ("all",):
+            continue
+        if config_name in seen:
+            continue
+        seen.add(config_name)
+        config_names.append(config_name)
+    return config_names
+
+
+def _append_progress_section(readme_content: str, progress_section: str) -> str:
+    """Append a fresh progress section to an existing README."""
+    stripped_readme = readme_content.rstrip()
+    stripped_section = progress_section.strip()
+    if not stripped_readme:
+        return f"{stripped_section}\n"
+    return f"{stripped_readme}\n\n{stripped_section}\n"
 
 
 @dataclass
@@ -450,10 +488,37 @@ class InferenceProgressMonitor(PipelineStep):
             try:
                 readme_content = _download_readme(self.params.output_repo_id)
 
-                if readme_content and _PROGRESS_SECTION_HEADER in readme_content:
+                if readme_content is None:
+                    # First update: build the full card with an initial progress section
+                    progress_section = create_progress_section_markdown(
+                        my_config, my_count, total_docs, start_time, current_time
+                    )
+                    build_and_upload_dataset_card(
+                        params=self.params,
+                        progress_section=progress_section,
+                    )
+                else:
+                    updated_readme = readme_content
+                    if _PROGRESS_SECTION_HEADER not in updated_readme:
+                        config_names = _extract_config_names(updated_readme, my_config)
+                        progress_section = create_progress_section_markdown(
+                            my_config, my_count, total_docs, start_time, current_time
+                        )
+                        for config_name in config_names[1:]:
+                            config_count = count_documents_in_repo(self.params.output_repo_id, config_name)
+                            progress_section = patch_readme_progress(
+                                progress_section,
+                                config_name,
+                                config_count,
+                                total_docs,
+                                start_time,
+                                current_time,
+                            )
+                        updated_readme = _append_progress_section(updated_readme, progress_section)
+
                     # Patch progress, prompt, and configs for this config
                     updated = patch_readme_progress(
-                        readme_content, my_config, my_count, total_docs, start_time, current_time
+                        updated_readme, my_config, my_count, total_docs, start_time, current_time
                     )
                     if self.params.prompt_template:
                         updated = patch_readme_prompt(updated, my_config, self.params.prompt_template)
@@ -464,15 +529,6 @@ class InferenceProgressMonitor(PipelineStep):
                         self.params.input_dataset_split or "train",
                     )
                     _upload_readme(self.params.output_repo_id, updated)
-                else:
-                    # First update: build the full card with an initial progress section
-                    progress_section = create_progress_section_markdown(
-                        my_config, my_count, total_docs, start_time, current_time
-                    )
-                    build_and_upload_dataset_card(
-                        params=self.params,
-                        progress_section=progress_section,
-                    )
                 logger.info("Dataset card updated with progress")
             except Exception as e:
                 logger.warning(f"Warning: Failed to update dataset card: {e}")
