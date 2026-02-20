@@ -231,8 +231,8 @@ def main(
             content = prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
 
             # Truncate content if too long to avoid server errors
-            # Uses ~3 chars per token as a conservative approximation
-            char_budget = (model_max_context - max_tokens) * 3
+            CHAR_PER_TOKEN = 3 # Uses ~3 chars per token as a conservative approximation
+            char_budget = int((model_max_context - max_tokens) * CHAR_PER_TOKEN)
             if len(content) > char_budget:
                 original_len = len(content)
                 # Try to truncate at a newline boundary for cleaner cuts
@@ -291,7 +291,11 @@ def main(
         speculative_config=spec_raw,
         quantization=quantization,
     )
-    output_path = f"hf://datasets/{full_repo_id}" if not benchmark_mode else str(run_path / "output")
+    output_path = (
+        f"hf://datasets/{full_repo_id}/{prompt_template_name}"
+        if not benchmark_mode
+        else str(run_path / "output" / "data")
+    )
     checkpoints_path = str(run_path / "checkpoints")
     inference_logs_path = run_path / "inference_logs"
     monitor_logs_path = run_path / "monitor_logs"
@@ -358,10 +362,11 @@ def main(
             config=inference_config,
             records_per_chunk=examples_per_chunk,
             checkpoints_local_dir=checkpoints_path if not benchmark_mode else None,
+            skip_bad_requests=True,
             # The HuggingFaceDatasetWriter only uploads at the end, the ParquetWriter uploads incrementally
             output_writer=ParquetWriter(
                 output_folder=output_path,
-                output_filename="data/${rank}_${chunk_index}.parquet",
+                output_filename="${rank}_${chunk_index}.parquet",
                 expand_metadata=True,
                 max_file_size=MB if local_execution else 256 * MB,  # ~1MB for debugging, ~256MB for slurm
                 batch_size=10 if local_execution else 1000,
@@ -376,6 +381,7 @@ def main(
         input_dataset_config=input_dataset_config,
         prompt_column=prompt_column,
         prompt_template=prompt_template,
+        prompt_template_name=prompt_template_name,
         system_prompt=system_prompt,
         model_name=model_name_or_path,
         model_revision=model_revision,
