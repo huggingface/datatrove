@@ -19,6 +19,7 @@ HF_RETRYABLE_MESSAGES = (
     "A commit has happened since",
     "maximum queue size reached",
     "maximum time in concurrency queue reached",
+    "lfs-verify",
 )
 
 
