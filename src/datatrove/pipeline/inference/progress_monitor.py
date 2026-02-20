@@ -255,7 +255,7 @@ def render_progress_bar(
 ) -> str:
     """Render a progress bar with ETA.
 
-    Format: [●●●●●●●●●●●●○○○○○○○○] 60% • 3,000/5,000 docs • ⏱️ 2h 15m remaining • 📅 Nov 27, 18:30 UTC
+    Format: [●●●●●●●●●●●●○○○○○○○○] 60% • 3,000/5,000 docs<br>⏱️ 2h 15m remaining • 📅 Nov 27, 18:30 UTC
     """
     bounded_completed = _bounded_completed(completed, total)
     bar_text = _render_bar_and_counts(bounded_completed, total)
@@ -264,10 +264,10 @@ def render_progress_bar(
         seconds_remaining, completion_dt = calculate_eta(bounded_completed, total, elapsed_time)
         time_text = f"⏱️ {format_time_remaining(seconds_remaining)} remaining"
         date_text = f"📅 {format_completion_datetime(completion_dt.timestamp())}"
-        return f"{bar_text} • {time_text} • {date_text}"
+        return f"{bar_text}<br>{time_text} • {date_text}"
     if bounded_completed >= total > 0:
-        return f"{bar_text} • ✅ Complete"
-    return f"{bar_text} • ⏱️ waiting for first shard upload..."
+        return f"{bar_text}<br>✅ Complete"
+    return f"{bar_text}<br>⏱️ waiting for first shard upload..."
 
 
 def _render_bar_and_counts(completed: int, total: int) -> str:
