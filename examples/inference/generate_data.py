@@ -433,6 +433,7 @@ def main(
             # Required so Datatrove starts Ray with GPUs; otherwise it launches Ray with `--num-gpus 0`.
             gpus_per_task=gpus_per_node,
             nodes_per_task=nodes_per_task,
+            srun_args={"cpu-bind": "none"},
             sbatch_args={
                 **({"reservation": reservation} if reservation else {}),
             },
