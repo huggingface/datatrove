@@ -610,6 +610,17 @@ Install pre-commit code style hooks:
 pre-commit install
 ```
 
+Run code style checks:
+```bash
+# Fast local loop (changed Python files only)
+make quality
+make style
+
+# Full repository checks (same scope as CI)
+make quality-full
+make style-full
+```
+
 Run the tests:
 ```bash
 pytest -sv ./tests/
