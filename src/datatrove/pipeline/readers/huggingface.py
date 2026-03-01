@@ -1,4 +1,3 @@
-import copy
 from typing import Callable
 
 from loguru import logger
@@ -84,16 +83,8 @@ class HuggingFaceDatasetReader(BaseReader):
                     f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
                 )
                 return None
-            ex_iterable = dst._ex_iterable.shard_data_sources(index=rank, num_shards=world_size, contiguous=False)
-            return IterableDataset(
-                ex_iterable=ex_iterable,
-                info=dst._info.copy(),
-                split=dst._split,
-                formatting=dst._formatting,
-                shuffling=copy.deepcopy(dst._shuffling),
-                distributed=copy.deepcopy(dst._distributed),
-                token_per_repo_id=dst._token_per_repo_id,
-            )
+            # Prefer the public API for sharding streaming datasets to avoid relying on private internals.
+            return dst.shard(num_shards=world_size, index=rank, contiguous=False)
         else:
             # If we have just a single shard/file, we shard inter-file
             return split_dataset_by_node(dataset=dst, rank=rank, world_size=world_size)
