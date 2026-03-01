@@ -145,7 +145,10 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-datatrove = ["assets/*"]
+datatrove = [
+  "assets/*",
+  "pipeline/inference/*.md",
+]
 
 [tool.ruff]
 lint.ignore = [

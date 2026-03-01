@@ -145,6 +145,7 @@ def main():
         input_dataset_config=None,
         prompt_column=PROMPT_COLUMN,
         prompt_template=None,
+        prompt_template_name="default",
         system_prompt=None,
         model_name=MODEL,
         model_revision="main",

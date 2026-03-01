@@ -217,8 +217,22 @@ class ExperimentLauncher:
 
         return "-".join(parts)
 
-    # Keys that are list-valued but should NOT be treated as sweep parameters
-    _NON_SWEEP_KEYS = {"prompt-template", "prompt_template"}
+    @staticmethod
+    def _is_sweep_value(key: str, value: Any) -> bool:
+        """Determine if a value should be treated as a sweep parameter.
+
+        prompt-template can be either:
+          - A single template: ["name", "template string"] -> NOT a sweep
+          - Multiple templates: [["math", "..."], ["table", "..."]] -> IS a sweep
+        All other list values are always sweeps.
+        """
+        if not isinstance(value, list) or len(value) == 0:
+            return False
+        if key in ("prompt-template", "prompt_template"):
+            # Single [name, template] pair: list of strings -> not a sweep
+            # Multiple templates: list of lists -> sweep
+            return isinstance(value[0], list)
+        return True
 
     def _expand_experiment(self, experiment_config: dict[str, Any]) -> list[dict[str, Any]]:
         """Expand a single experiment config into multiple runs if any args values are lists.
@@ -227,8 +241,8 @@ class ExperimentLauncher:
         generate the cartesian product (all permutations). Each run corresponds to one SLURM job.
         Experiment args override fixed_args for the same key.
 
-        Note: Some keys like 'prompt-template' are list-valued by design (e.g., [name, template])
-        and are excluded from sweep expansion.
+        prompt-template is special: a single [name, template] pair is not a sweep,
+        but a list of such pairs (list of lists) is expanded as a sweep.
         """
         fixed_args = self.config.get("fixed_args") or {}
         exp_args = experiment_config.get("args") or {}
@@ -237,12 +251,8 @@ class ExperimentLauncher:
         # Merge fixed_args with exp_args (exp_args take precedence)
         merged_args = {**fixed_args, **exp_args}
 
-        # Find all sweep keys (list values) in merged args, excluding non-sweep keys
-        sweep_keys = [
-            key
-            for key, value in merged_args.items()
-            if isinstance(value, list) and len(value) > 0 and key not in self._NON_SWEEP_KEYS
-        ]
+        # Find all sweep keys
+        sweep_keys = [key for key, value in merged_args.items() if self._is_sweep_value(key, value)]
 
         if not sweep_keys:
             derived_name = self._derive_run_name(merged_args)
