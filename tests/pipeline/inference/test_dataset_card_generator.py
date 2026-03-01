@@ -451,7 +451,7 @@ class TestRenderPromptPre:
 class TestExtractPromptTemplates:
     def test_extracts_single_prompt(self):
         content = (
-            '<details>\n<summary><b>math</b> prompt</summary>\n'
+            "<details>\n<summary><b>math</b> prompt</summary>\n"
             '<pre style="white-space: pre-wrap;">Math prompt text</pre>\n'
             "</details>"
         )
@@ -461,9 +461,9 @@ class TestExtractPromptTemplates:
 
     def test_extracts_multiple_prompts(self):
         content = (
-            '<details>\n<summary><b>math</b> prompt</summary>\n'
+            "<details>\n<summary><b>math</b> prompt</summary>\n"
             '<pre style="white-space: pre-wrap;">Math</pre>\n</details>\n'
-            '<details>\n<summary><b>faq</b> prompt</summary>\n'
+            "<details>\n<summary><b>faq</b> prompt</summary>\n"
             '<pre style="white-space: pre-wrap;">FAQ</pre>\n</details>'
         )
         result = _extract_prompt_templates(content)
@@ -476,7 +476,7 @@ class TestExtractPromptTemplates:
 
     def test_handles_div_tag(self):
         content = (
-            '<details>\n<summary><b>math</b> prompt</summary>\n'
+            "<details>\n<summary><b>math</b> prompt</summary>\n"
             '<div style="white-space: pre-wrap;">Math text</div>\n'
             "</details>"
         )

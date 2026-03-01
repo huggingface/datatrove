@@ -288,21 +288,13 @@ class TestCalculateEta:
 
 class TestUpsertConfigProgressLine:
     def test_replaces_existing_config_line(self):
-        readme = (
-            "## 🔄 Generation Progress\n\n"
-            "**math**: old progress\n\n"
-            "*Last updated: 2026-01-01*\n"
-        )
+        readme = "## 🔄 Generation Progress\n\n**math**: old progress\n\n*Last updated: 2026-01-01*\n"
         result = _upsert_config_progress_line(readme, "math", "**math**: new progress")
         assert "**math**: new progress" in result
         assert "old progress" not in result
 
     def test_inserts_before_timestamp_when_config_missing(self):
-        readme = (
-            "## 🔄 Generation Progress\n\n"
-            "**faq**: faq progress\n\n"
-            "*Last updated: 2026-01-01*\n"
-        )
+        readme = "## 🔄 Generation Progress\n\n**faq**: faq progress\n\n*Last updated: 2026-01-01*\n"
         result = _upsert_config_progress_line(readme, "math", "**math**: new progress")
         assert result is not None
         assert "**math**: new progress" in result
@@ -318,11 +310,7 @@ class TestUpsertConfigProgressLine:
         assert result is None
 
     def test_appends_at_end_of_progress_section_without_timestamp(self):
-        readme = (
-            "## 🔄 Generation Progress\n\n"
-            "**faq**: faq progress\n\n"
-            "## Dataset Stats\n"
-        )
+        readme = "## 🔄 Generation Progress\n\n**faq**: faq progress\n\n## Dataset Stats\n"
         result = _upsert_config_progress_line(readme, "math", "**math**: new progress")
         assert result is not None
         assert "**math**: new progress" in result
@@ -340,37 +328,18 @@ class TestUpsertConfigProgressLine:
 
 class TestExtractConfigNames:
     def test_current_config_is_first(self):
-        readme = (
-            "---\n"
-            "configs:\n"
-            "- config_name: table\n"
-            "- config_name: faq\n"
-            "---\n"
-        )
+        readme = "---\nconfigs:\n- config_name: table\n- config_name: faq\n---\n"
         result = _extract_config_names(readme, "math")
         assert result[0] == "math"
 
     def test_deduplicates_current_config(self):
-        readme = (
-            "---\n"
-            "configs:\n"
-            "- config_name: math\n"
-            "- config_name: faq\n"
-            "---\n"
-        )
+        readme = "---\nconfigs:\n- config_name: math\n- config_name: faq\n---\n"
         result = _extract_config_names(readme, "math")
         assert result.count("math") == 1
         assert "faq" in result
 
     def test_skips_all_config(self):
-        readme = (
-            "---\n"
-            "configs:\n"
-            "- config_name: all\n"
-            "- config_name: faq\n"
-            "- config_name: math\n"
-            "---\n"
-        )
+        readme = "---\nconfigs:\n- config_name: all\n- config_name: faq\n- config_name: math\n---\n"
         result = _extract_config_names(readme, "faq")
         assert "all" not in result
         assert "faq" in result
