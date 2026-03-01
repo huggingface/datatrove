@@ -405,13 +405,13 @@ class TestInferenceProgressMonitorStep:
         monkeypatch.setattr(pm, "count_documents_in_repo", lambda *_args, **_kwargs: 25)
         monkeypatch.setattr(
             pm,
-            "_download_readme",
+            "download_dataset_readme",
             lambda _repo_id: "## 🔄 Generation Progress\n\n*Last updated: old*\n",
         )
         monkeypatch.setattr(pm, "patch_readme_progress", lambda content, *_args, **_kwargs: content + "\nprogress")
         monkeypatch.setattr(pm, "patch_readme_prompt", lambda content, *_args, **_kwargs: content + "\nprompt")
         monkeypatch.setattr(pm, "patch_readme_configs", lambda content, *_args, **_kwargs: content + "\nconfigs")
-        monkeypatch.setattr(pm, "_upload_readme", lambda repo_id, content: uploads.append((repo_id, content)))
+        monkeypatch.setattr(pm, "upload_dataset_readme", lambda repo_id, content: uploads.append((repo_id, content)))
         monkeypatch.setattr(
             pm,
             "build_and_upload_dataset_card",
@@ -447,8 +447,8 @@ class TestInferenceProgressMonitorStep:
 
         monkeypatch.setattr(pm, "get_total_expected_documents", lambda *_args, **_kwargs: 100)
         monkeypatch.setattr(pm, "count_documents_in_repo", lambda *_args, **_kwargs: 10)
-        monkeypatch.setattr(pm, "_download_readme", lambda _repo_id: None)
-        monkeypatch.setattr(pm, "_upload_readme", lambda repo_id, content: uploads.append((repo_id, content)))
+        monkeypatch.setattr(pm, "download_dataset_readme", lambda _repo_id: None)
+        monkeypatch.setattr(pm, "upload_dataset_readme", lambda repo_id, content: uploads.append((repo_id, content)))
         monkeypatch.setattr(
             pm,
             "build_and_upload_dataset_card",
@@ -512,10 +512,10 @@ class TestInferenceProgressMonitorStep:
 
         monkeypatch.setattr(pm, "get_total_expected_documents", lambda *_args, **_kwargs: 100)
         monkeypatch.setattr(pm, "count_documents_in_repo", fake_count)
-        monkeypatch.setattr(pm, "_download_readme", lambda _repo_id: readme_without_progress)
+        monkeypatch.setattr(pm, "download_dataset_readme", lambda _repo_id: readme_without_progress)
         monkeypatch.setattr(pm, "patch_readme_prompt", lambda content, *_args, **_kwargs: content)
         monkeypatch.setattr(pm, "patch_readme_configs", lambda content, *_args, **_kwargs: content)
-        monkeypatch.setattr(pm, "_upload_readme", lambda repo_id, content: uploads.append((repo_id, content)))
+        monkeypatch.setattr(pm, "upload_dataset_readme", lambda repo_id, content: uploads.append((repo_id, content)))
         monkeypatch.setattr(
             pm,
             "build_and_upload_dataset_card",
@@ -577,7 +577,7 @@ class TestInferenceProgressMonitorStep:
         def exploding_download(_repo_id: str) -> str:
             raise RuntimeError("network error")
 
-        monkeypatch.setattr(pm, "_download_readme", exploding_download)
+        monkeypatch.setattr(pm, "download_dataset_readme", exploding_download)
 
         sleeps = {"count": 0}
 
@@ -604,7 +604,7 @@ class TestInferenceProgressMonitorStep:
         monkeypatch.setattr(pm, "count_documents_in_repo", lambda *_args, **_kwargs: 25)
         monkeypatch.setattr(
             pm,
-            "_download_readme",
+            "download_dataset_readme",
             lambda _repo_id: "## 🔄 Generation Progress\n\n*Last updated: old*\n",
         )
         monkeypatch.setattr(pm, "patch_readme_progress", lambda content, *_args, **_kwargs: content)
@@ -615,7 +615,7 @@ class TestInferenceProgressMonitorStep:
 
         monkeypatch.setattr(pm, "patch_readme_prompt", track_prompt_patch)
         monkeypatch.setattr(pm, "patch_readme_configs", lambda content, *_args, **_kwargs: content)
-        monkeypatch.setattr(pm, "_upload_readme", lambda repo_id, content: uploads.append((repo_id, content)))
+        monkeypatch.setattr(pm, "upload_dataset_readme", lambda repo_id, content: uploads.append((repo_id, content)))
 
         sleeps = {"count": 0}
 

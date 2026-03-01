@@ -1,11 +1,10 @@
 import json
-import os
 import re
-import tempfile
 import time
 from dataclasses import dataclass
 from html import unescape
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, Iterable
 
 import yaml
@@ -188,19 +187,19 @@ def _render_job_stats(stats: JobStats | None) -> str:
 
 
 def format_number(n: int | None) -> str:
-    """Format number with human-readable suffix if > 1M.
+    """Format a number with separators and large-number suffixes.
 
-    Uses ≈ instead of ~ to avoid markdown strikethrough interpretation.
+    Uses `≈` instead of `~` to avoid markdown strikethrough interpretation.
     """
     if n is None:
         n = 0
     if n >= 1_000_000_000_000:  # 1 trillion
         trillions = n / 1_000_000_000_000
         return f"{n:,} (≈{trillions:.1f}T)"
-    elif n >= 1_000_000_000:  # 1 billion
+    if n >= 1_000_000_000:  # 1 billion
         billions = n / 1_000_000_000
         return f"{n:,} (≈{billions:.1f}B)"
-    elif n >= 1_000_000:  # 1 million
+    if n >= 1_000_000:  # 1 million
         millions = n / 1_000_000
         return f"{n:,} (≈{millions:.1f}M)"
     return f"{n:,}"
@@ -233,21 +232,54 @@ def _data_path_for_config(config_name: str) -> str:
     return f"{config_name}/**/*.parquet"
 
 
+def download_dataset_readme(repo_id: str) -> str | None:
+    """Download `README.md` content for a dataset repo."""
+    try:
+        readme_path = hf_hub_download(
+            repo_id=repo_id,
+            filename="README.md",
+            repo_type="dataset",
+        )
+        return Path(readme_path).read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
+def upload_dataset_readme(repo_id: str, content: str) -> None:
+    """Upload `README.md` content to a dataset repo."""
+    with NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        upload_file(
+            path_or_fileobj=tmp_path,
+            path_in_repo="README.md",
+            repo_id=repo_id,
+            repo_type="dataset",
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 def _fetch_existing_configs(repo_id: str) -> list[dict[str, Any]]:
     """Fetch existing configs from the HF repo's README.md YAML frontmatter.
 
     Returns an empty list if the README doesn't exist or has no configs.
     """
+    content = download_dataset_readme(repo_id)
+    if not content:
+        return []
+
     try:
-        readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="dataset")
-        content = Path(readme_path).read_text(encoding="utf-8")
         # Parse YAML frontmatter between --- markers
         if content.startswith("---"):
             end = content.index("---", 3)
             frontmatter = yaml.safe_load(content[3:end])
             return frontmatter.get("configs", []) if frontmatter else []
     except Exception:
-        pass
+        return []
+
     return []
 
 
@@ -333,10 +365,8 @@ def _parse_existing_prompts(repo_id: str) -> dict[str, str]:
     Returns:
         Mapping of config_name -> raw prompt template string.
     """
-    try:
-        readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="dataset")
-        content = Path(readme_path).read_text(encoding="utf-8")
-    except Exception:
+    content = download_dataset_readme(repo_id)
+    if content is None:
         return {}
 
     return _extract_prompt_templates(content)
@@ -627,24 +657,12 @@ def build_and_upload_dataset_card(
 
     content = _render_template(context)
 
-    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-
-    try:
-        logger.info(f"Uploading dataset card to {params.output_repo_id}...")
-        upload_file(
-            path_or_fileobj=tmp_path,
-            path_in_repo="README.md",
-            repo_id=params.output_repo_id,
-            repo_type="dataset",
-        )
-        if stats:
-            logger.info(f"Successfully uploaded dataset card to {params.output_repo_id}")
-        else:
-            logger.info(f"Successfully uploaded progress update to {params.output_repo_id}")
-    finally:
-        os.remove(tmp_path)
+    logger.info(f"Uploading dataset card to {params.output_repo_id}...")
+    upload_dataset_readme(params.output_repo_id, content)
+    if stats:
+        logger.info(f"Successfully uploaded dataset card to {params.output_repo_id}")
+    else:
+        logger.info(f"Successfully uploaded progress update to {params.output_repo_id}")
 
 
 if __name__ == "__main__":
