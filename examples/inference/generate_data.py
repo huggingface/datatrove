@@ -11,7 +11,7 @@ Usage:
 python examples/inference/generate_data.py --help
 
 # Generate synthetic data locally using a prompt column
-python examples/inference/benchmark/generate_data.py \
+python examples/inference/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
@@ -21,14 +21,14 @@ python examples/inference/benchmark/generate_data.py \
     --local-execution
 
 # Generate synthetic data on a Slurm cluster
-python examples/inference/benchmark/generate_data.py \
+python examples/inference/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --prompt-column question \
     --model-name-or-path Qwen/Qwen3-0.6B \
     --output-dataset-name s1K-1.1-benchmark
 
 # Generate synthetic data using a prompt template with [[DOCUMENT]] variable
-python examples/inference/benchmark/generate_data.py \
+python examples/inference/generate_data.py \
     --input-dataset-name Salesforce/wikitext \
     --input-dataset-config wikitext-2-v1 \
     --prompt-column text \
@@ -39,7 +39,7 @@ python examples/inference/benchmark/generate_data.py \
     --workers 1
 
 # Generate synthetic data on multiple nodes
-python examples/inference/benchmark/generate_data.py \
+python examples/inference/generate_data.py \
     --input-dataset-name simplescaling/s1K-1.1 \
     --prompt-column question \
     --model-name-or-path moonshotai/Kimi-K2-Instruct \

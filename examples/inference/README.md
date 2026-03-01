@@ -68,12 +68,12 @@ python examples/inference/generate_data.py \
     --model-name-or-path Qwen/Qwen3-4B-Thinking-2507 \
     --output-dataset-name s1K-1.1-dataforge \
     --output-dir data \
-    --num-workers 10 \
+    --workers 10 \
     --tasks 20 \
     --examples-per-chunk 50
 ```
 
-The script will automatically handle chunking, checkpointing, and queue management for you. The `--tasks` flag controls the size of the Slurm array, while `--num-workers` specifies the number of jobs that can run concurrently.
+The script will automatically handle chunking, checkpointing, and queue management for you. The `--tasks` flag controls the size of the Slurm array, while `--workers` specifies the number of jobs that can run concurrently.
 
 ## Input data format
 

@@ -7,10 +7,8 @@ This module provides the ProgressMonitor PipelineStep that:
 - Updates the dataset card with a progress bar and ETA
 """
 
-import os
 import re
 import subprocess
-import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,15 +16,17 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 from datasets import load_dataset, load_dataset_builder
-from huggingface_hub import HfFileSystem, hf_hub_download, upload_file
+from huggingface_hub import HfFileSystem
 
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.inference.dataset_card_generator import (
     InferenceDatasetCardParams,
     build_and_upload_dataset_card,
+    download_dataset_readme,
     format_number,
     patch_readme_configs,
     patch_readme_prompt,
+    upload_dataset_readme,
 )
 from datatrove.utils.logging import logger
 
@@ -87,39 +87,7 @@ def _bounded_completed(completed: int, total: int) -> int:
     """Clamp completed count to a valid display range."""
     if total <= 0:
         return 0
-    if completed < 0:
-        return 0
-    if completed > total:
-        return total
-    return completed
-
-
-def _download_readme(repo_id: str) -> str | None:
-    """Download the current README.md content from the HF repo.
-
-    Returns None if the README doesn't exist yet.
-    """
-    try:
-        readme_path = hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="dataset")
-        return Path(readme_path).read_text(encoding="utf-8")
-    except Exception:
-        return None
-
-
-def _upload_readme(repo_id: str, content: str) -> None:
-    """Upload README.md content to the HF repo."""
-    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-    try:
-        upload_file(
-            path_or_fileobj=tmp_path,
-            path_in_repo="README.md",
-            repo_id=repo_id,
-            repo_type="dataset",
-        )
-    finally:
-        os.remove(tmp_path)
+    return max(0, min(completed, total))
 
 
 def count_documents_in_repo(repo_id: str, config_name: str = "default") -> int:
@@ -414,7 +382,7 @@ class InferenceProgressMonitor(PipelineStep):
     # Monitoring parameters
     inference_job_id: str | None = None
     max_examples: int = -1
-    update_interval: int = 3600  # 1 hour
+    update_interval: int = 3600  # 1 hour to make sure the commit history does not get overwhelmed
 
     name: str = "InferenceProgressMonitor"
     type: str = "Monitor"
@@ -430,28 +398,15 @@ class InferenceProgressMonitor(PipelineStep):
             logger.warning(f"Warning: Failed to check Slurm job status: {e}")
             return True  # Assume running if check fails to avoid premature exit
 
-    def run(self, data=None, rank: int = 0, world_size: int = 1):
-        """
-        Monitor progress and update dataset card until completion.
-
-        Only runs on rank 0. Yields data if provided (passthrough).
-        """
-        # Only run on rank 0
-        if rank != 0:
-            if data:
-                yield from data
-            return
-
-        # Pass through data if provided
-        if data:
-            yield from data
-
+    def _log_monitor_start(self) -> None:
+        """Log monitor startup details."""
         logger.info(f"Starting progress monitor for {self.params.output_repo_id}")
         if self.inference_job_id:
             logger.info(f"Monitoring inference job: {self.inference_job_id}")
         logger.info(f"Update interval: {self.update_interval} seconds")
 
-        # Get total expected documents
+    def _get_total_expected_documents(self) -> int:
+        """Resolve and log expected document count."""
         total_docs = get_total_expected_documents(
             self.params.input_dataset_name,
             self.params.input_dataset_split,
@@ -459,76 +414,153 @@ class InferenceProgressMonitor(PipelineStep):
             self.max_examples,
         )
         logger.info(f"Total expected documents: {format_number(total_docs)}")
+        return total_docs
 
+    def _should_stop_monitoring(self) -> bool:
+        """Check monitor stop conditions for completion or failed job."""
+        if Path(self.params.stats_path).exists():
+            logger.info("stats.json detected - generation complete!")
+            return True
+
+        # Since the monitor runs in parallel with inference (no Slurm dependency),
+        # it must manually check if the inference job has failed or stopped without
+        # producing stats.json, otherwise it would run indefinitely.
+        if self.inference_job_id and not self._is_job_running(self.inference_job_id):
+            logger.info(
+                f"Inference job {self.inference_job_id} is no longer running and stats.json was not found. Stopping monitor."
+            )
+            return True
+
+        return False
+
+    def _collect_progress_snapshot(self, total_docs: int) -> tuple[str, int, float]:
+        """Collect and log current progress for this monitor's config."""
+        current_time = time.time()
+        config_name = self.params.prompt_template_name
+        completed = count_documents_in_repo(self.params.output_repo_id, config_name)
+        logger.info(f"Progress ({config_name}): {format_number(completed)}/{format_number(total_docs)} documents")
+        return config_name, completed, current_time
+
+    def _append_seeded_progress_section(
+        self,
+        readme_content: str,
+        config_name: str,
+        completed: int,
+        total_docs: int,
+        start_time: float,
+        current_time: float,
+    ) -> str:
+        """Append a progress section and seed it with known config progress."""
+        config_names = _extract_config_names(readme_content, config_name)
+        progress_section = create_progress_section_markdown(
+            config_name, completed, total_docs, start_time, current_time
+        )
+        for name in config_names[1:]:
+            config_count = count_documents_in_repo(self.params.output_repo_id, name)
+            progress_section = patch_readme_progress(
+                progress_section,
+                name,
+                config_count,
+                total_docs,
+                start_time,
+                current_time,
+            )
+        return _append_progress_section(readme_content, progress_section)
+
+    def _patch_existing_readme(
+        self,
+        readme_content: str,
+        config_name: str,
+        completed: int,
+        total_docs: int,
+        start_time: float,
+        current_time: float,
+    ) -> str:
+        """Apply progress/prompt/config updates to an existing README."""
+        updated_readme = readme_content
+        if _PROGRESS_SECTION_HEADER not in updated_readme:
+            updated_readme = self._append_seeded_progress_section(
+                updated_readme,
+                config_name,
+                completed,
+                total_docs,
+                start_time,
+                current_time,
+            )
+
+        updated = patch_readme_progress(updated_readme, config_name, completed, total_docs, start_time, current_time)
+        if self.params.prompt_template:
+            updated = patch_readme_prompt(updated, config_name, self.params.prompt_template)
+        return patch_readme_configs(
+            updated,
+            self.params.output_repo_id,
+            config_name,
+            self.params.input_dataset_split or "train",
+        )
+
+    def _update_dataset_card(
+        self,
+        config_name: str,
+        completed: int,
+        total_docs: int,
+        start_time: float,
+        current_time: float,
+    ) -> None:
+        """Create or patch README with latest progress, then upload."""
+        readme_content = download_dataset_readme(self.params.output_repo_id)
+        if readme_content is None:
+            progress_section = create_progress_section_markdown(
+                config_name,
+                completed,
+                total_docs,
+                start_time,
+                current_time,
+            )
+            build_and_upload_dataset_card(
+                params=self.params,
+                progress_section=progress_section,
+            )
+            return
+
+        updated_readme = self._patch_existing_readme(
+            readme_content,
+            config_name,
+            completed,
+            total_docs,
+            start_time,
+            current_time,
+        )
+        upload_dataset_readme(self.params.output_repo_id, updated_readme)
+
+    def run(self, data=None, rank: int = 0, world_size: int = 1):
+        """
+        Monitor progress and update dataset card until completion.
+
+        Only runs on rank 0. Yields data if provided (passthrough).
+        """
+        if data:
+            yield from data
+        if rank != 0:
+            return
+
+        self._log_monitor_start()
+        total_docs = self._get_total_expected_documents()
         start_time = time.time()
 
         while True:
-            # Check if generation is complete (stats.json exists)
-            if Path(self.params.stats_path).exists():
-                logger.info("stats.json detected - generation complete!")
+            if self._should_stop_monitoring():
                 break
 
-            # Check if inference job is still running (Slurm only)
-            # Since the monitor runs in parallel with inference (no Slurm dependency),
-            # it must manually check if the inference job has failed or stopped without
-            # producing stats.json, otherwise it would run indefinitely.
-            if self.inference_job_id and not self._is_job_running(self.inference_job_id):
-                logger.info(
-                    f"Inference job {self.inference_job_id} is no longer running and stats.json was not found. Stopping monitor."
-                )
-                break
-
-            current_time = time.time()
-
-            # Count documents for THIS config only
-            my_config = self.params.prompt_template_name
-            my_count = count_documents_in_repo(self.params.output_repo_id, my_config)
-            logger.info(f"Progress ({my_config}): {format_number(my_count)}/{format_number(total_docs)} documents")
+            config_name, completed, current_time = self._collect_progress_snapshot(total_docs)
 
             try:
-                readme_content = _download_readme(self.params.output_repo_id)
-
-                if readme_content is None:
-                    # First update: build the full card with an initial progress section
-                    progress_section = create_progress_section_markdown(
-                        my_config, my_count, total_docs, start_time, current_time
-                    )
-                    build_and_upload_dataset_card(
-                        params=self.params,
-                        progress_section=progress_section,
-                    )
-                else:
-                    updated_readme = readme_content
-                    if _PROGRESS_SECTION_HEADER not in updated_readme:
-                        config_names = _extract_config_names(updated_readme, my_config)
-                        progress_section = create_progress_section_markdown(
-                            my_config, my_count, total_docs, start_time, current_time
-                        )
-                        for config_name in config_names[1:]:
-                            config_count = count_documents_in_repo(self.params.output_repo_id, config_name)
-                            progress_section = patch_readme_progress(
-                                progress_section,
-                                config_name,
-                                config_count,
-                                total_docs,
-                                start_time,
-                                current_time,
-                            )
-                        updated_readme = _append_progress_section(updated_readme, progress_section)
-
-                    # Patch progress, prompt, and configs for this config
-                    updated = patch_readme_progress(
-                        updated_readme, my_config, my_count, total_docs, start_time, current_time
-                    )
-                    if self.params.prompt_template:
-                        updated = patch_readme_prompt(updated, my_config, self.params.prompt_template)
-                    updated = patch_readme_configs(
-                        updated,
-                        self.params.output_repo_id,
-                        my_config,
-                        self.params.input_dataset_split or "train",
-                    )
-                    _upload_readme(self.params.output_repo_id, updated)
+                self._update_dataset_card(
+                    config_name=config_name,
+                    completed=completed,
+                    total_docs=total_docs,
+                    start_time=start_time,
+                    current_time=current_time,
+                )
                 logger.info("Dataset card updated with progress")
             except Exception as e:
                 logger.warning(f"Warning: Failed to update dataset card: {e}")
