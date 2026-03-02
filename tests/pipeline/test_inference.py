@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import socket
 import tempfile
@@ -12,9 +13,11 @@ import pytest
 
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
+from datatrove.pipeline.inference.checkpointing import CheckpointManager
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
 from datatrove.pipeline.inference.types import InferenceError, ServerError
+from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers import JsonlWriter
 
 
@@ -414,7 +417,8 @@ def test_skip_bad_requests_continues_processing(tmp_path):
 
     bad_doc = documents[0]
     good_doc = documents[1]
-    assert "rollout_results" not in bad_doc.metadata, "Bad-request document should be skipped"
+    assert bad_doc.metadata["rollout_results"] == [], "Skipped bad-request document should record empty rollouts"
+    assert bad_doc.metadata["__no_rollouts_remove"] is True
     assert "rollout_results" in good_doc.metadata, "Other documents should keep processing"
     assert len(good_doc.metadata["rollout_results"]) == 1
 
@@ -425,6 +429,58 @@ def test_skip_bad_requests_continues_processing(tmp_path):
     assert len(lines) == 1, "Only non-skipped documents should be written"
     saved_doc = json.loads(lines[0])
     assert saved_doc["id"] == "good"
+
+
+def test_skip_bad_requests_advances_checkpoint_progress(tmp_path):
+    output_dir = tmp_path / "skip_bad_request_checkpoint_output"
+    checkpoints_dir = tmp_path / "checkpoints"
+    documents = [
+        Document(text="bad doc 0", id="bad-0"),
+        Document(text="bad doc 1", id="bad-1"),
+        Document(text="bad doc 2", id="bad-2"),
+    ]
+
+    async def bad_rollout(document, generate, **kwargs):
+        raise InferenceError(
+            document,
+            "Got BadRequestError from server: invalid request",
+            payload={"doc_id": document.id},
+        )
+
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=2048,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=1,
+    )
+
+    runner = InferenceRunner(
+        rollout_fn=bad_rollout,
+        config=config,
+        records_per_chunk=2,
+        checkpoints_local_dir=str(checkpoints_dir),
+        output_writer=JsonlWriter(
+            str(output_dir),
+            output_filename="${rank}_chunk_${chunk_index}.jsonl",
+            compression=None,
+        ),
+        skip_bad_requests=True,
+    )
+
+    asyncio.run(runner.run_async(documents, rank=0))
+
+    rank_output_chunk_0 = output_dir / "00000_chunk_0.jsonl"
+    rank_output_chunk_1 = output_dir / "00000_chunk_1.jsonl"
+    assert not rank_output_chunk_0.exists() or rank_output_chunk_0.read_text().strip() == ""
+    assert not rank_output_chunk_1.exists() or rank_output_chunk_1.read_text().strip() == ""
+
+    last_chunk_file = checkpoints_dir / "last_chunk" / "00000.txt"
+    assert last_chunk_file.exists()
+    assert last_chunk_file.read_text().strip() == "1"
+    assert not (checkpoints_dir / "00000").exists()
 
 
 def read_output_files(output_path):
@@ -442,6 +498,124 @@ def read_output_files(output_path):
                     all_docs.append(doc_data)
 
     return all_docs, output_files
+
+
+def test_parse_existing_checkpoints_skips_replay_for_existing_full_chunk(tmp_path):
+    output_path = tmp_path / "output"
+    checkpoints_path = tmp_path / "checkpoints"
+    rank_checkpoints = checkpoints_path / "00000"
+    rank_checkpoints.mkdir(parents=True, exist_ok=True)
+
+    records_per_chunk = 2
+    chunk_0_docs = [
+        Document(text="chunk0-a", id="0"),
+        Document(text="chunk0-b", id="1"),
+    ]
+    chunk_1_doc = Document(text="chunk1-a", id="2")
+
+    with (rank_checkpoints / "chunk_00000.jsonl").open("w") as f:
+        for doc in chunk_0_docs:
+            f.write(json.dumps(dataclasses.asdict(doc)) + "\n")
+    with (rank_checkpoints / "chunk_00001.jsonl").open("w") as f:
+        f.write(json.dumps(dataclasses.asdict(chunk_1_doc)) + "\n")
+
+    output_path.mkdir(parents=True, exist_ok=True)
+    existing_full_chunk_output = output_path / "00000_chunk_0.jsonl"
+    with existing_full_chunk_output.open("w") as f:
+        for doc in chunk_0_docs:
+            f.write(json.dumps(dataclasses.asdict(doc)) + "\n")
+
+    checkpoint_manager = CheckpointManager(
+        checkpoints_local_dir=str(checkpoints_path),
+        records_per_chunk=records_per_chunk,
+    )
+    output_writer = JsonlWriter(
+        str(output_path),
+        output_filename="${rank}_chunk_${chunk_index}.jsonl",
+        compression=None,
+    )
+
+    with output_writer as output_writer_context:
+        documents_to_skip, processed_ids = asyncio.run(
+            checkpoint_manager.parse_existing_checkpoints(rank=0, output_writer_context=output_writer_context)
+        )
+
+    assert documents_to_skip == records_per_chunk
+    assert processed_ids == {"0", "1", "2"}
+
+    with existing_full_chunk_output.open("r") as f:
+        existing_chunk_lines = [line for line in f if line.strip()]
+    assert len(existing_chunk_lines) == records_per_chunk
+
+    partial_chunk_output = output_path / "00000_chunk_1.jsonl"
+    assert partial_chunk_output.exists()
+    with partial_chunk_output.open("r") as f:
+        partial_chunk_lines = [line for line in f if line.strip()]
+    assert len(partial_chunk_lines) == 1
+
+    assert not (rank_checkpoints / "chunk_00000.jsonl").exists()
+    assert (rank_checkpoints / "chunk_00001.jsonl").exists()
+
+
+def test_parse_existing_checkpoints_skips_chunks_before_last_chunk(tmp_path, monkeypatch):
+    output_path = tmp_path / "output"
+    checkpoints_path = tmp_path / "checkpoints"
+    rank_checkpoints = checkpoints_path / "00000"
+    rank_checkpoints.mkdir(parents=True, exist_ok=True)
+    (checkpoints_path / "last_chunk").mkdir(parents=True, exist_ok=True)
+    (checkpoints_path / "last_chunk" / "00000.txt").write_text("0")
+
+    records_per_chunk = 2
+    chunk_0_docs = [
+        Document(text="chunk0-a", id="0"),
+        Document(text="chunk0-b", id="1"),
+    ]
+    chunk_1_doc = Document(text="chunk1-a", id="2")
+
+    with (rank_checkpoints / "chunk_00000.jsonl").open("w") as f:
+        for doc in chunk_0_docs:
+            f.write(json.dumps(dataclasses.asdict(doc)) + "\n")
+    with (rank_checkpoints / "chunk_00001.jsonl").open("w") as f:
+        f.write(json.dumps(dataclasses.asdict(chunk_1_doc)) + "\n")
+
+    output_path.mkdir(parents=True, exist_ok=True)
+    checkpoint_manager = CheckpointManager(
+        checkpoints_local_dir=str(checkpoints_path),
+        records_per_chunk=records_per_chunk,
+    )
+    output_writer = JsonlWriter(
+        str(output_path),
+        output_filename="${rank}_chunk_${chunk_index}.jsonl",
+        compression=None,
+    )
+
+    original_read_file = JsonlReader.read_file
+    read_file_calls: list[str] = []
+
+    def tracking_read_file(self, filepath):
+        read_file_calls.append(filepath)
+        yield from original_read_file(self, filepath)
+
+    monkeypatch.setattr(JsonlReader, "read_file", tracking_read_file)
+
+    with output_writer as output_writer_context:
+        documents_to_skip, processed_ids = asyncio.run(
+            checkpoint_manager.parse_existing_checkpoints(rank=0, output_writer_context=output_writer_context)
+        )
+
+    assert documents_to_skip == records_per_chunk
+    assert processed_ids == {"2"}
+    assert read_file_calls == ["00000/chunk_00001.jsonl"]
+
+    docs_after_resume = []
+    for index, document in enumerate([Document(text=f"d{i}", id=str(i)) for i in range(5)]):
+        if index < documents_to_skip:
+            continue
+        if document.id in processed_ids:
+            processed_ids.remove(document.id)
+            continue
+        docs_after_resume.append(document.id)
+    assert docs_after_resume == ["3", "4"]
 
 
 def test_checkpoint_recovery_and_completeness():
