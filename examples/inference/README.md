@@ -75,6 +75,10 @@ python examples/inference/generate_data.py \
 
 The script will automatically handle chunking, checkpointing, and queue management for you. The `--tasks` flag controls the size of the Slurm array, while `--workers` specifies the number of jobs that can run concurrently.
 
+### HF Hub upload reliability
+
+When writing directly to `hf://` output paths at high array concurrency, transient Hub errors can happen (for example `429 Too Many Requests` or `412 Precondition Failed` during concurrent commits). The inference writer retries these transient open/upload failures with exponential backoff.
+
 ## Input data format
 
 By specifying `--prompt-column`, the script reads that column from the Hugging Face dataset as the input text for each example. Only the prompt column is consumed. Any existing target/label/completion columns are ignored by this script, but you can keep them for evaluation.
