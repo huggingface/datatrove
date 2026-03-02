@@ -71,6 +71,7 @@ You can check the following [examples](examples):
 - [minhash_deduplication.py](examples/minhash_deduplication.py) full pipeline to run minhash deduplication of text data
 - [sentence_deduplication.py](examples/sentence_deduplication.py) example to run sentence level exact deduplication
 - [exact_substrings.py](examples/exact_substrings.py) example to run ExactSubstr (requires [this repo](https://github.com/google-research/deduplicate-text-datasets))
+- [finephrase.py](examples/inference/finephrase.py) standalone example to generate a synthetic dataset at scale with multiple prompt templates
 
 ## Terminology
 - `pipeline`: a list of processing steps to execute (read data, filter, write to disk, etc)
