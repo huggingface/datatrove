@@ -167,6 +167,3 @@ node_modules/
 
 # benchmark data
 examples/inference/benchmark/results/
-finephrase/
-finephrase-old/
-smol-data/
