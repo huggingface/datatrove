@@ -19,6 +19,7 @@ HF_RETRYABLE_MESSAGES = (
     "A commit has happened since",
     "Precondition Failed",
     "Too Many Requests",
+    "Service Unavailable",
     "rate limit",
     "maximum queue size reached",
     "maximum time in concurrency queue reached",
@@ -45,8 +46,21 @@ class DiskWriter(PipelineStep, ABC):
     HF_BASE_DELAY = 0.1
 
     @staticmethod
-    def is_retryable_hf_hub_error(error_message: str) -> bool:
-        """Return True for HF Hub errors we explicitly retry."""
+    def is_retryable_hf_hub_error(error: Exception) -> bool:
+        """Return True for HF Hub errors we explicitly retry.
+
+        We retry because HF Hub writes can fail transiently under distributed load
+        (for example rate limits, commit races, or short service hiccups). Treating
+        these as hard failures would abort otherwise healthy jobs and can cascade into
+        dependent Slurm jobs never running.
+
+        HF Hub exceptions may expose the transient reason in `server_message` (response
+        payload), but this field is sometimes empty and details only appear in `str(error)`
+        (status code, URL, request id). We normalize that here so every retry call site
+        uses the same matching behavior and we do not miss retryable 429/412/503 cases.
+        """
+        server_message = getattr(error, "server_message", None)
+        error_message = str(server_message) if server_message else str(error)
         return any(message in error_message for message in HF_RETRYABLE_MESSAGES)
 
     def _retry_hf_hub_operation(self, operation_name: str, target: str, operation: Callable[[], object]) -> object:
@@ -56,7 +70,7 @@ class DiskWriter(PipelineStep, ABC):
             try:
                 return operation()
             except Exception as error:
-                if not self.is_retryable_hf_hub_error(str(error)):
+                if not self.is_retryable_hf_hub_error(error):
                     raise
                 last_error = error
                 if attempt == self.HF_MAX_RETRIES - 1:
@@ -211,11 +225,10 @@ class DiskWriter(PipelineStep, ABC):
         try:
             file_obj.close()
         except Exception as close_error:
-            err_str = str(close_error)
             has_hf_upload_state = (
                 hasattr(file_obj, "fs") and hasattr(file_obj, "temp_file") and hasattr(file_obj, "resolved_path")
             )
-            if not self.is_retryable_hf_hub_error(err_str) or not has_hf_upload_state:
+            if not self.is_retryable_hf_hub_error(close_error) or not has_hf_upload_state:
                 raise
             # fsspec marks the file closed, but the temp file still exists on disk.
             # Retry the HF upload_file call directly with exponential backoff.

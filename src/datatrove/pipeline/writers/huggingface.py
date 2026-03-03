@@ -113,7 +113,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 )
                 break
             except HfHubHTTPError as e:
-                if self.is_retryable_hf_hub_error(e.server_message):
+                if self.is_retryable_hf_hub_error(e):
                     if retries >= self.HF_MAX_RETRIES:
                         logger.error(f"Failed to create commit after {self.HF_MAX_RETRIES=}. Giving up.")
                         raise e
@@ -121,7 +121,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     time.sleep(self.HF_BASE_DELAY * 2**retries + random.uniform(0, 2))
                     retries += 1
                 else:
-                    logger.error(f"Failed to create commit: {e.server_message}")
+                    logger.error(f"Failed to create commit: {e.server_message or str(e)}")
                     raise e
 
     def _on_file_switch(self, original_name, old_filename, new_filename):

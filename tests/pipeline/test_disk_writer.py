@@ -6,8 +6,11 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
+from huggingface_hub.utils import HfHubHTTPError
+
 from datatrove.data import Document
 from datatrove.pipeline.writers.disk_base import DiskWriter
+from datatrove.pipeline.writers.huggingface import HuggingFaceDatasetWriter
 
 
 class _TextTestDiskWriter(DiskWriter):
@@ -112,6 +115,12 @@ class _CloseFileOutputManager:
         return None
 
 
+class _ErrorWithServerMessage(Exception):
+    def __init__(self, message: str, server_message: str) -> None:
+        super().__init__(message)
+        self.server_message = server_message
+
+
 class TestDiskWriter(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
@@ -174,6 +183,35 @@ class TestDiskWriterRetries(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Permission denied"):
                 writer.write(doc, rank=0)
 
+    def test_retry_uses_server_message_when_present(self) -> None:
+        writer = _TextTestDiskWriter(output_folder=self.tmp_dir)
+        attempts = {"count": 0}
+
+        def flaky_operation() -> str:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise _ErrorWithServerMessage(
+                    "generic failure",
+                    "503 Server Error: Service Unavailable for url: https://huggingface.co/api/datasets/org/repo/commit/main",
+                )
+            return "ok"
+
+        with patch("datatrove.pipeline.writers.disk_base.time.sleep", return_value=None):
+            result = writer._retry_hf_hub_operation("open", "test-target", flaky_operation)
+
+        self.assertEqual(attempts["count"], 2)
+        self.assertEqual(result, "ok")
+
+    def test_retryable_error_match_includes_service_unavailable(self) -> None:
+        self.assertTrue(
+            _TextTestDiskWriter.is_retryable_hf_hub_error(
+                RuntimeError(
+                    "503 Server Error: Service Unavailable for url: "
+                    "https://huggingface.co/api/datasets/org/repo/commit/main"
+                )
+            )
+        )
+
     def test_close_file_retries_transient_hf_upload_errors(self) -> None:
         writer = _TextTestDiskWriter(output_folder=self.tmp_dir)
         upload_api = _FlakyUploadApi(failures=2, error_message="A commit has happened since")
@@ -191,3 +229,28 @@ class TestDiskWriterRetries(unittest.TestCase):
             writer.close_file("00000.txt")
 
         self.assertEqual(upload_api.calls, 3)
+
+    def test_huggingface_close_retries_on_503_without_server_message(self) -> None:
+        writer = object.__new__(HuggingFaceDatasetWriter)
+        writer.output_mg = SimpleNamespace(get_open_files=lambda: {})
+        writer.operations = []
+        writer.dataset = "org/repo"
+        writer.revision = None
+
+        transient_error = HfHubHTTPError(
+            "503 Server Error: Service Unavailable for url: https://huggingface.co/api/datasets/org/repo/commit/main",
+            response=None,
+            server_message=None,
+        )
+
+        with (
+            patch("datatrove.pipeline.writers.huggingface.ParquetWriter.close", return_value=None),
+            patch(
+                "datatrove.pipeline.writers.huggingface.create_commit",
+                side_effect=[transient_error, None],
+            ) as mock_create_commit,
+            patch("datatrove.pipeline.writers.huggingface.time.sleep", return_value=None),
+        ):
+            writer.close()
+
+        self.assertEqual(mock_create_commit.call_count, 2)
