@@ -422,7 +422,12 @@ def main(
     else:
         from datatrove.executor import SlurmPipelineExecutor  # Lazy import to speed up startup time
 
-        slurm_env_command = f"source .venv/bin/activate && export PYTHONPATH={EXAMPLES_INFERENCE_DIR}:$PYTHONPATH"
+        # Isolate Xet cache per Slurm process to avoid cache contention across parallel jobs.
+        slurm_env_command = (
+            f"source .venv/bin/activate && export PYTHONPATH={EXAMPLES_INFERENCE_DIR}:$PYTHONPATH"
+            ' && export HF_XET_CACHE="/tmp/hf_xet/${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}_${SLURM_PROCID}"'
+            ' && mkdir -p "$HF_XET_CACHE"'
+        )
 
         inference_executor = SlurmPipelineExecutor(
             pipeline=inference_pipeline,
