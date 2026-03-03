@@ -373,7 +373,14 @@ class InferenceRunner(PipelineStep):
         )
         return result
 
-    async def _save_document(self, document: Document, output_writer_context: DiskWriter, rank: int, chunk_index: int):
+    async def _save_document(
+        self,
+        document: Document,
+        output_writer_context: DiskWriter,
+        rank: int,
+        chunk_index: int,
+        count_processed_stat: bool = True,
+    ):
         """
         Save processed document to results queue.
 
@@ -382,9 +389,11 @@ class InferenceRunner(PipelineStep):
             output_writer_context: Context manager for the output writer
             rank: Process rank identifier
             chunk_index: Chunk index to save the document to
+            count_processed_stat: Whether to increment the documents_processed metric
         """
         try:
-            self.stat_update("documents_processed", value=1, unit="document")
+            if count_processed_stat:
+                self.stat_update("documents_processed", value=1, unit="document")
 
             await self.checkpoint_manager.write_document(document, rank, chunk_index, output_writer_context)
 
@@ -507,6 +516,17 @@ class InferenceRunner(PipelineStep):
                 logger.warning(f"Skipping document {doc.id} due to bad request: {e.error}")
                 self.stat_update("skipped_bad_requests", value=1, unit="document")
                 self.stat_update("failed_rollouts", value=self.config.rollouts_per_document, unit="document")
+                # Persist skipped docs to checkpoint files so chunk progression and
+                # last_chunk metadata stay aligned with input progression.
+                doc.metadata[self.metadata_key] = []
+                doc.metadata["__no_rollouts_remove"] = True
+                await self._save_document(
+                    doc,
+                    output_writer_context,
+                    rank,
+                    chunk_index,
+                    count_processed_stat=False,
+                )
                 await self.request_cache.mark_document_complete(doc.id)
                 return
             raise

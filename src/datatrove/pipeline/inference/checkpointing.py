@@ -286,9 +286,25 @@ class CheckpointManager:
                     self.last_chunk_index = int(f.read().strip())
 
             reader = JsonlReader(self.checkpoints_local_dir, compression=None, add_file_path=False)
+
+            def _chunk_index_from_filename(filename: str) -> int:
+                chunk_filename = os.path.basename(filename)
+                if not chunk_filename.startswith("chunk_") or not chunk_filename.endswith(".jsonl"):
+                    raise ValueError(f"Unexpected checkpoint filename format: {filename}")
+                return int(chunk_filename.removeprefix("chunk_").removesuffix(".jsonl"))
+
+            checkpoint_files = sorted(
+                self.checkpoints_local_dir_df.glob(f"{rank:05d}/chunk_*.jsonl"),
+                key=_chunk_index_from_filename,
+            )
             # find existing chunk files and read from them
-            for filename in self.checkpoints_local_dir_df.glob(f"{rank:05d}/*.jsonl"):
-                chunk_index = int(filename.removeprefix(f"{rank:05d}/chunk_").removesuffix(".jsonl"))
+            for filename in checkpoint_files:
+                chunk_index = _chunk_index_from_filename(filename)
+                # Chunks up to `last_chunk_index` are already fully accounted for by
+                # `documents_to_skip`; replaying/parsing them is redundant and can
+                # dominate startup time when many stale chunk files are present.
+                if chunk_index <= self.last_chunk_index:
+                    continue
                 # not strictly needed but just to be safe for the future
                 async with self.file_locks[chunk_index]:
                     for document in reader.read_file(filename):

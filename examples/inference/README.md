@@ -75,6 +75,12 @@ python examples/inference/generate_data.py \
 
 The script will automatically handle chunking, checkpointing, and queue management for you. The `--tasks` flag controls the size of the Slurm array, while `--workers` specifies the number of jobs that can run concurrently.
 
+### Checkpointing when bad requests are skipped
+
+`generate_data.py` runs `InferenceRunner` with `skip_bad_requests=True`. At large scale (for example `examples_per_chunk=100_000` and high Slurm array concurrency), even a small bad-request rate can prevent many chunks from ever reaching the completion threshold if skipped docs are not checkpointed. In that case, `last_chunk/<rank>.txt` does not advance and each restart has to re-parse all historical checkpoint files for that rank, which can add long startup delays before new inference starts.
+
+To avoid that restart penalty, skipped bad-request documents are still persisted in local checkpoint files with a "do not write to output" marker. They count toward checkpoint chunk progression and `last_chunk` updates, but are still excluded from final Parquet outputs.
+
 ## Input data format
 
 By specifying `--prompt-column`, the script reads that column from the Hugging Face dataset as the input text for each example. Only the prompt column is consumed. Any existing target/label/completion columns are ignored by this script, but you can keep them for evaluation.
