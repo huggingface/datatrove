@@ -4,7 +4,7 @@ version = "0.9.0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
-  {name = "MacroData Inc.", email = "guilherme@macrodata.co"}
+  {name = "MacroData Inc.", email = "guilherme@macrodata.co"},
   {name = "HuggingFace Inc.", email = "joel@hf.co"}
 ]
 license = {text = "Apache-2.0"}
