@@ -2,7 +2,7 @@ import unittest
 
 from datatrove.pipeline.readers import HuggingFaceDatasetReader
 
-from ..utils import require_datasets
+from ...utils import require_datasets
 
 
 @require_datasets

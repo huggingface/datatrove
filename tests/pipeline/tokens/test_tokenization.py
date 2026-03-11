@@ -13,7 +13,7 @@ from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends
 from datatrove.utils._import_utils import is_tokenizers_available
 
-from ..utils import require_tokenizers
+from ...utils import require_tokenizers
 
 
 if is_tokenizers_available():

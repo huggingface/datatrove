@@ -14,7 +14,7 @@ from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFi
 from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 
-from ..utils import require_fasttext, require_nltk, require_tldextract
+from ...utils import require_fasttext, require_nltk, require_tldextract
 
 
 TEXT_LF_1 = (

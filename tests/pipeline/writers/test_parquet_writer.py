@@ -6,7 +6,7 @@ from datatrove.data import Document
 from datatrove.pipeline.readers.parquet import ParquetReader
 from datatrove.pipeline.writers.parquet import ParquetWriter
 
-from ..utils import require_pyarrow
+from ...utils import require_pyarrow
 
 
 @require_pyarrow

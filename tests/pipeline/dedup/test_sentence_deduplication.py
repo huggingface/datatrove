@@ -14,7 +14,7 @@ from datatrove.pipeline.dedup.sentence_dedup import (
     SentenceFindDedups,
 )
 
-from ..utils import require_nltk, require_xxhash, use_hash_configs
+from ...utils import require_nltk, require_xxhash, use_hash_configs
 
 
 def get_random_string(n: int = 20):

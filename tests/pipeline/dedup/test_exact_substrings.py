@@ -15,7 +15,7 @@ from datatrove.pipeline.dedup.exact_substrings import (
 )
 from datatrove.utils.typeshelper import ExtensionHelperES
 
-from ..utils import require_nltk, require_tokenizers
+from ...utils import require_nltk, require_tokenizers
 
 
 TEXT_0 = (

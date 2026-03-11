@@ -21,7 +21,7 @@ from datatrove.pipeline.dedup.minhash import (
     read_sigs,
 )
 
-from ..utils import require_nltk, require_xxhash, use_hash_configs
+from ...utils import require_nltk, require_xxhash, use_hash_configs
 
 
 lorem_ipsum = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam euismod vel ante vitae rhoncus. Curabitur eu lectus et magna maximus facilisis eu non magna. Maecenas sed velit vitae est ornare placerat. Vestibulum quis consectetur nunc, a feugiat lorem. Cras in ipsum fringilla, vestibulum urna sit amet, viverra tortor. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Morbi euismod vestibulum elit id placerat. Fusce malesuada ultricies condimentum. Cras tincidunt eget lorem nec hendrerit. Aenean mattis arcu dolor, id semper velit ullamcorper malesuada. Aliquam non ipsum et eros venenatis aliquet. Proin eleifend interdum scelerisque. Interdum et malesuada fames ac ante ipsum primis in faucibus. Mauris nunc sapien, molestie eget convallis at, maximus nec ipsum. Morbi quam diam, blandit ut mollis at, varius eu tellus. Maecenas sem justo, porttitor at odio nec, interdum posuere ex.
