@@ -6,7 +6,7 @@ import unittest
 from datatrove.pipeline.readers.parquet import ParquetReader
 from datatrove.utils._import_utils import is_pyarrow_available
 
-from ..utils import require_pyarrow
+from ...utils import require_pyarrow
 
 
 if is_pyarrow_available():

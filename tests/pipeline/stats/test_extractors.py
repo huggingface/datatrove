@@ -2,7 +2,7 @@ import unittest
 
 from datatrove.pipeline.extractors import ReadabilityInscriptis, Trafilatura
 
-from ..utils import require_inscriptis, require_readability, require_trafilatura
+from ...utils import require_inscriptis, require_readability, require_trafilatura
 
 
 ARTICLE_HTML = "<html><body><article><p>Hello World!</p></article></body></html>"
