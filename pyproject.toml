@@ -86,7 +86,7 @@ inference = [
   "aiofiles",
   "httpx",
   "aiosqlite",
-  "vllm>=0.17.1",
+  "vllm>=0.10.0",
   "sglang",
   "bitsandbytes",
   "numpy>=2.0.0,<2.3", # numba requires numpy<=2.2
