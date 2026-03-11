@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
+from httpx import Request, Response
 from huggingface_hub.utils import HfHubHTTPError
 
 from datatrove.data import Document
@@ -237,9 +238,16 @@ class TestDiskWriterRetries(unittest.TestCase):
         writer.dataset = "org/repo"
         writer.revision = None
 
+        response = Response(
+            status_code=503,
+            request=Request(
+                "POST",
+                "https://huggingface.co/api/datasets/org/repo/commit/main",
+            ),
+        )
         transient_error = HfHubHTTPError(
             "503 Server Error: Service Unavailable for url: https://huggingface.co/api/datasets/org/repo/commit/main",
-            response=None,
+            response=response,
             server_message=None,
         )
 

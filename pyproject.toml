@@ -25,7 +25,7 @@ requires-python = ">=3.10.0"
 dependencies = [
   "dill>=0.3.0",
   "fsspec>=2023.12.2",
-  "huggingface-hub>=0.34.0,<1.0", # >=0.34.0 to enable hf-xet; transformers 4 requires <1.0
+  "huggingface-hub>=0.34", # this version enables hf-xet
   "humanize",
   "loguru>=0.7.0",
   "multiprocess",
@@ -86,14 +86,14 @@ inference = [
   "aiofiles",
   "httpx",
   "aiosqlite",
-  "vllm",
+  "vllm>=0.10.0",
   "sglang",
   "bitsandbytes",
   "numpy>=2.0.0,<2.3", # numba requires numpy<=2.2
   "typer",
   "pyyaml",
   "pandas",
-  "transformers>=4.57", # as long as vllm does not support v5
+  "transformers",
 ]
 ray = [
   "ray[default]",
@@ -109,7 +109,7 @@ testing = [
   "datatrove[s3]",
   "datatrove[ray]",
   "datatrove[inference]",
-  # "datatrove[decont]", # Exclude decont because lighteval has very restrictive vllm requirements: "vllm>=0.10.0,<0.10.2"
+  "datatrove[decont]",
   # Flask doesn't have correct dependencies on werkzeug, causing issues, thus we pin flask 3.1 (which currently works) to avoid it
   "flask>=3.1.0",
   "pytest",
