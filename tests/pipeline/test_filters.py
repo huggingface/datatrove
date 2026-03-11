@@ -10,6 +10,9 @@ from datatrove.pipeline.filters import (
     UnigramLogProbFilter,
     URLFilter,
 )
+from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFilter
+from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
+from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 
 from ..utils import require_fasttext, require_nltk, require_tldextract
 
@@ -34,8 +37,8 @@ TEXT_LF_4 = (
 )
 
 
-def get_doc(text, url=None):
-    return Document(text, id="0", metadata={"url": url})
+def get_doc(text: str, url: str = "https://example.com") -> Document:
+    return Document(text=text, id="0", metadata={"url": url})
 
 
 class TestFilters(unittest.TestCase):
@@ -130,3 +133,137 @@ class TestFilters(unittest.TestCase):
                 assert url_filter.filter(doc)
             else:
                 self.check_filter(url_filter, doc, result)
+
+
+class TestSamplerFilter(unittest.TestCase):
+    def test_rate_controls_keep_ratio(self):
+        sampler = SamplerFilter(rate=0.5, seed=42)
+        docs = [get_doc(f"text {i}") for i in range(1000)]
+        kept = [d for d in docs if sampler.filter(d)]
+        assert 400 < len(kept) < 600
+
+    def test_deterministic_with_same_seed(self):
+        sampler1 = SamplerFilter(rate=0.5, seed=123)
+        sampler2 = SamplerFilter(rate=0.5, seed=123)
+        docs = [get_doc(f"text {i}") for i in range(100)]
+        results1 = [sampler1.filter(d) for d in docs]
+        results2 = [sampler2.filter(d) for d in docs]
+        assert results1 == results2
+
+
+@require_nltk
+class TestC4QualityFilter(unittest.TestCase):
+    def setUp(self):
+        self.c4_filter = C4QualityFilter()
+
+    def test_keeps_quality_text(self):
+        good_text = (
+            "This is a well-written paragraph with several sentences.\n"
+            "The content continues with more good information here.\n"
+            "Another important point is being made in this line.\n"
+            "We can see that this document has quality content.\n"
+            "Finally, the conclusion wraps everything up nicely.\n"
+            "An additional sentence to ensure we pass the threshold."
+        )
+        assert self.c4_filter.filter(get_doc(good_text)) is True
+
+    def test_rejects_lorem_ipsum(self):
+        text = (
+            "This is a sentence with lorem ipsum dolor sit amet.\n"
+            "Another sentence with proper punctuation.\n"
+            "More content to fill out the document.\n"
+            "Even more content is needed to pass the check.\n"
+            "The final sentence of the document."
+        )
+        result, reason = self.c4_filter.filter(get_doc(text))
+        assert result is False
+        assert reason == "lorem_ipsum"
+
+    def test_rejects_curly_bracket(self):
+        text = (
+            "This is some code with a { bracket.\n"
+            "Another sentence follows this one.\n"
+            "More content to fill out the document.\n"
+            "Even more content is needed to pass.\n"
+            "The final sentence of the document."
+        )
+        result, reason = self.c4_filter.filter(get_doc(text))
+        assert result is False
+        assert reason == "curly_bracket"
+
+    def test_rejects_too_few_sentences(self):
+        result, reason = self.c4_filter.filter(get_doc("Just one sentence."))
+        assert result is False
+        assert reason == "too_few_sentences"
+
+    def test_removes_policy_lines_from_text(self):
+        c4 = C4QualityFilter(min_num_sentences=-1, min_words_per_line=-1)
+        d = get_doc("This site uses cookies for tracking.\nAnother valid line here today.")
+        c4.filter(d)
+        assert "cookies" not in d.text
+
+
+class TestC4ParagraphFilter(unittest.TestCase):
+    def test_keeps_doc_with_long_paragraphs(self):
+        para = "x" * 250
+        text = f"{para}\n{para}\n{para}"
+        assert C4ParagraphFilter().filter(get_doc(text)) is True
+
+    def test_rejects_short_paragraphs(self):
+        result, reason = C4ParagraphFilter().filter(get_doc("short\nshort\nshort"))
+        assert result is False
+        assert "paragraphs" in reason
+
+
+@require_nltk
+class TestFineWebQualityFilter(unittest.TestCase):
+    def test_rejects_empty_doc(self):
+        result, reason = FineWebQualityFilter().filter(get_doc(""))
+        assert result is False
+        assert reason == "empty"
+
+    def test_rejects_low_punctuation_ratio(self):
+        fw = FineWebQualityFilter(line_punct_thr=0.5)
+        text = "No punctuation here\nAnother line without any\nStill nothing"
+        result, reason = fw.filter(get_doc(text))
+        assert result is False
+        assert reason == "line_punct_ratio"
+
+    def test_rejects_mostly_short_lines(self):
+        fw = FineWebQualityFilter(short_line_thr=0.5, short_line_length=30, line_punct_thr=0.0)
+        result, reason = fw.filter(get_doc("hi.\nbye.\nok.\nno.\nyes."))
+        assert result is False
+        assert reason == "short_line_ratio"
+
+    def test_keeps_quality_text(self):
+        fw = FineWebQualityFilter()
+        text = (
+            "This is a well-written paragraph that ends with proper punctuation.\n"
+            "The content here is substantial and has meaningful information.\n"
+            "Quality filtering ensures that only the best documents pass through.\n"
+            "Each line here is long enough and ends with a terminal punctuation mark.\n"
+            "This document should pass all the quality checks applied by the filter."
+        )
+        assert fw.filter(get_doc(text)) is True
+
+    def test_rejects_list_heavy_doc(self):
+        fw = FineWebQualityFilter(new_line_ratio=0.1)
+        result, reason = fw.filter(get_doc("\n".join(["a"] * 50)))
+        assert result is False
+
+
+class TestBaseFilterRunPipeline(unittest.TestCase):
+    """Test BaseFilter.run() stat tracking via SamplerFilter."""
+
+    def test_run_tracks_forwarded_and_dropped_stats(self):
+        sampler_keep = SamplerFilter(rate=1.0, seed=0)
+        sampler_drop = SamplerFilter(rate=0.0, seed=0)
+        docs = [get_doc(f"text {i}") for i in range(3)]
+
+        list(sampler_keep.run(iter(docs)))
+        assert sampler_keep.stats["total"].total == 3
+        assert sampler_keep.stats["forwarded"].total == 3
+
+        list(sampler_drop.run(iter(docs)))
+        assert sampler_drop.stats["total"].total == 3
+        assert sampler_drop.stats["dropped"].total == 3
