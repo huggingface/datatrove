@@ -4,6 +4,7 @@ import json
 import socket
 import tempfile
 import threading
+import unittest
 from contextlib import contextmanager
 from functools import partial
 from http.server import HTTPServer
@@ -14,6 +15,7 @@ import pytest
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.pipeline.inference.checkpointing import CheckpointManager
+from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
 from datatrove.pipeline.inference.types import InferenceError, ServerError
@@ -1379,6 +1381,76 @@ if __name__ == "__main__":
     first_result = rollout_results[0]
     assert isinstance(first_result, dict)
     assert first_result["text"] == "Hello from custom server!"
+
+
+class TestInferenceErrorMessage(unittest.TestCase):
+    def test_message_includes_doc_id_and_payload(self):
+        doc = Document(text="hello", id="doc1")
+        err = InferenceError(document=doc, error="timeout", payload={"model": "gpt2"})
+        msg = str(err)
+        assert "doc1" in msg
+        assert "timeout" in msg
+        assert "gpt2" in msg
+
+    def test_none_document_uses_placeholder(self):
+        err = InferenceError(document=None, error="connection failed")
+        assert "?" in str(err)
+
+    def test_wraps_exception_objects(self):
+        original = ValueError("original error")
+        err = InferenceError(document=None, error=original)
+        assert err.error is original
+        assert "original error" in str(err)
+
+
+class TestServerErrorMessage(unittest.TestCase):
+    def test_nested_server_error_avoids_double_wrapping(self):
+        inner = ServerError(error="inner issue")
+        outer = ServerError(error=inner)
+        assert str(outer).count("unrecoverable") <= 1
+
+
+class TestMetricsKeeper(unittest.TestCase):
+    def test_cumulative_metrics_accumulate(self):
+        mk = MetricsKeeper()
+        mk.add_metrics(requests=3, tokens=50)
+        mk.add_metrics(requests=7, tokens=150)
+        assert mk.total_metrics["requests"] == 10
+        assert mk.total_metrics["tokens"] == 200
+
+    def test_window_evicts_old_metrics(self):
+        import time
+
+        mk = MetricsKeeper(window=0.1)
+        mk.add_metrics(old_metric=10)
+        time.sleep(0.15)
+        mk.add_metrics(new_metric=5)
+        assert "old_metric" not in mk.window_sum
+        assert mk.total_metrics["old_metric"] == 10
+        assert mk.window_sum["new_metric"] == 5
+
+    def test_reset_clears_everything(self):
+        mk = MetricsKeeper()
+        mk.add_metrics(requests=5)
+        mk.reset()
+        assert len(mk.total_metrics) == 0
+        assert len(mk.window_metrics) == 0
+        assert len(mk.window_sum) == 0
+
+
+class TestQueueSizesKeeper(unittest.TestCase):
+    def test_change_queues_with_multiple_ops(self):
+        qk = QueueSizesKeeper()
+        qk.change_queues({"input": 10, "output": 5})
+        qk.change_queues({"input": -3, "output": 2})
+        assert qk.queue_sizes["input"] == 7
+        assert qk.queue_sizes["output"] == 7
+
+    def test_queue_floor_at_zero(self):
+        qk = QueueSizesKeeper()
+        qk.change_queues({"input": 2})
+        qk.change_queues({"input": -10})
+        assert qk.queue_sizes["input"] == 0
 
 
 if __name__ == "__main__":

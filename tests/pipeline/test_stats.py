@@ -1,4 +1,5 @@
 import json
+import math
 import shutil
 import tempfile
 import unittest
@@ -21,7 +22,7 @@ from datatrove.pipeline.stats import (
     WordStats,
 )
 from datatrove.pipeline.stats.base import BaseStats
-from datatrove.utils.stats import MetricStatsDict
+from datatrove.utils.stats import MetricStats, MetricStatsDict, PipelineStats, Stats, TimingStats
 from tests.utils import require_nltk, require_tldextract, require_tokenizers
 
 
@@ -283,3 +284,174 @@ class TestStatsModules(unittest.TestCase):
 
         computed_stats = self.load_computed_means(list(expected_paragraph_stats.keys()))
         self.assertEqual(computed_stats, expected_paragraph_stats)
+
+
+class TestMetricStats(unittest.TestCase):
+    def test_welford_variance_matches_numpy(self):
+        """Verify Welford's online algorithm produces correct variance."""
+        import numpy as np
+
+        values = [3.0, 7.0, 1.0, 9.0, 5.0, 2.0, 8.0, 4.0, 6.0, 10.0]
+        ms = MetricStats()
+        for v in values:
+            ms.update(v)
+        expected_var = float(np.var(values, ddof=1))
+        assert math.isclose(ms.variance, expected_var, rel_tol=1e-10)
+        assert math.isclose(ms.standard_deviation, math.sqrt(expected_var), rel_tol=1e-10)
+
+    def test_parallel_merge_preserves_statistics(self):
+        """Verify that combining two MetricStats via __add__ gives correct merged mean/variance."""
+        import numpy as np
+
+        all_values = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        ms1 = MetricStats()
+        for v in all_values[:3]:
+            ms1.update(v)
+        ms2 = MetricStats()
+        for v in all_values[3:]:
+            ms2.update(v)
+
+        combined = ms1 + ms2
+        assert combined.total == sum(all_values)
+        assert combined.n == len(all_values)
+        assert math.isclose(combined.mean, float(np.mean(all_values)))
+        assert combined.min == 1.0
+        assert combined.max == 6.0
+        expected_var = float(np.var(all_values, ddof=1))
+        assert math.isclose(combined.variance, expected_var, rel_tol=1e-9)
+
+    def test_serialization_roundtrip_preserves_variance(self):
+        ms = MetricStats()
+        for v in [10.0, 20.0, 30.0]:
+            ms.update(v)
+        data = ms.to_dict()
+        restored = MetricStats.from_dict(data)
+        assert math.isclose(restored.total, ms.total)
+        assert restored.n == ms.n
+        assert math.isclose(restored.mean, ms.mean)
+        assert math.isclose(restored.variance, ms.variance, rel_tol=1e-9)
+
+    def test_to_dict_collapses_to_scalar_when_trivial(self):
+        """When total==0 returns 0; when only one update with value==total returns scalar."""
+        assert MetricStats().to_dict() == 0
+        ms = MetricStats()
+        ms.update(1.0)
+        assert ms.to_dict() == 1.0
+
+    def test_from_dict_scalar_reconstructs(self):
+        ms = MetricStats.from_dict(42)
+        assert ms.total == 42
+        assert ms.n == 1
+
+
+class TestMetricStatsDictUnit(unittest.TestCase):
+    def test_add_merges_overlapping_and_disjoint_keys(self):
+        msd1 = MetricStatsDict()
+        msd1["a"].update(1.0)
+        msd2 = MetricStatsDict()
+        msd2["a"].update(2.0)
+        msd2["b"].update(3.0)
+
+        combined = msd1 + msd2
+        assert combined["a"].total == 3.0
+        assert combined["b"].total == 3.0
+
+    def test_topk_returns_highest(self):
+        msd = MetricStatsDict()
+        for i in range(10):
+            msd[f"key_{i}"].update(float(i))
+        top3 = msd.topk(3)
+        totals = sorted([top3[k].total for k in top3], reverse=True)
+        assert totals == [9.0, 8.0, 7.0]
+
+    def test_serialization_roundtrip(self):
+        msd = MetricStatsDict()
+        msd["metric1"].update(10.0)
+        msd["metric2"].update(20.0)
+        data = msd.to_dict()
+        restored = MetricStatsDict.from_dict(data)
+        assert math.isclose(restored["metric1"].total, 10.0)
+        assert math.isclose(restored["metric2"].total, 20.0)
+
+
+class TestStatsUnit(unittest.TestCase):
+    def test_add_merges_metrics(self):
+        s1 = Stats("block")
+        s1["m"].update(5.0)
+        s2 = Stats("block")
+        s2["m"].update(10.0)
+        combined = s1 + s2
+        assert combined["m"].total == 15.0
+
+    def test_add_different_name_raises(self):
+        s1 = Stats("block_a")
+        s2 = Stats("block_b")
+        with self.assertRaises(AssertionError):
+            s1 + s2
+
+    def test_json_roundtrip(self):
+        s = Stats("test_block")
+        s["counter"].update(42.0)
+        s["counter"].update(10.0)
+        json_str = s.to_json()
+        restored = Stats.from_dict(json.loads(json_str))
+        assert restored.name == "test_block"
+        restored_stats = restored.stats.to_dict()
+        assert math.isclose(restored_stats["counter"]["total"], 52.0)
+
+    def test_save_to_disk(self):
+        s = Stats("test_block")
+        s["counter"].update(1.0)
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json") as f:
+            s.save_to_disk(f)
+            f.seek(0)
+            data = json.load(f)
+            assert data["name"] == "test_block"
+
+
+class TestPipelineStatsUnit(unittest.TestCase):
+    def test_add_with_empty_lhs(self):
+        """Adding to an empty PipelineStats should adopt the rhs stats."""
+        ps1 = PipelineStats()
+        s = Stats("block")
+        ps2 = PipelineStats([s])
+        combined = ps1 + ps2
+        assert len(combined.stats) == 1
+
+    def test_json_roundtrip(self):
+        s = Stats("block")
+        s["m"].update(10.0)
+        ps = PipelineStats([s])
+        json_str = ps.to_json()
+        restored = PipelineStats.from_json(json.loads(json_str))
+        assert len(restored.stats) == 1
+        assert restored.stats[0].name == "block"
+
+
+class TestTimingStatsUnit(unittest.TestCase):
+    def test_context_manager_tracks_elapsed_time(self):
+        ts = TimingStats()
+        with ts:
+            _ = sum(range(100_000))
+        assert ts.total > 0
+        assert ts.n == 1
+
+    def test_parallel_merge_tracks_global_stats(self):
+        ts1 = TimingStats()
+        ts1.update(1.0)
+        ts2 = TimingStats()
+        ts2.update(3.0)
+        combined = ts1 + ts2
+        assert combined.total == 4.0
+        assert combined.n_tasks == 2
+        assert combined.global_min == 1.0
+        assert combined.global_max == 3.0
+
+    def test_serialization_roundtrip(self):
+        ts = TimingStats()
+        ts.update(1.0)
+        ts.update(2.0)
+        data = ts.to_dict()
+        restored = TimingStats.from_dict(data)
+        assert math.isclose(restored.total, ts.total)
+        assert math.isclose(restored.global_mean, ts.global_mean)
