@@ -100,10 +100,12 @@ def check_dataset(
             )
 
 
-if __name__ == "__main__":
+def main():
     args = parser.parse_args()
-
     input_folder: DataFolder = get_datafolder(args.data)
-
     check_dataset(input_folder, args.tokenizer, args.eos)
     print("All checks ok")
+
+
+if __name__ == "__main__":
+    main()
