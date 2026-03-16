@@ -1,5 +1,4 @@
 import struct
-from typing import List
 
 import numpy as np
 
@@ -105,7 +104,7 @@ class MegatronTokenizedFile:
         # Close
         self.idx_file.close()
 
-    def _sequence_pointers(self, sequence_lengths: List[int]) -> List[int]:
+    def _sequence_pointers(self, sequence_lengths: list[int]) -> list[int]:
         """Build the sequence pointers per the sequence lengths and dtype size
 
         Args:

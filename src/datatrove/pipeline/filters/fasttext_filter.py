@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Tuple
 
 import numpy as np
 
@@ -41,8 +40,8 @@ class FastTextClassifierFilter(BaseFilter):
     def __init__(
         self,
         model_url: str,
-        keep_labels: Tuple[str, float] | list[Tuple[str, float]] | None = None,
-        remove_labels: Tuple[str, float] | list[Tuple[str, float]] | None = None,
+        keep_labels: tuple[str, float] | list[tuple[str, float]] | None = None,
+        remove_labels: tuple[str, float] | list[tuple[str, float]] | None = None,
         save_labels_in_metadata: bool = True,
         exclusion_writer: DiskWriter | None = None,
         newline_replacement="",

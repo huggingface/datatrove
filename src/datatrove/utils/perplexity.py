@@ -3,7 +3,6 @@
 
 import re
 from pathlib import Path
-from typing import Dict
 
 from huggingface_hub import hf_hub_url
 
@@ -44,7 +43,7 @@ class SentencePiece:
 
 class KenlmModel:
     digit_re: re.Pattern = re.compile(r"\d")
-    unicode_punct: Dict[str, str] = {
+    unicode_punct: dict[str, str] = {
         "，": ",",
         "。": ".",
         "、": ",",

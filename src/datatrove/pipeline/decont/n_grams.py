@@ -8,7 +8,6 @@ import os
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Tuple
 
 import numpy as np
 
@@ -209,7 +208,7 @@ class NGramsDecontFilter(BaseFilter):
             for hash in hashlist:
                 self._index_hashes[hash] = taskname
 
-    def filter(self, doc: Document) -> bool | Tuple[bool, str]:
+    def filter(self, doc: Document) -> bool | tuple[bool, str]:
         if self._index_hashes is None:
             self.load_index_hashes()
 

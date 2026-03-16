@@ -5,9 +5,10 @@ import json
 import random
 import time
 from collections import deque
+from collections.abc import Callable, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Optional, Sequence
+from typing import TYPE_CHECKING
 
 from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
 from datatrove.io import DataFolderLike, file_is_local, get_datafolder
@@ -406,7 +407,7 @@ class RayPipelineExecutor(PipelineExecutor):
         ray_remote_kwargs: Additional kwargs to pass to the ray.remote decorator
         log_first: Whether to the first task in ray job should log to console. Default: False
         tasks_per_job: Number of tasks to run in each Ray job. Default: 1
-        time: Optional time limit in seconds for each task
+        time: time limit in seconds for each task, or None for no limit
         nodes_per_task: Number of nodes to use per task. If > 1, creates a placement group
             and launches one task per node. Each task processes the same ranks independently.
             Default: 1 (single node per task)
@@ -428,7 +429,7 @@ class RayPipelineExecutor(PipelineExecutor):
         ray_remote_kwargs: dict = None,
         log_first: bool = False,
         tasks_per_job: int = 1,
-        time: Optional[int] = None,
+        time: int | None = None,
     ):
         # Check if the logging_dir is local fs and if so issue a warning that for synchronization it has to be a shared filesystem
         if logging_dir and file_is_local(logging_dir):

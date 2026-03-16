@@ -7,7 +7,7 @@ this can be removed.
 import re
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import srsly
 from spacy import util
@@ -36,7 +36,7 @@ split_mode = null
 
 
 @registry.tokenizers("datatrove.ja.JapaneseTokenizer")
-def create_tokenizer(split_mode: Optional[str] = None):
+def create_tokenizer(split_mode: str | None = None):
     def japanese_tokenizer_factory(nlp):
         return JapaneseTokenizer(nlp.vocab, split_mode=split_mode)
 
@@ -44,7 +44,7 @@ def create_tokenizer(split_mode: Optional[str] = None):
 
 
 class JapaneseTokenizer(DummyTokenizer):
-    def __init__(self, vocab: Vocab, split_mode: Optional[str] = None) -> None:
+    def __init__(self, vocab: Vocab, split_mode: str | None = None) -> None:
         self.vocab = vocab
         self.split_mode = split_mode
         self.tokenizer = try_sudachi_import(self.split_mode)
@@ -151,10 +151,10 @@ class JapaneseTokenizer(DummyTokenizer):
         validate_examples(examples, "JapaneseTokenizer.score")
         return Scorer.score_tokenization(examples)
 
-    def _get_config(self) -> Dict[str, Any]:
+    def _get_config(self) -> dict[str, Any]:
         return {"split_mode": self.split_mode}
 
-    def _set_config(self, config: Dict[str, Any] = {}) -> None:
+    def _set_config(self, config: dict[str, Any] = {}) -> None:
         self.split_mode = config.get("split_mode", None)
 
     def to_bytes(self, **kwargs) -> bytes:
@@ -167,12 +167,12 @@ class JapaneseTokenizer(DummyTokenizer):
         self.tokenizer = try_sudachi_import(self.split_mode)
         return self
 
-    def to_disk(self, path: Union[str, Path], **kwargs) -> None:
+    def to_disk(self, path: str | Path, **kwargs) -> None:
         path = util.ensure_path(path)
         serializers = {"cfg": lambda p: srsly.write_json(p, self._get_config())}
         util.to_disk(path, serializers, [])
 
-    def from_disk(self, path: Union[str, Path], **kwargs) -> "JapaneseTokenizer":
+    def from_disk(self, path: str | Path, **kwargs) -> "JapaneseTokenizer":
         path = util.ensure_path(path)
         serializers = {"cfg": lambda p: self._set_config(srsly.read_json(p))}
         util.from_disk(path, serializers, [])

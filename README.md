@@ -47,6 +47,8 @@ Local, remote and other file systems are supported through [fsspec](https://file
 
 ## Installation
 
+Requires Python 3.10+.
+
 ```bash
 pip install datatrove[FLAVOUR]
 ```

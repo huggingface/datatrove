@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
 
 from datatrove.data import DocumentsPipeline, Media
 from datatrove.pipeline.base import PipelineStep
@@ -15,7 +14,7 @@ class BaseMediaContentFilter(PipelineStep, ABC):
         super().__init__()
 
     @abstractmethod
-    def filter(self, media: Media) -> bool | Tuple[bool, str]:
+    def filter(self, media: Media) -> bool | tuple[bool, str]:
         """Filter modules main method, for a single media
         Returns true if bytes should be KEPT, false if they should be REMOVED.
 

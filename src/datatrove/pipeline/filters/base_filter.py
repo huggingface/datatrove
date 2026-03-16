@@ -1,6 +1,5 @@
 import contextlib
 from abc import ABC, abstractmethod
-from typing import List, Tuple
 
 from loguru import logger
 
@@ -35,7 +34,7 @@ class BaseFilter(PipelineStep, ABC):
             logger.warning(f"{batch_size=} > 1 but {self} does not implement a custom filter_batch method.")
 
     @abstractmethod
-    def filter(self, doc: Document) -> bool | Tuple[bool, str]:
+    def filter(self, doc: Document) -> bool | tuple[bool, str]:
         """Filter modules main method, for a single document
         Returns true if a sample should be KEPT, false if it should be REMOVED.
 
@@ -48,7 +47,7 @@ class BaseFilter(PipelineStep, ABC):
         """
         raise NotImplementedError
 
-    def filter_batch(self, batch: List[Document]) -> List[bool | Tuple[bool, str]]:
+    def filter_batch(self, batch: list[Document]) -> list[bool | tuple[bool, str]]:
         """
         Overwrite this method to implement batched filtering. Batches have size `self.batch_size`, except possibly the last one.
         Args:
