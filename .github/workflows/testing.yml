@@ -42,7 +42,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv
-          uv pip install --system .[testing]
+          # Some optional extras (multilingual, inference) have C-extension deps
+          # without Python 3.14 wheels yet (e.g. tensorflow, vllm). Install a
+          # reduced set on 3.14 and the full testing extra on older versions.
+          if python -c "import sys; sys.exit(0 if sys.version_info >= (3, 14) else 1)"; then
+            uv pip install --system ".[cli,io,processing,s3,ray,decont,quality]" \
+              flask pytest pytest-rerunfailures pytest-timeout pytest-xdist "moto[s3,server]"
+          else
+            uv pip install --system .[testing]
+          fi
           python -m nltk.downloader punkt
       - name: Test with pytest
         env:
