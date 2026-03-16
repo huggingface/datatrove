@@ -596,6 +596,7 @@ def build_and_upload_dataset_card(
     tags = sorted(
         {
             "synthetic",
+            "datatrove",
             *(source_meta.get("tags") or []),
             params.model_name.split("/")[-1],
             params.input_dataset_name.split("/")[-1],
