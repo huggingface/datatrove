@@ -5,7 +5,7 @@ import os
 import random
 import socket
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -159,15 +159,15 @@ class InferenceServer(ABC):
         # If the server either fails too many times to boot up or it's detected as not possible to start,
         # the future will be set to an exception. Once in this state, the server will never be started again.
         self._server_ready: asyncio.Future = asyncio.Future()
-        self._server_task: Optional[asyncio.Task] = None
+        self._server_task: asyncio.Task | None = None
         self._port = None
-        self._server_process: Optional[asyncio.subprocess.Process] = None
+        self._server_process: asyncio.subprocess.Process | None = None
         self._server_start_lock = asyncio.Lock()
         # Monitoring task for local server health check
-        self._server_monitoring_task: Optional[asyncio.Task] = None
-        self._server_logger: Optional[logging.Logger] = None
+        self._server_monitoring_task: asyncio.Task | None = None
+        self._server_logger: logging.Logger | None = None
         # Background task for starting the server (so we can start preprocessing)
-        self._bg_start_server_task: Optional[asyncio.Task] = None
+        self._bg_start_server_task: asyncio.Task | None = None
         self._is_master = is_master_node()
         self._rank = rank
         self._node_rank = get_node_rank()
@@ -197,7 +197,7 @@ class InferenceServer(ABC):
         """
         return self.config.server_log_folder is not None
 
-    def _create_server_logger(self) -> Optional[logging.Logger]:
+    def _create_server_logger(self) -> logging.Logger | None:
         """
         Create a dedicated logger for server output that writes to file.
 
@@ -236,7 +236,7 @@ class InferenceServer(ABC):
 
         return server_logger
 
-    def server_logger(self) -> Optional[logging.Logger]:
+    def server_logger(self) -> logging.Logger | None:
         """
         Get or create the server logger instance.
 

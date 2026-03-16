@@ -2,7 +2,7 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -90,7 +90,7 @@ class DummyServer(InferenceServer):
             rank: Rank of the server
         """
         super().__init__(config, rank)
-        self.http_server: Optional[HTTPServer] = None
+        self.http_server: HTTPServer | None = None
 
     async def monitor_health(self):
         # Keep the task alive until cancelled

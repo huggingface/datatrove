@@ -1,7 +1,7 @@
 import os.path
 from abc import ABC
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 from tokenizers.processors import TemplateProcessing
@@ -43,7 +43,7 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
         self,
         tokenizer_name_or_path: str | None = None,
         eos_token: str | None = None,
-        post_processor: Optional[TemplateProcessing] = None,
+        post_processor: TemplateProcessing | None = None,
     ):
         """Initialize the PipelineStepWithTokenizer.
 
