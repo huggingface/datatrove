@@ -90,7 +90,9 @@ def is_fasteners_available():
 def _is_distribution_available(distribution_name: str):
     found = None
     for dist in importlib.metadata.distributions():
-        if dist.metadata["Name"] and dist.metadata["Name"].lower() == distribution_name:
+        metadata = getattr(dist, "metadata", None)
+        dist_name = metadata.get("Name") if metadata is not None else None
+        if dist_name and dist_name.lower() == distribution_name:
             found = True
     return found
 

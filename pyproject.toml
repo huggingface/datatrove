@@ -87,14 +87,14 @@ inference = [
   "aiofiles",
   "httpx",
   "aiosqlite",
-  "vllm>=0.19.0",
+  "vllm>=0.10.0",
   "sglang",
   "bitsandbytes",
   "numpy>=2.0.0,<2.3", # numba requires numpy<=2.2
   "typer",
   "pyyaml",
   "pandas",
-  "transformers>=5.5.3",
+  "transformers>=5.0",
 ]
 ray = [
   "ray[default]",
