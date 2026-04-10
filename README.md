@@ -50,18 +50,18 @@ Local, remote and other file systems are supported through [fsspec](https://file
 Requires Python 3.10+.
 
 ```bash
-pip install datatrove[FLAVOUR]
+uv sync
 ```
-Available flavours (combine them with `,` i.e. `[processing,s3]`):
-- `all` installs everything: `pip install datatrove[all]`
-- `io` dependencies to read `warc/arc/wet` files and arrow/parquet/[Optimized-parquet](https://huggingface.co/docs/hub/en/datasets-libraries#optimized-parquet-files) formats: `pip install datatrove[io]`
-- `processing` dependencies for text extraction, filtering and tokenization: `pip install datatrove[processing]`
-- `s3` s3 support: `pip install datatrove[s3]`
-- `cli` for command line tools: `pip install datatrove[cli]`
-- `ray` for distributed compute engine: `pip install datatrove[ray]`
-- `inference` for LLM inference pipelines: `pip install datatrove[inference]`
-- `decont` for decontamination with lighteval: `pip install datatrove[decont]`
-- `multilingual` for multilingual text processing: `pip install datatrove[multilingual]`
+Available flavours (combine them by repeating `--extra`, e.g. `uv sync --extra processing --extra s3`):
+- `all` installs everything: `uv sync --extra all`
+- `io` dependencies to read `warc/arc/wet` files and arrow/parquet/[Optimized-parquet](https://huggingface.co/docs/hub/en/datasets-libraries#optimized-parquet-files) formats: `uv sync --extra io`
+- `processing` dependencies for text extraction, filtering and tokenization: `uv sync --extra processing`
+- `s3` s3 support: `uv sync --extra s3`
+- `cli` for command line tools: `uv sync --extra cli`
+- `ray` for distributed compute engine: `uv sync --extra ray`
+- `inference` for LLM inference pipelines: `uv sync --extra inference`
+- `decont` for decontamination with lighteval: `uv sync --extra decont`
+- `multilingual` for multilingual text processing: `uv sync --extra multilingual`
 
 ## Quickstart examples
 You can check the following [examples](examples):
@@ -334,7 +334,7 @@ Some options common to most readers:
 - `limit` read only a certain number of samples. Useful for testing/debugging
 
 ### Synthetic data generation
-Install the inference extras with `pip install datatrove[inference]` to pull in the lightweight HTTP client, checkpointing dependencies and async sqlite cache.
+Install the inference extras with `uv sync --extra inference` to pull in the lightweight HTTP client, checkpointing dependencies and async sqlite cache.
 
 We support [vLLM](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), OpenAI-compatible HTTPS endpoints and a local `dummy` server through the [InferenceRunner block](src/datatrove/pipeline/inference/run_inference.py). Each datatrove task can spin up its own server replica (for `vllm`, `sglang` or `dummy`) or talk directly to an external endpoint while asynchronous batching keeps GPU utilization high.
 
@@ -605,7 +605,7 @@ You could also inherit from [`BaseExtractor`](src/datatrove/pipeline/extractors/
 
 ```bash
 git clone git@github.com:huggingface/datatrove.git && cd datatrove
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 Install pre-commit code style hooks:

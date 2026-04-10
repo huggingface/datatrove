@@ -1,0 +1,4 @@
+# `uv pip install` on the published wheel in the release workflow does not use
+# the repo's `[tool.uv]` override config, so we keep the TestPyPI install path
+# overridden here too.
+transformers>=5.0

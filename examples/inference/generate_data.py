@@ -112,13 +112,30 @@ def _compute_reader_limit(max_examples: int, tasks: int) -> int:
     return reader_limit
 
 
+def _load_generation_defaults(model_name_or_path: str, model_revision: str, trust_remote_code: bool) -> dict[str, Any]:
+    """Load explicit generation defaults from the model generation config when available."""
+    try:
+        generation_config = GenerationConfig.from_pretrained(
+            model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+        )
+    except OSError as exc:
+        logger.warning(
+            f"Missing generation_config.json for {model_name_or_path}@{model_revision}; "
+            f"falling back to server defaults ({exc})"
+        )
+        return {}
+
+    generation_defaults = generation_config.to_diff_dict()
+    return {key: generation_defaults[key] for key in ("temperature", "top_p", "top_k") if key in generation_defaults}
+
+
 def main(
     # Input data details
     input_dataset_name: str = "simplescaling/s1K-1.1",
     input_dataset_config: str | None = None,
     input_dataset_split: str = "train",
     prompt_column: str = "question",
-    prompt_template: str | list[str] | None = None,  # Can be "template" or ["name", "template"]
+    prompt_template: str | None = None,  # Programmatic callers may also pass ["name", "template"].
     max_examples: int = -1,
     # Output dataset details
     output_dataset_name: str = "s1K-1.1-datatrove",
@@ -147,6 +164,7 @@ def main(
     max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
     gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
     block_size: int = 16,  # KV cache block size (16 or 32)
+    gdn_prefill_backend: str | None = None,  # Optional disaggregated-prefill backend for vLLM.
     speculative_config: str | None = None,
     quantization: str | None = None,  # "bitsandbytes" for 4-bit quantization
     kv_cache_dtype: str = "auto",  # "auto", "fp8_e4m3", or "fp8_e5m2"
@@ -251,19 +269,21 @@ def main(
             {
                 "messages": messages,
                 "max_tokens": max_tokens,
-                "temperature": temperature,
-                "top_k": top_k,
-                "top_p": top_p,
+                **({"temperature": temperature} if temperature is not None else {}),
+                **({"top_k": top_k} if top_k is not None else {}),
+                **({"top_p": top_p} if top_p is not None else {}),
                 **({"seed": seed} if seed is not None else {}),
             }
         )
 
-    generation_config = GenerationConfig.from_pretrained(
-        model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+    generation_defaults = _load_generation_defaults(
+        model_name_or_path=model_name_or_path,
+        model_revision=model_revision,
+        trust_remote_code=trust_remote_code,
     )
-    temperature = temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
-    top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
-    top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
+    temperature = temperature if temperature is not None else generation_defaults.get("temperature")
+    top_p = top_p if top_p is not None else generation_defaults.get("top_p")
+    top_k = top_k if top_k is not None else generation_defaults.get("top_k")
 
     # Normalize speculative config; treat common "none" strings as disabled
     spec_raw = speculative_config
@@ -321,6 +341,7 @@ def main(
         "max_num_batched_tokens": max_num_batched_tokens,
         "block-size": block_size,
         "gpu-memory-utilization": gpu_memory_utilization,
+        **({"gdn-prefill-backend": gdn_prefill_backend} if gdn_prefill_backend else {}),
         **({"speculative_config": normalized_spec} if normalized_spec else {}),
         **quant_kwargs,
         **kv_cache_kwargs,
@@ -500,7 +521,7 @@ def main(
             )
             datacard_executor.run()
 
-    return inference_executor.job_id
+    return getattr(inference_executor, "job_id", None)
 
 
 if __name__ == "__main__":
