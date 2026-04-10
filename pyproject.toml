@@ -145,7 +145,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 override-dependencies = [
-  "transformers==5.5.3",
+  "transformers>=5.0",
 ]
 
 [tool.setuptools.packages.find]

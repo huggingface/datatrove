@@ -18,7 +18,7 @@ resolution-markers = [
 ]
 
 [manifest]
-overrides = [{ name = "transformers", specifier = "==5.5.3" }]
+overrides = [{ name = "transformers", specifier = ">=5.0" }]
 
 [[package]]
 name = "absl-py"
