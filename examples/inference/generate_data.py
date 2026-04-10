@@ -129,11 +129,6 @@ def _load_generation_defaults(model_name_or_path: str, model_revision: str, trus
     return {key: generation_defaults[key] for key in ("temperature", "top_p", "top_k") if key in generation_defaults}
 
 
-def _get_executor_job_id(executor: Any) -> str | None:
-    """Return the executor job id when the backend exposes one."""
-    return getattr(executor, "job_id", None)
-
-
 def main(
     # Input data details
     input_dataset_name: str = "simplescaling/s1K-1.1",
@@ -526,7 +521,7 @@ def main(
             )
             datacard_executor.run()
 
-    return _get_executor_job_id(inference_executor)
+    return getattr(inference_executor, "job_id", None)
 
 
 if __name__ == "__main__":
