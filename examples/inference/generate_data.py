@@ -112,20 +112,21 @@ def _compute_reader_limit(max_examples: int, tasks: int) -> int:
     return reader_limit
 
 
-def _load_generation_config(
-    model_name_or_path: str, model_revision: str, trust_remote_code: bool, config
-) -> GenerationConfig:
-    """Load generation defaults, falling back to model config when needed."""
+def _load_generation_defaults(model_name_or_path: str, model_revision: str, trust_remote_code: bool) -> dict[str, Any]:
+    """Load explicit generation defaults from the model generation config when available."""
     try:
-        return GenerationConfig.from_pretrained(
+        generation_config = GenerationConfig.from_pretrained(
             model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
         )
     except OSError as exc:
         logger.warning(
             f"Missing generation_config.json for {model_name_or_path}@{model_revision}; "
-            f"falling back to model config defaults ({exc})"
+            f"falling back to server defaults ({exc})"
         )
-        return GenerationConfig.from_model_config(config)
+        return {}
+
+    generation_defaults = generation_config.to_diff_dict()
+    return {key: generation_defaults[key] for key in ("temperature", "top_p", "top_k") if key in generation_defaults}
 
 
 def _get_executor_job_id(executor: Any) -> str | None:
@@ -168,7 +169,7 @@ def main(
     max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
     gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
     block_size: int = 16,  # KV cache block size (16 or 32)
-    gdn_prefill_backend: str | None = None,
+    gdn_prefill_backend: str | None = None,  # Optional disaggregated-prefill backend for vLLM.
     speculative_config: str | None = None,
     quantization: str | None = None,  # "bitsandbytes" for 4-bit quantization
     kv_cache_dtype: str = "auto",  # "auto", "fp8_e4m3", or "fp8_e5m2"
@@ -273,22 +274,21 @@ def main(
             {
                 "messages": messages,
                 "max_tokens": max_tokens,
-                "temperature": temperature,
-                "top_k": top_k,
-                "top_p": top_p,
+                **({"temperature": temperature} if temperature is not None else {}),
+                **({"top_k": top_k} if top_k is not None else {}),
+                **({"top_p": top_p} if top_p is not None else {}),
                 **({"seed": seed} if seed is not None else {}),
             }
         )
 
-    generation_config = _load_generation_config(
+    generation_defaults = _load_generation_defaults(
         model_name_or_path=model_name_or_path,
         model_revision=model_revision,
         trust_remote_code=trust_remote_code,
-        config=config,
     )
-    temperature = temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
-    top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
-    top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
+    temperature = temperature if temperature is not None else generation_defaults.get("temperature")
+    top_p = top_p if top_p is not None else generation_defaults.get("top_p")
+    top_k = top_k if top_k is not None else generation_defaults.get("top_k")
 
     # Normalize speculative config; treat common "none" strings as disabled
     spec_raw = speculative_config

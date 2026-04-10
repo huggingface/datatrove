@@ -50,9 +50,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
 Requires Python 3.10+.
 
 ```bash
-uv venv --python 3.12
-source .venv/bin/activate
-uv sync --extra FLAVOUR
+uv sync
 ```
 Available flavours (combine them by repeating `--extra`, e.g. `uv sync --extra processing --extra s3`):
 - `all` installs everything: `uv sync --extra all`
@@ -606,8 +604,7 @@ You could also inherit from [`BaseExtractor`](src/datatrove/pipeline/extractors/
 ## Contributing
 
 ```bash
-uv venv --python 3.12
-source .venv/bin/activate
+git clone git@github.com:huggingface/datatrove.git && cd datatrove
 uv sync --extra dev
 ```
 

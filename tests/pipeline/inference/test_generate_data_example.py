@@ -1,33 +1,30 @@
-import subprocess
-import sys
-from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from examples.inference.generate_data import _get_executor_job_id, _load_generation_config
+from examples.inference.generate_data import _get_executor_job_id, _load_generation_defaults
 
 
-def test_generate_data_help() -> None:
-    script = Path(__file__).resolve().parents[3] / "examples" / "inference" / "generate_data.py"
+def test_load_generation_defaults_reads_only_explicit_values() -> None:
+    generation_config = MagicMock()
+    generation_config.to_diff_dict.return_value = {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "bos_token_id": 42,
+    }
 
-    result = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True)
+    with patch(
+        "examples.inference.generate_data.GenerationConfig.from_pretrained", return_value=generation_config
+    ) as from_pretrained:
+        result = _load_generation_defaults("Qwen/Qwen3.5-2B", "main", False)
 
-    assert result.returncode == 0, result.stderr
-    assert "--model-name-or-path" in result.stdout
+    assert result == {"temperature": 0.6, "top_p": 0.95}
+    from_pretrained.assert_called_once_with("Qwen/Qwen3.5-2B", revision="main", trust_remote_code=False)
 
 
-def test_load_generation_config_falls_back_to_model_config() -> None:
-    sentinel = object()
+def test_load_generation_defaults_falls_back_to_server_defaults() -> None:
+    with patch("examples.inference.generate_data.GenerationConfig.from_pretrained", side_effect=OSError("missing")):
+        result = _load_generation_defaults("Qwen/Qwen3.5-2B", "main", False)
 
-    with (
-        patch("examples.inference.generate_data.GenerationConfig.from_pretrained", side_effect=OSError("missing")),
-        patch(
-            "examples.inference.generate_data.GenerationConfig.from_model_config", return_value=sentinel
-        ) as fallback,
-    ):
-        result = _load_generation_config("Qwen/Qwen3.5-2B", "main", False, config={"model_type": "qwen3_5"})
-
-    assert result is sentinel
-    fallback.assert_called_once_with({"model_type": "qwen3_5"})
+    assert result == {}
 
 
 def test_get_executor_job_id_handles_local_and_slurm_executors() -> None:
