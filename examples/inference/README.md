@@ -4,7 +4,9 @@
 
 Install datatrove with inference dependencies:
 ```sh
-pip install datatrove[inference]
+uv venv --python 3.12
+source .venv/bin/activate
+uv sync --extra inference
 ```
 
 Make sure to login to your HF account with `hf auth login` using a token with write access since the script creates dataset repos and uploads data.

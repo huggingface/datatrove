@@ -66,7 +66,6 @@ class VLLMServer(InferenceServer):
             "--max-model-len",
             str(self.config.model_max_context),
             "--trust-remote-code",
-            "--disable-log-requests",  # Disable verbose request logging
             "--disable-uvicorn-access-log",
         ]
 

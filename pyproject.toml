@@ -26,7 +26,7 @@ requires-python = ">=3.10.0"
 dependencies = [
   "dill>=0.3.0",
   "fsspec>=2023.12.2",
-  "huggingface-hub>=0.34", # this version enables hf-xet
+  "huggingface-hub>=1.0.0", # use the v1 client line by default
   "humanize",
   "loguru>=0.7.0",
   "multiprocess",
@@ -87,14 +87,14 @@ inference = [
   "aiofiles",
   "httpx",
   "aiosqlite",
-  "vllm>=0.10.0",
+  "vllm>=0.19.0",
   "sglang",
   "bitsandbytes",
   "numpy>=2.0.0,<2.3", # numba requires numpy<=2.2
   "typer",
   "pyyaml",
   "pandas",
-  "transformers",
+  "transformers>=5.5.3",
 ]
 ray = [
   "ray[default]",
@@ -142,6 +142,11 @@ track_jobs = "datatrove.tools.track_jobs:main"
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+override-dependencies = [
+  "transformers==5.5.3",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

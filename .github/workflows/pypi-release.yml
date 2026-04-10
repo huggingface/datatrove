@@ -47,7 +47,7 @@ jobs:
         # uses the version number to fetch the url of the .whl file
         run: |
           python -m pip install uv
-          uv pip install --system datatrove[testing]@$(curl -s https://test.pypi.org/simple/datatrove/ | grep ${{ steps.get_tag_name.outputs.TAG_NAME }}-py3 | sed -nE 's/.*href="([^"]+)".*/\1/p')
+          uv pip install --system --overrides uv-overrides.txt datatrove[testing]@$(curl -s https://test.pypi.org/simple/datatrove/ | grep ${{ steps.get_tag_name.outputs.TAG_NAME }}-py3 | sed -nE 's/.*href="([^"]+)".*/\1/p')
           python -m nltk.downloader punkt
           python -m pytest -sv ./tests/
 

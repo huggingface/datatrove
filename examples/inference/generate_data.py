@@ -112,13 +112,34 @@ def _compute_reader_limit(max_examples: int, tasks: int) -> int:
     return reader_limit
 
 
+def _load_generation_config(
+    model_name_or_path: str, model_revision: str, trust_remote_code: bool, config
+) -> GenerationConfig:
+    """Load generation defaults, falling back to model config when needed."""
+    try:
+        return GenerationConfig.from_pretrained(
+            model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+        )
+    except OSError as exc:
+        logger.warning(
+            f"Missing generation_config.json for {model_name_or_path}@{model_revision}; "
+            f"falling back to model config defaults ({exc})"
+        )
+        return GenerationConfig.from_model_config(config)
+
+
+def _get_executor_job_id(executor: Any) -> str | None:
+    """Return the executor job id when the backend exposes one."""
+    return getattr(executor, "job_id", None)
+
+
 def main(
     # Input data details
     input_dataset_name: str = "simplescaling/s1K-1.1",
     input_dataset_config: str | None = None,
     input_dataset_split: str = "train",
     prompt_column: str = "question",
-    prompt_template: str | list[str] | None = None,  # Can be "template" or ["name", "template"]
+    prompt_template: str | None = None,  # Programmatic callers may also pass ["name", "template"].
     max_examples: int = -1,
     # Output dataset details
     output_dataset_name: str = "s1K-1.1-datatrove",
@@ -147,6 +168,7 @@ def main(
     max_num_batched_tokens: int = 8192,  # controls chunked prefill batch size
     gpu_memory_utilization: float = 0.9,  # Fraction of GPU memory for KV cache
     block_size: int = 16,  # KV cache block size (16 or 32)
+    gdn_prefill_backend: str | None = None,
     speculative_config: str | None = None,
     quantization: str | None = None,  # "bitsandbytes" for 4-bit quantization
     kv_cache_dtype: str = "auto",  # "auto", "fp8_e4m3", or "fp8_e5m2"
@@ -258,8 +280,11 @@ def main(
             }
         )
 
-    generation_config = GenerationConfig.from_pretrained(
-        model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
+    generation_config = _load_generation_config(
+        model_name_or_path=model_name_or_path,
+        model_revision=model_revision,
+        trust_remote_code=trust_remote_code,
+        config=config,
     )
     temperature = temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
@@ -321,6 +346,7 @@ def main(
         "max_num_batched_tokens": max_num_batched_tokens,
         "block-size": block_size,
         "gpu-memory-utilization": gpu_memory_utilization,
+        **({"gdn-prefill-backend": gdn_prefill_backend} if gdn_prefill_backend else {}),
         **({"speculative_config": normalized_spec} if normalized_spec else {}),
         **quant_kwargs,
         **kv_cache_kwargs,
@@ -500,7 +526,7 @@ def main(
             )
             datacard_executor.run()
 
-    return inference_executor.job_id
+    return _get_executor_job_id(inference_executor)
 
 
 if __name__ == "__main__":
