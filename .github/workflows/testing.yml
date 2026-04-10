@@ -12,6 +12,8 @@ on:
 jobs:
   check_code_quality:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.10"
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
@@ -29,6 +31,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
