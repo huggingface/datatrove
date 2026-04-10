@@ -24,8 +24,8 @@ jobs:
           uv sync --extra quality
       - name: Check quality
         run: |
-          .venv/bin/ruff check tests src examples # linter
-          .venv/bin/ruff format --check tests src examples # formatter
+          uv run ruff check tests src examples # linter
+          uv run ruff format --check tests src examples # formatter
 
   test:
     runs-on: ubuntu-latest
@@ -43,11 +43,9 @@ jobs:
         run: |
           python -m pip install uv
           uv sync --extra testing
-          .venv/bin/python -m nltk.downloader punkt
+          uv run python -m nltk.downloader punkt
       - name: Test with pytest
         env:
           PYTHONFAULTHANDLER: 1
         run: |
-          # Avoid `uv run` here: Ray workers inherit the launcher and try to recreate
-          # an env from project metadata, which drops the testing extras and breaks imports.
-          .venv/bin/python -m pytest -sv ./tests/
+          uv run python -m pytest -sv ./tests/
