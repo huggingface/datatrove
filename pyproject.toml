@@ -94,7 +94,6 @@ inference = [
   "typer",
   "pyyaml",
   "pandas",
-  "transformers>=5.0",
 ]
 ray = [
   "ray[default]",
@@ -142,11 +141,6 @@ track_jobs = "datatrove.tools.track_jobs:main"
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
-
-[tool.uv]
-override-dependencies = [
-  "transformers>=5.0",
-]
 
 [tool.setuptools.packages.find]
 where = ["src"]
