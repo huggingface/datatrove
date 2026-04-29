@@ -306,7 +306,9 @@ To explicitly enable or disable colorization, you may set the following environm
 Datatrove supports a wide variety of input/output sources through [fsspec](https://filesystem-spec.readthedocs.io/en/latest/).
 
 There are a few ways to provide a path to a datatrove block (for `input_folder`, `logging_dir`, `data_folder` and so on arguments):
-- `str`: the simplest way is to pass a single string. Example: `/home/user/mydir`, `s3://mybucket/myinputdata`, `hf://datasets/allenai/c4/en/`
+- `str`: the simplest way is to pass a single string. Example: `/home/user/mydir`, `s3://mybucket/myinputdata`, `hf://buckets/myorg/my-bucket/raw/`, `hf://datasets/allenai/c4/en/`
+
+> Use `hf://buckets/...` for raw and intermediate data (S3-like, mutable, no versioning). Use `hf://datasets/...` for datasets ready to be published. See [HF Storage Buckets](#hf-storage-buckets) below.
 
 - `(str, fsspec filesystem instance)`: a string path and a fully initialized filesystem object. Example: `("s3://mybucket/myinputdata", S3FileSystem(client_kwargs={"endpoint_url": endpoint_uri}))`
 - `(str, dict)`: a string path and a dictionary with options to initialize a fs. Example (equivalent to the previous line): `("s3://mybucket/myinputdata", {"client_kwargs": {"endpoint_url": endpoint_uri}})`
@@ -351,6 +353,8 @@ Set `rollouts_per_document` to automatically run the same rollout multiple times
 #### Ready-to-use generation script
 
 For a ready-to-use script for synthetic data generation at scale (supporting models from 1B to 1T parameters, local/SLURM execution, and multi-node setups), see [`generate_data.py`](examples/inference/generate_data.py). This script handles prompt-based generation with configurable system prompts and templates.
+
+> For raw generation output, write to `hf://buckets/<org>/<bucket>/...` (or use `HuggingFaceBucketWriter`) and only promote the cleaned, ready-to-share data to `hf://datasets/...`. See [HF Storage Buckets](#hf-storage-buckets).
 
 #### Advanced configuration
 
@@ -453,6 +457,75 @@ JsonlWriter(
     output_filename="${language}/" + DUMP + "/${rank}.jsonl.gz",  # folder structure: language/dump/file
 )
 ```
+
+#### Where to write data on the Hugging Face Hub
+
+For Hub-backed output, prefer **buckets for raw / intermediate data** and
+**datasets for the published, ready-to-share version**. Both have dedicated writers:
+
+```python
+from datatrove.pipeline.writers import HuggingFaceBucketWriter, HuggingFaceDatasetWriter
+
+# Recommended for raw / intermediate output of large pipelines:
+HuggingFaceBucketWriter(
+    bucket="myorg/my-bucket",
+    prefix="v1/raw",                # path inside the bucket
+    private=True,
+    overwrite=True,                  # delete existing files at prefix first (default: False = append)
+)
+
+# Use this when promoting the final dataset to a published HF dataset:
+HuggingFaceDatasetWriter(
+    dataset="myorg/my-dataset",
+    private=True,
+)
+```
+
+See [HF Storage Buckets](#hf-storage-buckets) for the full picture (including
+direct fsspec writes, `hf-mount`, and HF Jobs volume mounts).
+
+### HF Storage Buckets
+
+Hugging Face [storage buckets](https://huggingface.co/docs/hub/storage-buckets) are
+S3-like, mutable object storage backed by Xet. They are the recommended destination
+for raw and intermediate data; promote the final, ready-to-publish version to a
+dataset (`hf://datasets/...`).
+
+You can read from and write to buckets in four ways — pick the one that fits your
+deployment:
+
+| Approach | When to use |
+| --- | --- |
+| `HuggingFaceBucketWriter` | Large datasets, staged Xet uploads, auto-create the bucket. Supports `overwrite=True` to replace existing files. |
+| Direct fsspec path (`hf://buckets/...`) on any reader/writer | Simple read/write through `HfFileSystem`; no extra setup. |
+| [`hf-mount`](https://huggingface.co/docs/hub/storage-buckets-mount) (FUSE/NFS) | Best read performance with zero code changes; treat the bucket like a local dir. |
+| [HF Jobs volume mounts](https://huggingface.co/docs/huggingface_hub/main/guides/jobs#volume-mounts) | Zero setup when running on HF infra; the bucket is mounted at the path you choose. |
+
+Reading uses the existing `ParquetReader` / `JsonlReader` blocks — no dedicated
+bucket reader is needed because buckets are raw object storage. See
+[`examples/bucket_synthetic_data.py`](examples/bucket_synthetic_data.py) for a
+side-by-side comparison of all four approaches.
+
+```python
+from datatrove.pipeline.readers import ParquetReader
+from datatrove.pipeline.writers import HuggingFaceBucketWriter
+
+# Reading: any reader with an hf://buckets/... path works.
+reader = ParquetReader(data_folder="hf://buckets/myorg/my-bucket/raw/")
+
+# Writing: HuggingFaceBucketWriter stages files locally, then pushes via Xet.
+# Set overwrite=True to replace existing files at the prefix (default: append).
+writer = HuggingFaceBucketWriter(
+    bucket="myorg/my-bucket",
+    prefix="v1/filtered",
+    private=True,
+    cleanup=True,
+    overwrite=True,
+)
+```
+
+Bucket URLs also work as `logging_dir` on any executor, e.g.
+`logging_dir="hf://buckets/myorg/my-bucket/logs/v1"`.
 
 ### Deduplicating data
 For deduplication check the examples [minhash_deduplication.py](examples/minhash_deduplication.py), [sentence_deduplication.py](examples/sentence_deduplication.py) and [exact_substrings.py](examples/exact_substrings.py).

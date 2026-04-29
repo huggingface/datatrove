@@ -102,6 +102,38 @@ class _FailingCloseFile:
         raise RuntimeError(self._close_error_message)
 
 
+class _FlakyBucketApi:
+    """Fake HfApi that records `batch_bucket_files` calls and fails the first N times."""
+
+    def __init__(self, failures: int, error_message: str) -> None:
+        self.failures = failures
+        self.error_message = error_message
+        self.calls: list[dict[str, Any]] = []
+
+    def batch_bucket_files(self, bucket_id: str, *, add=None, **_kwargs: Any) -> None:
+        self.calls.append({"bucket_id": bucket_id, "add": add})
+        if len(self.calls) <= self.failures:
+            raise RuntimeError(self.error_message)
+
+
+class _FailingCloseBucketFile:
+    """Fake fsspec output file whose `resolved_path` looks like an HfFileSystemResolvedBucketPath."""
+
+    def __init__(self, upload_api: _FlakyBucketApi, close_error_message: str) -> None:
+        from huggingface_hub.hf_file_system import HfFileSystemResolvedBucketPath
+
+        self.fs = SimpleNamespace(_api=upload_api, token="fake-token")
+        self.temp_file = SimpleNamespace(name="/tmp/fake-bucket-upload.tmp")
+        self.resolved_path = HfFileSystemResolvedBucketPath(
+            bucket_id="org/my-bucket",
+            path="data/00000.parquet",
+        )
+        self._close_error_message = close_error_message
+
+    def close(self) -> None:
+        raise RuntimeError(self._close_error_message)
+
+
 class _CloseFileOutputManager:
     def __init__(self, file_obj: _FailingCloseFile) -> None:
         self._file_obj = file_obj
@@ -230,6 +262,79 @@ class TestDiskWriterRetries(unittest.TestCase):
             writer.close_file("00000.txt")
 
         self.assertEqual(upload_api.calls, 3)
+
+    def test_close_file_bucket_retry_on_transient_error(self) -> None:
+        """Bucket-backed files must retry uploads via batch_bucket_files (not upload_file)."""
+        writer = _TextTestDiskWriter(output_folder=self.tmp_dir)
+        upload_api = _FlakyBucketApi(failures=2, error_message="A commit has happened since")
+        file_obj = _FailingCloseBucketFile(
+            upload_api=upload_api,
+            close_error_message="A commit has happened since",
+        )
+        writer.output_mg = _CloseFileOutputManager(file_obj=file_obj)
+
+        with (
+            patch("datatrove.pipeline.writers.disk_base.time.sleep", return_value=None),
+            patch("datatrove.pipeline.writers.disk_base.os.path.exists", return_value=False),
+            patch("datatrove.pipeline.writers.disk_base.os.remove", return_value=None),
+        ):
+            writer.close_file("data/00000.parquet")
+
+        self.assertEqual(len(upload_api.calls), 3)
+        last_call = upload_api.calls[-1]
+        self.assertEqual(last_call["bucket_id"], "org/my-bucket")
+        self.assertEqual(last_call["add"], [(file_obj.temp_file.name, "data/00000.parquet")])
+
+    def test_close_file_bucket_non_retryable_error_raises(self) -> None:
+        writer = _TextTestDiskWriter(output_folder=self.tmp_dir)
+        upload_api = _FlakyBucketApi(failures=0, error_message="should not be called")
+        file_obj = _FailingCloseBucketFile(
+            upload_api=upload_api,
+            close_error_message="Permission denied",
+        )
+        writer.output_mg = _CloseFileOutputManager(file_obj=file_obj)
+
+        with patch("datatrove.pipeline.writers.disk_base.time.sleep", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "Permission denied"):
+                writer.close_file("data/00000.parquet")
+        self.assertEqual(upload_api.calls, [])
+
+    def test_close_file_bucket_max_retries_exhausted(self) -> None:
+        writer = _TextTestDiskWriter(output_folder=self.tmp_dir)
+        # Always-failing API exceeds HF_MAX_RETRIES.
+        upload_api = _FlakyBucketApi(
+            failures=writer.HF_MAX_RETRIES + 1,
+            error_message="Too Many Requests",
+        )
+        file_obj = _FailingCloseBucketFile(
+            upload_api=upload_api,
+            close_error_message="Too Many Requests",
+        )
+        writer.output_mg = _CloseFileOutputManager(file_obj=file_obj)
+
+        with patch("datatrove.pipeline.writers.disk_base.time.sleep", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "Too Many Requests"):
+                writer.close_file("data/00000.parquet")
+        self.assertEqual(len(upload_api.calls), writer.HF_MAX_RETRIES)
+
+    def test_close_file_repo_path_unchanged(self) -> None:
+        """Regression test: existing repo-path retry path must still call upload_file."""
+        writer = _TextTestDiskWriter(output_folder=self.tmp_dir)
+        upload_api = _FlakyUploadApi(failures=1, error_message="rate limit")
+        file_obj = _FailingCloseFile(
+            upload_api=upload_api,
+            close_error_message="rate limit",
+        )
+        writer.output_mg = _CloseFileOutputManager(file_obj=file_obj)
+
+        with (
+            patch("datatrove.pipeline.writers.disk_base.time.sleep", return_value=None),
+            patch("datatrove.pipeline.writers.disk_base.os.path.exists", return_value=False),
+            patch("datatrove.pipeline.writers.disk_base.os.remove", return_value=None),
+        ):
+            writer.close_file("00000.txt")
+
+        self.assertEqual(upload_api.calls, 2)
 
     def test_huggingface_close_retries_on_503_without_server_message(self) -> None:
         writer = object.__new__(HuggingFaceDatasetWriter)
