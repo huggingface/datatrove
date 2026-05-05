@@ -7,11 +7,13 @@ import time
 import unittest
 from functools import partial
 from pathlib import Path
+from unittest.mock import patch
 
 import boto3
 import moto
+from huggingface_hub import HfFileSystem
 
-from datatrove.io import get_datafolder, get_shard_from_paths_file, safely_create_file
+from datatrove.io import DataFolder, get_datafolder, get_shard_from_paths_file, safely_create_file
 
 
 EXAMPLE_DIRS = ("/home/testuser/somedir", "file:///home/testuser2/somedir", "s3://test-bucket/somedir")
@@ -118,6 +120,60 @@ class TestIO(unittest.TestCase):
 
         # Verify complete coverage
         self.assertEqual(set(shard_0) | set(shard_1), set(test_paths))
+
+
+class TestIOBuckets(unittest.TestCase):
+    """Tests for DataFolder when used with hf://buckets/ paths.
+
+    These exercise the integration with HfFileSystem (fsspec) without hitting
+    the network: HfFileSystem methods are mocked at the instance level.
+    """
+
+    BUCKET_URL = "hf://buckets/myorg/my-bucket/data"
+
+    def test_get_datafolder_bucket_url_uses_hf_filesystem(self) -> None:
+        df = get_datafolder(self.BUCKET_URL)
+        self.assertIsInstance(df, DataFolder)
+        self.assertIsInstance(df.fs, HfFileSystem)
+        self.assertFalse(df.is_local())
+
+    def test_resolve_paths_bucket(self) -> None:
+        df = get_datafolder(self.BUCKET_URL)
+        resolved = df.resolve_paths("file.parquet")
+        self.assertEqual(resolved, "hf://buckets/myorg/my-bucket/data/file.parquet")
+
+    def test_list_files_bucket_uses_expand_info_false(self) -> None:
+        df = get_datafolder(self.BUCKET_URL)
+        # ``find`` is the underlying fsspec call used by ``list_files``.
+        fake_listing = {
+            "buckets/myorg/my-bucket/data/a.parquet": {"type": "file"},
+            "buckets/myorg/my-bucket/data/sub/b.parquet": {"type": "file"},
+        }
+        with patch.object(df, "find", return_value=fake_listing) as mock_find:
+            files = df.list_files()
+        # Files come back sorted with the directory prefix stripped.
+        self.assertEqual(
+            files,
+            [
+                "buckets/myorg/my-bucket/data/a.parquet",
+                "buckets/myorg/my-bucket/data/sub/b.parquet",
+            ],
+        )
+        # The HF speed-up (expand_info=False) must be passed through.
+        _, kwargs = mock_find.call_args
+        self.assertEqual(kwargs.get("expand_info"), False)
+        self.assertEqual(kwargs.get("detail"), True)
+
+    def test_get_shard_bucket(self) -> None:
+        df = get_datafolder(self.BUCKET_URL)
+        files = [f"file_{i}.parquet" for i in range(6)]
+        with patch.object(df, "list_files", return_value=files):
+            shard_0 = df.get_shard(0, 3)
+            shard_1 = df.get_shard(1, 3)
+            shard_2 = df.get_shard(2, 3)
+        self.assertEqual(shard_0, ["file_0.parquet", "file_3.parquet"])
+        self.assertEqual(shard_1, ["file_1.parquet", "file_4.parquet"])
+        self.assertEqual(shard_2, ["file_2.parquet", "file_5.parquet"])
 
 
 if __name__ == "__main__":

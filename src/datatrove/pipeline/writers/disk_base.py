@@ -231,18 +231,31 @@ class DiskWriter(PipelineStep, ABC):
             if not self.is_retryable_hf_hub_error(close_error) or not has_hf_upload_state:
                 raise
             # fsspec marks the file closed, but the temp file still exists on disk.
-            # Retry the HF upload_file call directly with exponential backoff.
+            # Retry the HF upload directly with exponential backoff. Buckets and
+            # repositories use different upload APIs so we dispatch on the resolved
+            # path type.
+            from huggingface_hub.hf_file_system import HfFileSystemResolvedBucketPath
+
             api = file_obj.fs._api
 
-            def _upload() -> None:
-                api.upload_file(
-                    path_or_fileobj=file_obj.temp_file.name,
-                    path_in_repo=file_obj.resolved_path.path_in_repo,
-                    repo_id=file_obj.resolved_path.repo_id,
-                    token=file_obj.fs.token,
-                    repo_type=file_obj.resolved_path.repo_type,
-                    revision=file_obj.resolved_path.revision,
-                )
+            if isinstance(file_obj.resolved_path, HfFileSystemResolvedBucketPath):
+
+                def _upload() -> None:
+                    api.batch_bucket_files(
+                        file_obj.resolved_path.bucket_id,
+                        add=[(file_obj.temp_file.name, file_obj.resolved_path.path)],
+                    )
+            else:
+
+                def _upload() -> None:
+                    api.upload_file(
+                        path_or_fileobj=file_obj.temp_file.name,
+                        path_in_repo=file_obj.resolved_path.path_in_repo,
+                        repo_id=file_obj.resolved_path.repo_id,
+                        token=file_obj.fs.token,
+                        repo_type=file_obj.resolved_path.repo_type,
+                        revision=file_obj.resolved_path.revision,
+                    )
 
             self._retry_hf_hub_operation(
                 operation_name="upload",
