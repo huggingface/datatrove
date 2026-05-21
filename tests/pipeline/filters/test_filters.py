@@ -1,4 +1,7 @@
+import tarfile
 import unittest
+from io import BytesIO
+from tempfile import TemporaryDirectory
 
 from datatrove.data import Document
 from datatrove.pipeline.filters import (
@@ -13,6 +16,7 @@ from datatrove.pipeline.filters import (
 from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFilter
 from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
+from datatrove.pipeline.filters.url_filter import _safe_extract_tar
 
 from ...utils import require_fasttext, require_nltk, require_tldextract
 
@@ -133,6 +137,53 @@ class TestFilters(unittest.TestCase):
                 assert url_filter.filter(doc)
             else:
                 self.check_filter(url_filter, doc, result)
+
+    def test_url_filter_tar_extract_rejects_traversal(self):
+        archive = BytesIO()
+        data = b"blocked.example\n"
+        info = tarfile.TarInfo("../domains")
+        info.size = len(data)
+
+        with tarfile.open(fileobj=archive, mode="w:gz") as tar:
+            tar.addfile(info, BytesIO(data))
+
+        archive.seek(0)
+        with TemporaryDirectory() as tmpdir:
+            with tarfile.open(fileobj=archive, mode="r:gz") as tar:
+                with self.assertRaisesRegex(ValueError, "outside destination"):
+                    _safe_extract_tar(tar, tmpdir)
+
+    def test_url_filter_tar_extract_allows_regular_files(self):
+        archive = BytesIO()
+        data = b"blocked.example\n"
+        info = tarfile.TarInfo("domains")
+        info.size = len(data)
+
+        with tarfile.open(fileobj=archive, mode="w:gz") as tar:
+            tar.addfile(info, BytesIO(data))
+
+        archive.seek(0)
+        with TemporaryDirectory() as tmpdir:
+            with tarfile.open(fileobj=archive, mode="r:gz") as tar:
+                _safe_extract_tar(tar, tmpdir)
+
+            with open(f"{tmpdir}/domains", "rb") as extracted:
+                self.assertEqual(extracted.read(), data)
+
+    def test_url_filter_tar_extract_rejects_links(self):
+        archive = BytesIO()
+        info = tarfile.TarInfo("domains-link")
+        info.type = tarfile.SYMTYPE
+        info.linkname = "domains"
+
+        with tarfile.open(fileobj=archive, mode="w:gz") as tar:
+            tar.addfile(info)
+
+        archive.seek(0)
+        with TemporaryDirectory() as tmpdir:
+            with tarfile.open(fileobj=archive, mode="r:gz") as tar:
+                with self.assertRaisesRegex(ValueError, "unsupported tar member"):
+                    _safe_extract_tar(tar, tmpdir)
 
 
 class TestSamplerFilter(unittest.TestCase):

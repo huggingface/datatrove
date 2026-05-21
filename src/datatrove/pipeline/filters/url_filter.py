@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import tarfile
 from typing import Iterable
 
@@ -28,6 +29,31 @@ def parse_list(line, do_normalize=True):
 def get_list(abs_path: str, file_name: str, extra: set, do_normalize: bool = True):
     with open(os.path.join(abs_path, file_name)) as f:
         return parse_list(f, do_normalize).union(extra)
+
+
+def _safe_extract_tar(tar: tarfile.TarFile, destination: str) -> None:
+    destination_path = os.path.abspath(destination)
+    members = tar.getmembers()
+
+    for member in members:
+        target_path = os.path.abspath(os.path.join(destination_path, member.name))
+        if os.path.commonpath([destination_path, target_path]) != destination_path:
+            raise ValueError(f"Refusing to extract tar member outside destination: {member.name}")
+        if not (member.isfile() or member.isdir()):
+            raise ValueError(f"Refusing to extract unsupported tar member type: {member.name}")
+
+    for member in members:
+        target_path = os.path.abspath(os.path.join(destination_path, member.name))
+        if member.isdir():
+            os.makedirs(target_path, exist_ok=True)
+            continue
+
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        source = tar.extractfile(member)
+        if source is None:
+            raise ValueError(f"Unable to extract tar member: {member.name}")
+        with source, open(target_path, "wb") as output:
+            shutil.copyfileobj(source, output)
 
 
 class URLFilter(BaseFilter):
@@ -86,7 +112,7 @@ class URLFilter(BaseFilter):
         def do_extract():
             logger.info("💥 Extracting url filter blacklists...")
             with tarfile.open(os.path.join(ASSETS_PATH, "url_filterblacklistsv0_3_0.tar.gz"), "r:gz") as tar:
-                tar.extractall(download_dir)
+                _safe_extract_tar(tar, download_dir)
             logger.info("💥 Extracted url filter blacklists.")
 
         safely_create_file(file_to_lock, do_extract)
