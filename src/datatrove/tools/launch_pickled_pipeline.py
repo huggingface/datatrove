@@ -1,4 +1,5 @@
 import argparse
+import warnings
 
 import dill
 
@@ -13,6 +14,12 @@ parser.add_argument("path", type=str, help="Path to the pickled file (usually a 
 
 def main():
     args = parser.parse_args()
+    warnings.warn(
+        "WARNING: Loading pickled files can execute arbitrary code. "
+        "Only load files from trusted sources.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
     with open_file(args.path, "rb") as f:
         executor: PipelineExecutor = dill.load(f)
     executor.run()
