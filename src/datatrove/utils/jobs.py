@@ -21,9 +21,9 @@ def get_running_slurm_jobs(partition=None):
 
 
 def get_num_slurm_jobs(partition=None):
-    command = (
-        f'squeue{f" -p {partition}" if partition else ""} -u $USER -t pending,running --array --format="%.10t" | wc -l'
-    )
-    output = subprocess.check_output(command, shell=True)
+    command = ["squeue", "-u", os.environ["USER"], "-t", "pending,running", "--array", "--format=%.10t"]
+    if partition:
+        command.extend(["-p", partition])
+    output = subprocess.check_output(command)
     num_jobs = int(output.strip())
     return num_jobs
