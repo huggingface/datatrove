@@ -1,8 +1,17 @@
 import base64
-from typing import IO, Callable
+from datetime import date, time
+from typing import IO, Any, Callable
 
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
+
+
+def _json_default(obj: Any) -> str:
+    # orjson serializes datetime objects natively but refuses their subclasses,
+    # such as pandas.Timestamp (produced e.g. by ParquetReader for timestamp columns)
+    if isinstance(obj, (date, time)):
+        return obj.isoformat()
+    raise TypeError(f"Type is not JSON serializable: {type(obj).__name__}")
 
 
 class JsonlWriter(DiskWriter):
@@ -47,4 +56,4 @@ class JsonlWriter(DiskWriter):
         for media in document.get("media", []):
             if media["media_bytes"] is not None:
                 media["media_bytes"] = base64.b64encode(media["media_bytes"]).decode("ascii")
-        file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE))
+        file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE, default=_json_default))
