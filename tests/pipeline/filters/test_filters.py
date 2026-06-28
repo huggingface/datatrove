@@ -1,4 +1,6 @@
+import random
 import unittest
+from collections import Counter
 
 from datatrove.data import Document
 from datatrove.pipeline.filters import (
@@ -12,6 +14,7 @@ from datatrove.pipeline.filters import (
 )
 from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFilter
 from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
+from datatrove.pipeline.filters.gopher_repetition_filter import find_top_duplicate
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 
 from ...utils import require_fasttext, require_nltk, require_tldextract
@@ -39,6 +42,34 @@ TEXT_LF_4 = (
 
 def get_doc(text: str, url: str = "https://example.com") -> Document:
     return Document(text=text, id="0", metadata={"url": url})
+
+
+def _old_find_top_duplicate(x: list[str]) -> int:
+    counter = Counter()
+    for element in x:
+        counter[element] += 1
+    top_n_gram = counter.most_common(1)[0]
+    return len(top_n_gram[0]) * top_n_gram[1]
+
+
+class TestGopherRepetitionHelpers(unittest.TestCase):
+    def test_find_top_duplicate(self):
+        self.assertEqual(find_top_duplicate(["ab", "ab", "ab", "c"]), 6)
+        self.assertEqual(find_top_duplicate(["x"]), 1)
+        # Ties resolve by first-seen order (same as the manual Counter loop).
+        self.assertEqual(find_top_duplicate(["a", "b", "a", "b"]), 2)
+
+    def test_find_top_duplicate_empty_raises(self):
+        with self.assertRaises(IndexError):
+            find_top_duplicate([])
+
+    def test_find_top_duplicate_differential(self):
+        # Counter(x) must match the original manual increment loop on random inputs.
+        random.seed(0)
+        alphabet = ["a", "b", "c", "d", "e"]
+        for _ in range(1000):
+            words = [random.choice(alphabet) for _ in range(random.randint(1, 50))]
+            self.assertEqual(find_top_duplicate(words), _old_find_top_duplicate(words))
 
 
 class TestFilters(unittest.TestCase):

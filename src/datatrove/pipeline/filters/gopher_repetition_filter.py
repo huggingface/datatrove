@@ -47,9 +47,7 @@ def find_duplicates(x: list[str]) -> tuple[int, int]:
 
 
 def find_top_duplicate(x: list[str]) -> int:
-    counter = Counter()
-    for element in x:
-        counter[element] += 1
+    counter = Counter(x)
     top_n_gram = counter.most_common(1)[0]
     return len(top_n_gram[0]) * top_n_gram[1]
 
