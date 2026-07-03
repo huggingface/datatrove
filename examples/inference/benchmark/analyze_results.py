@@ -2,7 +2,7 @@
 """
 Analyze benchmark experiment outputs and produce per-experiment CSV files and formatted tables.
 
-- Extract token counts and request stats from inference_logs/stats.json
+- Extract token counts and request stats from inference_logs/stats.json (or in inference_logs/stats/0000.json)
 - Parse throughput metrics from server logs (excludes startup time)
 - Compute per-TP (per-GPU) throughput by dividing engine throughput by TP
 - Compute derived metrics: gpu_days, node_days, and gpus_for_1b_tokens_per_hour
@@ -41,7 +41,6 @@ from datatrove.utils.logging import logger
 # Import shared utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import detect_failure_reason
-
 
 GPUS_PER_NODE = 8
 
@@ -320,10 +319,10 @@ def process_single_file(path: str, root: str) -> dict[str, object]:
         "path": path,
         "comment": "",
     }
-    stats_dir = Path(path).parent.parent  # .../inference_logs
+    inference_dir = Path(path).parent.parent  # .../inference_logs
 
     # Find server log file (try node-specific pattern first, then fallback)
-    server_logs_dir = stats_dir / "server_logs"
+    server_logs_dir = inference_dir / "server_logs"
     candidates = (
         (sorted(server_logs_dir.glob("server_rank_*_node_*.log")) or sorted(server_logs_dir.glob("server_rank_*.log")))
         if server_logs_dir.exists()
@@ -338,7 +337,17 @@ def process_single_file(path: str, root: str) -> dict[str, object]:
         row["comment"] = failure_reason
         return row
 
-    stats_info = parse_stats_json(stats_dir / "stats.json")
+    # Local attempt check. Returns None if file cannot be found
+    stats_info = parse_stats_json(inference_dir / "stats.json")
+
+    # In SLURM the stats are in inference_dir / "stats" / 0000.json
+    if stats_info is None:
+        slurm_stats_path = inference_dir / "stats"
+        slurm_stats_files = sorted(slurm_stats_path.glob("*.json"))
+        if slurm_stats_files:
+            logger.info(f"Found stats.json in SLURM stats dir: {slurm_stats_files[0]}")
+            stats_info = parse_stats_json(slurm_stats_files[0])
+        
     if stats_info is None:
         row["comment"] = "stats.json not found"
         return row
