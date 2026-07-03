@@ -283,13 +283,21 @@ class InferenceRunner(PipelineStep):
                     self.stat_update("successful_requests", value=1, unit="request")
 
                     # Parse response based on endpoint type
+                    reasoning = ""
                     if self.config.use_chat:
-                        text = choice["message"]["content"]
+                        message = choice["message"]
+                        text = message.get("content") or ""
+                        reasoning = message.get("reasoning") or message.get("reasoning_content") or ""
                     else:
-                        text = choice["text"]
+                        text = choice["text"] or ""
 
                     self.queue_sizes.change_queues({"running_requests": -1})
-                    return InferenceResult(text=text, finish_reason=choice["finish_reason"], usage=usage)
+                    return InferenceResult(
+                        text=text,
+                        finish_reason=choice["finish_reason"],
+                        usage=usage,
+                        reasoning=reasoning,
+                    )
                 except (ConnectionError, OSError, asyncio.TimeoutError) as e:
                     # This means the server is dead likely, let's try again just to be sure
                     logger.warning(f"Client error: {type(e)} {e}")
@@ -349,6 +357,7 @@ class InferenceRunner(PipelineStep):
                     text=cached_result["text"],
                     finish_reason=cached_result["finish_reason"],
                     usage=cached_result["usage"],
+                    reasoning=cached_result.get("reasoning", ""),
                 )
 
         try:
@@ -368,7 +377,12 @@ class InferenceRunner(PipelineStep):
             chunk_index=chunk_index,
             doc_id=doc_id,
             rollout_idx=rollout_idx,
-            result={"text": result.text, "finish_reason": result.finish_reason, "usage": result.usage},
+            result={
+                "text": result.text,
+                "finish_reason": result.finish_reason,
+                "usage": result.usage,
+                "reasoning": result.reasoning,
+            },
             payload_hash=payload_hash,
         )
         return result
