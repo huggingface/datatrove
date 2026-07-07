@@ -53,6 +53,14 @@ class JobsPipelineExecutor(PipelineExecutor):
     ranks are relaunched. This replaces Slurm's requeue / ``SIGUSR1`` handling, which has no
     Jobs equivalent.
 
+    Note: the launching process (the "coordinator") currently runs **locally** and stays alive for
+    the whole run — it submits the Jobs, polls them to honor ``workers``, and merges stats at the
+    end (the same launch-and-block model as Local/Ray; only Slurm is fire-and-forget). Only the
+    compute is remote. If the coordinator is interrupted, in-flight Jobs still finish and record
+    their ranks; just rerun to launch the rest (resume is idempotent). Running the coordinator
+    itself inside a Job, so nothing needs to stay on the launching machine, is a possible future
+    enhancement.
+
     [!] do not launch Jobs from within a Job.
 
     Args:
