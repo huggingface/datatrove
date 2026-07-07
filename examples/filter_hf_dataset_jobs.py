@@ -15,6 +15,14 @@ Differences from the Slurm version (see comments inline):
   env_command / conda / venv to pre-activate.
 - Slurm's partition / qos / cpus_per_task / mem_per_cpu_gb / time collapse into one `flavor` (+ `timeout`).
 - `workers` caps concurrent Jobs (Slurm's `%workers`).
+
+Two gotchas the fresh-env model introduces:
+- `dependencies` must include every datatrove *extra* your steps need — not just the obvious ones.
+  Even `LambdaFilter` requires `datatrove[processing]`, because importing `datatrove.pipeline.filters`
+  eagerly imports `regex`. A missing extra fails the Job at unpickle time.
+- Point `logging_dir` at a DIFFERENT repo than your output data. If logs (`executor.json`, `stats.json`)
+  and your output parquet share one HF dataset repo, the Hub dataset viewer tries to cast them into one
+  table and errors.
 """
 
 import argparse
