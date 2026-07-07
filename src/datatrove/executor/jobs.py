@@ -96,6 +96,8 @@ class JobsPipelineExecutor(PipelineExecutor):
         max_retries: how many times to relaunch a Job that ends in a non-success state
             within a single run (default 1).
         poll_interval: seconds between polls of the running Jobs (default 15).
+        run_on_dependency_fail: if a ``depends`` job finishes with failed (permanently incomplete) tasks,
+            continue anyway instead of raising. Default False (fail fast, like Slurm's ``afterok``).
         job_name: name used for logging and as a Job label (default ``"data_processing"``).
 
     Example:
@@ -139,6 +141,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         secrets: dict[str, Any] | None = None,
         max_retries: int = 1,
         poll_interval: int = 15,
+        run_on_dependency_fail: bool = False,
         job_name: str = "data_processing",
     ):
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
@@ -163,6 +166,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         self.secrets = secrets
         self.max_retries = max_retries
         self.poll_interval = poll_interval
+        self.run_on_dependency_fail = run_on_dependency_fail
         self.job_name = job_name
         self._launched = False
 
@@ -200,12 +204,35 @@ class JobsPipelineExecutor(PipelineExecutor):
             "depends= must be a JobsPipelineExecutor"
         )
         if self.depends:
-            # launch any unlaunched dependency, then poll its completions until it is done
-            if not self.depends._launched:
+            # launch any unlaunched dependency, then wait for its completions
+            depends_launched_here = not self.depends._launched
+            if depends_launched_here:
                 logger.info(f'Launching dependency job "{self.depends.job_name}"')
                 self.depends.launch_job()
-            while (incomplete := len(self.depends.get_incomplete_ranks(skip_completed=True))) > 0:
-                logger.info(f"Dependency job still has {incomplete}/{self.depends.world_size} tasks. Waiting...")
+            while True:
+                # completions/ is written by the remote Jobs, so drop the launcher's cached directory
+                # listing before checking — a long-lived HfFileSystem otherwise keeps serving a stale
+                # (pre-completion) listing and we would never see the Jobs finish.
+                self.depends.logging_dir.fs.invalidate_cache()
+                incomplete = self.depends.get_incomplete_ranks(skip_completed=True)
+                if not incomplete:
+                    break
+                if depends_launched_here:
+                    # launch_job() blocks, so the dependency has finished; any ranks still incomplete have
+                    # failed (retries exhausted). Don't wait forever.
+                    if self.run_on_dependency_fail:
+                        logger.warning(
+                            f"Dependency '{self.depends.job_name}' finished with {len(incomplete)} failed "
+                            f"task(s); continuing anyway (run_on_dependency_fail=True)."
+                        )
+                        break
+                    raise RuntimeError(
+                        f"Dependency job '{self.depends.job_name}' finished with {len(incomplete)}/"
+                        f"{self.depends.world_size} tasks still incomplete. Rerun to resume, raise max_retries, "
+                        f"or set run_on_dependency_fail=True to continue anyway."
+                    )
+                # dependency was launched by another process and is still running — keep waiting
+                logger.info(f"Dependency job still has {len(incomplete)}/{self.depends.world_size} tasks. Waiting...")
                 time.sleep(2 * 60)
             self.depends = None  # avoid pickling the dependency chain
 
@@ -319,6 +346,8 @@ class JobsPipelineExecutor(PipelineExecutor):
 
     def _merge_stats(self):
         """Merge per-rank stats into ``stats.json`` once every task is complete."""
+        # the Jobs wrote completions/ + stats/ remotely; refresh the launcher's cached listing first
+        self.logging_dir.fs.invalidate_cache()
         incomplete = self.get_incomplete_ranks(range(self.world_size))
         if incomplete:
             logger.warning(

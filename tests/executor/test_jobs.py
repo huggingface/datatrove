@@ -81,6 +81,37 @@ def _make_fake_jobs(executor: JobsPipelineExecutor):
     return fake_run_uv_job, fake_inspect_job, launched
 
 
+def _make_depends_fake():
+    """A run_uv_job/inspect_job pair that works across a depends= chain (loads each stage's pik from args)."""
+    import fsspec
+
+    launched = []
+
+    def fake_run_uv_job(script, *, script_args=None, env=None, **kwargs):
+        with fsspec.open(script_args[0], "rb") as f:  # the pik path (resolve_paths keeps the scheme)
+            worker = dill.load(f)
+        prev = os.environ.get(ARRAY_INDEX_ENV_VAR)
+        os.environ[ARRAY_INDEX_ENV_VAR] = env[ARRAY_INDEX_ENV_VAR]
+        try:
+            worker.run()
+        finally:
+            if prev is None:
+                os.environ.pop(ARRAY_INDEX_ENV_VAR, None)
+            else:
+                os.environ[ARRAY_INDEX_ENV_VAR] = prev
+        job = MagicMock()
+        job.id = f"job-{len(launched)}"
+        launched.append(env[ARRAY_INDEX_ENV_VAR])
+        return job
+
+    def fake_inspect_job(*, job_id, **kwargs):
+        job = MagicMock()
+        job.status.stage = "COMPLETED"
+        return job
+
+    return fake_run_uv_job, fake_inspect_job, launched
+
+
 class TestJobsExecutor(unittest.TestCase):
     def test_local_logging_dir_rejected(self):
         """A local logging_dir cannot be shared with remote Jobs, so it must raise."""
@@ -151,6 +182,48 @@ class TestJobsExecutor(unittest.TestCase):
         with patch("huggingface_hub.run_uv_job", fr2), patch("huggingface_hub.inspect_job", fi2):
             second.run()
         self.assertEqual(len(launched_second), 0)
+
+    def test_depends_runs_parent_then_child(self):
+        """`depends=` launches the parent to completion, then runs the child; both write full layouts."""
+        parent_dir = get_datafolder("memory://jobs-test/dep-parent")
+        child_dir = get_datafolder("memory://jobs-test/dep-child")
+        parent = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=parent_dir, token="t", poll_interval=0
+        )
+        child = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=child_dir, token="t", poll_interval=0, depends=parent
+        )
+        fr, fi, launched = _make_depends_fake()
+        with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
+            child.run()
+        self.assertEqual(len(launched), 4)  # 2 parent + 2 child array indices
+        for log_dir in (parent_dir, child_dir):
+            self.assertEqual(len(log_dir.list_files("completions")), 2)
+
+    def test_depends_fails_fast_when_dependency_incomplete(self):
+        """If the dependency finishes with failed tasks, the child raises instead of waiting forever."""
+        parent_dir = get_datafolder("memory://jobs-test/dep-fail-parent")
+        child_dir = get_datafolder("memory://jobs-test/dep-fail-child")
+        parent = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=parent_dir, token="t", poll_interval=0, max_retries=0
+        )
+        child = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=child_dir, token="t", poll_interval=0, depends=parent
+        )
+
+        def failing_run(script, *, script_args=None, env=None, **kwargs):
+            job = MagicMock()  # never runs the ranks -> no completions written
+            job.id = "failing"
+            return job
+
+        def error_inspect(*, job_id, **kwargs):
+            job = MagicMock()
+            job.status.stage = "ERROR"
+            return job
+
+        with patch("huggingface_hub.run_uv_job", failing_run), patch("huggingface_hub.inspect_job", error_inspect):
+            with self.assertRaises(RuntimeError):
+                child.run()
 
 
 if __name__ == "__main__":
