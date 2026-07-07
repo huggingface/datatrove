@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import unittest
@@ -10,6 +11,9 @@ from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
+EMITTED_PER_RANK = 5
+
+
 class _EmitBlock(PipelineStep):
     """Trivial pipeline step so each rank has something to process (mirrors test_ray's SleepBlock)."""
 
@@ -17,8 +21,27 @@ class _EmitBlock(PipelineStep):
     type = "test"
 
     def run(self, data, rank=None, world_size=None):
-        for i in range(5):
+        for i in range(EMITTED_PER_RANK):
+            self.stat_update("emitted")
             yield i
+
+
+def _stat_totals(stats_json, name):
+    """Collect every numeric total recorded under ``name`` anywhere in a serialized PipelineStats."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == name:
+                    found.append(value["total"] if isinstance(value, dict) and "total" in value else value)
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(stats_json)
+    return found
 
 
 def _make_fake_jobs(executor: JobsPipelineExecutor):
@@ -92,6 +115,16 @@ class TestJobsExecutor(unittest.TestCase):
             ]
             for file in file_list:
                 self.assertTrue(log_dir.isfile(file), f"Expected file {file} not found in {log_dir}")
+
+            # per-rank stats must reflect only that rank's work, even when tasks_per_job > 1 packs
+            # several ranks into one worker process (guards the per-rank pipeline deepcopy).
+            for rank in range(tasks):
+                with log_dir.open(f"stats/{rank:05d}.json", "r") as f:
+                    emitted = _stat_totals(json.load(f), "emitted")
+                self.assertTrue(
+                    emitted and all(e == EMITTED_PER_RANK for e in emitted),
+                    f"rank {rank} stats leaked across ranks (expected {EMITTED_PER_RANK}, got {emitted})",
+                )
 
     def test_resume_skips_completed_ranks(self):
         """A second run over an already-completed logging_dir launches no Jobs (idempotent resume)."""

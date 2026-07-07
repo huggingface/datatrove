@@ -177,7 +177,11 @@ class JobsPipelineExecutor(PipelineExecutor):
         if start >= len(all_ranks):
             logger.info(f"Array index {array_index} has no ranks to run.")
             return
+        # deepcopy the pipeline before each rank so per-rank stats and step state don't accumulate
+        # across ranks that share this Job's process (mirrors LocalPipelineExecutor's workers==1 path).
+        base_pipeline = self.pipeline
         for i in range(start, min(start + self.tasks_per_job, len(all_ranks))):
+            self.pipeline = deepcopy(base_pipeline)
             self._run_for_rank(all_ranks[i])
 
     def launch_job(self):
