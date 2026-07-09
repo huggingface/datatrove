@@ -10,6 +10,10 @@ Notes specific to running this multi-stage dedup on Jobs (see `filter_hf_dataset
 general Slurm->Jobs comparison):
 - `MINHASH_BASE_PATH` and the logs must be a shared REMOTE path (hf:// or s3://) that all four stages
   read/write. HF S3-compatible buckets are a good fit and reduce read-after-write races between stages.
+- At higher fan-out, many Jobs committing small files to a single hf:// dataset repo can hit per-repo
+  commit rate limits (429 "maximum time in concurrency queue reached") in the signature stage. If you
+  see those: use an s3:// bucket for `MINHASH_BASE_PATH`, lower `workers`, and/or rerun to resume —
+  only the failed ranks are relaunched.
 - `dependencies` = `datatrove[io,processing]` PLUS `spacy`: the signature stage's English word tokenizer
   is `spacy.blank("en")` (no model download), and `spacy` only ships in the heavy `multilingual` extra,
   so add the bare package rather than that whole extra.
