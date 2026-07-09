@@ -286,7 +286,11 @@ class JobsPipelineExecutor(PipelineExecutor):
             f"{self.tasks_per_job} per job, up to {max_concurrent} concurrent) on flavor '{self.flavor}'."
         )
         self._launched = True
-        self._launch_and_wait(nb_jobs, pik_path, max_concurrent, token)
+        failed = self._launch_and_wait(nb_jobs, pik_path, max_concurrent, token)
+        if failed:
+            # don't merge: with skip_completed=False, markers left by a previous run could mask
+            # this run's failed ranks and produce a stats.json mixing old and new per-rank data
+            return
         self._merge_stats()
 
     def save_executor_as_json(self, indent: int = 4):
@@ -329,8 +333,11 @@ class JobsPipelineExecutor(PipelineExecutor):
         logger.info(f"Launched array index {array_index} as Job {job.id} ({job.url}).")
         return job.id
 
-    def _launch_and_wait(self, nb_jobs: int, pik_path: str, max_concurrent: int, token: str):
-        """Local window-manager: keep at most ``max_concurrent`` Jobs live until every index finishes."""
+    def _launch_and_wait(self, nb_jobs: int, pik_path: str, max_concurrent: int, token: str) -> list[int]:
+        """Local window-manager: keep at most ``max_concurrent`` Jobs live until every index finishes.
+
+        Returns the array indices that still failed after ``max_retries``.
+        """
         from huggingface_hub import inspect_job
 
         pending: deque[int] = deque(range(nb_jobs))
@@ -372,6 +379,7 @@ class JobsPipelineExecutor(PipelineExecutor):
                 f"{len(failed)} Job(s) failed after retries (array indices {failed}). Incomplete ranks will be "
                 f"retried on the next run (completed ranks are skipped)."
             )
+        return failed
 
     def _merge_stats(self):
         """Merge per-rank stats into ``stats.json`` once every task is complete."""

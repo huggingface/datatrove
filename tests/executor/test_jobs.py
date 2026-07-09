@@ -301,6 +301,42 @@ class TestJobsExecutor(unittest.TestCase):
         self.assertFalse(log_dir.isfile("completions/00002"))  # retries exhausted -> left incomplete
         self.assertFalse(log_dir.isfile("stats.json"))  # an incomplete run must not merge stats
 
+    def test_failed_rerun_does_not_merge_stale_stats(self):
+        """A skip_completed=False rerun whose ranks all fail must not rebuild stats.json from stale markers."""
+        log_dir = get_datafolder("memory://jobs-test/stale-stats")
+
+        first = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t", poll_interval=0)
+        fr, fi, _ = _make_fake_jobs(first)
+        with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
+            first.run()
+        self.assertTrue(log_dir.isfile("stats.json"))
+        log_dir.rm("stats.json")
+
+        second = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=2,
+            logging_dir=log_dir,
+            token="t",
+            poll_interval=0,
+            skip_completed=False,
+            max_retries=0,
+        )
+
+        def failing_run(script, *, script_args=None, env=None, **kwargs):
+            job = MagicMock()  # dies before running any rank
+            job.id = f"failing-{env[ARRAY_INDEX_ENV_VAR]}"
+            return job
+
+        def error_inspect(*, job_id, **kwargs):
+            job = MagicMock()
+            job.status.stage = "ERROR"
+            return job
+
+        with patch("huggingface_hub.run_uv_job", failing_run), patch("huggingface_hub.inspect_job", error_inspect):
+            second.run()
+        # run 1's completion markers would mask run 2's failures — the merge must not run at all
+        self.assertFalse(log_dir.isfile("stats.json"))
+
     def test_depends_runs_parent_then_child(self):
         """`depends=` launches the parent to completion, then runs the child; both write full layouts."""
         parent_dir = get_datafolder("memory://jobs-test/dep-parent")
