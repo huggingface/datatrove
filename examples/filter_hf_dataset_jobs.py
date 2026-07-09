@@ -1,4 +1,6 @@
 """
+Note: `JobsPipelineExecutor` is experimental and its API may change in future releases.
+
 This file contains code to:
 1 - Load a parquet-format Hugging Face dataset from the hub.
 2 - Filter the dataset (to include only entries that contain the word 'hugging' in the text column).
