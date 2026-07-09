@@ -93,6 +93,11 @@ stage2 = JobsPipelineExecutor(
             input_folder=f"{MINHASH_BASE_PATH}/signatures",
             output_folder=f"{MINHASH_BASE_PATH}/buckets",
             config=minhash_config,
+            # IMPORTANT on remote storage: the default (5) also sets the fsspec block_size to 5 lines
+            # (~340 bytes), i.e. one HTTP range request per couple of reads — measured ~40x slower on
+            # Jobs (65 min -> 99 s for this stage). -1 reads each signature file in a single request;
+            # it buffers whole files in RAM, so at very high task counts stage to local disk instead.
+            lines_to_buffer=-1,
         ),
     ],
     tasks=minhash_config.num_buckets,
