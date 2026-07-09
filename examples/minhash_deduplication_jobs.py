@@ -8,11 +8,14 @@ Note: `JobsPipelineExecutor` is experimental and may change, break, or be remove
 
 Notes specific to running this multi-stage dedup on Jobs (see `filter_hf_dataset_jobs.py` for the
 general Slurm->Jobs comparison):
-- `MINHASH_BASE_PATH` and the logs must be a shared REMOTE path (hf:// or s3://) that all four stages
-  read/write. HF S3-compatible buckets are a good fit and reduce read-after-write races between stages.
-- At higher fan-out, many Jobs committing small files to a single hf:// dataset repo can hit per-repo
-  commit rate limits (429 "maximum time in concurrency queue reached") in the signature stage. If you
-  see those: use an s3:// bucket for `MINHASH_BASE_PATH`, lower `workers`, and/or rerun to resume —
+- `MINHASH_BASE_PATH` and the logs must be a shared REMOTE path that all four stages read/write.
+  HF Storage Buckets (`hf://buckets/<user>/<bucket>/...`, needs huggingface_hub>=1.6.0) are the best
+  fit: the same fsspec code path as `hf://datasets/...`, but object-storage semantics — no per-repo
+  commit queue and no read-after-write lag between stages.
+- At higher fan-out, many Jobs committing small files to a single hf:// *dataset repo* can hit per-repo
+  commit rate limits (429 "maximum time in concurrency queue reached") in the signature stage — a
+  signature stage that failed 6/24 ranks on a dataset repo at `workers=8` passed 24/24 on a bucket with
+  identical settings. If you must stay on a dataset repo: lower `workers`, and/or rerun to resume —
   only the failed ranks are relaunched.
 - `dependencies` = `datatrove[io,processing]` PLUS `spacy`: the signature stage's English word tokenizer
   is `spacy.blank("en")` (no model download), and `spacy` only ships in the heavy `multilingual` extra,

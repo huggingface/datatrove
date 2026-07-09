@@ -43,8 +43,8 @@ class JobsPipelineExecutor(PipelineExecutor):
     assigned block of ranks; otherwise it launches the Jobs. All coordination happens
     through the shared fsspec ``logging_dir`` (``executor.pik``, ``ranks_to_run.json``,
     ``completions/``, ``stats/``), so it MUST point to a *remote* folder that both the
-    launching machine and the Jobs can read/write (e.g. ``hf://datasets/<repo>`` or
-    ``s3://<bucket>``).
+    launching machine and the Jobs can read/write (e.g. ``hf://buckets/<user>/<bucket>/...``
+    (huggingface_hub>=1.6.0), ``hf://datasets/<repo>`` or ``s3://<bucket>``).
 
     Each Job runs ``launch_pickled_pipeline <logging_dir>/executor.pik`` in a ``uv``
     environment built from ``dependencies``; that rehydrates this executor and calls
