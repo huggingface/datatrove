@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import random
 import tempfile
 import time
 from collections import deque
@@ -54,7 +55,9 @@ class JobsPipelineExecutor(PipelineExecutor):
     Because completion is tracked with ``completions/{rank:05d}`` marker files, reruns are
     idempotent: already-completed ranks are skipped and only the Jobs for the remaining
     ranks are relaunched. This replaces Slurm's requeue / ``SIGUSR1`` handling, which has no
-    Jobs equivalent.
+    Jobs equivalent. Before rerunning, make sure no Jobs from a previous launch are still
+    queued or running (cancel them first): each launch rewrites ``executor.pik`` and
+    ``ranks_to_run.json``, which stale Jobs would then read.
 
     Note: the launching process (the "coordinator") currently runs **locally** and stays alive for
     the whole run — it submits the Jobs, polls them to honor ``workers``, and merges stats at the
@@ -155,6 +158,10 @@ class JobsPipelineExecutor(PipelineExecutor):
                 "s3://<bucket>) that both the launching machine and the Jobs can access. Got a local "
                 f"path: {self.logging_dir.path!r}."
             )
+        if tasks_per_job < 1:
+            raise ValueError(f"tasks_per_job must be >= 1, got {tasks_per_job}.")
+        if workers != -1 and workers < 1:
+            raise ValueError(f"workers must be -1 (unlimited) or >= 1, got {workers}.")
         self.tasks = tasks
         self.workers = workers
         self.flavor = flavor
@@ -244,10 +251,16 @@ class JobsPipelineExecutor(PipelineExecutor):
         if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
             self._launched = True
+            if not self.logging_dir.isfile("stats.json"):
+                self._merge_stats()  # a previous coordinator may have died after the last rank completed
             return
 
         # pickle ourselves; each Job rehydrates this via `launch_pickled_pipeline` and calls run()
         executor = deepcopy(self)
+        # never persist credentials into the (shared) logging_dir: the Jobs get HF_TOKEN and any user
+        # secrets as Job secrets instead (see _submit_array_index)
+        executor.token = None
+        executor.secrets = None
         with self.logging_dir.open("executor.pik", "wb") as executor_f:
             dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
         self.save_executor_as_json()
@@ -272,6 +285,15 @@ class JobsPipelineExecutor(PipelineExecutor):
         self._launched = True
         self._launch_and_wait(nb_jobs, pik_path, max_concurrent, token)
         self._merge_stats()
+
+    def save_executor_as_json(self, indent: int = 4):
+        """Same as the base version, but never persists credentials into the (shared) logging_dir."""
+        token, secrets = self.token, self.secrets
+        self.token = self.secrets = None
+        try:
+            super().save_executor_as_json(indent=indent)
+        finally:
+            self.token, self.secrets = token, secrets
 
     def _submit_array_index(self, array_index: int, pik_path: str, token: str) -> str:
         """Launch a single Hugging Face Job for one array index; returns its job id."""
@@ -352,7 +374,8 @@ class JobsPipelineExecutor(PipelineExecutor):
         """Merge per-rank stats into ``stats.json`` once every task is complete."""
         # the Jobs wrote completions/ + stats/ remotely; refresh the launcher's cached listing first
         self.logging_dir.fs.invalidate_cache()
-        incomplete = self.get_incomplete_ranks(range(self.world_size))
+        # check the actual completion markers even when skip_completed=False
+        incomplete = self.get_incomplete_ranks(range(self.world_size), skip_completed=True)
         if incomplete:
             logger.warning(
                 f"{len(incomplete)}/{self.world_size} tasks still incomplete; not merging stats. Rerun to resume."
@@ -378,6 +401,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             return PipelineStats()
 
         self._set_distributed_environment(node_rank)
+        if self.randomize_start_duration > 0:
+            time.sleep(random.randint(0, self.randomize_start_duration))
 
         # log locally and upload the log to logging_dir once the pipeline finishes
         local_logs_dir = get_datafolder(f"{tempfile.gettempdir()}/datatrove_jobs_logs")

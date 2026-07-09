@@ -157,6 +157,78 @@ class TestJobsExecutor(unittest.TestCase):
                     f"rank {rank} stats leaked across ranks (expected {EMITTED_PER_RANK}, got {emitted})",
                 )
 
+    def test_invalid_workers_and_tasks_per_job_rejected(self):
+        """Nonsensical concurrency settings fail loudly instead of silently launching nothing."""
+        log_dir = get_datafolder("memory://jobs-test/validation")
+        for kwargs in ({"tasks_per_job": 0}, {"tasks_per_job": -2}, {"workers": 0}, {"workers": -3}):
+            with self.assertRaises(ValueError):
+                JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, **kwargs)
+
+    def test_credentials_not_persisted_to_logging_dir(self):
+        """token= and secrets= must never end up in executor.pik / executor.json on the shared logging_dir."""
+        log_dir = get_datafolder("memory://jobs-test/credentials")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=2,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            secrets={"MY_SECRET": "sekritvalue"},
+            poll_interval=0,
+        )
+        fake_run, fake_inspect, launched = _make_fake_jobs(executor)
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.run()
+
+        self.assertEqual(len(launched), 2)  # the scrubbed pickle must still run fine worker-side
+        with log_dir.open("executor.pik", "rb") as f:
+            pik = f.read()
+        with log_dir.open("executor.json", "r") as f:
+            as_json = f.read()
+        for credential in (b"hf_faketoken", b"sekritvalue"):
+            self.assertNotIn(credential, pik)
+            self.assertNotIn(credential.decode(), as_json)
+        # scrubbing must not clobber the live executor's own credentials
+        self.assertEqual(executor.token, "hf_faketoken")
+        self.assertEqual(executor.secrets, {"MY_SECRET": "sekritvalue"})
+
+    def test_stats_merged_with_skip_completed_false(self):
+        """skip_completed=False disables skipping, but the final stats merge must still happen."""
+        log_dir = get_datafolder("memory://jobs-test/no-skip")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=2,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            poll_interval=0,
+            skip_completed=False,
+        )
+        fake_run, fake_inspect, _ = _make_fake_jobs(executor)
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.run()
+        self.assertTrue(log_dir.isfile("stats.json"))
+
+    def test_rerun_merges_stats_if_missing(self):
+        """A rerun over a fully-completed dir recreates stats.json if the first coordinator died pre-merge."""
+        log_dir = get_datafolder("memory://jobs-test/stats-rerun")
+
+        def build():
+            return JobsPipelineExecutor(
+                pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="hf_faketoken", poll_interval=0
+            )
+
+        first = build()
+        fr, fi, _ = _make_fake_jobs(first)
+        with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
+            first.run()
+        log_dir.rm("stats.json")  # simulate a coordinator killed after the last rank but before the merge
+
+        second = build()
+        fr2, fi2, launched = _make_fake_jobs(second)
+        with patch("huggingface_hub.run_uv_job", fr2), patch("huggingface_hub.inspect_job", fi2):
+            second.run()
+        self.assertEqual(len(launched), 0)
+        self.assertTrue(log_dir.isfile("stats.json"))
+
     def test_resume_skips_completed_ranks(self):
         """A second run over an already-completed logging_dir launches no Jobs (idempotent resume)."""
         log_dir = get_datafolder("memory://jobs-test/resume")
