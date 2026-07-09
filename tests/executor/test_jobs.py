@@ -255,6 +255,52 @@ class TestJobsExecutor(unittest.TestCase):
             second.run()
         self.assertEqual(len(launched_second), 0)
 
+    def test_failed_jobs_resubmitted_up_to_max_retries(self):
+        """A crashed index is resubmitted and completes on retry; one that keeps crashing is given up on."""
+        log_dir = get_datafolder("memory://jobs-test/retries")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=3, logging_dir=log_dir, token="t", poll_interval=0, max_retries=1
+        )
+        attempts: dict[str, int] = {}
+        job_stages: dict[str, str] = {}
+
+        def fake_run(script, *, script_args=None, env=None, **kwargs):
+            idx = env[ARRAY_INDEX_ENV_VAR]
+            attempts[idx] = attempts.get(idx, 0) + 1
+            job = MagicMock()
+            job.id = f"job-{idx}-attempt{attempts[idx]}"
+            # index 1 crashes on its first attempt only; index 2 crashes every time
+            if (idx == "1" and attempts[idx] == 1) or idx == "2":
+                job_stages[job.id] = "ERROR"  # died before running any rank
+                return job
+            with executor.logging_dir.open("executor.pik", "rb") as f:
+                worker = dill.load(f)
+            prev = os.environ.get(ARRAY_INDEX_ENV_VAR)
+            os.environ[ARRAY_INDEX_ENV_VAR] = idx
+            try:
+                worker.run()
+            finally:
+                if prev is None:
+                    os.environ.pop(ARRAY_INDEX_ENV_VAR, None)
+                else:
+                    os.environ[ARRAY_INDEX_ENV_VAR] = prev
+            job_stages[job.id] = "COMPLETED"
+            return job
+
+        def fake_inspect(*, job_id, **kwargs):
+            job = MagicMock()
+            job.status.stage = job_stages[job_id]
+            return job
+
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.run()
+
+        self.assertEqual(attempts, {"0": 1, "1": 2, "2": 2})  # one resubmit each for 1 and 2, then give up on 2
+        self.assertTrue(log_dir.isfile("completions/00000"))
+        self.assertTrue(log_dir.isfile("completions/00001"))  # completed on the resubmit
+        self.assertFalse(log_dir.isfile("completions/00002"))  # retries exhausted -> left incomplete
+        self.assertFalse(log_dir.isfile("stats.json"))  # an incomplete run must not merge stats
+
     def test_depends_runs_parent_then_child(self):
         """`depends=` launches the parent to completion, then runs the child; both write full layouts."""
         parent_dir = get_datafolder("memory://jobs-test/dep-parent")

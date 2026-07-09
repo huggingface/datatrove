@@ -98,9 +98,12 @@ class JobsPipelineExecutor(PipelineExecutor):
         labels: extra labels attached to each Job.
         token: Hugging Face token. Defaults to the locally saved login. Passed to each Job
             as the ``HF_TOKEN`` secret so it can read/write the logging_dir.
-        secrets: extra secrets passed to each Job (merged with the ``HF_TOKEN`` secret).
+        secrets: extra secrets passed to each Job (merged with the ``HF_TOKEN`` secret; an
+            ``HF_TOKEN`` key here overrides the resolved token).
         max_retries: how many times to relaunch a Job that ends in a non-success state
-            within a single run (default 1).
+            within a single run (default 1). Ranks still failed after that are logged and
+            left incomplete — :meth:`run` does NOT raise; rerun to resume. A dependent
+            executor (``depends=``) fails fast on them instead.
         poll_interval: seconds between polls of the running Jobs (default 15).
         run_on_dependency_fail: if a ``depends`` job finishes with failed (permanently incomplete) tasks,
             continue anyway instead of raising. Default False (fail fast, like Slurm's ``afterok``).
@@ -321,7 +324,7 @@ class JobsPipelineExecutor(PipelineExecutor):
                 **(self.labels or {}),
             },
             namespace=self.namespace,
-            token=self.token,
+            token=token,
         )
         logger.info(f"Launched array index {array_index} as Job {job.id} ({job.url}).")
         return job.id
@@ -344,7 +347,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         while running:
             time.sleep(self.poll_interval)
             for job_id in list(running):
-                stage = inspect_job(job_id=job_id, namespace=self.namespace, token=self.token).status.stage
+                stage = inspect_job(job_id=job_id, namespace=self.namespace, token=token).status.stage
                 if stage not in _TERMINAL_JOB_STAGES:
                     continue
                 idx = running.pop(job_id)
