@@ -17,6 +17,15 @@ general Slurm->Jobs comparison):
   signature stage that failed 6/24 ranks on a dataset repo at `workers=8` passed 24/24 on a bucket with
   identical settings. If you must stay on a dataset repo: lower `workers`, and/or rerun to resume —
   only the failed ranks are relaunched.
+- stage 2 sets `lines_to_buffer=-1` on `MinhashDedupBuckets`, and on remote storage you should too
+  (at this kind of scale). The default (5) is a RAM bound tuned for local filesystems: stage 2 holds
+  EVERY stage-1 signature file open at once for its merge, and the value also sets the fsspec
+  `block_size` (5 lines ≈ 340 bytes) — so over hf:// each couple of reads becomes its own HTTP range
+  request, ~500 requests per signature file (measured: this stage went 65 min → 99 s after switching
+  to -1). -1 instead reads each file in a single request but buffers whole files in RAM: budget
+  `num_stage1_tasks × sig_file_size` (here 24 × ~340 KB ≈ 8 MB — trivial). At thousands of stage-1
+  tasks, keep a bounded `lines_to_buffer` and stage the bucket's signature files to the Job's local
+  ephemeral disk first instead.
 - `dependencies` = `datatrove[io,processing]` PLUS `spacy`: the signature stage's English word tokenizer
   is `spacy.blank("en")` (no model download), and `spacy` only ships in the heavy `multilingual` extra,
   so add the bare package rather than that whole extra.
@@ -93,10 +102,8 @@ stage2 = JobsPipelineExecutor(
             input_folder=f"{MINHASH_BASE_PATH}/signatures",
             output_folder=f"{MINHASH_BASE_PATH}/buckets",
             config=minhash_config,
-            # IMPORTANT on remote storage: the default (5) also sets the fsspec block_size to 5 lines
-            # (~340 bytes), i.e. one HTTP range request per couple of reads — measured ~40x slower on
-            # Jobs (65 min -> 99 s for this stage). -1 reads each signature file in a single request;
-            # it buffers whole files in RAM, so at very high task counts stage to local disk instead.
+            # -1 = read each signature file in ONE request instead of one per ~340 bytes (65 min → 99 s
+            # for this stage). RAM tradeoff + when NOT to use -1: see the note in the module docstring.
             lines_to_buffer=-1,
         ),
     ],
