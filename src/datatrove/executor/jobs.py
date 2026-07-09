@@ -31,8 +31,8 @@ _SUCCESS_JOB_STAGE = "COMPLETED"
 class JobsPipelineExecutor(PipelineExecutor):
     """Execute a pipeline on Hugging Face Jobs.
 
-    **Experimental**: this executor is experimental and its API may change (or break) in
-    future releases without the usual deprecation cycle.
+    **Experimental**: this executor is experimental — it may change, break, or be removed
+    in future releases without the usual deprecation cycle.
 
     Fans a datatrove pipeline out across a pool of Hugging Face Jobs, mirroring
     :class:`~datatrove.executor.slurm.SlurmPipelineExecutor` but launching Jobs with
@@ -150,7 +150,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         run_on_dependency_fail: bool = False,
         job_name: str = "data_processing",
     ):
-        logger.warning("JobsPipelineExecutor is experimental: its API may change (or break) in future releases.")
+        logger.warning("JobsPipelineExecutor is experimental: it may change, break, or be removed in future releases.")
         super().__init__(pipeline, logging_dir, skip_completed, randomize_start_duration)
         if self.logging_dir.is_local():
             raise ValueError(

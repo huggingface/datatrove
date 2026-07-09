@@ -2,7 +2,7 @@
 Tokenize a Hugging Face dataset on Hugging Face Jobs, then merge-shuffle it into a single
 tokenized dataset ready for a training library.
 
-Note: `JobsPipelineExecutor` is experimental and its API may change in future releases.
+Note: `JobsPipelineExecutor` is experimental and may change, break, or be removed in future releases.
 
 The `JobsPipelineExecutor` twin of `tokenize_from_hf_to_s3.py` (which uses Slurm). Two stages:
 1. (fan-out) `HuggingFaceDatasetReader` -> `DocumentTokenizer`: each Job tokenizes + shuffles a shard.

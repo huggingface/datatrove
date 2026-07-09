@@ -2,7 +2,7 @@
 MinHash deduplication on Hugging Face Jobs — the `JobsPipelineExecutor` twin of
 `minhash_deduplication.py` (Slurm). The 4-stage pipeline is identical; only the executors change.
 
-Note: `JobsPipelineExecutor` is experimental and its API may change in future releases.
+Note: `JobsPipelineExecutor` is experimental and may change, break, or be removed in future releases.
 
   stage1 signatures -> stage2 buckets (depends=1) -> stage3 cluster (depends=2) -> stage4 filter (depends=3)
 

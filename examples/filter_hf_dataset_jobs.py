@@ -1,5 +1,5 @@
 """
-Note: `JobsPipelineExecutor` is experimental and its API may change in future releases.
+Note: `JobsPipelineExecutor` is experimental and may change, break, or be removed in future releases.
 
 This file contains code to:
 1 - Load a parquet-format Hugging Face dataset from the hub.
