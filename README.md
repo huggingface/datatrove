@@ -21,6 +21,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
   * [LocalPipelineExecutor](#localpipelineexecutor)
   * [SlurmPipelineExecutor](#slurmpipelineexecutor)
   * [RayPipelineExecutor](#raypipelineexecutor)
+  * [JobsPipelineExecutor](#jobspipelineexecutor)
 - [Logging](#logging)
 - [DataFolder / paths](#datafolder--paths)
 - [Practical guides](#practical-guides)
@@ -273,6 +274,9 @@ executor = RayPipelineExecutor(
 executor.run()
 ```
 </details>
+
+### JobsPipelineExecutor
+**Experimental — may change or be removed without notice.** Runs pipelines on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/en/guides/jobs): same coordination model as Slurm, but each block of tasks runs in a cloud Job. See the [`JobsPipelineExecutor` docstring](src/datatrove/executor/jobs.py) and the `*_jobs.py` [examples](examples) for usage.
 
 ## Logging
 For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder structure would be created:
