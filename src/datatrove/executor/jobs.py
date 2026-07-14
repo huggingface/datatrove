@@ -15,7 +15,7 @@ import dill
 from dill import CONTENTS_FMODE
 
 from datatrove.executor.base import DistributedEnvVars, PipelineExecutor
-from datatrove.io import DataFolderLike, get_datafolder
+from datatrove.io import DataFolderLike, _get_true_fs, get_datafolder
 from datatrove.pipeline.base import PipelineStep
 from datatrove.utils.logging import add_task_logger, close_task_logger, log_pipeline, logger
 from datatrove.utils.stats import PipelineStats
@@ -78,6 +78,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             here by a local polling loop.
         logging_dir: where to save logs, stats, completions and the pickled executor.
             Must resolve to a *remote* datatrove.io.DataFolder (``hf://`` or ``s3://``).
+            An ``hf://`` repo/bucket is created automatically (private) if it doesn't exist
+            yet; an ``s3://`` bucket must already exist.
         flavor: Hugging Face Jobs hardware flavor for each Job (default ``"cpu-basic"``).
         image: optional Docker image for the Jobs. Defaults to the huggingface_hub uv
             image. A custom image must have ``uv`` installed.
@@ -250,6 +252,7 @@ class JobsPipelineExecutor(PipelineExecutor):
                 time.sleep(2 * 60)
             self.depends = None  # avoid pickling the dependency chain
 
+        self._ensure_logging_dir_repo()
         ranks_to_run = self.get_incomplete_ranks()
         if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
@@ -292,6 +295,26 @@ class JobsPipelineExecutor(PipelineExecutor):
             # this run's failed ranks and produce a stats.json mixing old and new per-rank data
             return
         self._merge_stats()
+
+    def _ensure_logging_dir_repo(self):
+        """Create the Hub repo/bucket backing an ``hf://`` logging_dir if it doesn't exist yet.
+
+        The *output* repo auto-creates via its writer, but nothing creates the logging repo — without
+        this, a fresh run crashes on the very first ``completions/`` listing with "repository not
+        found". Non-hf filesystems (e.g. ``s3://``) are left untouched: the bucket must already exist.
+        """
+        from huggingface_hub import HfFileSystem, create_bucket, create_repo
+
+        if not isinstance(_get_true_fs(self.logging_dir.fs), HfFileSystem):
+            return
+        # DirFileSystem stripped the protocol: "buckets/<ns>/<bucket>/..." or "[<type>s/]<ns>/<repo>[@rev]/..."
+        parts = self.logging_dir.path.split("/")
+        if parts[0] == "buckets":
+            create_bucket("/".join(parts[1:3]), private=True, exist_ok=True, token=self.token)
+        else:
+            repo_type, offset = {"datasets": ("dataset", 1), "spaces": ("space", 1)}.get(parts[0], ("model", 0))
+            repo_id = "/".join(parts[offset : offset + 2]).split("@", 1)[0]
+            create_repo(repo_id, private=True, repo_type=repo_type, exist_ok=True, token=self.token)
 
     def save_executor_as_json(self, indent: int = 4):
         """Same as the base version, but never persists credentials into the (shared) logging_dir."""

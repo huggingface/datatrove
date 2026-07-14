@@ -157,6 +157,57 @@ class TestJobsExecutor(unittest.TestCase):
                     f"rank {rank} stats leaked across ranks (expected {EMITTED_PER_RANK}, got {emitted})",
                 )
 
+    def test_hf_logging_repo_auto_created(self):
+        """An hf:// logging repo/bucket that doesn't exist yet is created before the first listing."""
+        cases = [
+            (
+                "hf://datasets/some_user/some-logs/subdir",
+                "create_repo",
+                "some_user/some-logs",
+                {"repo_type": "dataset"},
+            ),
+            (
+                "hf://datasets/some_user/some-logs@refs%2Fconvert%2Fparquet",
+                "create_repo",
+                "some_user/some-logs",
+                {"repo_type": "dataset"},
+            ),
+            ("hf://spaces/some_user/some-space/logs", "create_repo", "some_user/some-space", {"repo_type": "space"}),
+            (
+                "hf://some_user/some-model-logs/subdir",
+                "create_repo",
+                "some_user/some-model-logs",
+                {"repo_type": "model"},
+            ),
+            ("hf://buckets/some_user/some-bucket/logs", "create_bucket", "some_user/some-bucket", {}),
+        ]
+        for path, expected_fn, expected_id, extra_kwargs in cases:
+            executor = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=path, token="hf_faketoken")
+            with (
+                patch("huggingface_hub.create_repo") as create_repo,
+                patch("huggingface_hub.create_bucket") as create_bucket,
+            ):
+                executor._ensure_logging_dir_repo()
+            called = {"create_repo": create_repo, "create_bucket": create_bucket}[expected_fn]
+            not_called = create_bucket if expected_fn == "create_repo" else create_repo
+            called.assert_called_once_with(
+                expected_id, private=True, exist_ok=True, token="hf_faketoken", **extra_kwargs
+            )
+            not_called.assert_not_called()
+
+    def test_non_hf_logging_dir_not_auto_created(self):
+        """Auto-creation is hf://-only: other remote filesystems are left untouched."""
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=get_datafolder("memory://jobs-test/no-create"), token="t"
+        )
+        with (
+            patch("huggingface_hub.create_repo") as create_repo,
+            patch("huggingface_hub.create_bucket") as create_bucket,
+        ):
+            executor._ensure_logging_dir_repo()
+        create_repo.assert_not_called()
+        create_bucket.assert_not_called()
+
     def test_invalid_workers_and_tasks_per_job_rejected(self):
         """Nonsensical concurrency settings fail loudly instead of silently launching nothing."""
         log_dir = get_datafolder("memory://jobs-test/validation")
