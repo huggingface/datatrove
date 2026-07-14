@@ -33,9 +33,10 @@ parser.add_argument("--workers", type=int, help="max concurrent Jobs (-1 = all a
 parser.add_argument("--flavor", type=str, help="HF Jobs hardware flavor", default="cpu-basic")
 
 # tokens machinery lives in the `processing` extra (tokenizers + regex); `datasets` comes from `io`.
-# Until JobsPipelineExecutor is released, install datatrove from your branch, e.g.:
-#   "datatrove[io,processing] @ git+https://github.com/<user>/datatrove@<branch>"
-DEPENDENCIES = ["datatrove[io,processing]"]
+# Installed from git because no released datatrove ships JobsPipelineExecutor yet — with a
+# released version the Job dies at unpickle time (the class doesn't exist in the Job's env).
+# TODO: switch to "datatrove[io,processing]" once a release includes the Jobs executor.
+DEPENDENCIES = ["datatrove[io,processing] @ git+https://github.com/huggingface/datatrove"]
 
 if __name__ == "__main__":
     args = parser.parse_args()

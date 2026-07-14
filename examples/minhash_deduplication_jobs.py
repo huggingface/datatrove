@@ -29,9 +29,10 @@ general Slurm->Jobs comparison):
 - `dependencies` = `datatrove[io,processing]` PLUS `spacy`: the signature stage's English word tokenizer
   is `spacy.blank("en")` (no model download), and `spacy` only ships in the heavy `multilingual` extra,
   so add the bare package rather than that whole extra.
-- `max_retries >= 1` matters here: `hf://` has read-after-write lag, so a downstream stage can 404 on a
-  file the previous stage just wrote; a retry succeeds once it propagates. (Not needed on a strongly
-  consistent store.)
+- `max_retries >= 1` matters on `hf://datasets/` paths: dataset repos have read-after-write lag, so a
+  stage can 404 on a file just written — even its own (stage 1 re-reading a `.sig` it wrote milliseconds
+  earlier has been observed to 404); a retry succeeds once it propagates. Buckets and other strongly
+  consistent stores don't need it, but it's cheap insurance either way.
 - stage 1 and stage 4 MUST use the same input reader and the same task count (unchanged from Slurm).
 - Set `workers=N` on the stages to cap concurrent Jobs (the analog of Slurm's `%workers`).
 """
@@ -58,14 +59,17 @@ minhash_config = MinhashConfig(
     hashes_per_bucket=8,
 )  # better precision -> fewer false positives (collisions)
 
-# a shared REMOTE base path all four stages use (hf:// or s3://) — never a local path
-MINHASH_BASE_PATH = "hf://datasets/my_org/my-minhash"
-LOGS_FOLDER = "hf://datasets/my_org/my-minhash-logs"
+# a shared REMOTE base path all four stages use — never a local path. A Storage Bucket is the
+# recommended default (see module docstring); an hf://datasets/ repo works but is slower and
+# flakier for this inter-stage traffic.
+MINHASH_BASE_PATH = "hf://buckets/my_org/my-minhash/data"
+LOGS_FOLDER = "hf://buckets/my_org/my-minhash/logs"
 
 # datatrove + processing (nltk/xxhash/regex/tokenizers) + bare spacy (English word tokenizer).
-# Until JobsPipelineExecutor is released, install datatrove from your branch, e.g.:
-#   "datatrove[io,processing] @ git+https://github.com/<user>/datatrove@<branch>"
-DEPENDENCIES = ["datatrove[io,processing]", "spacy"]
+# Installed from git because no released datatrove ships JobsPipelineExecutor yet — with a
+# released version the Job dies at unpickle time (the class doesn't exist in the Job's env).
+# TODO: switch to "datatrove[io,processing]" once a release includes the Jobs executor.
+DEPENDENCIES = ["datatrove[io,processing] @ git+https://github.com/huggingface/datatrove", "spacy"]
 
 TOTAL_TASKS = 50
 
@@ -77,7 +81,7 @@ common = {
     "flavor": "cpu-basic",
     "dependencies": DEPENDENCIES,
     "timeout": "2h",
-    "max_retries": 2,  # tolerate transient hf:// read-after-write 404s between stages
+    "max_retries": 2,  # cheap insurance; required on hf://datasets/ paths (read-after-write 404s, see docstring)
 }
 
 # stage 1 computes minhash signatures for each task (each task gets a set of files)
