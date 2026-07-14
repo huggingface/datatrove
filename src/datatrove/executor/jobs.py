@@ -253,6 +253,10 @@ class JobsPipelineExecutor(PipelineExecutor):
             self.depends = None  # avoid pickling the dependency chain
 
         self._ensure_logging_dir_repo()
+        # completions/ may have been written remotely since this fs instance last listed it (shared
+        # fsspec instances, same-process reruns) — refresh before deciding what to (re)launch, as the
+        # depends-wait loop and _merge_stats already do.
+        self.logging_dir.fs.invalidate_cache()
         ranks_to_run = self.get_incomplete_ranks()
         if len(ranks_to_run) == 0:
             logger.info(f"Skipping launch of {self.job_name} as all {self.tasks} tasks have already been completed.")
