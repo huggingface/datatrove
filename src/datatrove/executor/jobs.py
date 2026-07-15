@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+import sys
 import tempfile
 import time
 from collections import deque
@@ -94,7 +95,12 @@ class JobsPipelineExecutor(PipelineExecutor):
         depends: another JobsPipelineExecutor that must finish before this one starts.
         skip_completed: whether to skip tasks completed in previous runs (default True).
         randomize_start_duration: max seconds to randomly delay the start of each task.
-        python: Python version for the Job's ``uv`` environment (e.g. ``"3.12"``).
+        python: Python version for the Job's ``uv`` environment (e.g. ``"3.12"``). Defaults
+            to the launching interpreter's ``major.minor``: the executor is dill-pickled, and
+            dill ships functions as *bytecode*, which is not portable across Python versions —
+            a mismatched worker interpreter fails at unpickle time with a segfault rather
+            than an error. Pass an explicit version only if the Job environment really should
+            differ (and matches where the pickle is loaded).
         namespace: Hugging Face namespace to launch the Jobs under (defaults to the
             authenticated user).
         labels: extra labels attached to each Job.
@@ -175,7 +181,10 @@ class JobsPipelineExecutor(PipelineExecutor):
         self.timeout = timeout
         self.tasks_per_job = tasks_per_job
         self.depends = depends
-        self.python = python
+        # Default to the coordinator's interpreter: dill serializes functions as
+        # version-specific bytecode, so a worker on a different minor version dies
+        # at unpickle time with a tracebackless segfault (exit 139).
+        self.python = python if python is not None else f"{sys.version_info.major}.{sys.version_info.minor}"
         self.namespace = namespace
         self.labels = labels
         self.token = token

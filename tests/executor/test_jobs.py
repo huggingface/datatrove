@@ -208,6 +208,16 @@ class TestJobsExecutor(unittest.TestCase):
         create_repo.assert_not_called()
         create_bucket.assert_not_called()
 
+    def test_python_defaults_to_coordinator_version(self):
+        """dill ships version-specific bytecode: an unset python= must match the coordinator."""
+        import sys
+
+        log_dir = get_datafolder("memory://jobs-test/python-default")
+        executor = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir)
+        self.assertEqual(executor.python, f"{sys.version_info.major}.{sys.version_info.minor}")
+        explicit = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, python="3.11")
+        self.assertEqual(explicit.python, "3.11")
+
     def test_invalid_workers_and_tasks_per_job_rejected(self):
         """Nonsensical concurrency settings fail loudly instead of silently launching nothing."""
         log_dir = get_datafolder("memory://jobs-test/validation")
