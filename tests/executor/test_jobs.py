@@ -225,6 +225,60 @@ class TestJobsExecutor(unittest.TestCase):
             with self.assertRaises(ValueError):
                 JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, **kwargs)
 
+    def test_env_passthrough_to_jobs(self):
+        """env= must reach run_uv_job, with user keys overriding defaults but never the array index."""
+        log_dir = get_datafolder("memory://jobs-test/env-passthrough")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=1,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            env={"VLLM_ATTENTION_BACKEND": "FLASHINFER", "PYTHONUNBUFFERED": "0"},
+            poll_interval=0,
+        )
+        fake_run, fake_inspect, _ = _make_fake_jobs(executor)
+        seen: dict[str, str] = {}
+
+        def recording_run(script, *, env=None, **kwargs):
+            seen.update(env)
+            return fake_run(script, env=env, **kwargs)
+
+        with patch("huggingface_hub.run_uv_job", recording_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.run()
+
+        self.assertEqual(seen["VLLM_ATTENTION_BACKEND"], "FLASHINFER")
+        self.assertEqual(seen["PYTHONUNBUFFERED"], "0")  # user value wins over the executor default
+        self.assertEqual(seen["HF_HUB_DISABLE_PROGRESS_BARS"], "1")  # untouched default survives
+        self.assertEqual(seen[ARRAY_INDEX_ENV_VAR], "0")  # reserved key still set by the executor
+        # unlike secrets, env is part of the persisted executor state (documented contract)
+        with log_dir.open("executor.json", "r") as f:
+            self.assertIn("VLLM_ATTENTION_BACKEND", f.read())
+
+    def test_env_reserved_key_never_clobbers_array_index(self):
+        """Even if the reserved key sneaks past init (e.g. attribute mutation), the launch merge wins."""
+        log_dir = get_datafolder("memory://jobs-test/env-clobber")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, token="hf_faketoken", poll_interval=0
+        )
+        executor.env = {ARRAY_INDEX_ENV_VAR: "7"}  # bypasses the init check on purpose
+        fake_run, fake_inspect, _ = _make_fake_jobs(executor)
+        seen: dict[str, str] = {}
+
+        def recording_run(script, *, env=None, **kwargs):
+            seen.update(env)
+            return fake_run(script, env=env, **kwargs)
+
+        with patch("huggingface_hub.run_uv_job", recording_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.run()
+
+        self.assertEqual(seen[ARRAY_INDEX_ENV_VAR], "0")  # executor's value, not the injected "7"
+
+    def test_env_reserved_key_rejected(self):
+        """Setting the reserved array-index variable via env= must fail loudly at init."""
+        log_dir = get_datafolder("memory://jobs-test/env-reserved")
+        with self.assertRaises(ValueError):
+            JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, env={ARRAY_INDEX_ENV_VAR: "7"})
+
     def test_credentials_not_persisted_to_logging_dir(self):
         """token= and secrets= must never end up in executor.pik / executor.json on the shared logging_dir."""
         log_dir = get_datafolder("memory://jobs-test/credentials")
