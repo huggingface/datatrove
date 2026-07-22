@@ -11,6 +11,7 @@ class InferenceResult:
 
     Attributes:
         text: Generated text from the model
+        reasoning: Reasoning text from the model, when returned separately from the final answer
         finish_reason: Reason why generation finished
         usage: Token usage statistics from the model
     """
@@ -18,6 +19,7 @@ class InferenceResult:
     text: str
     finish_reason: str
     usage: dict
+    reasoning: str = ""
 
 
 class InferenceError(Exception):

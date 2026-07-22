@@ -9,7 +9,12 @@ def test_request_cache_store_and_fetch(tmp_path):
         await cache.initialize(rank=0)
 
         payload = {"prompt": "hello"}
-        result = {"text": "world", "finish_reason": "stop", "usage": {"prompt_tokens": 1}}
+        result = {
+            "text": "world",
+            "finish_reason": "stop",
+            "usage": {"prompt_tokens": 1},
+            "reasoning": "scratchpad",
+        }
 
         # no cached entry for doc-1 initially
         payload_hash = cache.prepare_payload(payload)

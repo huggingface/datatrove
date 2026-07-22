@@ -23,6 +23,18 @@ from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers import JsonlWriter
 
 
+class StaticResponseServer:
+    """Minimal server stub for testing response parsing."""
+
+    def __init__(self, response):
+        self.response = response
+        self.payloads = []
+
+    async def make_request(self, payload):
+        self.payloads.append(payload.copy())
+        return self.response
+
+
 class ControlledRollout:
     """Rollout function that can be configured to fail at specific document IDs or after a certain count."""
 
@@ -98,6 +110,205 @@ def test_inference_config_validates_server_startup_policy(field_name, value, mes
 
     with pytest.raises(ValueError, match=message):
         InferenceConfig(**config_kwargs)
+
+
+def test_chat_request_preserves_reasoning(tmp_path):
+    async def _run():
+        runner = InferenceRunner(
+            rollout_fn=lambda document, generate: generate({}),
+            config=InferenceConfig(
+                server_type="dummy",
+                model_name_or_path="test-model",
+                max_concurrent_generations=1,
+            ),
+            output_writer=JsonlWriter(str(tmp_path), output_filename="${rank}.jsonl", compression=None),
+        )
+        server = StaticResponseServer(
+            {
+                "choices": [
+                    {
+                        "message": {"content": "final answer", "reasoning": "reasoning trace"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+            }
+        )
+
+        result = await runner._send_request(server, {}, asyncio.Semaphore(1))
+
+        assert result.text == "final answer"
+        assert result.reasoning == "reasoning trace"
+        assert result.finish_reason == "stop"
+        assert result.usage == {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+
+    asyncio.run(_run())
+
+
+def test_chat_request_preserves_reasoning_only_response(tmp_path):
+    async def _run():
+        runner = InferenceRunner(
+            rollout_fn=lambda document, generate: generate({}),
+            config=InferenceConfig(
+                server_type="dummy",
+                model_name_or_path="test-model",
+                max_concurrent_generations=1,
+            ),
+            output_writer=JsonlWriter(str(tmp_path), output_filename="${rank}.jsonl", compression=None),
+        )
+        server = StaticResponseServer(
+            {
+                "choices": [
+                    {
+                        "message": {"content": None, "reasoning": "still thinking"},
+                        "finish_reason": "length",
+                    }
+                ],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 256, "total_tokens": 257},
+            }
+        )
+
+        result = await runner._send_request(server, {}, asyncio.Semaphore(1))
+
+        assert result.text == ""
+        assert result.reasoning == "still thinking"
+        assert result.finish_reason == "length"
+
+    asyncio.run(_run())
+
+
+def test_chat_request_supports_reasoning_content_alias(tmp_path):
+    async def _run():
+        runner = InferenceRunner(
+            rollout_fn=lambda document, generate: generate({}),
+            config=InferenceConfig(
+                server_type="dummy",
+                model_name_or_path="test-model",
+                max_concurrent_generations=1,
+            ),
+            output_writer=JsonlWriter(str(tmp_path), output_filename="${rank}.jsonl", compression=None),
+        )
+        server = StaticResponseServer(
+            {
+                "choices": [
+                    {
+                        "message": {"content": "", "reasoning_content": "provider reasoning"},
+                        "finish_reason": "length",
+                    }
+                ],
+                "usage": {},
+            }
+        )
+
+        result = await runner._send_request(server, {}, asyncio.Semaphore(1))
+
+        assert result.text == ""
+        assert result.reasoning == "provider reasoning"
+
+    asyncio.run(_run())
+
+
+def test_completion_request_has_empty_reasoning(tmp_path):
+    async def _run():
+        runner = InferenceRunner(
+            rollout_fn=lambda document, generate: generate({}),
+            config=InferenceConfig(
+                server_type="dummy",
+                model_name_or_path="test-model",
+                use_chat=False,
+                max_concurrent_generations=1,
+            ),
+            output_writer=JsonlWriter(str(tmp_path), output_filename="${rank}.jsonl", compression=None),
+        )
+        server = StaticResponseServer(
+            {
+                "choices": [{"text": "completion output", "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1},
+            }
+        )
+
+        result = await runner._send_request(server, {}, asyncio.Semaphore(1))
+
+        assert result.text == "completion output"
+        assert result.reasoning == ""
+
+    asyncio.run(_run())
+
+
+def test_cached_request_defaults_missing_reasoning(tmp_path):
+    async def _run():
+        checkpoints_dir = tmp_path / "checkpoints"
+        payload = {"messages": [{"role": "user", "content": "hello"}]}
+
+        seed_runner = InferenceRunner(
+            rollout_fn=lambda document, generate: generate({}),
+            config=InferenceConfig(
+                server_type="dummy",
+                model_name_or_path="test-model",
+                max_concurrent_generations=1,
+            ),
+            output_writer=JsonlWriter(
+                str(tmp_path / "seed"),
+                output_filename="${rank}_${chunk_index}.jsonl",
+                compression=None,
+            ),
+            checkpoints_local_dir=str(checkpoints_dir),
+        )
+        await seed_runner.request_cache.initialize(rank=0)
+        payload_hash = seed_runner.request_cache.prepare_payload(payload)
+        await seed_runner.request_cache.store_result(
+            chunk_index=0,
+            doc_id="doc-1",
+            rollout_idx=0,
+            result={"text": "cached answer", "finish_reason": "stop", "usage": {"prompt_tokens": 1}},
+            payload_hash=payload_hash,
+        )
+        await seed_runner.request_cache.flush()
+        await seed_runner.request_cache.close()
+
+        runner = InferenceRunner(
+            rollout_fn=lambda document, generate: generate({}),
+            config=InferenceConfig(
+                server_type="dummy",
+                model_name_or_path="test-model",
+                max_concurrent_generations=1,
+            ),
+            output_writer=JsonlWriter(
+                str(tmp_path / "resume"),
+                output_filename="${rank}_${chunk_index}.jsonl",
+                compression=None,
+            ),
+            checkpoints_local_dir=str(checkpoints_dir),
+        )
+        await runner.request_cache.initialize(rank=0)
+        server = StaticResponseServer(
+            {
+                "choices": [
+                    {
+                        "message": {"content": "should not be called"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {},
+            }
+        )
+
+        result = await runner._cached_request(
+            payload,
+            asyncio.Semaphore(1),
+            server,
+            doc_id="doc-1",
+            rollout_idx=0,
+            chunk_index=0,
+        )
+
+        assert result.text == "cached answer"
+        assert result.reasoning == ""
+        assert server.payloads == []
+
+        await runner.request_cache.close(delete_file=True)
+
+    asyncio.run(_run())
 
 
 def test_multiple_rollouts_collect_results(tmp_path):
