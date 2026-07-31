@@ -108,6 +108,11 @@ class JobsPipelineExecutor(PipelineExecutor):
             as the ``HF_TOKEN`` secret so it can read/write the logging_dir.
         secrets: extra secrets passed to each Job (merged with the ``HF_TOKEN`` secret; an
             ``HF_TOKEN`` key here overrides the resolved token).
+        env: extra environment variables set in each Job (e.g. vLLM/sglang tuning knobs).
+            User keys override the executor's defaults (``HF_HUB_DISABLE_PROGRESS_BARS``,
+            ``PYTHONUNBUFFERED``); ``DATATROVE_JOB_ARRAY_INDEX`` is reserved and rejected.
+            Unlike ``secrets``, these values are persisted (in the shared logging_dir's
+            ``executor.json``/``executor.pik``) — use ``secrets`` for anything sensitive.
         max_retries: how many times to relaunch a Job that ends in a non-success state
             within a single run (default 1). Ranks still failed after that are logged and
             left incomplete — :meth:`run` does NOT raise; rerun to resume. A dependent
@@ -156,6 +161,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         labels: dict[str, str] | None = None,
         token: str | None = None,
         secrets: dict[str, Any] | None = None,
+        env: dict[str, str] | None = None,
         max_retries: int = 1,
         poll_interval: int = 15,
         run_on_dependency_fail: bool = False,
@@ -173,6 +179,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             raise ValueError(f"tasks_per_job must be >= 1, got {tasks_per_job}.")
         if workers != -1 and workers < 1:
             raise ValueError(f"workers must be -1 (unlimited) or >= 1, got {workers}.")
+        if env and ARRAY_INDEX_ENV_VAR in env:
+            raise ValueError(f"env must not set {ARRAY_INDEX_ENV_VAR}: it is reserved for task addressing.")
         self.tasks = tasks
         self.workers = workers
         self.flavor = flavor
@@ -189,6 +197,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         self.labels = labels
         self.token = token
         self.secrets = secrets
+        self.env = env
         self.max_retries = max_retries
         self.poll_interval = poll_interval
         self.run_on_dependency_fail = run_on_dependency_fail
@@ -351,9 +360,11 @@ class JobsPipelineExecutor(PipelineExecutor):
             python=self.python,
             image=self.image,
             env={
-                ARRAY_INDEX_ENV_VAR: str(array_index),
                 "HF_HUB_DISABLE_PROGRESS_BARS": "1",
                 "PYTHONUNBUFFERED": "1",
+                **(self.env or {}),
+                # last so user env can never clobber task addressing (also rejected at init)
+                ARRAY_INDEX_ENV_VAR: str(array_index),
             },
             secrets={"HF_TOKEN": token, **(self.secrets or {})},
             flavor=self.flavor,
