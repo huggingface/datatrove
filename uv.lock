@@ -17,9 +17,6 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
-[manifest]
-overrides = [{ name = "transformers", specifier = ">=5.0" }]
-
 [[package]]
 name = "absl-py"
 version = "2.4.0"
@@ -1417,7 +1414,6 @@ all = [
     { name = "tldextract" },
     { name = "tokenizers" },
     { name = "trafilatura" },
-    { name = "transformers" },
     { name = "typer" },
     { name = "urduhack" },
     { name = "vllm" },
@@ -1481,7 +1477,6 @@ dev = [
     { name = "tldextract" },
     { name = "tokenizers" },
     { name = "trafilatura" },
-    { name = "transformers" },
     { name = "typer" },
     { name = "urduhack" },
     { name = "vllm" },
@@ -1503,7 +1498,6 @@ inference = [
     { name = "python-magic" },
     { name = "pyyaml" },
     { name = "sglang" },
-    { name = "transformers" },
     { name = "typer" },
     { name = "vllm" },
     { name = "warcio" },
@@ -1604,7 +1598,6 @@ testing = [
     { name = "tldextract" },
     { name = "tokenizers" },
     { name = "trafilatura" },
-    { name = "transformers" },
     { name = "typer" },
     { name = "urduhack" },
     { name = "vllm" },
@@ -1640,7 +1633,7 @@ requires-dist = [
     { name = "fsspec", specifier = ">=2023.12.2" },
     { name = "ftfy", marker = "extra == 'processing'" },
     { name = "httpx", marker = "extra == 'inference'" },
-    { name = "huggingface-hub", specifier = ">=1.0.0" },
+    { name = "huggingface-hub", specifier = ">=1.6.0" },
     { name = "humanize" },
     { name = "indic-nlp-library", marker = "extra == 'multilingual'" },
     { name = "inscriptis", marker = "extra == 'processing'" },
@@ -1681,7 +1674,6 @@ requires-dist = [
     { name = "tokenizers", marker = "extra == 'processing'" },
     { name = "tqdm" },
     { name = "trafilatura", marker = "extra == 'processing'", specifier = ">=1.8.0,<1.12.0" },
-    { name = "transformers", marker = "extra == 'inference'", specifier = ">=5.0" },
     { name = "typer", marker = "extra == 'inference'" },
     { name = "urduhack", marker = "extra == 'multilingual'" },
     { name = "vllm", marker = "extra == 'inference'", specifier = ">=0.10.0" },
