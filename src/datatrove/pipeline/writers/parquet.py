@@ -21,8 +21,8 @@ class ParquetWriter(DiskWriter):
         max_file_size: max size per parquet file, in bytes. Files rotate when they reach this size; a closed
             file is always readable, so smaller values lose less work if a job dies mid-run
         schema: an explicit `pyarrow.Schema` for the output. If None, the schema is inferred from the first
-            batch — a value that only appears in later batches (e.g. a `None`, or a new metadata key) then
-            fails the write. Pass an explicit schema when fields can be missing or heterogeneous
+            document. Fields or types introduced later may be omitted or cause a schema mismatch, depending
+            on batching. Pass an explicit schema when fields can be missing or heterogeneous
         save_media_bytes: save the media bytes column
         use_content_defined_chunking: write CDC-optimized parquet (better Xet deduplication on the Hub).
             True uses the default options; a dict is passed through to pyarrow
