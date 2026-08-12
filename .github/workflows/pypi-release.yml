@@ -32,9 +32,6 @@ jobs:
         run: python -m build .
 
       - name: Test installing the built wheel and running tests
-        # same gate the old install-from-TestPyPI step provided, without the
-        # scratch registry: prove the built artifact (not the source tree)
-        # installs and passes tests before anything irreversible happens
         run: |
           python -m pip install uv
           uv pip install --system "$(ls dist/*.whl)[testing]"
@@ -53,7 +50,7 @@ jobs:
           echo TAG_NAME=$(grep '^version' pyproject.toml | head -1 | cut -d '"' -f 2) >> $GITHUB_OUTPUT
 
       - name: Tag the release
-        # after the publish on purpose: a failed upload must not leave a tag
+        # runs after the publish so a failed upload doesn't leave a tag
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
