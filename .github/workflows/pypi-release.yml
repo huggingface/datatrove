@@ -31,11 +31,19 @@ jobs:
       - name: Build the dist files
         run: python -m build .
 
-      - name: Publish to the test PyPI
+      - name: Test installing the built wheel and running tests
+        # same gate the old install-from-TestPyPI step provided, without the
+        # scratch registry: prove the built artifact (not the source tree)
+        # installs and passes tests before anything irreversible happens
+        run: |
+          python -m pip install uv
+          uv pip install --system "$(ls dist/*.whl)[testing]"
+          python -m nltk.downloader punkt
+          python -m pytest -sv ./tests/
+
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247  # v1.14.1
         with:
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
           verbose: true
           print-hash: true
 
@@ -44,16 +52,8 @@ jobs:
         run: |
           echo TAG_NAME=$(grep '^version' pyproject.toml | head -1 | cut -d '"' -f 2) >> $GITHUB_OUTPUT
 
-      - name: Test installing from test PyPI and running tests
-        # install the wheel we just uploaded to testpypi directly, and all other dependencies from normal pypi
-        # uses the version number to fetch the url of the .whl file
-        run: |
-          python -m pip install uv
-          uv pip install --system datatrove[testing]@$(curl -s https://test.pypi.org/simple/datatrove/ | grep ${{ steps.get_tag_name.outputs.TAG_NAME }}-py3 | sed -nE 's/.*href="([^"]+)".*/\1/p')
-          python -m nltk.downloader punkt
-          python -m pytest -sv ./tests/
-
       - name: Tag the release
+        # after the publish on purpose: a failed upload must not leave a tag
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
@@ -65,9 +65,3 @@ jobs:
             })
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # needed to tag
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247  # v1.14.1
-        with:
-          verbose: true
-          print-hash: true
