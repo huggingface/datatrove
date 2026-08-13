@@ -1,6 +1,6 @@
 [project]
 name = "datatrove"
-version = "0.10.0rc1"  # expected format is one of x.y.z.dev0, x.y.zrc1 or x.y.z (PEP 440 canonical — the release workflow greps this raw string against normalized wheel filenames)
+version = "0.10.0"  # expected format is one of x.y.z.dev0, x.y.zrc1 or x.y.z (PEP 440 canonical — the release workflow greps this raw string against normalized wheel filenames)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [

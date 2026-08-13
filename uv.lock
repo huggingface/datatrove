@@ -1350,7 +1350,7 @@ wheels = [
 
 [[package]]
 name = "datatrove"
-version = "0.10.0rc1"
+version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "dill" },
