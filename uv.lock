@@ -1678,7 +1678,7 @@ requires-dist = [
     { name = "urduhack", marker = "extra == 'multilingual'" },
     { name = "vllm", marker = "extra == 'inference'", specifier = ">=0.10.0" },
     { name = "warcio", marker = "extra == 'io'" },
-    { name = "xxhash", marker = "extra == 'processing'" },
+    { name = "xxhash", marker = "extra == 'processing'", specifier = "<4" },
     { name = "zstandard", marker = "extra == 'io'" },
 ]
 provides-extras = ["cli", "io", "s3", "processing", "decont", "multilingual", "inference", "ray", "quality", "testing", "all", "dev"]
