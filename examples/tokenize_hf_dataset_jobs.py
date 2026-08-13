@@ -13,7 +13,7 @@ for the full comparison). Two things specific to this multi-stage flow on Jobs:
 - `output_path` MUST be a shared REMOTE path (hf:// or s3://) — both stages run on different machines
   and read/write the same `tokenized-tasks/` folder.
 - The tokens pipeline needs the `processing` extra (there is no separate `tokens` extra): `tokenizers`
-  and `regex` live there. So `dependencies=["datatrove[io,processing]"]`.
+  and `regex` live there. So `dependencies=["datatrove[io,processing]>=0.10.0rc1"]`.
 """
 
 import argparse
@@ -33,10 +33,10 @@ parser.add_argument("--workers", type=int, help="max concurrent Jobs (-1 = all a
 parser.add_argument("--flavor", type=str, help="HF Jobs hardware flavor", default="cpu-basic")
 
 # tokens machinery lives in the `processing` extra (tokenizers + regex); `datasets` comes from `io`.
-# Installed from git because no released datatrove ships JobsPipelineExecutor yet — with a
-# released version the Job dies at unpickle time (the class doesn't exist in the Job's env).
-# TODO: switch to "datatrove[io,processing]" once a release includes the Jobs executor.
-DEPENDENCIES = ["datatrove[io,processing] @ git+https://github.com/huggingface/datatrove"]
+# JobsPipelineExecutor first ships in datatrove 0.10.0, so the Job needs at least that:
+# with an older datatrove it dies at unpickle time (the class doesn't exist in its env).
+# The bound names the pre-release so it resolves today, and picks 0.10.0 once that is out.
+DEPENDENCIES = ["datatrove[io,processing]>=0.10.0rc1"]
 
 if __name__ == "__main__":
     args = parser.parse_args()
