@@ -47,8 +47,7 @@ REMOTE_LOGS_PATH = "hf://datasets/my_org/my-filter-logs"
 # datatrove + every extra/dep your pipeline steps need, installed into each Job's uv env.
 # NB: even LambdaFilter needs the `processing` extra — importing datatrove.pipeline.filters
 # eagerly pulls in modules that require `regex`. Match the extras to the steps you use.
-# The Job needs datatrove>=0.10.0, the release that introduced JobsPipelineExecutor:
-# with an older one it dies at unpickle time (the class doesn't exist in its env).
+# The Job needs datatrove>=0.10.0, the release that introduced JobsPipelineExecutor.
 DEPENDENCIES = ["datatrove[io,processing]"]
 
 if __name__ == "__main__":

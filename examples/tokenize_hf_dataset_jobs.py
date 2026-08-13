@@ -33,8 +33,7 @@ parser.add_argument("--workers", type=int, help="max concurrent Jobs (-1 = all a
 parser.add_argument("--flavor", type=str, help="HF Jobs hardware flavor", default="cpu-basic")
 
 # tokens machinery lives in the `processing` extra (tokenizers + regex); `datasets` comes from `io`.
-# The Job needs datatrove>=0.10.0, the release that introduced JobsPipelineExecutor:
-# with an older one it dies at unpickle time (the class doesn't exist in its env).
+# The Job needs datatrove>=0.10.0, the release that introduced JobsPipelineExecutor.
 DEPENDENCIES = ["datatrove[io,processing]"]
 
 if __name__ == "__main__":
