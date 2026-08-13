@@ -66,10 +66,9 @@ MINHASH_BASE_PATH = "hf://buckets/my_org/my-minhash/data"
 LOGS_FOLDER = "hf://buckets/my_org/my-minhash/logs"
 
 # datatrove + processing (nltk/xxhash/regex/tokenizers) + bare spacy (English word tokenizer).
-# JobsPipelineExecutor first ships in datatrove 0.10.0, so the Job needs at least that:
-# with an older datatrove it dies at unpickle time (the class doesn't exist in its env).
-# The bound names the pre-release so it resolves today, and picks 0.10.0 once that is out.
-DEPENDENCIES = ["datatrove[io,processing]>=0.10.0rc1", "spacy"]
+# The Job needs datatrove>=0.10.0, the release that introduced JobsPipelineExecutor:
+# with an older one it dies at unpickle time (the class doesn't exist in its env).
+DEPENDENCIES = ["datatrove[io,processing]", "spacy"]
 
 TOTAL_TASKS = 50
 
