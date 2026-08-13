@@ -86,9 +86,9 @@ class JobsPipelineExecutor(PipelineExecutor):
             image. A custom image must have ``uv`` installed.
         dependencies: pip requirements installed in each Job's ``uv`` environment (passed
             as ``uv run --with``). Must include datatrove and anything your pipeline steps
-            import (e.g. ``"datasets"``). Defaults to ``["datatrove[io]"]``; until this
-            executor is released, point datatrove at the branch, e.g.
-            ``["datatrove[io] @ git+https://github.com/<user>/datatrove@<branch>", "datasets"]``.
+            import (e.g. ``"datasets"``). Defaults to ``["datatrove[io]"]``. This executor
+            needs datatrove>=0.10.0 in the Job, so while 0.10.0 is still a pre-release
+            pin it explicitly, e.g. ``["datatrove[io]>=0.10.0rc1", "datasets"]``.
         timeout: per-Job timeout, as seconds (int) or a string like ``"2h"`` / ``"30m"``.
         tasks_per_job: how many datatrove tasks each Job runs. Reduces the number of Jobs
             launched (default 1).
@@ -136,7 +136,7 @@ class JobsPipelineExecutor(PipelineExecutor):
             tasks=10,
             workers=4,
             logging_dir="hf://datasets/<user>/imdb-processed/logs",
-            dependencies=["datatrove[io]", "datasets"],
+            dependencies=["datatrove[io]>=0.10.0rc1", "datasets"],
             flavor="cpu-basic",
         ).run()
         ```
