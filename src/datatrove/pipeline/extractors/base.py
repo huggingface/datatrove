@@ -91,7 +91,8 @@ class ExtractorSandbox:
         self.child_conn = None
         self.all_processes = []
 
-    def set_oom_score_adj(self, score):
+    @staticmethod
+    def set_oom_score_adj(score):
         if not -1000 <= score <= 1000:
             raise ValueError("Score must be between -1000 and +1000")
         with open("/proc/self/oom_score_adj", "w") as f:
@@ -109,15 +110,23 @@ class ExtractorSandbox:
             self.parent_conn = None
             self.child_conn = None
 
-    def _worker(self, conn, extract_fn):
+    @staticmethod
+    def _worker(conn, extract_fn, warmup_text):
+        # static so that under the "spawn" start method (e.g. macOS) we don't have to pickle the
+        # sandbox itself (self.all_processes may contain non-picklable started Process objects)
         # Ensure this process is killed first
         if platform.system() == "Linux":
-            self.set_oom_score_adj(1000)
+            ExtractorSandbox.set_oom_score_adj(1000)
 
-        if isinstance(self.warmup_text, tuple):
-            extract_fn(*self.warmup_text)  # "warmup"
-        else:
-            extract_fn(self.warmup_text)  # "warmup"
+        try:
+            if isinstance(warmup_text, tuple):
+                extract_fn(*warmup_text)  # "warmup"
+            else:
+                extract_fn(warmup_text)  # "warmup"
+        except Exception:
+            # warmup is best-effort: some extractors raise on the (empty) warmup text but work
+            # fine on real documents. Errors on real documents are reported per document below.
+            pass
         conn.send(None)  # ready
         while True:
             try:
@@ -129,6 +138,14 @@ class ExtractorSandbox:
                 conn.send(result)
             except EOFError:
                 break
+            except Exception as e:
+                # send the exception to the parent instead of dying, so that it can be reported
+                # as a clean_error for this document and the worker can be reused
+                try:
+                    conn.send(e)
+                except Exception:
+                    # exception itself not picklable: send a picklable summary of it
+                    conn.send(Exception(f"{type(e).__name__}: {e}"))
 
     def process_document(self, text, extract_fn):
         self._ensure_process(extract_fn)
@@ -162,18 +179,43 @@ class ExtractorSandbox:
                 self._cleanup_process()
 
             self.parent_conn, self.child_conn = Pipe()
-            self.process = Process(target=self._worker, args=(self.child_conn, extract_fn), daemon=True)
-            self.process.start()
+            process = Process(target=self._worker, args=(self.child_conn, extract_fn, self.warmup_text), daemon=True)
+            try:
+                process.start()
+            except Exception:
+                # never started: drop it so that _cleanup_process doesn't try to terminate() it
+                self.parent_conn.close()
+                self.child_conn.close()
+                self.parent_conn = None
+                self.child_conn = None
+                raise
+            self.process = process
             self.all_processes.append(self.process)
+            # close our copy of the child's end: this way, if the child dies, the pipe reaches
+            # EOF and poll()/recv() report it immediately instead of blocking until the timeout
+            self.child_conn.close()
             # Wait for the "ready" signal from the worker process with a timeout
-            if self.parent_conn.poll(self.timeout):
-                self.parent_conn.recv()  # Receive the None signal
-            else:
-                # Timeout occurred before the worker process signaled it's ready
-                self._cleanup_process()
-                raise TimeoutError(
-                    f"Worker process failed to initialize within {self.timeout} seconds (warmup timeout)."
-                )
+            deadline = time.monotonic() + self.timeout
+            while True:
+                poll_timeout = max(0, min(5, deadline - time.monotonic() + 0.1))
+                if self.parent_conn.poll(poll_timeout):
+                    try:
+                        self.parent_conn.recv()  # Receive the None signal
+                    except EOFError:
+                        # died during warmup (e.g. OOM-killed or a native crash)
+                        self._cleanup_process()
+                        raise EOFError("Worker process died during initialization (warmup)")
+                    return
+                if not self.process.is_alive():
+                    # died during warmup (e.g. OOM-killed or a native crash)
+                    self._cleanup_process()
+                    raise EOFError("Worker process died during initialization (warmup)")
+                if time.monotonic() >= deadline:
+                    # Timeout occurred before the worker process signaled it's ready
+                    self._cleanup_process()
+                    raise TimeoutError(
+                        f"Worker process failed to initialize within {self.timeout} seconds (warmup timeout)."
+                    )
 
     def __enter__(self):
         return self
