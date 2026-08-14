@@ -1,10 +1,13 @@
+import json
 import os
 import shutil
 import tempfile
 import unittest
 
+from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
 from datatrove.io import get_datafolder
+from datatrove.pipeline.base import PipelineStep
 from datatrove.utils._import_utils import is_boto3_available, is_moto_available, is_s3fs_available
 
 from ..utils import require_boto3, require_moto, require_s3fs
@@ -30,6 +33,69 @@ if is_moto_available():
 
 if is_s3fs_available():
     from s3fs import S3FileSystem  # noqa: F811
+
+
+class DocGenerator(PipelineStep):
+    """Yields a few documents, tracking a "docs" stat for each one."""
+
+    def __init__(self, docs_per_rank: int):
+        super().__init__()
+        self.docs_per_rank = docs_per_rank
+
+    def run(self, data, rank: int = 0, world_size: int = 1):
+        for doc_i in range(self.docs_per_rank):
+            self.stat_update("docs")
+            yield Document(text=f"document {doc_i}", id=f"{rank}_{doc_i}")
+
+
+class FailFirstTime(PipelineStep):
+    """Raises the first time it is called for fail_rank, succeeds when relaunched."""
+
+    def __init__(self, marker_dir: str, fail_rank: int):
+        super().__init__()
+        self.marker_dir = marker_dir
+        self.fail_rank = fail_rank
+
+    def run(self, data, rank: int = 0, world_size: int = 1):
+        marker_file = os.path.join(self.marker_dir, str(rank))
+        if rank == self.fail_rank and not os.path.isfile(marker_file):
+            open(marker_file, "w").close()
+            raise RuntimeError(f"Simulated failure for {rank=}")
+        yield from data
+
+
+class TestLocalExecutorStats(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
+
+    def test_relaunched_job_stats_include_previously_completed_tasks(self):
+        tasks, docs_per_rank, fail_rank = 4, 5, 2
+        logging_dir = os.path.join(self.tmp_dir, "logs")
+        marker_dir = os.path.join(self.tmp_dir, "markers")
+        os.makedirs(marker_dir)
+
+        def get_executor():
+            return LocalPipelineExecutor(
+                pipeline=[DocGenerator(docs_per_rank), FailFirstTime(marker_dir, fail_rank)],
+                tasks=tasks,
+                workers=1,
+                logging_dir=logging_dir,
+            )
+
+        # first run: fail_rank fails, ranks after it never run
+        with self.assertRaises(RuntimeError):
+            get_executor().run()
+        # relaunch: only the incomplete ranks are rerun, but the merged stats should still cover all tasks
+        stats = get_executor().run()
+
+        with get_datafolder(logging_dir).open("stats.json", "rt") as f:
+            saved_stats = json.load(f)
+        for stats_dict in (json.loads(stats.to_json()), saved_stats):
+            docs_stat = stats_dict[0]["stats"]["docs"]
+            # metric stats with a single relevant field are serialized as just their total
+            docs_total = docs_stat["total"] if isinstance(docs_stat, dict) else docs_stat
+            self.assertEqual(docs_total, tasks * docs_per_rank)
 
 
 @require_moto
