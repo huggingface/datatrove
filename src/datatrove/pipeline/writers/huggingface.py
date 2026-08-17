@@ -126,6 +126,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 else:
                     logger.error(f"Failed to create commit: {e.server_message or str(e)}")
                     raise e
+        self.operations = []
 
     def _on_file_switch(self, original_name, old_filename, new_filename):
         """
