@@ -3,16 +3,16 @@ from typing import get_args
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
-from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.base import BaseStats, _safe_divide
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 
 def get_short_paragraph_ratio(paragraphs: list[str], threshold: int) -> float:
-    return sum([1 for paragraph in paragraphs if len(paragraph) <= threshold]) / len(paragraphs)
+    return _safe_divide(sum([1 for paragraph in paragraphs if len(paragraph) <= threshold]), len(paragraphs))
 
 
 def get_long_paragraph_ratio(paragraphs: list[str], threshold: int) -> float:
-    return sum([1 for paragraph in paragraphs if len(paragraph) >= threshold]) / len(paragraphs)
+    return _safe_divide(sum([1 for paragraph in paragraphs if len(paragraph) >= threshold]), len(paragraphs))
 
 
 class ParagraphStats(BaseStats):
@@ -60,7 +60,7 @@ class ParagraphStats(BaseStats):
 
         return {
             "n_paragraphs": n_paragraphs,
-            "avg_paragraph_length": sum([len(p) for p in paragraphs]) / n_paragraphs,
+            "avg_paragraph_length": _safe_divide(sum([len(p) for p in paragraphs]), n_paragraphs),
             **{
                 f"short_paragraph_ratio_{chars}": get_short_paragraph_ratio(paragraphs, chars)
                 for chars in self.short_paragraph_max_chars_threshold
@@ -69,6 +69,6 @@ class ParagraphStats(BaseStats):
                 f"long_paragraph_ratio_{chars}": get_long_paragraph_ratio(paragraphs, chars)
                 for chars in self.long_paragraph_max_chars_threshold
             },
-            "paragraph_duplicates": paragraph_dups / n_paragraphs,
-            "paragraph_char_duplicates": paragraph_char_dups / sum(len(p) for p in paragraphs),
+            "paragraph_duplicates": _safe_divide(paragraph_dups, n_paragraphs),
+            "paragraph_char_duplicates": _safe_divide(paragraph_char_dups, sum(len(p) for p in paragraphs)),
         }

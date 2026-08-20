@@ -3,7 +3,7 @@ from typing import get_args
 
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.base import BaseStats, _safe_divide
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.text import PUNCTUATION
 
@@ -41,10 +41,16 @@ class DocStats(BaseStats):
     def extract_stats(self, doc: Document) -> dict[str, int | float]:
         return {
             "length": len(doc.text),
-            "white_space_ratio": sum([1 for c in doc.text if c.isspace()]) / len(doc.text),
-            "non_alpha_digit_ratio": sum([1 for c in doc.text if not c.isalpha() and not c.isdigit()]) / len(doc.text),
-            "digit_ratio": sum([1 for c in doc.text if c.isdigit()]) / len(doc.text),
-            "uppercase_ratio": sum([1 for c in doc.text if c.isupper()]) / len(doc.text),
-            "elipsis_ratio": sum(len(elipsis) for elipsis in self.elipsis_regex.findall(doc.text)) / len(doc.text),
-            "punctuation_ratio": sum(len(punc) for punc in self.punc_regex.findall(doc.text)) / len(doc.text),
+            "white_space_ratio": _safe_divide(sum([1 for c in doc.text if c.isspace()]), len(doc.text)),
+            "non_alpha_digit_ratio": _safe_divide(
+                sum([1 for c in doc.text if not c.isalpha() and not c.isdigit()]), len(doc.text)
+            ),
+            "digit_ratio": _safe_divide(sum([1 for c in doc.text if c.isdigit()]), len(doc.text)),
+            "uppercase_ratio": _safe_divide(sum([1 for c in doc.text if c.isupper()]), len(doc.text)),
+            "elipsis_ratio": _safe_divide(
+                sum(len(elipsis) for elipsis in self.elipsis_regex.findall(doc.text)), len(doc.text)
+            ),
+            "punctuation_ratio": _safe_divide(
+                sum(len(punc) for punc in self.punc_regex.findall(doc.text)), len(doc.text)
+            ),
         }
