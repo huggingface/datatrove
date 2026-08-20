@@ -3,18 +3,18 @@ from typing import get_args
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.gopher_quality_filter import STOP_WORDS
-from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.base import BaseStats, _safe_divide
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 def get_short_word_ratio(words: list[str], threshold: int) -> float:
-    return sum([1 for word in words if len(word) <= threshold]) / len(words)
+    return _safe_divide(sum([1 for word in words if len(word) <= threshold]), len(words))
 
 
 def get_long_word_ratio(words: list[str], threshold: int) -> float:
-    return sum([1 for word in words if len(word) >= threshold]) / len(words)
+    return _safe_divide(sum([1 for word in words if len(word) >= threshold]), len(words))
 
 
 class WordStats(BaseStats):
@@ -66,8 +66,8 @@ class WordStats(BaseStats):
 
         return {
             "n_words": len(words),
-            "avg_word_length": sum([len(word) for word in words]) / len(words),
-            "avg_words_per_line": len(words) / len(lines),
+            "avg_word_length": _safe_divide(sum([len(word) for word in words]), len(words)),
+            "avg_words_per_line": _safe_divide(len(words), len(lines)),
             **{
                 f"short_word_ratio_{chars}": get_short_word_ratio(words, chars)
                 for chars in self.short_word_max_chars_threshold
@@ -76,8 +76,8 @@ class WordStats(BaseStats):
                 f"long_word_ratio_{chars}": get_long_word_ratio(words, chars)
                 for chars in self.long_word_max_chars_threshold
             },
-            "type_token_ratio": len(set(words)) / len(words),
-            "uppercase_word_ratio": sum([1 for word in words if word.isupper()]) / len(words),
-            "capitalized_word_ratio": sum([1 for word in words if word.istitle()]) / len(words),
-            "stop_word_ratio": sum([1 for word in words if word in self.stop_words]) / len(words),
+            "type_token_ratio": _safe_divide(len(set(words)), len(words)),
+            "uppercase_word_ratio": _safe_divide(sum([1 for word in words if word.isupper()]), len(words)),
+            "capitalized_word_ratio": _safe_divide(sum([1 for word in words if word.istitle()]), len(words)),
+            "stop_word_ratio": _safe_divide(sum([1 for word in words if word in self.stop_words]), len(words)),
         }

@@ -13,6 +13,10 @@ from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, STAT_TY
 from datatrove.utils.stats import MetricStatsDict
 
 
+def _safe_divide(numerator: int | float, denominator: int | float) -> float:
+    return numerator / denominator if denominator else 0.0
+
+
 class BaseStats(PipelineStep):
     """
     Datatrove block for computing statistics of dataset.

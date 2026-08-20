@@ -4,16 +4,16 @@ from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.c4_filters import END_PUNCTUATION
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
-from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.base import BaseStats, _safe_divide
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 
 
 def get_max_chars_per_line_ratio(lines, chars: int) -> float:
-    return sum([1 for line in lines if len(line) <= chars]) / len(lines)
+    return _safe_divide(sum([1 for line in lines if len(line) <= chars]), len(lines))
 
 
 def get_min_chars_per_line_ratio(lines, chars: int) -> float:
-    return sum([1 for line in lines if len(line) >= chars]) / len(lines)
+    return _safe_divide(sum([1 for line in lines if len(line) >= chars]), len(lines))
 
 
 def is_bullet_line(line: str):
@@ -70,7 +70,7 @@ class LineStats(BaseStats):
         line_dups, char_dups = find_duplicates(lines)
         return {
             "n_lines": n_lines,
-            "avg_line_length": (sum([len(line) for line in lines]) / len(lines)),
+            "avg_line_length": _safe_divide(sum([len(line) for line in lines]), len(lines)),
             **{
                 f"short_line_ratio_chars_{chars}": get_max_chars_per_line_ratio(lines, chars)
                 for chars in self.short_max_chars
@@ -79,9 +79,10 @@ class LineStats(BaseStats):
                 f"long_line_ratio_chars_{chars}": get_min_chars_per_line_ratio(lines, chars)
                 for chars in self.long_max_chars
             },
-            "lines_ending_with_terminal_mark_ratio": sum(1 for line in lines if line.endswith(END_PUNCTUATION))
-            / len(lines),
-            "bullet_point_lines_ratio": sum(1 for line in lines if is_bullet_line(line)) / len(lines),
-            "line_duplicates": line_dups / len(lines),
-            "line_char_duplicates": char_dups / sum(len(line) for line in lines),
+            "lines_ending_with_terminal_mark_ratio": _safe_divide(
+                sum(1 for line in lines if line.endswith(END_PUNCTUATION)), len(lines)
+            ),
+            "bullet_point_lines_ratio": _safe_divide(sum(1 for line in lines if is_bullet_line(line)), len(lines)),
+            "line_duplicates": _safe_divide(line_dups, len(lines)),
+            "line_char_duplicates": _safe_divide(char_dups, sum(len(line) for line in lines)),
         }
