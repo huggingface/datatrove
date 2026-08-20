@@ -79,6 +79,45 @@ class UrlDedup(unittest.TestCase):
         self.assertEqual(len(docs), 3)
         self.assertEqual({int(doc.id) for doc in docs}, set(expected_ids))
 
+    def test_url_deduplication_with_zero_priority(self):
+        docs = [
+            Document(text="", metadata={"url": "https://example.com", "priority": 0}, id="0"),
+            Document(text="", metadata={"url": "https://example.com", "priority": 1}, id="1"),
+            Document(text="", metadata={"url": "https://other.com", "priority": 0}, id="2"),
+            Document(text="", metadata={"url": "https://other.com", "priority": 0}, id="3"),
+        ]
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""),
+            document_priority=lambda doc: doc.metadata["priority"],
+        )
+
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+        find_duplicates = ExactFindDedups(
+            data_folder=self.tmp_dir + "/sigs",
+            output_folder=self.tmp_dir + "/dups",
+            config=config,
+        )
+        dedup_filter = ExactDedupFilter(data_folder=self.tmp_dir + "/dups", config=config)
+
+        signature_creation(data=docs)
+        find_duplicates()
+        deduped_docs = list(dedup_filter(data=copy.deepcopy(docs)))
+
+        self.assertEqual([doc.id for doc in deduped_docs], ["1", "2"])
+
+    def test_url_deduplication_rejects_out_of_range_priority(self):
+        config = ExactDedupConfig(
+            content_getter=lambda doc: doc.metadata.get("url", ""),
+            document_priority=lambda doc: doc.metadata["priority"],
+        )
+        signature_creation = ExactDedupSignature(output_folder=self.tmp_dir + "/sigs", config=config)
+
+        for priority in (-1, 65536):
+            with self.subTest(priority=priority):
+                doc = Document(text="", metadata={"url": "https://example.com", "priority": priority}, id="0")
+                with self.assertRaisesRegex(ValueError, "priority must be between 0 and 65535"):
+                    signature_creation(data=[doc])
+
     def test_url_deduplication_with_priority_lowest_id(self):
         config = ExactDedupConfig(
             content_getter=lambda doc: doc.metadata.get("url", ""), document_priority=lambda x: 5 - int(x.id) + 1
