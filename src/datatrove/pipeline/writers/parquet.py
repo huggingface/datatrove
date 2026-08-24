@@ -16,7 +16,8 @@ class ParquetWriter(DiskWriter):
         output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
         compression: parquet compression codec: "snappy" (default), "gzip", "brotli", "lz4", "zstd" or None
         adapter: a custom function to "adapt" the Document format to the desired output format
-        batch_size: number of documents to buffer before writing a parquet batch
+        batch_size: number of documents to buffer before writing a parquet batch. Each batch is
+            written as a parquet row group.
         expand_metadata: save each metadata entry in a different column instead of as a dictionary
         max_file_size: max size per parquet file, in bytes. Files rotate when they reach this size; a closed
             file is always readable, so smaller values lose less work if a job dies mid-run
@@ -39,7 +40,7 @@ class ParquetWriter(DiskWriter):
         output_filename: str = None,
         compression: Literal["snappy", "gzip", "brotli", "lz4", "zstd"] | None = "snappy",
         adapter: Callable = None,
-        batch_size: int = 1000,
+        batch_size: int = 100_000,
         expand_metadata: bool = False,
         max_file_size: int = 5 * 2**30,  # 5GB
         schema: Any = None,
