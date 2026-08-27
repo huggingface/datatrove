@@ -15,10 +15,12 @@ TLDR
 """
 
 import struct
+import unicodedata
 from typing import BinaryIO, Generator
 
 import numpy as np
 
+from datatrove.data import Document
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.base import DocumentsPipeline, PipelineStep
 from datatrove.utils.logging import logger
@@ -289,19 +291,57 @@ class ESRangeRemover(PipelineStepWithTokenizer):
 
         return ranges
 
-    def remove_duplicate(self, doc, bytes_content):
-        n_bytes = len(bytes_content)
-        duplicates_ranges = self.get_duplicate_range(n_bytes)
-        duplicates = []
-        for byte_a, byte_b in duplicates_ranges:
-            dup_sentence = self.tokenizer.decode(np.frombuffer(bytes_content[byte_a:byte_b], dtype=np.uint16).tolist())
-            duplicates.append(dup_sentence)
+    def remove_duplicate(self, doc: Document, bytes_content: bytes) -> bool:
+        """Remove duplicate token ranges from a document's original text.
 
-        if duplicates:
+        Args:
+            doc: Document corresponding to the stage 1 token sequence.
+            bytes_content: Serialized stage 1 token sequence for the document.
+
+        Returns:
+            Whether the remaining document meets the minimum word threshold.
+        """
+        n_bytes = len(bytes_content)
+        duplicate_byte_ranges = self.get_duplicate_range(n_bytes)
+        duplicate_text_ranges: list[tuple[int, int]] = []
+        stored_token_ids = read_bytes(bytes_content)
+
+        if duplicate_byte_ranges:
+            encoded_doc = self.tokenizer.encode(doc.text)
+            assert encoded_doc.ids == stored_token_ids, f"Document {doc.id!r} is out of sync with stage 1"
+            token_bytes = np.dtype(np.uint16).itemsize
+
+            for byte_a, byte_b in duplicate_byte_ranges:
+                token_a = (byte_a - SEPARATOR_BYTES) // token_bytes
+                token_b = (byte_b - SEPARATOR_BYTES) // token_bytes
+                token_offsets = [offset for offset in encoded_doc.offsets[token_a:token_b] if offset[0] != offset[1]]
+                if token_offsets:
+                    start = min(start for start, _ in token_offsets)
+                    end = max(end for _, end in token_offsets)
+                    # Normalization can omit trailing combining marks from a token's offsets.
+                    while (
+                        end < len(doc.text)
+                        and unicodedata.category(doc.text[end]).startswith("M")
+                        and encoded_doc.char_to_token(end) is None
+                    ):
+                        end += 1
+                    duplicate_text_ranges.append((start, end))
+        elif doc.text != self.tokenizer.decode(stored_token_ids, skip_special_tokens=False):
+            assert self.tokenizer.encode(doc.text).ids == stored_token_ids, (
+                f"Document {doc.id!r} is out of sync with stage 1"
+            )
+
+        if duplicate_text_ranges:
+            merged_ranges: list[tuple[int, int]] = []
+            for start, end in sorted(duplicate_text_ranges):
+                if merged_ranges and start <= merged_ranges[-1][1]:
+                    merged_ranges[-1] = (merged_ranges[-1][0], max(end, merged_ranges[-1][1]))
+                else:
+                    merged_ranges.append((start, end))
+
             text = doc.text
-            # TODO improve
-            for d in duplicates:
-                text = text.replace(d, "")
+            for start, end in reversed(merged_ranges):
+                text = text[:start] + text[end:]
             doc.text = text
 
         self.bytes_counter += len(bytes_content)
@@ -326,10 +366,6 @@ class ESRangeRemover(PipelineStepWithTokenizer):
             ),
         ):
             with self.stats.time_stats:
-                # We check that the two generators are synced, meaning the docs sizes bytes are correct.
-                assert doc.text == self.tokenizer.decode(read_bytes(doc_content), skip_special_tokens=False), (
-                    f"{doc.text}\n\n{self.tokenizer.decode(read_bytes(doc_content))}"
-                )
                 to_yield = self.remove_duplicate(doc, doc_content)
             if to_yield:
                 self.update_doc_stats(doc)
