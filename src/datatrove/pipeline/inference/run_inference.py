@@ -28,6 +28,7 @@ from datatrove.pipeline.inference.servers import (
     DummyServer,
     EndpointServer,
     InferenceServer,
+    OrcaRouterServer,
     SGLangServer,
     VLLMServer,
 )
@@ -69,12 +70,16 @@ class InferenceConfig:
     """
 
     # server and model
-    server_type: Literal["sglang", "vllm", "dummy", "custom", "endpoint"]
+    server_type: Literal["sglang", "vllm", "dummy", "custom", "endpoint", "orcarouter"]
     model_name_or_path: str
     model_max_context: int = 8192
     use_chat: bool = True
-    endpoint_url: str | None = None  # Required when server_type is "endpoint"
-    api_key: str | None = None  # API key for endpoint authentication (Bearer token)
+    endpoint_url: str | None = (
+        None  # Required when server_type is "endpoint"; defaults to the provider base URL otherwise
+    )
+    api_key: str | None = (
+        None  # API key for endpoint/orcarouter authentication (Bearer token); falls back to ORCAROUTER_API_KEY for orcarouter
+    )
     # metrics
     metric_interval: int = 120
     # parallelism
@@ -233,6 +238,8 @@ class InferenceRunner(PipelineStep):
             return CustomServer(self.config, rank)
         elif stype == "endpoint":
             return EndpointServer(self.config, rank)
+        elif stype == "orcarouter":
+            return OrcaRouterServer(self.config, rank)
         else:
             raise ValueError(f"Unsupported server type: {stype}")
 

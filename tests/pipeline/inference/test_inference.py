@@ -18,6 +18,7 @@ from datatrove.pipeline.inference.checkpointing import CheckpointManager
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
+from datatrove.pipeline.inference.servers.orcarouter_server import OrcaRouterServer
 from datatrove.pipeline.inference.types import InferenceError, ServerError
 from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers import JsonlWriter
@@ -1401,6 +1402,100 @@ def test_endpoint_server(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_orcarouter_server(tmp_path):
+    """Test OrcaRouterServer with a mock HTTP server."""
+    output_dir = tmp_path / "orcarouter_test"
+    documents = [Document(text="hello orcarouter", id="orcarouter-1")]
+
+    # Find an available port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        port = s.getsockname()[1]
+
+    # Start a simple HTTP server with DummyHandler
+    server = HTTPServer(("localhost", port), DummyHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    # Give the server a moment to start
+    asyncio.run(asyncio.sleep(0.1))
+
+    try:
+
+        async def orcarouter_rollout(document, generate):
+            result = await generate(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": document.text}],
+                        }
+                    ],
+                    "max_tokens": 100,
+                }
+            )
+            return {
+                "text": result.text,
+                "finish_reason": result.finish_reason,
+                "usage": result.usage,
+            }
+
+        config = InferenceConfig(
+            server_type="orcarouter",
+            model_name_or_path="orcarouter/auto",
+            model_max_context=2048,
+            endpoint_url=f"http://localhost:{port}",
+            api_key="test-api-key",
+            metric_interval=60,
+            rollouts_per_document=1,
+            max_concurrent_generations=1,
+            max_concurrent_documents=None,
+        )
+
+        runner = InferenceRunner(
+            rollout_fn=orcarouter_rollout,
+            config=config,
+            output_writer=JsonlWriter(str(output_dir), output_filename="${rank}.jsonl", compression=None),
+        )
+
+        asyncio.run(runner.run_async(documents, rank=0))
+
+        doc = documents[0]
+        assert "rollout_results" in doc.metadata
+        assert len(doc.metadata["rollout_results"]) == 1
+        assert "text" in doc.metadata["rollout_results"][0]
+
+        output_file = output_dir / "00000.jsonl"
+        assert output_file.exists()
+        saved = json.loads(output_file.read_text().strip())
+        assert saved["metadata"]["rollout_results"][0]["text"] == doc.metadata["rollout_results"][0]["text"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_orcarouter_server_requires_api_key(monkeypatch):
+    """Test that OrcaRouterServer raises if no API key is configured."""
+    monkeypatch.delenv("ORCAROUTER_API_KEY", raising=False)
+
+    config = InferenceConfig(
+        server_type="orcarouter",
+        model_name_or_path="orcarouter/auto",
+        model_max_context=2048,
+        endpoint_url="https://api.orcarouter.ai/v1",
+        api_key=None,
+        metric_interval=60,
+        rollouts_per_document=1,
+        max_concurrent_generations=1,
+        max_concurrent_documents=None,
+    )
+
+    async def _construct():
+        return OrcaRouterServer(config, rank=0)
+
+    with pytest.raises(ValueError, match="ORCAROUTER_API_KEY"):
+        asyncio.run(_construct())
 
 
 def test_simple_startup_and_cleanup():
