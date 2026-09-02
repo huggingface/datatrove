@@ -58,8 +58,8 @@ class EndpointServer(InferenceServer):
         await super()._wait_until_ready(max_attempts=max_attempts, delay_sec=delay_sec)
 
     def get_base_url(self) -> str:
-        """Get the base URL for making requests."""
-        return self.endpoint_url.rstrip("/")
+        """Get the base URL without the API version appended by the base server."""
+        return self.endpoint_url.rstrip("/").removesuffix("/v1")
 
     async def _make_request(self, payload: dict) -> dict:
         """
