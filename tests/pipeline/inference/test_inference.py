@@ -18,6 +18,7 @@ from datatrove.pipeline.inference.checkpointing import CheckpointManager
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
+from datatrove.pipeline.inference.servers.endpoint_server import EndpointServer
 from datatrove.pipeline.inference.types import InferenceError, ServerError
 from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers import JsonlWriter
@@ -1331,6 +1332,37 @@ def test_shared_context_callable_returns_context_manager(tmp_path):
     assert len(doc.metadata["rollout_results"]) == 1
     assert doc.metadata["rollout_results"][0]["test_value"] == "test_value"
     assert cleanup_called["called"], "Context manager cleanup should have been called (direct version)"
+
+
+def test_endpoint_server_readiness_uses_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that endpoint readiness checks use the configured API key."""
+    import httpx
+
+    requests: list[httpx.Request] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200)
+
+    async_client = httpx.AsyncClient
+    transport = httpx.MockTransport(handle_request)
+    monkeypatch.setattr(httpx, "AsyncClient", partial(async_client, transport=transport))
+
+    config = InferenceConfig(
+        server_type="endpoint",
+        model_name_or_path="test-model",
+        endpoint_url="http://localhost:8000/v1",
+        api_key="test-api-key",
+    )
+
+    async def check_readiness() -> bool:
+        server = EndpointServer(config, rank=0)
+        return await server.is_ready()
+
+    assert asyncio.run(check_readiness())
+    assert len(requests) == 1
+    assert str(requests[0].url) == "http://localhost:8000/v1/models"
+    assert requests[0].headers["Authorization"] == "Bearer test-api-key"
 
 
 @pytest.mark.parametrize("endpoint_suffix", ["", "/v1"])
