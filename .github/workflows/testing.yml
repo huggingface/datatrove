@@ -29,6 +29,28 @@ jobs:
           uv run ruff check tests src examples # linter
           uv run ruff format --check tests src examples # formatter
 
+  test_fast_mh3:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: "1.83.0"
+      DATATROVE_FAST_MH3_BIN_DIR: ${{ github.workspace }}/src/datatrove/tools/fast_mh3/target/debug
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build and test Rust binaries
+        run: |
+          rustup toolchain install 1.83.0 --profile minimal
+          cargo test --locked --bins --manifest-path src/datatrove/tools/fast_mh3/Cargo.toml
+          cargo build --locked --bins --manifest-path src/datatrove/tools/fast_mh3/Cargo.toml
+      - name: Test Python and S3 interoperability
+        run: |
+          python -m pip install uv
+          uv venv
+          uv pip install -e . pytest pytest-timeout tokenizers orjson 'moto[s3,server]'
+          .venv/bin/python -m pytest -q tests/pipeline/dedup/test_fast_mh3.py
+
   test:
     runs-on: ubuntu-latest
     env:
