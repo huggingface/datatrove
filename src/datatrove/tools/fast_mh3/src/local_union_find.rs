@@ -11,6 +11,9 @@ use std::sync::{Arc, Mutex};
 // use tokio::time::{Duration, sleep};
 use tokio::sync::Semaphore;
 
+mod cluster_ids;
+use cluster_ids::{build_cluster_ids, ClusterIds};
+
 const SENTINEL: u32 = u32::MAX;
 
 // fn format_duration(duration: Duration) -> String {
@@ -39,6 +42,10 @@ struct Args {
     /// Total number of concurrent operations
     #[arg(long, default_value = "0")]
     concurrent_ops: usize,
+
+    /// Save Python-compatible cluster IDs in .clusters files
+    #[arg(long)]
+    save_cluster_id: bool,
 }
 
 #[derive(Debug)]
@@ -105,6 +112,7 @@ async fn process_single_file(
     output_folder: &Path,
     file_number: u32,
     union_find: &Arc<UnionFindData>,
+    cluster_ids: Option<&ClusterIds>,
     pb: &ProgressBar,
 ) -> Result<(usize, usize)> {
     let mut to_remove = 0;
@@ -137,6 +145,13 @@ async fn process_single_file(
 
     let mut sizes_writer = BufWriter::new(File::create(sizes_path)?);
     let mut remove_writer = BufWriter::new(File::create(remove_path)?);
+    let mut clusters_writer = if cluster_ids.is_some() {
+        Some(BufWriter::new(File::create(
+            output_folder.join(format!("{:06}.clusters", file_number)),
+        )?))
+    } else {
+        None
+    };
 
     for (doc, root, size) in nodes_data {
         let node = (file_number, doc);
@@ -144,6 +159,11 @@ async fn process_single_file(
         // Write sizes
         sizes_writer.write_u32::<LittleEndian>(doc)?;
         sizes_writer.write_u32::<LittleEndian>(size as u32)?;
+
+        if let (Some(ids), Some(writer)) = (cluster_ids, &mut clusters_writer) {
+            writer.write_u32::<LittleEndian>(doc)?;
+            writer.write_u32::<LittleEndian>(ids[&root])?;
+        }
 
         // Handle removal markers
         if node != root {
@@ -160,6 +180,9 @@ async fn process_single_file(
 
     sizes_writer.flush()?;
     remove_writer.flush()?;
+    if let Some(mut writer) = clusters_writer {
+        writer.flush()?;
+    }
 
     Ok((to_remove, clusters))
 }
@@ -167,6 +190,7 @@ async fn process_single_file(
 async fn process_post_union(
     output_folder: &Path,
     union_find: UnionFind,
+    save_cluster_id: bool,
 ) -> Result<(usize, usize)> {
     let data = union_find.data.lock().unwrap();
     let mut files: Vec<_> = data.union_set.keys()
@@ -181,6 +205,12 @@ async fn process_post_union(
         .expect("All threads should be finished")
         .into_inner()
         .unwrap());
+
+    let cluster_ids = if save_cluster_id {
+        Some(Arc::new(build_cluster_ids(&union_find_data.union_set)?))
+    } else {
+        None
+    };
 
     files.sort_unstable();
 
@@ -215,6 +245,7 @@ async fn process_post_union(
     for file_number in files {
         let output_folder = output_folder.to_path_buf();
         let union_find_data = Arc::clone(&union_find_data);
+        let cluster_ids = cluster_ids.clone();
         let pb = pb.clone();
         let semaphore = Arc::clone(&semaphore);
 
@@ -224,6 +255,7 @@ async fn process_post_union(
                 &output_folder,
                 file_number,
                 &union_find_data,
+                cluster_ids.as_deref(),
                 &pb,
             ).await
         });
@@ -368,7 +400,9 @@ async fn main() -> Result<()> {
     }
     pb.finish_with_message("File processing complete");
 
-    let (to_remove, clusters) = process_post_union(Path::new(&args.output_folder), union_find).await?;
+    let (to_remove, clusters) = process_post_union(
+        Path::new(&args.output_folder), union_find, args.save_cluster_id,
+    ).await?;
 
     println!("Processing complete:");
     println!("  Total clusters: {}", clusters);
