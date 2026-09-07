@@ -48,7 +48,7 @@ jobs:
         run: |
           python -m pip install uv
           uv venv
-          uv pip install -e . pytest pytest-timeout tokenizers orjson 'moto[s3,server]'
+          uv pip install -e . pytest pytest-timeout tokenizers regex 'xxhash<4' orjson 'moto[s3,server]'
           .venv/bin/python -m pytest -q tests/pipeline/dedup/test_fast_mh3.py
 
   test:
