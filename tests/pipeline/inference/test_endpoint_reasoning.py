@@ -23,6 +23,8 @@ from datatrove.pipeline.writers import JsonlWriter
             "stop",
             "primary",
         ),
+        ({"content": "answer", "reasoning": "", "reasoning_content": "fallback"}, "stop", "fallback"),
+        ({"content": "answer", "reasoning": None, "reasoning_content": "fallback"}, "stop", "fallback"),
     ],
 )
 def test_endpoint_server_preserves_reasoning(
@@ -32,7 +34,7 @@ def test_endpoint_server_preserves_reasoning(
     finish_reason: str,
     expected_reasoning: str,
 ) -> None:
-    """Preserve SDK reasoning fields through endpoint normalization and runner parsing."""
+    """Normalize SDK reasoning fields to a single reasoning field and preserve it in the runner."""
     openai = pytest.importorskip("openai")
     from openai.types.chat import ChatCompletion
 
@@ -64,8 +66,7 @@ def test_endpoint_server_preserves_reasoning(
         payload = {"model": "test-model", "messages": [{"role": "user", "content": "hello"}]}
         normalized = await server.make_request(payload.copy())
         normalized_message = normalized["choices"][0]["message"]
-        for field in ("reasoning", "reasoning_content"):
-            assert normalized_message.get(field) == message.get(field)
+        assert normalized_message == {"content": message["content"] or "", "reasoning": expected_reasoning}
 
         runner = InferenceRunner(
             rollout_fn=lambda document, generate: generate({}),
