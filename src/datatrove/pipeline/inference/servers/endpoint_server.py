@@ -117,7 +117,11 @@ class EndpointServer(InferenceServer):
                 return {
                     "choices": [
                         {
-                            "message": {"content": text},
+                            "message": {
+                                "content": text,
+                                "reasoning": getattr(message, "reasoning", None),
+                                "reasoning_content": getattr(message, "reasoning_content", None),
+                            },
                             "finish_reason": finish_reason,
                         }
                     ],
