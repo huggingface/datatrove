@@ -119,8 +119,9 @@ class EndpointServer(InferenceServer):
                         {
                             "message": {
                                 "content": text,
-                                "reasoning": getattr(message, "reasoning", None),
-                                "reasoning_content": getattr(message, "reasoning_content", None),
+                                "reasoning": getattr(message, "reasoning", None)
+                                or getattr(message, "reasoning_content", None)
+                                or "",
                             },
                             "finish_reason": finish_reason,
                         }
