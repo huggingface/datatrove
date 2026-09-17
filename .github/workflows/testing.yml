@@ -9,15 +9,19 @@ on:
       - main
   workflow_call:
 
+permissions: {}
+
 jobs:
   check_code_quality:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: "3.12"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
       - name: Install dependencies
@@ -30,6 +34,8 @@ jobs:
           uv run ruff format --check tests src examples # formatter
 
   test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: ${{ matrix.python-version }}
@@ -38,9 +44,9 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
