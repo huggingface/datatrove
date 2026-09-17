@@ -57,9 +57,22 @@ class EndpointServer(InferenceServer):
         """Wait until the endpoint is ready. Uses shorter delays since we're just checking endpoint availability."""
         await super()._wait_until_ready(max_attempts=max_attempts, delay_sec=delay_sec)
 
+    async def is_ready(self) -> bool:
+        """Check endpoint readiness using the configured API key when available."""
+        import httpx
+
+        url = f"{self.get_base_url()}/v1/models"
+        headers = {"Authorization": f"Bearer {self.config.api_key}"} if self.config.api_key else {}
+        try:
+            async with httpx.AsyncClient() as session:
+                response = await session.get(url, headers=headers, timeout=5.0)
+                return response.status_code == 200
+        except Exception:
+            return False
+
     def get_base_url(self) -> str:
-        """Get the base URL for making requests."""
-        return self.endpoint_url.rstrip("/")
+        """Get the base URL without the API version appended by the base server."""
+        return self.endpoint_url.rstrip("/").removesuffix("/v1")
 
     async def _make_request(self, payload: dict) -> dict:
         """
