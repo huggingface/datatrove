@@ -8,6 +8,7 @@ import numpy as np
 
 from datatrove.data import Document
 from datatrove.io import DataFolder, get_datafolder
+from datatrove.pipeline.tokens.megatron_tokenizer import MegatronDocumentTokenizer
 from datatrove.pipeline.tokens.merger import DocumentTokenizerMerger
 from datatrove.pipeline.tokens.tokenizer import DocumentTokenizer
 from datatrove.tools.check_dataset import check_dataset, load_doc_ends
@@ -278,3 +279,36 @@ class TestTokenization(unittest.TestCase):
         self.assertNotEqual(merged_windows, token_windows)
         # individual windows were not separated/broken
         self.assertEqual(sorted(merged_windows), sorted(token_windows))
+
+
+@require_tokenizers
+class TestMegatronTokenizerEos(unittest.TestCase):
+    """Regression tests for the MegatronDocumentTokenizer eos_token handling.
+
+    Tier 2: eos_token is required (previously silently defaulted to gpt2's "<|endoftext|>").
+    Tier 1: an eos_token that is not in the tokenizer vocab raises a clear error
+            (previously an opaque TypeError from the tokenizers post-processor).
+    """
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp_dir)
+
+    def test_eos_token_required(self):
+        # Tier 2: omitting eos_token raises immediately instead of silently using gpt2's EOS.
+        with self.assertRaises(ValueError) as ctx:
+            MegatronDocumentTokenizer(self.tmp_dir, tokenizer_name_or_path="gpt2")
+        self.assertIn("eos_token is required", str(ctx.exception))
+
+    def test_eos_token_not_in_vocab(self):
+        # Tier 1: an eos_token absent from the vocab must raise a clear, actionable error.
+        step = MegatronDocumentTokenizer(self.tmp_dir, tokenizer_name_or_path="gpt2", eos_token="<|not_a_real_token|>")
+        with self.assertRaises(ValueError) as ctx:
+            _ = step.tokenizer
+        self.assertIn("not in the vocabulary", str(ctx.exception))
+
+    def test_eos_token_valid(self):
+        # A correct, in-vocab eos_token still works and is appended after each document.
+        step = MegatronDocumentTokenizer(self.tmp_dir, tokenizer_name_or_path="gpt2", eos_token="<|endoftext|>")
+        ids = step.tokenizer.encode("hello world").ids
+        self.assertEqual(ids[-1], 50256)
