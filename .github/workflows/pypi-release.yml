@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v6
         with:
           python-version: "3.12"
 
@@ -39,7 +39,7 @@ jobs:
           python -m pytest -sv ./tests/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247  # v1.14.1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
         with:
           verbose: true
           print-hash: true
@@ -51,7 +51,7 @@ jobs:
 
       - name: Tag the release
         # runs after the publish so a failed upload doesn't leave a tag
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
           script: |
             github.rest.git.createRef({
