@@ -86,14 +86,23 @@ class BaseReader(PipelineStep):
         Returns: a Document
 
         """
+        original_keys = list(data.keys())
         parsed_data = self.adapter(data, source_file, id_in_file)
         if not parsed_data.get("text", None):
             if not self._empty_warning:
                 self._empty_warning = True
-                logger.warning(
-                    f"Found document without text, skipping. "
-                    f'Is your `text_key` ("{self.text_key}") correct? Available keys: {list(data.keys())}'
-                )
+                if self.text_key not in original_keys:
+                    logger.warning(
+                        f"Found document without text, skipping. "
+                        f'Your `text_key` ("{self.text_key}") was not found in the data. '
+                        f"Available keys: {original_keys}"
+                    )
+                else:
+                    logger.warning(
+                        f"Found document without text, skipping. "
+                        f'Your `text_key` ("{self.text_key}") was found in the data '
+                        "but its value was empty."
+                    )
             return None
         if parsed_data.get("media", None):
             parsed_data["media"] = [Media(**media) for media in parsed_data["media"]]
