@@ -1,4 +1,6 @@
+import importlib.metadata
 import importlib.resources
+import importlib.util
 import os
 from functools import lru_cache
 from typing import NoReturn
@@ -17,6 +19,8 @@ def check_required_dependencies(step_name: str, required_dependencies: list[str]
         required dependencies. If the format is a tuple, it is checked as (module name, pip name).
         When provided as a tuple, an error will be raised if the top-level module name is correct but the pip distribution name differs
         (e.g., (fasttext, fasttext-numpy2-wheel)).
+        The pip name may be a PEP 508 requirement, including a direct URL reference; only the
+        distribution name is compared against installed packages.
 
     """
     missing_dependencies: dict[str, str] = {}
@@ -85,16 +89,41 @@ def is_fasteners_available():
     return _is_package_available("fasteners")
 
 
+def _normalize_distribution_name(distribution_name: str) -> str:
+    """Extract a comparable distribution name from a pip requirement string.
+
+    `_requires_dependencies` stores the argument passed to `pip install`, which may be a
+    PEP 508 specifier such as ``readability-lxml @ git+https://...``. importlib.metadata
+    exposes only the distribution Name (``readability-lxml``).
+
+    Args:
+        distribution_name: Raw pip requirement or distribution name.
+
+    Returns:
+        Lowercased distribution name with extras, version specifiers, markers, and URL
+        references stripped.
+    """
+    name = distribution_name.strip()
+    name = name.split("@", 1)[0]
+    name = name.split(";", 1)[0]
+    name = name.split("[", 1)[0]
+    for sep in ("===", "==", "!=", "~=", ">=", "<=", ">", "<"):
+        name = name.split(sep, 1)[0]
+    return name.strip().lower()
+
+
 # Distribution Check
 @lru_cache
-def _is_distribution_available(distribution_name: str):
-    found = None
+def _is_distribution_available(distribution_name: str) -> bool:
+    normalized = _normalize_distribution_name(distribution_name)
+    if not normalized:
+        return False
     for dist in importlib.metadata.distributions():
         metadata = getattr(dist, "metadata", None)
         dist_name = metadata.get("Name") if metadata is not None else None
-        if dist_name and dist_name.lower() == distribution_name:
-            found = True
-    return found
+        if dist_name and dist_name.lower() == normalized:
+            return True
+    return False
 
 
 # Used in tests
