@@ -109,6 +109,8 @@ class GopherRepetitionFilter(BaseFilter):
 
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         text = doc.text
+        if not text:
+            return False, "empty"
 
         paragraphs = self.paragraph_exp.split(text.strip())
         paragraphs_duplicates, char_duplicates = find_duplicates(paragraphs)
