@@ -71,6 +71,8 @@ class GopherQualityFilter(BaseFilter):
         text = doc.text
         words = split_into_words(text, self.language)
         n_words = len(words)
+        if n_words == 0:
+            return False, "empty"
 
         non_symbol_words = [w for w in words if any(ch not in PUNCTUATION_SET for ch in w)]
         n_non_symbol_words_words = len(non_symbol_words)
