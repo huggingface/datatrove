@@ -81,6 +81,14 @@ class TestFilters(unittest.TestCase):
         self.check_filter(gopher_quality, get_doc(text), "gopher_below_alpha_threshold")
         self.assertTrue(gopher_quality(get_doc(TEXT_LF_1)))
 
+    @require_nltk
+    def test_gopher_quality_rejects_empty_doc(self):
+        # previously raised ZeroDivisionError (e.g. text.count("#") / n_words) when the
+        # tokenizer returned no words and the short-doc guard was disabled (min_doc_words=None)
+        gopher_quality = GopherQualityFilter(min_doc_words=None)
+        self.check_filter(gopher_quality, get_doc(""), "empty")
+        self.check_filter(gopher_quality, get_doc("   \n  \n"), "empty")
+
     def test_lambda(self):
         doc = Document(text=TEXT_LF_1, id="0", metadata={"test": 1})
         lambda_filter = LambdaFilter(filter_function=lambda doc: doc.metadata["test"] > 0)
