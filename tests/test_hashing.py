@@ -38,6 +38,13 @@ class TestCreateHashFunc(unittest.TestCase):
         h64 = create_hash_func(HashConfig(precision=64, hash_fc="xxhash"))("hello")
         assert h32 != h64
 
+    @require_xxhash
+    def test_xxhash_str_matches_utf8_bytes(self):
+        expected_hashes = {32: 1644681334, 64: 4310053764713069540}
+        for precision, expected_hash in expected_hashes.items():
+            hf = create_hash_func(HashConfig(precision=precision, hash_fc="xxhash"))
+            assert hf("héllo") == hf("héllo".encode("utf-8")) == expected_hash
+
     def test_unknown_hash_fc_raises(self):
         config = HashConfig.__new__(HashConfig)
         object.__setattr__(config, "precision", 64)
