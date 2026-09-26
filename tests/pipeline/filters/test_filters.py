@@ -1,4 +1,7 @@
+import os
+import tempfile
 import unittest
+from unittest import mock
 
 from datatrove.data import Document
 from datatrove.pipeline.filters import (
@@ -9,8 +12,9 @@ from datatrove.pipeline.filters import (
     RegexFilter,
     UnigramLogProbFilter,
     URLFilter,
+    c4_filters,
 )
-from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFilter
+from datatrove.pipeline.filters.c4_filters import C4BadWordsFilter, C4ParagraphFilter, C4QualityFilter
 from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 
@@ -218,6 +222,58 @@ class TestC4ParagraphFilter(unittest.TestCase):
         result, reason = C4ParagraphFilter().filter(get_doc("short\nshort\nshort"))
         assert result is False
         assert "paragraphs" in reason
+
+
+class TestC4BadWordsFilter(unittest.TestCase):
+    BADWORDS = ["Forbidden", "taboo"]  # "Forbidden" mimics the mixed-case entries of the real de/es/fr/tr lists
+
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        badwords_path = os.path.join(self.tmp_dir.name, "badwords")
+        with open(badwords_path, "w") as f:
+            f.write("\n".join(self.BADWORDS) + "\n")
+        # avoid downloading the real word list: serve the small local one for every language
+        patcher = mock.patch.object(c4_filters, "cached_asset_path_or_download", return_value=badwords_path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def check_removed(self, c4_badwords: C4BadWordsFilter, doc: Document):
+        result, reason = c4_badwords.filter(doc)
+        assert result is False
+        assert reason == "document_removed_with_badwords"
+
+    def test_lowercase_entry_matches(self):
+        c4_badwords = C4BadWordsFilter()
+        self.check_removed(c4_badwords, get_doc("This document mentions a taboo topic."))
+        self.check_removed(c4_badwords, get_doc("This document mentions a TABOO topic."))
+
+    def test_mixed_case_entry_matches(self):
+        c4_badwords = C4BadWordsFilter()
+        self.check_removed(c4_badwords, get_doc("This document mentions a forbidden topic."))
+        self.check_removed(c4_badwords, get_doc("This document mentions a Forbidden topic."))
+        self.check_removed(c4_badwords, get_doc("This document mentions a FORBIDDEN topic."))
+
+    def test_mixed_case_entry_matches_without_word_boundaries(self):
+        # ja, th and zh do not require the bad word to be flanked by non-word characters
+        doc = get_doc("xxforbiddenyy")
+        doc.metadata["language"] = "zh"
+        self.check_removed(C4BadWordsFilter(), doc)
+
+    def test_keeps_clean_document(self):
+        assert C4BadWordsFilter().filter(get_doc("This document is perfectly fine.")) is True
+        # matching is on whole words for languages other than ja/th/zh
+        assert C4BadWordsFilter().filter(get_doc("This document mentions forbiddenness.")) is True
+
+    def test_default_language_is_used_when_missing(self):
+        c4_badwords = C4BadWordsFilter(default_language="de")
+        self.check_removed(c4_badwords, get_doc("This document mentions a forbidden topic."))
+        assert c4_badwords.stats["document_removed_with_badwords_de"].total == 1
+
+    def test_keep_fraction(self):
+        c4_badwords = C4BadWordsFilter(keep_fraction=1.0)
+        assert c4_badwords.filter(get_doc("This document mentions a forbidden topic.")) is True
+        assert c4_badwords.stats["document_kept_with_badwords"].total == 1
 
 
 @require_nltk
