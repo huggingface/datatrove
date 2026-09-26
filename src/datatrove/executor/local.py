@@ -1,3 +1,4 @@
+import json
 import time
 from copy import deepcopy
 from functools import partial
@@ -124,16 +125,15 @@ class LocalPipelineExecutor(PipelineExecutor):
 
             if self.workers == 1:
                 pipeline = self.pipeline
-                stats = []
                 for rank in ranks_to_run:
                     self.pipeline = deepcopy(pipeline)
-                    stats.append(self._launch_run_for_rank(rank, ranks_q))
+                    self._launch_run_for_rank(rank, ranks_q)
             else:
                 completed_counter = mg.Value("i", skipped)
                 completed_lock = mg.Lock()
                 ctx = multiprocess.get_context(self.start_method)
                 with ctx.Pool(self.workers) as pool:
-                    stats = list(
+                    list(
                         pool.imap_unordered(
                             partial(
                                 self._launch_run_for_rank,
@@ -144,8 +144,12 @@ class LocalPipelineExecutor(PipelineExecutor):
                             ranks_to_run,
                         )
                     )
-            # merged stats
-            stats = sum(stats, start=PipelineStats())
+            # merged stats: we merge the persisted per-rank files instead of the values returned by the tasks
+            # themselves, so that tasks already completed in a previous (interrupted) run are also included
+            stats = PipelineStats()
+            for rank in range(self.local_rank_offset, self.local_rank_offset + self.local_tasks):
+                with self.logging_dir.open(f"stats/{rank:05d}.json", "r") as f:
+                    stats += PipelineStats.from_json(json.load(f))
             with self.logging_dir.open("stats.json", "wt") as statsfile:
                 stats.save_to_disk(statsfile)
             logger.success(stats.get_repr(f"All {self.local_tasks} tasks"))
