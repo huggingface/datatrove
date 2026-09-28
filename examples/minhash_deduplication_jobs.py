@@ -66,10 +66,8 @@ MINHASH_BASE_PATH = "hf://buckets/my_org/my-minhash/data"
 LOGS_FOLDER = "hf://buckets/my_org/my-minhash/logs"
 
 # datatrove + processing (nltk/xxhash/regex/tokenizers) + bare spacy (English word tokenizer).
-# Installed from git because no released datatrove ships JobsPipelineExecutor yet — with a
-# released version the Job dies at unpickle time (the class doesn't exist in the Job's env).
-# TODO: switch to "datatrove[io,processing]" once a release includes the Jobs executor.
-DEPENDENCIES = ["datatrove[io,processing] @ git+https://github.com/huggingface/datatrove", "spacy"]
+# The Job needs datatrove>=0.10.0, the release that introduced JobsPipelineExecutor.
+DEPENDENCIES = ["datatrove[io,processing]", "spacy"]
 
 TOTAL_TASKS = 50
 

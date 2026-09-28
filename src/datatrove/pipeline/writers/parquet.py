@@ -9,6 +9,26 @@ DEFAULT_CDC_OPTIONS = {"min_chunk_size": 256 * 1024, "max_chunk_size": 1024 * 10
 
 
 class ParquetWriter(DiskWriter):
+    """Write data to datafolder (local or remote) in Parquet format
+
+    Args:
+        output_folder: a str, tuple or DataFolder where data should be saved
+        output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
+        compression: parquet compression codec: "snappy" (default), "gzip", "brotli", "lz4", "zstd" or None
+        adapter: a custom function to "adapt" the Document format to the desired output format
+        batch_size: number of documents to buffer before writing a parquet batch
+        expand_metadata: save each metadata entry in a different column instead of as a dictionary
+        max_file_size: max size per parquet file, in bytes. Files rotate when they reach this size; a closed
+            file is always readable, so smaller values lose less work if a job dies mid-run
+        schema: an explicit `pyarrow.Schema` for the output. If None, the schema is inferred from the first
+            document. Fields or types introduced later may be omitted or cause a schema mismatch, depending
+            on batching. Pass an explicit schema when fields can be missing or heterogeneous
+        save_media_bytes: save the media bytes column
+        use_content_defined_chunking: write CDC-optimized parquet (better Xet deduplication on the Hub).
+            True uses the default options; a dict is passed through to pyarrow
+        write_page_index: write the parquet page index for faster filtered reads
+    """
+
     default_output_filename: str = "${rank}.parquet"
     name = "📒 Parquet"
     _requires_dependencies = ["pyarrow"]

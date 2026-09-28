@@ -86,9 +86,9 @@ class JobsPipelineExecutor(PipelineExecutor):
             image. A custom image must have ``uv`` installed.
         dependencies: pip requirements installed in each Job's ``uv`` environment (passed
             as ``uv run --with``). Must include datatrove and anything your pipeline steps
-            import (e.g. ``"datasets"``). Defaults to ``["datatrove[io]"]``; until this
-            executor is released, point datatrove at the branch, e.g.
-            ``["datatrove[io] @ git+https://github.com/<user>/datatrove@<branch>", "datasets"]``.
+            import (e.g. ``["datatrove[io]", "datasets"]``). Defaults to ``["datatrove[io]"]``.
+            The Job needs datatrove>=0.10.0, the release that introduced this executor:
+            with an older one it dies at unpickle time (the class doesn't exist in its env).
         timeout: per-Job timeout, as seconds (int) or a string like ``"2h"`` / ``"30m"``.
         tasks_per_job: how many datatrove tasks each Job runs. Reduces the number of Jobs
             launched (default 1).
