@@ -339,6 +339,8 @@ Some options common to most readers:
 - `adapter` this function takes the raw dictionary obtained from the reader and returns a dictionary with `Document`'s field names. You may overwrite this function ([_default_adapter](src/datatrove/pipeline/readers/base.py)) if you would like.
 - `limit` read only a certain number of samples. Useful for testing/debugging
 
+[`WarcReader`](src/datatrove/pipeline/readers/warc.py) preserves valid UTF-8 payloads. For other payloads without a Unicode byte-order mark, it tries the HTTP `Content-Type` charset before falling back to encoding detection. For HTML, Latin-1 and ASCII charset labels use Windows-1252. Missing, unsupported or byte-incompatible declarations, and UTF-16/32 BOM-marked payloads, retain the existing detector fallback.
+
 ### Synthetic data generation
 Install the inference extras with `uv sync --extra inference` to pull in the lightweight HTTP client, checkpointing dependencies and async sqlite cache.
 

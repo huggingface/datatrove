@@ -1,3 +1,5 @@
+import codecs
+from email.message import Message
 from typing import TYPE_CHECKING, Callable, Literal
 
 from datatrove.io import DataFileLike, DataFolderLike
@@ -11,6 +13,9 @@ if TYPE_CHECKING:
 class WarcReader(BaseDiskReader):
     """Read data from WARC files.
         Will read each record as a separate document.
+
+        Valid UTF-8 payloads are preserved. For other payloads without a Unicode BOM,
+        supported HTTP charset declarations are tried before heuristic encoding detection.
 
     Args:
         data_folder: a str, tuple or DataFolder object representing a path/filesystem
@@ -86,7 +91,6 @@ class WarcReader(BaseDiskReader):
 
 def process_record(record: "ArcWarcRecord") -> dict | None:
     """Process a WARC record to extract the html and metadata (id, url, date)."""
-    import cchardet
     import magic
 
     # record type
@@ -113,20 +117,10 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
         ):
             return
 
-    # Decode the response bytes
-    charset = "UTF-8"
-    try:
-        html = content_bytes.decode(charset)
-    except UnicodeDecodeError:
-        encoding_det = cchardet.detect(content_bytes)["encoding"]
-        if not encoding_det or encoding_det == charset:
-            return
-        charset = encoding_det
-
-        try:
-            html = content_bytes.decode(charset)
-        except (UnicodeDecodeError, LookupError):
-            return
+    content_type = record.http_headers.get_header("Content-Type") if record.http_headers else None
+    html = _decode_content(content_bytes, content_type, mime_type)
+    if html is None:
+        return
 
     id_ = record.rec_headers["WARC-Record-ID"]
     url = record.rec_headers.get("WARC-Target-URI", None)
@@ -138,3 +132,37 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
         date = dict(record.rec_headers.headers)["archive-date"]
 
     return {"text": html, "id": id_, "url": url, "date": date}
+
+
+def _decode_content(content: bytes, content_type: str | None, mime_type: str) -> str | None:
+    """Decode a payload, retaining the UTF-8 fast path and detector fallback."""
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+
+    # Keep BOM-marked payloads on the existing detector path; a conflicting HTTP
+    # charset must not reinterpret them as a single-byte encoding.
+    unicode_boms = (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE, codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)
+    if content_type and not content.startswith(unicode_boms):
+        message = Message()
+        message["content-type"] = content_type
+        encoding = message.get_content_charset()
+        if encoding:
+            try:
+                # HTML uses Windows-1252 for the legacy Latin-1 and ASCII labels.
+                if mime_type == "text/html" and codecs.lookup(encoding).name in {"iso8859-1", "ascii"}:
+                    encoding = "windows-1252"
+                return content.decode(encoding)
+            except (UnicodeError, LookupError, ValueError):
+                pass
+
+    import cchardet
+
+    encoding = cchardet.detect(content)["encoding"]
+    if not encoding or encoding == "UTF-8":
+        return None
+    try:
+        return content.decode(encoding)
+    except (UnicodeDecodeError, LookupError):
+        return None
