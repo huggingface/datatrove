@@ -117,10 +117,10 @@ async def _start_ray_head_node(master_port: int, object_store_memory: int) -> No
 
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=PROCESS_TIMEOUT)
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as e:
         process.kill()
         await process.wait()
-        raise RuntimeError(f"Timeout ({PROCESS_TIMEOUT}s) starting Ray head node")
+        raise RuntimeError(f"Timeout ({PROCESS_TIMEOUT}s) starting Ray head node") from e
 
     if process.returncode != 0:
         raise RuntimeError(

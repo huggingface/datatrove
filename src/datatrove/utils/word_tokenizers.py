@@ -381,7 +381,7 @@ class WhitespaceTokenizer(WordTokenizer):
         )
 
     @property
-    @lru_cache(1)
+    @lru_cache(1)  # noqa: B019  # TODO: one cache slot shared by all instances
     def _spacy_xx(self):
         # works generally well for white spaces, but does not work to split sentences with a different script
         return SpaCyTokenizer("xx")

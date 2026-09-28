@@ -250,7 +250,7 @@ class MinhashDedupSignature(PipelineStep):
                     shingles = self.get_shingles(doc.text)
                     if shingles.size != 0:
                         sig = self.get_signature(shingles)
-                        for bi, (bucket, bucket_sig) in enumerate(zip(buckets, sig)):
+                        for bucket, bucket_sig in zip(buckets, sig):
                             # print(f"{self.hashes_per_bucket=} {bucket_sig=}")
                             bucket.write(
                                 struct.pack(

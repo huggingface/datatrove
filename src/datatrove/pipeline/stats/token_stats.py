@@ -21,10 +21,12 @@ class TokenStats(BaseStats, PipelineStepWithTokenizer):
         self,
         output_folder: DataFolderLike,
         tokenizer_name_or_path: str = "gpt2",
-        groups_to_compute: list[GROUP] = ["fqdn", "suffix", "summary", "histogram"],
+        groups_to_compute: list[GROUP] | None = None,
         histogram_rounding: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
+        if groups_to_compute is None:
+            groups_to_compute = ["fqdn", "suffix", "summary", "histogram"]
         BaseStats.__init__(self, output_folder, groups_to_compute, histogram_rounding, top_k_config)
         PipelineStepWithTokenizer.__init__(self, tokenizer_name_or_path)
 
