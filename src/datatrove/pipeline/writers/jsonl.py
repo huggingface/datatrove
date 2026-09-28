@@ -6,11 +6,12 @@ from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
-def _json_default(obj: Any) -> str:
+def _json_default(obj: Any) -> str | None:
     # orjson serializes datetime objects natively but refuses their subclasses,
     # such as pandas.Timestamp (produced e.g. by ParquetReader for timestamp columns)
     if isinstance(obj, (date, time)):
-        return obj.isoformat()
+        # pandas.NaT is also a datetime subclass; it is not equal to itself. Write it as null, not "NaT"
+        return None if obj != obj else obj.isoformat()
     raise TypeError(f"Type is not JSON serializable: {type(obj).__name__}")
 
 
