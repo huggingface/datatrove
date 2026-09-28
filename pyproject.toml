@@ -154,10 +154,12 @@ datatrove = [
 
 [tool.ruff]
 lint.ignore = [
+  "B905", # zip() without strict=
   "C901", # `function_name` is too complex
   "E501", # line length violation
 ]
 lint.select = [
+  "B", # flake8-bugbear
   "C",
   "E",
   "F",

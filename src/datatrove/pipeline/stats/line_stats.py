@@ -1,5 +1,3 @@
-from typing import get_args
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.c4_filters import END_PUNCTUATION
@@ -47,7 +45,7 @@ class LineStats(BaseStats):
         output_folder: DataFolderLike,
         max_k_chars_per_line_tresholds: list[int] | None = None,
         min_k_chars_per_line_thresholds: list[int] | None = None,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         ignore_empty_lines: bool = False,
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
