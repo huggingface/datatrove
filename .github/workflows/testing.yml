@@ -52,7 +52,17 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv
-          uv sync --extra testing
+          # Install the locked `testing` environment without the GPU stack (~4.5 GB of wheels per job).
+          # No test on these CPU runners uses vllm, sglang or bitsandbytes, and torch only runs on CPU here.
+          # `--prune` also drops dependencies that only these packages need.
+          uv export --frozen --extra testing --no-hashes \
+            --prune vllm --prune sglang --prune bitsandbytes --prune torch \
+            -o requirements-ci.txt
+          TORCH_VERSION=$(uv export --frozen --extra testing --no-hashes | grep -oP '^torch==\K[^ ;]+')
+          uv venv
+          # --no-deps: the export is already the full locked set, so nothing is re-resolved from PyPI
+          uv pip install --no-deps -r requirements-ci.txt
+          uv pip install --no-deps "torch==${TORCH_VERSION}" --torch-backend cpu
           .venv/bin/python -m nltk.downloader punkt
       - name: Test with pytest
         env:
