@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 
 from datatrove.pipeline.readers import HuggingFaceDatasetReader
@@ -66,3 +67,42 @@ class TestHuggingFaceReader(unittest.TestCase):
                 data1 = list(reader(rank=1, world_size=2))
                 self.assertEqual(len(data0), 3)
                 self.assertEqual(len(data1), 2)
+
+
+@require_datasets
+class TestHuggingFaceReaderSkipLimit(unittest.TestCase):
+    def setUp(self):
+        from datasets import Dataset
+
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        # an empty row checks that skip and limit count only rows with text
+        texts = ["doc 0", "doc 1", "", "doc 3", "doc 4", "doc 5", "doc 6", "doc 7"]
+        Dataset.from_dict({"text": texts, "id": [str(i) for i in range(len(texts))]}).save_to_disk(self.folder.name)
+
+    def read_ids(self, rank=0, world_size=1, **kwargs):
+        reader = HuggingFaceDatasetReader(self.folder.name, load_from_disk=True, **kwargs)
+        return [doc.id for doc in reader(rank=rank, world_size=world_size)]
+
+    def test_skip_and_limit(self):
+        self.assertEqual(self.read_ids(skip=2, limit=3), ["3", "4", "5"])
+
+    def test_skip_and_limit_apply_per_task(self):
+        for rank in range(2):
+            rank_ids = self.read_ids(rank=rank, world_size=2)
+            self.assertEqual(self.read_ids(rank=rank, world_size=2, skip=1, limit=2), rank_ids[1:3])
+
+    def test_generated_ids_do_not_depend_on_skip(self):
+        from datasets import Dataset
+
+        # no id column, so ids are generated; small batches and an empty row around the skip point
+        with tempfile.TemporaryDirectory() as folder:
+            Dataset.from_dict({"text": ["a", "b", "", "c", "d", "e"]}).save_to_disk(folder)
+            read_ids = lambda **kwargs: [  # noqa: E731
+                doc.id for doc in HuggingFaceDatasetReader(folder, load_from_disk=True, batch_size=2, **kwargs)()
+            ]
+            all_ids = read_ids()
+            self.assertEqual(len(all_ids), 5)
+            for skip in range(7):
+                self.assertEqual(read_ids(skip=skip), all_ids[skip:])
+            self.assertEqual(read_ids(limit=0), [])
