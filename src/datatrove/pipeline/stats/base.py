@@ -21,6 +21,8 @@ class BaseStats(PipelineStep):
     """
     Datatrove block for computing statistics of dataset.
     Each stat is of type MetricStatsDict saved in output_folder/{group}/{stat_name}/{rank:05d}.json
+    Ratios and averages are 0.0 for documents with nothing to divide by (e.g. empty text);
+    use count stats such as `length` or `n_words` to find these documents.
     Args:
         output_folder: The folder where the statistics will be saved.
         groups_to_compute: The groups of statistics to compute.
