@@ -20,7 +20,8 @@ from ...strategies import doc_text
 # across batch boundaries. Parquet needs one type per column, so each metadata key gets one scalar type, with
 # different values per document. Keys that clash with document fields are left out: with expand_metadata=True
 # they are not supported.
-RESERVED_KEYS = {"text", "id", "media", "metadata", "file_path"}
+# "rank" is also excluded: metadata values fill output filename placeholders, so a "rank" key changes the file
+RESERVED_KEYS = {"text", "id", "media", "metadata", "file_path", "rank"}
 SCALAR_TYPES = [
     st.integers(min_value=-(2**63), max_value=2**63 - 1),
     st.floats(allow_nan=False, allow_infinity=False),
