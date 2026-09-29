@@ -89,11 +89,26 @@ def test_jsonl_writes_numpy_scalars(value):
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        (np.float32(0.1), 0.1),  # written with float32 precision, not as 0.10000000149011612
-        (np.array([1, 2, 3]), [1, 2, 3]),
-        (np.datetime64("2020-01-02"), "2020-01-02T00:00:00"),
+        (np.float32(0.1), float(np.float32(0.1))),  # the exact float32 value, as the Parquet writer keeps it
+        (np.int64(2**63 - 1), 2**63 - 1),
+        (np.uint64(2**64 - 1), 2**64 - 1),
+        (np.bool_(False), False),
+        (np.datetime64("2020-01-02"), "2020-01-02"),
+        # nanosecond precision is kept, as for pandas.Timestamp
+        (np.datetime64("2020-01-02T03:04:05.123456789"), "2020-01-02T03:04:05.123456789"),
+        (np.datetime64("NaT", "ns"), None),
     ],
 )
 def test_jsonl_writes_numpy_values(value, expected):
     (read_doc,) = write_and_read([Document(text="text", id="0", metadata={"value": value})])
     assert read_doc.metadata == {"value": expected}
+
+
+# values without an exact JSON form keep raising instead of being written in a lossy way
+@pytest.mark.parametrize(
+    "value",
+    [np.array([1, 2, 3]), np.timedelta64(1, "ns"), np.complex128(1 + 2j), np.longdouble(0.1)],
+)
+def test_jsonl_rejects_numpy_values_without_an_exact_json_form(value):
+    with pytest.raises(TypeError):
+        write_and_read([Document(text="text", id="0", metadata={"value": value})])
