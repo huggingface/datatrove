@@ -1,5 +1,3 @@
-from typing import get_args
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.filters.gopher_repetition_filter import find_duplicates
@@ -36,7 +34,7 @@ class ParagraphStats(BaseStats):
         long_paragraph_max_chars_threshold: list[int] | None = None,
         ignore_empty_paragraphs: bool = False,
         histogram_round_digits: int = 3,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(

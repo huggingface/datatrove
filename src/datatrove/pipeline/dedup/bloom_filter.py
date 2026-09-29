@@ -189,7 +189,7 @@ class SingleBloomFilter(PipelineStep):
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
         with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as writer:
-            for doc_idx, doc in enumerate(data):
+            for doc in data:
                 with self.track_time():
                     self.stat_update(StatHints.total)
                     if not self.step(doc):

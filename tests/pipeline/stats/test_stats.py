@@ -3,14 +3,12 @@ import math
 import shutil
 import tempfile
 import unittest
-from typing import get_args
 from unittest.mock import patch
 
 from datatrove.data import Document
 from datatrove.io import get_datafolder
 from datatrove.pipeline.stats import (
     DEFAULT_TOP_K_CONFIG,
-    GROUP,
     STATS_MERGED_NAME,
     DocStats,
     LangStats,
@@ -29,9 +27,7 @@ from tests.utils import require_nltk, require_tldextract, require_tokenizers
 
 
 class DummyStats(BaseStats):
-    def __init__(
-        self, output_folder, groups=get_args(GROUP), histogram_round_digits=2, top_k_config=DEFAULT_TOP_K_CONFIG
-    ):
+    def __init__(self, output_folder, groups=None, histogram_round_digits=2, top_k_config=DEFAULT_TOP_K_CONFIG):
         super().__init__(
             output_folder,
             groups_to_compute=groups,
