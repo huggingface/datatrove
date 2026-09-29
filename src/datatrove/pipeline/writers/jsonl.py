@@ -14,8 +14,9 @@ def _json_default(obj: Any) -> Any:
     if isinstance(obj, (date, time)):
         # pandas.NaT is also a datetime subclass; it is not equal to itself. Write it as null, not "NaT"
         return None if obj != obj else obj.isoformat()
-    # numpy scalars, e.g. a score from a model (probs.max()). Only types with an exact JSON form are converted:
-    # arrays, timedelta64, complex, longdouble and structured values still raise
+    # numpy scalars, e.g. a score from a model (probs.max()). Only types with a JSON equivalent are converted
+    # (NaN/inf become null, as for Python floats): arrays, timedelta64, complex, longdouble and structured values
+    # still raise
     if isinstance(obj, np.datetime64):
         # keep the value's own precision (like pandas.Timestamp above); NaT is written as null
         return None if np.isnat(obj) else np.datetime_as_string(obj)
