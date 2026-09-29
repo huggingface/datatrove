@@ -52,12 +52,15 @@ if __name__ == "__main__":
     unittest.main()
 
 
+# (precision, hash_fc) tuples: building an xxhash HashConfig imports xxhash, which must not happen at collection
+HASH_CONFIGS = [(32, "xxhash"), (64, "xxhash"), (32, "sha1"), (64, "sha1")]
+
+
 @require_xxhash
-@pytest.mark.parametrize(
-    "config", [HashConfig(32, "xxhash"), HashConfig(64, "xxhash"), HashConfig(32, "sha1"), HashConfig(64, "sha1")]
-)
-@pytest.mark.parametrize("text", ["", "a", "é", "日本語", "x" * 10_000])
-def test_hash_is_in_range_and_matches_utf8_bytes(config, text):
+@pytest.mark.parametrize("precision, hash_fc", HASH_CONFIGS)
+@pytest.mark.parametrize("text", ["", "a", "\u00e9", "\u65e5\u672c\u8a9e", "x" * 10_000])
+def test_hash_is_in_range_and_matches_utf8_bytes(precision, hash_fc, text):
+    config = HashConfig(precision, hash_fc)
     hash_value = create_hash_func(config, str)(text)
     assert isinstance(hash_value, int)
     assert config.min <= hash_value <= config.max

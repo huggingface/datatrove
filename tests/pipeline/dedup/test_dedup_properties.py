@@ -20,7 +20,8 @@ from datatrove.utils.hashing import HashConfig
 from tests.utils import require_xxhash
 
 
-HASH_CONFIGS = [HashConfig(32, "xxhash"), HashConfig(64, "xxhash"), HashConfig(32, "sha1"), HashConfig(64, "sha1")]
+# (precision, hash_fc) tuples: building an xxhash HashConfig imports xxhash, which must not happen at collection
+HASH_CONFIGS = [(32, "xxhash"), (64, "xxhash"), (32, "sha1"), (64, "sha1")]
 
 
 def run_exact_dedup(shards, config, finder_workers):
@@ -54,7 +55,7 @@ def test_exact_dedup_keeps_one_document_per_text(items, n_shards, finder_workers
     config = ExactDedupConfig(
         content_getter=lambda doc: doc.text,
         document_priority=lambda doc: doc.metadata["priority"],
-        hash_config=hash_config,
+        hash_config=HashConfig(*hash_config),
     )
     kept = run_exact_dedup([docs[i::n_shards] for i in range(n_shards)], config, finder_workers)
 
