@@ -57,4 +57,6 @@ class JsonlWriter(DiskWriter):
         for media in document.get("media", []):
             if media["media_bytes"] is not None:
                 media["media_bytes"] = base64.b64encode(media["media_bytes"]).decode("ascii")
-        file_handler.write(orjson.dumps(document, option=orjson.OPT_APPEND_NEWLINE, default=_json_default))
+        # OPT_SERIALIZE_NUMPY: metadata often holds numpy values (e.g. a score from a model or array operation)
+        option = orjson.OPT_APPEND_NEWLINE | orjson.OPT_SERIALIZE_NUMPY
+        file_handler.write(orjson.dumps(document, option=option, default=_json_default))

@@ -79,10 +79,21 @@ def test_jsonl_writes_dates_as_iso_strings(values):
     assert read_doc.metadata == {f"key_{i}": expected for i, (_, expected) in enumerate(values)}
 
 
-# Known open bug: orjson is called without OPT_SERIALIZE_NUMPY, so numpy scalars in metadata raise TypeError.
-# strict=True: once fixed, this passes and fails CI until the marker is removed; then add numpy scalars to json_values.
-@pytest.mark.xfail(strict=True, raises=TypeError, reason="JsonlWriter rejects numpy scalars in metadata")
-@pytest.mark.parametrize("value", [np.int64(1), np.float64(0.5), np.bool_(True)])
+# Metadata often holds numpy scalars, e.g. a score from a model or an array operation.
+@pytest.mark.parametrize("value", [np.int64(1), np.int32(-3), np.float64(0.5), np.float32(0.25), np.bool_(True)])
 def test_jsonl_writes_numpy_scalars(value):
     (read_doc,) = write_and_read([Document(text="text", id="0", metadata={"value": value})])
     assert read_doc.metadata == {"value": value.item()}
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (np.float32(0.1), 0.1),  # written with float32 precision, not as 0.10000000149011612
+        (np.array([1, 2, 3]), [1, 2, 3]),
+        (np.datetime64("2020-01-02"), "2020-01-02T00:00:00"),
+    ],
+)
+def test_jsonl_writes_numpy_values(value, expected):
+    (read_doc,) = write_and_read([Document(text="text", id="0", metadata={"value": value})])
+    assert read_doc.metadata == {"value": expected}
