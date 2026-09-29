@@ -253,7 +253,7 @@ class C4BadWordsFilter(BaseFilter):
             with open(local_path, "rt") as f:
                 # documents are lowercased before matching, so the list entries must be too
                 badwords.update(line.strip().lower() for line in f)
-            for allow_lang, allowlist in _BADWORDS_ALLOWLIST.items():
+            for allowlist in _BADWORDS_ALLOWLIST.values():
                 badwords -= allowlist
 
             words = [re.escape(w) for w in badwords]

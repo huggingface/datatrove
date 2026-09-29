@@ -88,8 +88,10 @@ def check_hf_auth() -> None:
                 raise ValueError(
                     "Active token is NOT a write token. Please set HF_TOKEN environment variable to a write token."
                 )
-    except Exception:
-        raise ValueError("Not logged in to Hugging Face. Please set HF_TOKEN environment variable to a write token.")
+    except Exception as e:
+        raise ValueError(
+            "Not logged in to Hugging Face. Please set HF_TOKEN environment variable to a write token."
+        ) from e
 
 
 def resolve_repo_id(output_dataset_name: str) -> str:

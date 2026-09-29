@@ -1,5 +1,3 @@
-from typing import get_args
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.stats.base import BaseStats
@@ -21,7 +19,7 @@ class LangStats(BaseStats):
         self,
         output_folder: DataFolderLike,
         language: str,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:

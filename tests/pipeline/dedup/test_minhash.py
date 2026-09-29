@@ -74,7 +74,7 @@ class TestMinhash(unittest.TestCase):
                 prev = None
                 doc_ids = set()
                 S = np.dtype(config.hash_config.np_dtype).itemsize
-                for di in range(100):
+                for _ in range(100):
                     data = struct.unpack(
                         f"<%s{config.hash_config.struct_format}" % config.hashes_per_bucket,
                         f.read(config.hashes_per_bucket * S),
