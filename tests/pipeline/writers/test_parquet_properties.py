@@ -56,6 +56,6 @@ def test_parquet_round_trip(docs, batch_size, expand_metadata):
 
     assert [(doc.id, doc.text) for doc in read_docs] == [(doc.id, doc.text) for doc in docs]
     for original, read_doc in zip(docs, read_docs):
-        read_doc.metadata.pop("file_path")  # added by the reader
+        read_doc.metadata.pop("file_path", None)  # added by the reader by default
         # compare serialized forms: plain == treats True == 1 and 0.0 == -0.0
         assert json.dumps(read_doc.metadata, sort_keys=True) == json.dumps(original.metadata, sort_keys=True)

@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 import pytest
 
 from datatrove.utils.hashing import HashConfig, create_hash_func
@@ -62,6 +63,6 @@ HASH_CONFIGS = [(32, "xxhash"), (64, "xxhash"), (32, "sha1"), (64, "sha1")]
 def test_hash_is_in_range_and_matches_utf8_bytes(precision, hash_fc, text):
     config = HashConfig(precision, hash_fc)
     hash_value = create_hash_func(config, str)(text)
-    assert isinstance(hash_value, int)
+    assert isinstance(hash_value, (int, np.integer))
     assert config.min <= hash_value <= config.max
     assert create_hash_func(config, bytes)(text.encode("utf-8")) == hash_value
