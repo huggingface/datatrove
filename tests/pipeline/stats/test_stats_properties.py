@@ -30,31 +30,24 @@ def get_stats(name: str):
     return STATS[name](tempfile.gettempdir())
 
 
-# Empty and whitespace-only text is excluded until #512 lands; see the known-bug test below.
-@pytest.mark.parametrize("name", STATS)
-@given(doc=documents(doc_text(allow_empty=False, allow_blank=False)))
-def test_stats_are_finite_numbers(name, doc):
+def assert_finite_stats(name, doc):
     stats = get_stats(name).extract_stats(doc)
     assert stats, f"{name}: no stats returned"
     for key, value in stats.items():
         assert isinstance(value, (int, float)) and math.isfinite(value), f"{name}: {key}={value!r}"
 
 
-# Known open bug (#512): these stats blocks raise ZeroDivisionError on these blank texts on main.
-# strict=True: once #512 is fixed they pass and fail CI until removed; then allow blank text in the property above.
-ALL_BLANK = ["", " ", "\n", "\n\n", "\t", "\r\n", "\u00a0"]
-BLANK_TEXT_CRASHES = {
-    "doc": [""],
-    "line": ["", "\n", "\n\n"],
-    "paragraph": ALL_BLANK,
-    "word": ALL_BLANK,
-    "sentence": ALL_BLANK,
-}
+@pytest.mark.parametrize("name", STATS)
+@given(doc=documents(doc_text()))
+def test_stats_are_finite_numbers(name, doc):
+    assert_finite_stats(name, doc)
 
 
-@pytest.mark.xfail(strict=True, raises=ZeroDivisionError, reason="stats blocks on empty/whitespace text (#512)")
-@pytest.mark.parametrize(
-    ("name", "text"), [(name, text) for name, texts in BLANK_TEXT_CRASHES.items() for text in texts]
-)
+# Empty and whitespace-only text used to raise ZeroDivisionError (#512); keep explicit cases for each block.
+BLANK_TEXTS = ["", " ", "\n", "\n\n", "\t", "\r\n", "\u00a0"]
+
+
+@pytest.mark.parametrize("text", BLANK_TEXTS)
+@pytest.mark.parametrize("name", STATS)
 def test_stats_on_blank_text(name, text):
-    get_stats(name).extract_stats(Document(text=text, id="0"))
+    assert_finite_stats(name, Document(text=text, id="0"))
