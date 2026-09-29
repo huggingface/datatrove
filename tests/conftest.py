@@ -17,7 +17,7 @@ if settings is not None:
     settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "ci" if os.getenv("CI") else "dev"))
 
 
-# With pytest-xdist --dist loadfile, each file runs on one worker, in collection order.
+# With pytest-xdist --dist loadfile --no-loadscope-reorder, each file runs on one worker, in collection order.
 # Start the slowest files first so they do not set the end of the run.
 SLOW_TEST_FILES = ("tests/executor/test_ray.py", "tests/pipeline/tokens/test_word_tokenizers.py")
 

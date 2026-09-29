@@ -62,4 +62,4 @@ jobs:
           # an env from project metadata, which drops the testing extras and breaks imports.
           # --dist loadfile keeps each test file on one worker: the Ray tests start a local cluster each,
           # and the tokenizer tests download stanza models without a lock.
-          .venv/bin/python -m pytest -n 4 --dist loadfile -v --durations=15 ./tests/
+          .venv/bin/python -m pytest -n 4 --dist loadfile --no-loadscope-reorder -v --durations=15 ./tests/

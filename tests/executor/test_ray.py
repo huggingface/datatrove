@@ -24,7 +24,7 @@ endpoint_uri = f"http://127.0.0.1:{port}/"
 
 class TestRayExecutor(unittest.TestCase):
     def setUp(self):
-        # 2 of the runner's 4 CPUs, so the tests on the other xdist workers are not starved
+        # limit concurrent Ray tasks to reduce CPU contention with the other xdist workers
         ray.init(num_cpus=2)
 
         self.tmp_dir = tempfile.mkdtemp()
