@@ -14,12 +14,14 @@ class InferenceResult:
         reasoning: Reasoning text from the model, when returned separately from the final answer
         finish_reason: Reason why generation finished
         usage: Token usage statistics from the model
+        model: Configured model name or path used for the request; empty when unknown
     """
 
     text: str
     finish_reason: str
     usage: dict
     reasoning: str = ""
+    model: str = ""
 
 
 class InferenceError(Exception):
