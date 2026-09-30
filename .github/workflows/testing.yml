@@ -54,8 +54,7 @@ jobs:
           python -m pip install uv
           # Install the locked `testing` environment without the GPU stack (~4.5 GB of wheels per job).
           # No test on these CPU runners uses vllm, sglang or bitsandbytes, and torch only runs on CPU here.
-          # `--prune` also drops dependencies that only these packages need (e.g. openai, which only the
-          # remote-endpoint path of EndpointServer imports; no test covers that path yet).
+          # `--prune` also drops dependencies that only these GPU packages need.
           # --locked fails if uv.lock is out of date with pyproject.toml.
           uv export --locked --extra testing --no-hashes \
             --prune vllm --prune sglang --prune bitsandbytes --prune torch \

@@ -2,7 +2,9 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import openai
 import pytest
+from openai.types.chat import ChatCompletion
 
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.endpoint_server import EndpointServer
@@ -35,9 +37,6 @@ def test_endpoint_server_preserves_reasoning(
     expected_reasoning: str,
 ) -> None:
     """Normalize SDK reasoning fields to a single reasoning field and preserve it in the runner."""
-    openai = pytest.importorskip("openai")
-    from openai.types.chat import ChatCompletion
-
     usage = {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
     response = ChatCompletion.model_validate(
         {
