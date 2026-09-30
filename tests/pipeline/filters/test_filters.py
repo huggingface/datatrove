@@ -1,4 +1,7 @@
+import os
+import tempfile
 import unittest
+from unittest.mock import patch
 
 from datatrove.data import Document
 from datatrove.pipeline.filters import (
@@ -10,7 +13,7 @@ from datatrove.pipeline.filters import (
     UnigramLogProbFilter,
     URLFilter,
 )
-from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFilter
+from datatrove.pipeline.filters.c4_filters import C4BadWordsFilter, C4ParagraphFilter, C4QualityFilter
 from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 
@@ -206,6 +209,30 @@ class TestC4QualityFilter(unittest.TestCase):
         d = get_doc("This site uses cookies for tracking.\nAnother valid line here today.")
         c4.filter(d)
         assert "cookies" not in d.text
+
+
+class TestC4BadWordsFilter(unittest.TestCase):
+    def _make_filter(self, words: list[str]) -> C4BadWordsFilter:
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+            f.write("\n".join(words) + "\n")
+        self.addCleanup(os.unlink, f.name)
+        patcher = patch("datatrove.pipeline.filters.c4_filters.cached_asset_path_or_download", return_value=f.name)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return C4BadWordsFilter(keep_fraction=0.0, default_language="es")
+
+    def test_drops_doc_with_lowercase_entry(self):
+        c4 = self._make_filter(["asno"])
+        assert c4.filter(get_doc("Esto es un asno hoy.")) == (False, "document_removed_with_badwords")
+
+    def test_drops_doc_with_entry_containing_uppercase(self):
+        c4 = self._make_filter(["Asesinato", "Caca"])
+        for text in ("Esto es asesinato hoy.", "Esto es ASESINATO hoy.", "no toques eso, es caca"):
+            assert c4.filter(get_doc(text)) == (False, "document_removed_with_badwords"), text
+
+    def test_keeps_doc_without_listed_words(self):
+        c4 = self._make_filter(["Asesinato", "asno"])
+        assert c4.filter(get_doc("Esto es una casa bonita hoy.")) is True
 
 
 class TestC4ParagraphFilter(unittest.TestCase):
