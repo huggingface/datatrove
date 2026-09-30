@@ -60,7 +60,7 @@ processing = [
   "ftfy",
   "fasteners",
   "regex",
-  "xxhash<4",
+  "xxhash",
   "pyahocorasick",
 ]
 decont = [

@@ -1,9 +1,13 @@
 import xxhash
 
 
-def xxhash32(data: str | bytes):
+def xxhash32(data: str | bytes) -> int:
+    if isinstance(data, str):
+        data = data.encode("utf-8")
     return xxhash.xxh32_intdigest(data)
 
 
-def xxhash64(data: str | bytes):
+def xxhash64(data: str | bytes) -> int:
+    if isinstance(data, str):
+        data = data.encode("utf-8")
     return xxhash.xxh64_intdigest(data)
