@@ -25,6 +25,14 @@ class TestCsvReader(unittest.TestCase):
         assert docs[0].text == "hello world"
         assert docs[0].id == "doc1"
 
+    def test_line_endings_inside_quoted_text_are_kept(self):
+        path = os.path.join(self.tmp_dir, "data.csv")
+        with open(path, "w", newline="") as f:
+            f.write('text,id\r\n"a\r\nb",1\r\n"c\rd",2\r\n')
+        reader = CsvReader(self.tmp_dir, glob_pattern="*.csv")
+        docs = list(reader.run(data=None, rank=0, world_size=1))
+        assert [doc.text for doc in docs] == ["a\r\nb", "c\rd"]
+
     def test_custom_text_and_id_keys(self):
         self._write_csv("data.csv", "content,uid\nhello,u1\nworld,u2\n")
         reader = CsvReader(self.tmp_dir, text_key="content", id_key="uid", glob_pattern="*.csv")
