@@ -2,16 +2,30 @@ import base64
 from datetime import date, time
 from typing import IO, Any, Callable
 
+import numpy as np
+
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.writers.disk_base import DiskWriter
 
 
-def _json_default(obj: Any) -> str | None:
+def _json_default(obj: Any) -> Any:
     # orjson serializes datetime objects natively but refuses their subclasses,
     # such as pandas.Timestamp (produced e.g. by ParquetReader for timestamp columns)
     if isinstance(obj, (date, time)):
         # pandas.NaT is also a datetime subclass; it is not equal to itself. Write it as null, not "NaT"
         return None if obj != obj else obj.isoformat()
+    # numpy scalars, e.g. a score from a model (probs.max()). Only types with a JSON equivalent are converted
+    # (NaN/inf become null, as for Python floats): arrays, timedelta64, complex, longdouble and structured values
+    # still raise
+    if isinstance(obj, np.datetime64):
+        # keep the value's own precision (like pandas.Timestamp above); NaT is written as null
+        return None if np.isnat(obj) else np.datetime_as_string(obj)
+    if isinstance(obj, np.bool_):  # checked first so it stays a bool, not 1/0
+        return bool(obj)
+    if isinstance(obj, np.integer) and not isinstance(obj, np.timedelta64):  # timedelta64 subclasses np.integer
+        return int(obj)
+    if isinstance(obj, (np.float16, np.float32, np.float64)):  # not np.floating: longdouble has no exact JSON form
+        return float(obj)
     raise TypeError(f"Type is not JSON serializable: {type(obj).__name__}")
 
 
