@@ -16,7 +16,9 @@ class BaseReader(PipelineStep):
         Reader are the first step in a pipeline usually.
 
     Args:
-        limit: limit the number of documents to read. Useful for debugging
+        limit: maximum number of documents to read per task (with N tasks, up to N * limit in total). Useful for debugging
+        skip: number of documents to skip at the start of each task's input.
+            Both count only documents with text.
         adapter: function to adapt the data dict from the source to a Document.
             Takes as input: (self, data: dict, path: str, id_in_file: int | str)
                 self allows access to self.text_key and self.id_key
@@ -45,6 +47,13 @@ class BaseReader(PipelineStep):
         self.adapter = MethodType(adapter, self) if adapter else self._default_adapter
         self._empty_warning = False
         self.default_metadata = default_metadata
+
+    def _log_limit_scope(self, rank: int, world_size: int):
+        # limit and skip apply to each task's own input, so the total grows with the number of tasks
+        if rank == 0 and world_size > 1 and self.limit != -1:
+            logger.info(
+                f"limit={self.limit} applies per task: up to {self.limit * world_size} documents across {world_size} tasks"
+            )
 
     def _default_adapter(self, data: dict, path: str, id_in_file: int | str):
         """
@@ -116,8 +125,8 @@ class BaseDiskReader(BaseReader):
     Args:
         data_folder: a str, tuple or DataFolder object representing a path/filesystem
         paths_file: optionally provide a file with one path per line (without the `data_folder` prefix) to read.
-        limit: limit the number of documents to read. Useful for debugging
-        skip: skip the first n rows
+        limit: maximum number of documents to read per task (with N tasks, up to N * limit in total). Useful for debugging
+        skip: number of documents to skip at the start of each task's input. Both count only documents with text
         file_progress: show progress bar for files
         doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
@@ -244,6 +253,7 @@ class BaseDiskReader(BaseReader):
             # otherwise just a warning
             logger.warning(f"No files found on {self.data_folder.path} for {rank=}")
 
+        self._log_limit_scope(rank, world_size)
         if self.shuffle_files:
             random.shuffle(files_shard)
         for doc in self.read_files_shard(files_shard):
