@@ -148,7 +148,10 @@ class MegatronDocumentTokenizer(PipelineStepWithTokenizer):
         output_folder (DataFolderLike): the output folder where to save the tokenized documents
         save_filename (str): the filename to use for the final tokenized files (default: None – use the default filename)
         tokenizer_name_or_path (str): the name or path of the tokenizer to use, from the HuggingFace tokenizers library (default: "gpt2")
-        eos_token (str): whether to add the EOS token after each document (default: "<|endoftext|>")
+        eos_token (str): the token appended after each document to mark document boundaries.
+            Required (no default; pass it explicitly). It must match the EOS token your training
+            setup expects, since Megatron uses it to delimit documents (e.g. to reset position ids
+            and attention masks).
         batch_size (int): batch size for tokenization (default: 1000)
         upload_block_size (int | None): the fsspec size of the upload block for remote filesystems (S3)
             You can set this if your s3 uploads are failing because of "Part number must be an integer between 1 and 10000, inclusive".
@@ -163,12 +166,20 @@ class MegatronDocumentTokenizer(PipelineStepWithTokenizer):
         output_folder: DataFolderLike,
         save_filename: str = None,  # If defined, the final output filename will be this
         tokenizer_name_or_path: str = "gpt2",  # Tokenizer to use, from HF or a local
-        eos_token: str = "<|endoftext|>",  # Whether to add the EOS token after each document
+        eos_token: str | None = None,  # required: token appended to mark document boundaries
         batch_size: int = 10000,  # Batch size for tokenization
         upload_block_size: int | None = None,
         # You can set this if your s3 uploads are failing because of "Part
         # number must be an integer between 1 and 10000, inclusive". Example: 20 * 2**20 (20MB)
     ):
+        # eos_token keeps a `None` default (rather than being a required positional/keyword-only
+        # argument) so the calling convention is unchanged; we enforce it explicitly here instead.
+        if eos_token is None:
+            raise ValueError(
+                "eos_token is required: it marks document boundaries in the output and must match "
+                "the EOS token your training setup expects "
+                "(e.g. '<|endoftext|>', '<|end_of_text|>', or '<|im_end|>')."
+            )
         super().__init__(tokenizer_name_or_path, eos_token)
 
         self.output_folder = get_datafolder(output_folder)
