@@ -620,13 +620,19 @@ class MinhashDedupFilter(PipelineStep):
         self.load_cluster_sizes = load_cluster_sizes
         self.lines_to_buffer = lines_to_buffer
 
-    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1):
-        if not self.data_folder.isfile(f"{rank:06d}.remove"):
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        """Filter duplicates and load the requested cluster metadata for each document."""
+        has_removals = self.data_folder.isfile(f"{rank:06d}.remove")
+        if not has_removals:
             logger.warning(f"No .remove file for {rank=}.")
-            for doc in data:
-                self.stat_update(StatHints.total, StatHints.forwarded)
-                yield doc
-            return
+            has_requested_metadata = (self.load_cluster_ids and self.data_folder.isfile(f"{rank:06d}.clusters")) or (
+                self.load_cluster_sizes and self.data_folder.isfile(f"{rank:06d}.sizes")
+            )
+            if not has_requested_metadata:
+                for doc in data:
+                    self.stat_update(StatHints.total, StatHints.forwarded)
+                    yield doc
+                return
 
         # additional metadata files
         # cluster ids
@@ -638,10 +644,12 @@ class MinhashDedupFilter(PipelineStep):
             logger.warning(f"No .sizes file for {rank=}.")
             raise FileNotFoundError
 
-        with self.data_folder.open(f"{rank:06d}.remove", "rb") as f:
+        with self.data_folder.open(f"{rank:06d}.remove", "rb") if has_removals else contextlib.nullcontext() as f:
             with self.exclusion_writer if self.exclusion_writer else contextlib.nullcontext() as exc_writer:
 
-                def get_next():
+                def get_next() -> int | None:
+                    if f is None:
+                        return None
                     data = f.read(struct.calcsize("I"))
                     if data:
                         return struct.unpack("<I", data)[0]
