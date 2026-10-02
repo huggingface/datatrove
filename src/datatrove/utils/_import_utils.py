@@ -1,4 +1,6 @@
+import importlib.metadata
 import importlib.resources
+import importlib.util
 import os
 from functools import lru_cache
 from typing import NoReturn

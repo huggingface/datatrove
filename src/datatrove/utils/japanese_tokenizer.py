@@ -154,7 +154,9 @@ class JapaneseTokenizer(DummyTokenizer):
     def _get_config(self) -> dict[str, Any]:
         return {"split_mode": self.split_mode}
 
-    def _set_config(self, config: dict[str, Any] = {}) -> None:
+    def _set_config(self, config: dict[str, Any] | None = None) -> None:
+        if config is None:
+            config = {}
         self.split_mode = config.get("split_mode", None)
 
     def to_bytes(self, **kwargs) -> bytes:

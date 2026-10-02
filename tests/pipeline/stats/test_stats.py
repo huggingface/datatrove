@@ -3,18 +3,18 @@ import math
 import shutil
 import tempfile
 import unittest
-from typing import get_args
+from unittest.mock import patch
 
 from datatrove.data import Document
 from datatrove.io import get_datafolder
 from datatrove.pipeline.stats import (
     DEFAULT_TOP_K_CONFIG,
-    GROUP,
     STATS_MERGED_NAME,
     DocStats,
     LangStats,
     LineStats,
     ParagraphStats,
+    SentenceStats,
     StatsMerger,
     TokenStats,
     TopKConfig,
@@ -27,9 +27,7 @@ from tests.utils import require_nltk, require_tldextract, require_tokenizers
 
 
 class DummyStats(BaseStats):
-    def __init__(
-        self, output_folder, groups=get_args(GROUP), histogram_round_digits=2, top_k_config=DEFAULT_TOP_K_CONFIG
-    ):
+    def __init__(self, output_folder, groups=None, histogram_round_digits=2, top_k_config=DEFAULT_TOP_K_CONFIG):
         super().__init__(
             output_folder,
             groups_to_compute=groups,
@@ -47,6 +45,56 @@ DOCS = [
     Document("1", "2", metadata={"url": "test2.cz"}),
     Document("1", "3", metadata={"url": "test3.cz"}),
 ]
+
+
+class _EmptyTokenizer:
+    def word_tokenize(self, text: str) -> list[str]:
+        return []
+
+    def sent_tokenize(self, text: str) -> list[str]:
+        return []
+
+
+@require_tldextract
+class TestEmptyDocumentStats(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = get_datafolder(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp_dir.path)
+
+    def test_empty_document_produces_finite_stats(self) -> None:
+        doc = Document("", "empty", metadata={"url": "https://example.com"})
+        empty_tokenizer = _EmptyTokenizer()
+
+        with (
+            patch("datatrove.pipeline.stats.contamination_stats.load_word_tokenizer", return_value=empty_tokenizer),
+            patch("datatrove.pipeline.stats.sentence_stats.load_word_tokenizer", return_value=empty_tokenizer),
+            patch("datatrove.pipeline.stats.word_stats.load_word_tokenizer", return_value=empty_tokenizer),
+        ):
+            stats_blocks = [
+                DocStats(self.tmp_dir),
+                LineStats(self.tmp_dir, ignore_empty_lines=True),
+                ParagraphStats(self.tmp_dir),
+                SentenceStats(self.tmp_dir),
+                WordStats(self.tmp_dir),
+                WordsContaminationStats(self.tmp_dir, ["example"]),
+            ]
+
+            for stats_block in stats_blocks:
+                with self.subTest(stats_block=stats_block.__class__.__name__):
+                    stats = stats_block.extract_stats(doc)
+                    for name, value in stats.items():
+                        expected = 1 if isinstance(stats_block, LineStats) and name == "n_lines" else 0
+                        self.assertEqual(value, expected)
+                        self.assertTrue(math.isfinite(value))
+
+    def test_empty_document_with_default_line_stats_produces_finite_stats(self) -> None:
+        doc = Document("", "empty", metadata={"url": "https://example.com"})
+
+        stats = LineStats(self.tmp_dir).extract_stats(doc)
+
+        self.assertEqual(stats["n_lines"], 1)
+        self.assertEqual(stats["line_char_duplicates"], 0.0)
+        self.assertTrue(all(math.isfinite(value) for value in stats.values()))
 
 
 @require_tldextract

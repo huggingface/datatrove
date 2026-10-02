@@ -1,19 +1,17 @@
-from typing import get_args
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.base import BaseStats, _safe_divide
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.typeshelper import Languages
 from datatrove.utils.word_tokenizers import load_word_tokenizer
 
 
 def get_short_sentence_ratio(sentences: list[str], threshold: int) -> float:
-    return sum([1 for sentence in sentences if len(sentence) <= threshold]) / len(sentences)
+    return _safe_divide(sum([1 for sentence in sentences if len(sentence) <= threshold]), len(sentences))
 
 
 def get_long_sentence_ratio(sentences: list[str], threshold: int) -> float:
-    return sum([1 for sentence in sentences if len(sentence) >= threshold]) / len(sentences)
+    return _safe_divide(sum([1 for sentence in sentences if len(sentence) >= threshold]), len(sentences))
 
 
 class SentenceStats(BaseStats):
@@ -36,7 +34,7 @@ class SentenceStats(BaseStats):
         long_sentence_max_chars_threshold: list[int] | None = None,
         language: str = Languages.english,
         histogram_round_digits: int = 3,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(
@@ -57,7 +55,7 @@ class SentenceStats(BaseStats):
 
         return {
             "n_sentences": len(sentences),
-            "avg_sentence_length": sum([len(s) for s in sentences]) / len(sentences),
+            "avg_sentence_length": _safe_divide(sum([len(s) for s in sentences]), len(sentences)),
             **{
                 f"short_sentence_ratio_{chars}": get_short_sentence_ratio(sentences, chars)
                 for chars in self.short_sentence_max_chars_threshold

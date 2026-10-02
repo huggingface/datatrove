@@ -1,6 +1,6 @@
 [project]
 name = "datatrove"
-version = "0.10.0"  # expected format is one of x.y.z.dev0, x.y.zrc1 or x.y.z (PEP 440 canonical — the release workflow greps this raw string against normalized wheel filenames)
+version = "0.10.1"  # expected format is one of x.y.z.dev0, x.y.zrc1 or x.y.z (PEP 440 canonical — the release workflow greps this raw string against normalized wheel filenames)
 description = "HuggingFace library to process and filter large amounts of webdata"
 readme = "README.md"
 authors = [
@@ -112,6 +112,7 @@ testing = [
   "datatrove[decont]",
   # Flask doesn't have correct dependencies on werkzeug, causing issues, thus we pin flask 3.1 (which currently works) to avoid it
   "flask>=3.1.0",
+  "hypothesis",
   "pytest",
   "pytest-rerunfailures",
   "pytest-timeout",
@@ -153,10 +154,12 @@ datatrove = [
 
 [tool.ruff]
 lint.ignore = [
+  "B905", # zip() without strict=
   "C901", # `function_name` is too complex
   "E501", # line length violation
 ]
 lint.select = [
+  "B", # flake8-bugbear
   "C",
   "E",
   "F",

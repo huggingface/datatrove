@@ -52,7 +52,21 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv
-          uv sync --extra testing
+          # Install the locked `testing` environment without the GPU stack (~4.5 GB of wheels per job).
+          # No test on these CPU runners uses vllm, sglang or bitsandbytes, and torch only runs on CPU here.
+          # `--prune` also drops dependencies that only these packages need (e.g. openai, which only the
+          # remote-endpoint path of EndpointServer imports; no test covers that path yet).
+          # --locked fails if uv.lock is out of date with pyproject.toml.
+          uv export --locked --extra testing --no-hashes \
+            --prune vllm --prune sglang --prune bitsandbytes --prune torch \
+            -o requirements-ci.txt
+          TORCH_VERSION=$(uv export --locked --extra testing --no-hashes | grep -oP '^torch==\K[^ ;]+')
+          uv venv
+          # --no-deps: the export is already the full locked set, so nothing is re-resolved from PyPI
+          uv pip install --no-deps -r requirements-ci.txt
+          uv pip install --no-deps "torch==${TORCH_VERSION}" --torch-backend cpu
+          # fail here, not in a random test, if the pruned install is missing a dependency
+          uv pip check
           .venv/bin/python -m nltk.downloader punkt
       - name: Test with pytest
         env:
@@ -60,4 +74,6 @@ jobs:
         run: |
           # Avoid `uv run` here: Ray workers inherit the launcher and try to recreate
           # an env from project metadata, which drops the testing extras and breaks imports.
-          .venv/bin/python -m pytest -sv ./tests/
+          # --dist loadfile keeps each test file on one worker: the Ray tests start a local cluster each,
+          # and the tokenizer tests download stanza models without a lock.
+          .venv/bin/python -m pytest -n 4 --dist loadfile -v --durations=15 ./tests/

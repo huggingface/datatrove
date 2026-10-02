@@ -15,8 +15,8 @@ class HuggingFaceDatasetReader(BaseReader):
         dataset: the name of the dataset to load with datasets.load_dataset
         dataset_options: options to pass to the load_dataset function
         streaming: whether to stream the dataset
-        limit: limit the number of rows to read
-        skip: skip the first n rows
+        limit: maximum number of rows to read per task (with N tasks, up to N * limit in total)
+        skip: number of rows to skip at the start of each task's shard. Both count only rows with text
         batch_size: the batch size to use
         doc_progress: show progress bar for documents
         adapter: function to adapt the data dict from the source to a Document.
@@ -114,8 +114,10 @@ class HuggingFaceDatasetReader(BaseReader):
         shard = self._get_dataset_shard(ds, rank, world_size)
         if not shard:
             return
+        self._log_limit_scope(rank, world_size)
         with tqdm(total=self.limit if self.limit != -1 else None, disable=not self.doc_progress) as pbar:
             li = 0
+            skipped = 0
             for batch in shard.iter(self.batch_size):
                 if self.limit != -1 and li >= self.limit:
                     break
@@ -124,8 +126,12 @@ class HuggingFaceDatasetReader(BaseReader):
                     for line in (dict(zip(batch, t)) for t in zip(*batch.values())):
                         if self.limit != -1 and li >= self.limit:
                             break
-                        document = self.get_document_from_dict(line, self.dataset, f"{rank:05d}/{li}")
+                        # the index counts skipped rows too, so ids do not depend on skip
+                        document = self.get_document_from_dict(line, self.dataset, f"{rank:05d}/{skipped + li}")
                         if not document:
+                            continue
+                        if skipped < self.skip:
+                            skipped += 1
                             continue
                         documents.append(document)
                         self.update_doc_stats(document)

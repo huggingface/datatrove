@@ -233,7 +233,7 @@ class DataFolder(DirFileSystem):
         """
         if self.auto_mkdir and ("w" in mode or "a" in mode):
             self.fs.makedirs(self.fs._parent(self._join(path)), exist_ok=True)
-        return super().open(path, mode=mode, *args, **kwargs)
+        return super().open(path, mode=mode, *args, **kwargs)  # noqa: B026  # TODO: extra positional args clash with mode=
 
     def is_local(self):
         """

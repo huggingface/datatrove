@@ -253,7 +253,7 @@ class C4BadWordsFilter(BaseFilter):
             # text: an entry containing an uppercase character (e.g. most of the "es" list) could otherwise never match.
             with open(local_path, "rt") as f:
                 badwords.update(line.strip().lower() for line in f)
-            for allow_lang, allowlist in _BADWORDS_ALLOWLIST.items():
+            for allowlist in _BADWORDS_ALLOWLIST.values():
                 badwords -= allowlist
 
             words = [re.escape(w) for w in badwords]
