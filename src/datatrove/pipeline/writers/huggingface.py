@@ -47,7 +47,8 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             dataset: A namespace (user or an organization) and a repo name separated by a `/`.
             private: whether to set the repo to private if it has to be created
             local_working_dir: where to save files before they are uploaded. If omitted, a temporary
-                directory is kept alive for the lifetime of this writer
+                directory is kept alive for the lifetime of this writer. Copied or serialized writers
+                get their own temporary directory
             output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
             compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
             adapter: a custom function to "adapt" the Document format to the desired output format
@@ -83,6 +84,22 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         self.operations = []
         self._repo_init = False
         self.revision = revision
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Serialize staging configuration without copying its cleanup finalizer."""
+        state = self.__dict__.copy()
+        state["_local_working_tmpdir"] = self._local_working_tmpdir is not None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Give a copied or deserialized writer independent temporary staging."""
+        temporary = state.pop("_local_working_tmpdir", None)
+        self.__dict__.update(state)
+        self._local_working_tmpdir = tempfile.TemporaryDirectory() if temporary else None
+        if self._local_working_tmpdir is not None:
+            self.local_working_dir = get_datafolder(self._local_working_tmpdir.name)
+            self.output_folder = self.local_working_dir
+            self.output_mg = self.output_folder.get_output_file_manager(mode="wb", compression=None)
 
     def upload_files(self, *filenames):
         if not self._repo_init:
