@@ -158,6 +158,10 @@ def _offline_documents(data: Any, rank: int, world_size: int, destination: str) 
             rows = pq.read_table(addition.path_or_fileobj).to_pylist()
             output = Path(destination) / f"{rank}.json"
             output.write_text(json.dumps(rows), encoding="utf-8")
+            staging = Path(addition.path_or_fileobj).parents[1]
+            (Path(destination) / f"{rank}.staging.json").write_text(
+                json.dumps({"path": str(staging), "mode": stat.S_IMODE(staging.stat().st_mode)}), encoding="utf-8"
+            )
 
     hf.create_repo = Mock()
     hf.preupload_lfs_files = preupload
@@ -165,10 +169,12 @@ def _offline_documents(data: Any, rank: int, world_size: int, destination: str) 
     return [Document(text=f"rank {rank} document {index}", id=f"{rank}-{index}") for index in range(2)]
 
 
-@pytest.mark.parametrize("workers", [1, 2])
+@pytest.mark.parametrize("workers,start_method", [(1, "spawn"), (2, "spawn"), (2, "forkserver")])
 @require_pyarrow
-def test_default_staging_in_local_executor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workers: int) -> None:
-    """Run real sequential and spawned ranks without making any Hub requests."""
+def test_default_staging_in_local_executor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workers: int, start_method: str
+) -> None:
+    """Run real workers and remove their temporary staging before they exit."""
     for name in ["create_repo", "preupload_lfs_files", "create_commit"]:
         monkeypatch.setattr(hf, name, Mock())
     executor = LocalPipelineExecutor(
@@ -178,16 +184,22 @@ def test_default_staging_in_local_executor(tmp_path: Path, monkeypatch: pytest.M
         ],
         tasks=2,
         workers=workers,
-        start_method="spawn",
+        start_method=start_method,
         logging_dir=str(tmp_path / "logs"),
     )
     executor.run()
+    staging_paths = []
     for rank in range(2):
         assert executor.is_rank_completed(rank)
         rows = json.loads((tmp_path / f"{rank}.json").read_text(encoding="utf-8"))
         assert [(row["id"], row["text"]) for row in rows] == [
             (f"{rank}-{index}", f"rank {rank} document {index}") for index in range(2)
         ]
+        staging = json.loads((tmp_path / f"{rank}.staging.json").read_text(encoding="utf-8"))
+        assert staging["mode"] == 0o700
+        staging_paths.append(Path(staging["path"]))
+    assert len(set(staging_paths)) == 2
+    assert all(not path.exists() for path in staging_paths)
 
 
 @pytest.mark.parametrize("executor_kind", ["local", "slurm", "jobs"])
@@ -222,3 +234,127 @@ def test_executor_staging_serialization(tmp_path: Path, executor_kind: str) -> N
     del restored
     gc.collect()
     assert not paths[2].exists()
+
+
+@pytest.mark.parametrize("temporary", [False, True])
+@pytest.mark.parametrize("cleanup", [False, True])
+@require_pyarrow
+def test_close_cleanup_and_direct_reuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, temporary: bool, cleanup: bool
+) -> None:
+    """Clean owned staging promptly and preserve explicit paths and retention settings."""
+    import pyarrow.parquet as pq
+
+    for name in ["create_repo", "create_commit"]:
+        monkeypatch.setattr(hf, name, Mock())
+    uploaded = []
+
+    def preupload(_dataset: str, additions: list[Any], **_kwargs: Any) -> None:
+        """Check private permissions and read real files before each upload finishes."""
+        for addition in additions:
+            staging = Path(addition.path_or_fileobj).parents[1]
+            if temporary:
+                assert stat.S_IMODE(staging.stat().st_mode) == 0o700
+            uploaded.extend((row["id"], row["text"]) for row in pq.read_table(addition.path_or_fileobj).to_pylist())
+
+    monkeypatch.setattr(hf, "preupload_lfs_files", preupload)
+    options = {} if temporary else {"local_working_dir": str(tmp_path)}
+    writer = hf.HuggingFaceDatasetWriter("org/test", cleanup=cleanup, max_file_size=-1, **options)
+    paths = []
+    for rank in [0, 1]:
+        writer.write(Document(text=f"rank {rank} Árbol 🌱", id=str(rank)), rank=rank)
+        staging = Path(writer.local_working_dir.path)
+        paths.append(staging)
+        writer.close()
+        assert staging.exists() is (not (temporary and cleanup))
+        assert len(list(staging.rglob("*.parquet"))) == (0 if cleanup else rank + 1)
+        # A second close must not recreate staging or make later reuse lose privacy.
+        writer.close()
+        assert staging.exists() is (not (temporary and cleanup))
+    assert uploaded == [(str(rank), f"rank {rank} Árbol 🌱") for rank in [0, 1]]
+    assert (paths[0] != paths[1]) is (temporary and cleanup)
+    del writer
+    gc.collect()
+    if temporary:
+        assert all(not path.exists() for path in paths)
+    else:
+        assert tmp_path.is_dir()
+
+
+@pytest.mark.parametrize("serialization", ["deepcopy", "pickle", "dill"])
+@require_pyarrow
+def test_serialize_closed_temporary_writer(monkeypatch: pytest.MonkeyPatch, serialization: str) -> None:
+    """Closed configurations restore live private staging before another write."""
+    import dill
+
+    for name in ["create_repo", "preupload_lfs_files", "create_commit"]:
+        monkeypatch.setattr(hf, name, Mock())
+    writer = hf.HuggingFaceDatasetWriter("org/test", max_file_size=-1)
+    original_path = Path(writer.local_working_dir.path)
+    writer.write(Document(text="first fixture", id="0"))
+    writer.close()
+    assert not original_path.exists()
+    if serialization == "deepcopy":
+        restored = deepcopy(writer)
+    else:
+        serializer = pickle if serialization == "pickle" else dill
+        restored = serializer.loads(serializer.dumps(writer))
+    path = Path(restored.local_working_dir.path)
+    assert path != original_path
+    assert path.is_dir()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o700
+    restored.write(Document(text="restored fixture", id="1"))
+    assert restored.local_working_dir.path == str(path)
+    restored.close()
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("failure_step", ["preupload_lfs_files", "create_commit"])
+@require_pyarrow
+def test_failed_close_keeps_temporary_staging(monkeypatch: pytest.MonkeyPatch, failure_step: str) -> None:
+    """Do not remove the owned directory on upload or commit failure."""
+    for name in ["create_repo", "preupload_lfs_files", "create_commit"]:
+        monkeypatch.setattr(hf, name, Mock())
+
+    def fail_upload(*_args: Any, **_kwargs: Any) -> None:
+        """Raise a fresh error so the mock does not retain a traceback and its writer."""
+        raise RuntimeError("offline fixture failure")
+
+    monkeypatch.setattr(hf, failure_step, Mock(side_effect=fail_upload))
+    writer = hf.HuggingFaceDatasetWriter("org/test", max_file_size=-1)
+    path = Path(writer.local_working_dir.path)
+    writer.write(Document(text="failure fixture", id="0"))
+    with pytest.raises(RuntimeError, match="offline fixture failure"):
+        writer.close()
+    assert path.is_dir()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o700
+    assert (path / "data/00000.parquet").exists() is (failure_step == "preupload_lfs_files")
+    del writer
+    gc.collect()
+    assert not path.exists()
+
+
+@require_pyarrow
+def test_rotation_keeps_staging_until_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rotated uploads leave the directory available until the successful final commit."""
+    import pyarrow.parquet as pq
+
+    for name in ["create_repo", "create_commit"]:
+        monkeypatch.setattr(hf, name, Mock())
+    uploaded = []
+
+    def preupload(_dataset: str, additions: list[Any], **_kwargs: Any) -> None:
+        """Read rotated Parquet files before per-file cleanup."""
+        for addition in additions:
+            uploaded.extend(row["id"] for row in pq.read_table(addition.path_or_fileobj).to_pylist())
+
+    monkeypatch.setattr(hf, "preupload_lfs_files", preupload)
+    writer = hf.HuggingFaceDatasetWriter("org/test", max_file_size=1)
+    path = Path(writer.local_working_dir.path)
+    for index in range(3):
+        writer.write(Document(text=f"rotation fixture {index}", id=str(index)))
+        assert path.is_dir()
+        assert stat.S_IMODE(path.stat().st_mode) == 0o700
+    writer.close()
+    assert uploaded == ["0", "1", "2"]
+    assert not path.exists()

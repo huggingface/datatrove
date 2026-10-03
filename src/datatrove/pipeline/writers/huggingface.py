@@ -15,6 +15,7 @@ from huggingface_hub import (
 )
 from huggingface_hub.utils import HfHubHTTPError
 
+from datatrove.data import Document
 from datatrove.io import DataFolderLike, get_datafolder
 from datatrove.pipeline.writers import ParquetWriter
 from datatrove.utils.logging import logger
@@ -46,9 +47,9 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         Args:
             dataset: A namespace (user or an organization) and a repo name separated by a `/`.
             private: whether to set the repo to private if it has to be created
-            local_working_dir: where to save files before they are uploaded. If omitted, a temporary
-                directory is kept alive for the lifetime of this writer. Copied or serialized writers
-                get their own temporary directory
+            local_working_dir: where to save files before they are uploaded. If omitted, a private
+                temporary directory is used. Copied or serialized writers get their own directory.
+                With cleanup=True, it is removed after a successful close and recreated on reuse
             output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
             compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
             adapter: a custom function to "adapt" the Document format to the desired output format
@@ -61,6 +62,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         self.dataset = dataset
         self.private = private
         self._local_working_tmpdir = tempfile.TemporaryDirectory() if local_working_dir is None else None
+        self._temporary_staging_closed = False
         self.local_working_dir = get_datafolder(
             local_working_dir if local_working_dir is not None else self._local_working_tmpdir.name
         )
@@ -96,10 +98,27 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         temporary = state.pop("_local_working_tmpdir", None)
         self.__dict__.update(state)
         self._local_working_tmpdir = tempfile.TemporaryDirectory() if temporary else None
+        self._temporary_staging_closed = False
         if self._local_working_tmpdir is not None:
             self.local_working_dir = get_datafolder(self._local_working_tmpdir.name)
             self.output_folder = self.local_working_dir
             self.output_mg = self.output_folder.get_output_file_manager(mode="wb", compression=None)
+
+    def write(self, document: Document, rank: int = 0, **kwargs: Any) -> None:
+        """Write a document, restoring private temporary staging when reusing a closed writer.
+
+        Args:
+            document: Document to write.
+            rank: Current worker rank.
+            **kwargs: Additional output filename substitutions.
+        """
+        if self._temporary_staging_closed:
+            self._local_working_tmpdir = tempfile.TemporaryDirectory()
+            self.local_working_dir = get_datafolder(self._local_working_tmpdir.name)
+            self.output_folder = self.local_working_dir
+            self.output_mg = self.output_folder.get_output_file_manager(mode="wb", compression=None)
+            self._temporary_staging_closed = False
+        super().write(document, rank=rank, **kwargs)
 
     def upload_files(self, *filenames):
         if not self._repo_init:
@@ -146,6 +165,10 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     logger.error(f"Failed to create commit: {e.server_message or str(e)}")
                     raise e
         self.operations = []
+        if self.cleanup and self._local_working_tmpdir is not None:
+            # Pool workers may exit without running Python's temporary-directory finalizer.
+            self._local_working_tmpdir.cleanup()
+            self._temporary_staging_closed = True
 
     def _on_file_switch(self, original_name, old_filename, new_filename):
         """
