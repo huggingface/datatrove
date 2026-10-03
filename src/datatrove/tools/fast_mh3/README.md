@@ -64,7 +64,9 @@ MinhashDedupFilter("/path/to/remove_ids", load_cluster_ids=True, load_cluster_si
 ```
 
 Saving IDs adds 8 bytes of output per node and a shared lookup table proportional
-to the number of components. This work is skipped when the flag is omitted.
+to the number of components. On S3, cluster output also adds a multipart buffer
+per active rank (a 5 MiB flush threshold), plus copies during uploads. This work
+is skipped when the flag is omitted.
 
 To run the Rust tests and Python interoperability tests from the repository root:
 
