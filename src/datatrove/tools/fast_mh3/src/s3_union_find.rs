@@ -14,6 +14,9 @@ use tokio_retry::strategy::{ExponentialBackoff, jitter};
 use tokio::time::{Duration, sleep};
 use tokio::sync::Semaphore;
 
+mod cluster_ids;
+use cluster_ids::{build_cluster_ids, ClusterIds};
+
 const SENTINEL: u32 = u32::MAX;
 
 fn format_duration(duration: Duration) -> String {
@@ -57,6 +60,10 @@ struct Args {
     /// Total number of concurrent downloads
     #[arg(long, default_value = "0")]
     downloads: usize,
+
+    /// Save Python-compatible cluster IDs in .clusters files
+    #[arg(long)]
+    save_cluster_id: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -276,6 +283,7 @@ async fn process_single_file(
     output_path: &S3Path,
     file_number: u32,
     union_find: &Arc<UnionFindData>,
+    cluster_ids: Option<&ClusterIds>,
     pb: &ProgressBar,
 ) -> Result<(usize, usize)> {
     let mut to_remove = 0;
@@ -318,6 +326,17 @@ async fn process_single_file(
         BUFFER_THRESHOLD,
     ).await?;
 
+    let mut clusters_writer = if cluster_ids.is_some() {
+        Some(S3StreamWriter::new(
+            client,
+            &output_path.bucket,
+            &output_path.with_key(&format!("{:06}.clusters", file_number)),
+            BUFFER_THRESHOLD,
+        ).await?)
+    } else {
+        None
+    };
+
     for (doc, root, size) in nodes_data {
         let node = (file_number, doc);
 
@@ -326,6 +345,13 @@ async fn process_single_file(
         buffer.write_u32::<LittleEndian>(doc)?;
         buffer.write_u32::<LittleEndian>(size as u32)?;
         sizes_writer.write(&buffer).await?;
+
+        if let (Some(ids), Some(writer)) = (cluster_ids, &mut clusters_writer) {
+            let mut record = [0u8; 8];
+            record[..4].copy_from_slice(&doc.to_le_bytes());
+            record[4..].copy_from_slice(&ids[&root].to_le_bytes());
+            writer.write(&record).await?;
+        }
 
         // Handle removal markers
         if node != root {
@@ -344,6 +370,9 @@ async fn process_single_file(
 
     sizes_writer.finalize().await?;
     remove_writer.finalize().await?;
+    if let Some(writer) = clusters_writer {
+        writer.finalize().await?;
+    }
 
     Ok((to_remove, clusters))
 }
@@ -352,6 +381,7 @@ async fn process_post_union(
     client: &Client,
     output_path: &S3Path,
     union_find: UnionFind,  // Changed from &UnionFind to take ownership
+    save_cluster_id: bool,
 ) -> Result<(usize, usize)> {
     let data = union_find.data.lock().unwrap();
     let mut files: Vec<_> = data.union_set.keys()
@@ -367,6 +397,12 @@ async fn process_post_union(
         .expect("All threads should be finished")
         .into_inner()
         .unwrap());
+
+    let cluster_ids = if save_cluster_id {
+        Some(Arc::new(build_cluster_ids(&union_find_data.union_set)?))
+    } else {
+        None
+    };
 
     files.sort_unstable();
 
@@ -404,6 +440,7 @@ async fn process_post_union(
         let client = client.clone();
         let output_path = output_path.clone();
         let union_find_data = Arc::clone(&union_find_data);
+        let cluster_ids = cluster_ids.clone();
         let pb = pb.clone();
         let semaphore = Arc::clone(&semaphore);
 
@@ -414,6 +451,7 @@ async fn process_post_union(
                 &output_path,
                 file_number,
                 &union_find_data,
+                cluster_ids.as_deref(),
                 &pb,
             ).await
         });
@@ -560,7 +598,9 @@ async fn main() -> Result<()> {
     }
     pb.finish_with_message("File processing complete");
 
-    let (to_remove, clusters) = process_post_union(&client, &output_path, union_find).await?;
+    let (to_remove, clusters) = process_post_union(
+        &client, &output_path, union_find, args.save_cluster_id,
+    ).await?;
 
     println!("Processing complete:");
     println!("  Total clusters: {}", clusters);
