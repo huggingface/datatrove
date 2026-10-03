@@ -107,6 +107,20 @@ def test_unusable_declaration_retains_detector_fallback(header: str | None) -> N
     detect.assert_called_once()
 
 
+@pytest.mark.parametrize("charset", ["unicode_escape", "unicode-escape", "raw_unicode_escape"])
+def test_escape_codecs_cannot_inject_surrogates(tmp_path: Path, charset: str) -> None:
+    """Untrusted charset labels must not interpret Python escapes or break JSON output."""
+    from datatrove.data import Document
+    from datatrove.pipeline.writers import JsonlWriter
+
+    payload = b"<p>\xff \\ud800</p>"
+    with patch("cchardet.detect", return_value={"encoding": "windows-1252"}) as detect:
+        result = process_record(make_record(payload, f"text/html; charset={charset}"))
+    assert result["text"] == payload.decode("cp1252")
+    detect.assert_called_once()
+    list(JsonlWriter(str(tmp_path), compression=None).run([Document(text=result["text"], id="fixture")]))
+
+
 @pytest.mark.parametrize("text", ["", "<p>日本語 i català €</p>", "\ufeff<p>UTF-8 BOM</p>"])
 def test_utf8_path_is_unchanged_even_with_conflicting_http(text: str) -> None:
     """Keep the established UTF-8-first behavior, including empty content and its BOM."""

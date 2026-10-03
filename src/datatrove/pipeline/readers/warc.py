@@ -150,10 +150,13 @@ def _decode_content(content: bytes, content_type: str | None, mime_type: str) ->
         encoding = message.get_content_charset()
         if encoding:
             try:
-                # HTML uses Windows-1252 for the legacy Latin-1 and ASCII labels.
-                if mime_type == "text/html" and codecs.lookup(encoding).name in {"iso8859-1", "ascii"}:
-                    encoding = "windows-1252"
-                return content.decode(encoding)
+                codec_name = codecs.lookup(encoding).name
+                # Python escape codecs are not transport charsets and can inject lone surrogates.
+                if codec_name not in {"unicode-escape", "raw-unicode-escape"}:
+                    # HTML uses Windows-1252 for the legacy Latin-1 and ASCII labels.
+                    if mime_type == "text/html" and codec_name in {"iso8859-1", "ascii"}:
+                        encoding = "windows-1252"
+                    return content.decode(encoding)
             except (UnicodeError, LookupError, ValueError):
                 pass
 
