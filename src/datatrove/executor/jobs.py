@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -9,7 +10,7 @@ import tempfile
 import time
 from collections import deque
 from collections.abc import Callable, Sequence
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import Any
 
 import dill
@@ -24,6 +25,8 @@ from datatrove.utils.stats import PipelineStats
 
 # Set on each launched Job to tell the worker which slice of `ranks_to_run.json` it owns.
 ARRAY_INDEX_ENV_VAR = "DATATROVE_JOB_ARRAY_INDEX"
+# Set on the coordinator Job so it takes the launcher path instead of submitting another coordinator.
+COORDINATOR_ENV_VAR = "DATATROVE_JOB_COORDINATOR"
 # Mirror of huggingface_hub._jobs_api.TERMINAL_JOB_STAGES, duplicated to avoid importing a private symbol.
 _TERMINAL_JOB_STAGES = ("COMPLETED", "ERROR", "CANCELED", "DELETED")
 _SUCCESS_JOB_STAGE = "COMPLETED"
@@ -60,15 +63,19 @@ class JobsPipelineExecutor(PipelineExecutor):
     queued or running (cancel them first): each launch rewrites ``executor.pik`` and
     ``ranks_to_run.json``, which stale Jobs would then read.
 
-    Note: the launching process (the "coordinator") currently runs **locally** and stays alive for
-    the whole run — it submits the Jobs, polls them to honor ``workers``, and merges stats at the
-    end (the same launch-and-block model as Local/Ray; only Slurm is fire-and-forget). Only the
-    compute is remote. If the coordinator is interrupted, in-flight Jobs still finish and record
-    their ranks; just rerun to launch the rest (resume is idempotent). Running the coordinator
-    itself inside a Job, so nothing needs to stay on the launching machine, is a possible future
-    enhancement.
+    **Fire-and-forget**: :meth:`run` submits one small Job — the coordinator — and returns, so nothing
+    has to stay alive on the machine you launched from (this is what ``sbatch`` gives Slurm). That Job
+    loads ``executor.pik`` like any worker but takes the launcher path, so submitting, the ``workers``
+    throttle, the ``depends=`` wait, the retries and the stats merge all happen there. Follow it with
+    ``hf jobs logs -f <job id>``. A second coordinator for the same ``logging_dir`` is refused instead
+    of racing the first one; cancel the running Job to force a fresh launch. A stage with ``depends=``
+    submits its dependency's coordinator too, so calling :meth:`run` on the last stage alone still
+    starts the whole chain, each stage waiting in the cloud on the one before it. To watch a run
+    instead of walking away, call :meth:`launch_job`: identical supervision, in your process, and
+    Ctrl-C aborts it.
 
-    [!] do not launch Jobs from within a Job.
+    [!] do not call :meth:`launch_job` from inside a launched Job: only the coordinator Job (the one
+        without ``DATATROVE_JOB_ARRAY_INDEX``) submits.
 
     Args:
         pipeline: a list of PipelineStep and/or custom functions with arguments
@@ -110,7 +117,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             ``HF_TOKEN`` key here overrides the resolved token).
         env: extra environment variables set in each Job (e.g. vLLM/sglang tuning knobs).
             User keys override the executor's defaults (``HF_HUB_DISABLE_PROGRESS_BARS``,
-            ``PYTHONUNBUFFERED``); ``DATATROVE_JOB_ARRAY_INDEX`` is reserved and rejected.
+            ``PYTHONUNBUFFERED``); ``DATATROVE_JOB_ARRAY_INDEX`` and ``DATATROVE_JOB_COORDINATOR`` are
+            reserved and rejected.
             Unlike ``secrets``, these values are persisted (in the shared logging_dir's
             ``executor.json``/``executor.pik``) — use ``secrets`` for anything sensitive.
         max_retries: how many times to relaunch a Job that ends in a non-success state
@@ -120,6 +128,14 @@ class JobsPipelineExecutor(PipelineExecutor):
         poll_interval: seconds between polls of the running Jobs (default 15).
         run_on_dependency_fail: if a ``depends`` job finishes with failed (permanently incomplete) tasks,
             continue anyway instead of raising. Default False (fail fast, like Slurm's ``afterok``).
+            No effect on a dependency that has a coordinator of its own — which is every dependency,
+            since a coordinator only waits for what it depends on: it waits out ``coordinator_timeout``
+            instead of failing.
+        coordinator_flavor: flavor of the single coordinator Job that :meth:`run` submits. It only
+            submits Jobs and polls, so the cheapest flavor is the right default.
+        coordinator_timeout: timeout of the coordinator Job (default ``"7d"``). It must outlive the
+            Jobs it supervises; if it expires nothing is lost, just rerun to resume. ``None`` means
+            no timeout — but an abandoned coordinator then idles forever, and idle Jobs are billed.
         job_name: name used for logging and as a Job label (default ``"data_processing"``).
 
     Example:
@@ -140,6 +156,9 @@ class JobsPipelineExecutor(PipelineExecutor):
             flavor="cpu-basic",
         ).run()
         ```
+
+        :meth:`run` returns as soon as the coordinator Job is submitted. To follow the run, watch it in
+        the terminal and be able to abort it, call :meth:`launch_job` instead.
     """
 
     def __init__(
@@ -165,6 +184,8 @@ class JobsPipelineExecutor(PipelineExecutor):
         max_retries: int = 1,
         poll_interval: int = 15,
         run_on_dependency_fail: bool = False,
+        coordinator_flavor: str = "cpu-basic",
+        coordinator_timeout: int | float | str | None = "7d",
         job_name: str = "data_processing",
     ):
         logger.warning("JobsPipelineExecutor is experimental: it may change, break, or be removed in future releases.")
@@ -181,6 +202,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             raise ValueError(f"workers must be -1 (unlimited) or >= 1, got {workers}.")
         if env and ARRAY_INDEX_ENV_VAR in env:
             raise ValueError(f"env must not set {ARRAY_INDEX_ENV_VAR}: it is reserved for task addressing.")
+        if env and COORDINATOR_ENV_VAR in env:
+            raise ValueError(f"env must not set {COORDINATOR_ENV_VAR}: it is reserved for the coordinator Job.")
         self.tasks = tasks
         self.workers = workers
         self.flavor = flavor
@@ -201,19 +224,24 @@ class JobsPipelineExecutor(PipelineExecutor):
         self.max_retries = max_retries
         self.poll_interval = poll_interval
         self.run_on_dependency_fail = run_on_dependency_fail
+        self.coordinator_flavor = coordinator_flavor
+        self.coordinator_timeout = coordinator_timeout
         self.job_name = job_name
         self._launched = False
 
     def run(self):
         """Run the pipeline.
 
-        Two-phase: inside a launched Job (``DATATROVE_JOB_ARRAY_INDEX`` set) run the block of
-        ranks assigned to that Job; otherwise launch the Jobs.
+        Three-phase: inside a launched worker Job (``DATATROVE_JOB_ARRAY_INDEX`` set) run the block of
+        ranks assigned to that Job; inside the coordinator Job (``DATATROVE_JOB_COORDINATOR`` set)
+        launch and supervise the pool; otherwise submit that coordinator Job and return.
         """
         if ARRAY_INDEX_ENV_VAR in os.environ:
             self._run_array_index(int(os.environ[ARRAY_INDEX_ENV_VAR]))
-        else:
+        elif COORDINATOR_ENV_VAR in os.environ:
             self.launch_job()
+        else:
+            self._launch_coordinator_job()
 
     def _run_array_index(self, array_index: int):
         """Run the block of ranks assigned to one Job, identified by its array index."""
@@ -231,7 +259,10 @@ class JobsPipelineExecutor(PipelineExecutor):
             self._run_for_rank(all_ranks[i])
 
     def launch_job(self):
-        """Pickle this executor and fan it out across a pool of Hugging Face Jobs."""
+        """Pickle this executor and fan it out across a pool of Hugging Face Jobs, waiting on them.
+
+        Called inside the coordinator Job; call it directly to supervise from this process instead.
+        """
         from huggingface_hub import get_token
 
         assert not self.depends or isinstance(self.depends, JobsPipelineExecutor), (
@@ -317,6 +348,127 @@ class JobsPipelineExecutor(PipelineExecutor):
             # this run's failed ranks and produce a stats.json mixing old and new per-rank data
             return
         self._merge_stats()
+
+    def _launch_coordinator_job(self):
+        """Submit the one Job that runs :meth:`launch_job` remotely, then return (fire-and-forget).
+
+        The coordinator Job rehydrates this executor exactly like a worker does, but without
+        ``DATATROVE_JOB_ARRAY_INDEX`` it takes the launcher path — so the ``workers`` throttle, the
+        ``depends`` wait, the retries and the stats merge all happen in the cloud and this process is
+        free to exit. Rerunning the script stays idempotent, and a coordinator that dies leaves every
+        completed rank untouched (rerun the script, or call :meth:`launch_job`).
+        """
+        from huggingface_hub import get_token, run_uv_job
+
+        from datatrove.tools import launch_pickled_pipeline
+
+        assert not self.depends or isinstance(self.depends, JobsPipelineExecutor), (
+            "depends= must be a JobsPipelineExecutor"
+        )
+        token = self.token or get_token()
+        if token is None:
+            raise ValueError(
+                "No Hugging Face token found. Log in with `hf auth login` or pass token=... so the Jobs "
+                "can read/write the logging_dir."
+            )
+        if (live := self._find_live_coordinator(token)) is not None:
+            logger.warning(
+                f"A coordinator Job for '{self.job_name}' is already running ({live}); not launching a "
+                f"second one, as two would race on the same ranks. Cancel it with `hf jobs cancel {live}` "
+                f"to relaunch."
+            )
+            self._launched = True
+            return
+        if self.depends is not None and not self.depends._launched:
+            # nothing else would start it: this launcher runs remotely, and its pickle only waits
+            self.depends.run()
+        self._ensure_logging_dir_repo()
+        self._dump_coordinator_pickle()
+        job = run_uv_job(
+            launch_pickled_pipeline.__file__,  # same entrypoint as a worker: the env decides the role
+            script_args=[self.logging_dir.resolve_paths("executor.pik")],
+            dependencies=self.dependencies,
+            python=self.python,
+            image=self.image,
+            env={
+                "HF_HUB_DISABLE_PROGRESS_BARS": "1",
+                "PYTHONUNBUFFERED": "1",
+                **(self.env or {}),
+                # deliberately no DATATROVE_JOB_ARRAY_INDEX: this Job launches Jobs, it runs no rank
+                COORDINATOR_ENV_VAR: "1",
+            },
+            secrets={"HF_TOKEN": token, **(self.secrets or {})},
+            flavor=self.coordinator_flavor,
+            timeout=self.coordinator_timeout,
+            labels=self._coordinator_labels,
+            namespace=self.namespace,
+            token=token,
+        )
+        self._launched = True
+        logger.info(
+            f"Launched coordinator Job {job.id} ({job.url}) for '{self.job_name}' on flavor "
+            f"'{self.coordinator_flavor}'. It submits and supervises the worker Jobs from there, so this "
+            f"process can exit. Follow it with `hf jobs logs -f {job.id}`."
+        )
+
+    def _dump_coordinator_pickle(self):
+        """Write ``executor.pik`` for the coordinator Job, without credentials, wait-only ``depends``."""
+        executor = deepcopy(self)
+        executor.token = None
+        executor.secrets = None
+        if executor.depends is not None:
+            executor.depends = self._wait_only_depends()
+        with self.logging_dir.open("executor.pik", "wb") as executor_f:
+            dill.dump(executor, executor_f, fmode=CONTENTS_FMODE)
+
+    def _wait_only_depends(self) -> JobsPipelineExecutor:
+        """Stand-in for ``depends`` that may wait but not launch, for the coordinator's pickle.
+
+        :meth:`_launch_coordinator_job` submits the dependency's own coordinator before submitting this
+        one, so launching it again from here would fan the same ranks out twice. ``_launched=True`` is
+        exactly that switch in :meth:`launch_job`: wait for ``completions/`` instead. The dependency's
+        pipeline is not needed to do that, and every stage's pickle would otherwise carry the whole
+        pipeline chain.
+        """
+        depends = copy(self.depends)
+        depends.pipeline = []
+        depends.depends = None
+        depends._launched = True
+        return depends
+
+    @property
+    def _coordinator_labels(self) -> dict[str, str]:
+        """Labels that identify this run's coordinator Job, so a second one is never launched."""
+        return {
+            "datatrove_job_name": self.job_name,
+            "datatrove_role": "coordinator",
+            # job_name alone is not enough: the same name under two logging_dirs is two different runs
+            "datatrove_logging_dir": hashlib.sha1(self.logging_dir.path.encode()).hexdigest()[:12],
+            **(self.labels or {}),
+        }
+
+    def _find_live_coordinator(self, token: str) -> str | None:
+        """Id of a not-finished coordinator Job for this exact run, if the Hub knows one.
+
+        Two coordinators on one ``logging_dir`` would launch the same ranks twice, so a relaunch is a
+        no-op while one is live. A failure to list Jobs is not fatal: the launch goes ahead, since a
+        stale coordinator can always be canceled by hand.
+        """
+        from huggingface_hub import list_jobs
+
+        expected = self._coordinator_labels
+        try:
+            jobs = list_jobs(namespace=self.namespace, token=token)
+        except Exception as e:
+            logger.warning(f"Could not list Jobs to look for a running coordinator ({e}); launching anyway.")
+            return None
+        for job in jobs:
+            labels = job.labels or {}
+            if all(labels.get(key) == value for key, value in expected.items()) and (
+                getattr(job.status, "stage", None) not in _TERMINAL_JOB_STAGES
+            ):
+                return job.id
+        return None
 
     def _ensure_logging_dir_repo(self):
         """Create the Hub repo/bucket backing an ``hf://`` logging_dir if it doesn't exist yet.

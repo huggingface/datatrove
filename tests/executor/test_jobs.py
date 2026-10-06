@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import dill
 
-from datatrove.executor.jobs import ARRAY_INDEX_ENV_VAR, JobsPipelineExecutor
+from datatrove.executor.jobs import ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR, JobsPipelineExecutor
 from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
@@ -112,6 +112,73 @@ def _make_depends_fake():
     return fake_run_uv_job, fake_inspect_job, launched
 
 
+def _make_record_only_fake():
+    """A ``run_uv_job`` that records submissions and does no work — the coordinator never runs.
+
+    ``list_jobs`` must be patched alongside it, or the running-coordinator check would hit the Hub.
+    """
+    submitted: list[dict] = []
+
+    def fake_run_uv_job(script, *, script_args=None, env=None, **kwargs):
+        job = MagicMock()
+        job.id = f"job-{len(submitted)}"
+        job.url = f"https://huggingface.co/jobs/{job.id}"
+        submitted.append({"script": script, "script_args": script_args, "env": env, **kwargs})
+        return job
+
+    return fake_run_uv_job, submitted
+
+
+def _make_coordinator_fakes():
+    """``run_uv_job`` that plays the part of the Hub, coordinator Job and worker Job alike.
+
+    Each call rehydrates the pickle the way ``launch_pickled_pipeline`` does inside a real Job and runs
+    it in a process env holding only the role variable it was submitted with, so the coordinator
+    submission recurses into the launcher while a worker submission runs its ranks.
+    """
+    import fsspec
+
+    submitted: list[dict] = []
+
+    def fake_run_uv_job(script, *, script_args=None, env=None, **kwargs):
+        submitted.append(env or {})
+        with fsspec.open(script_args[0], "rb") as f:  # the pik path (resolve_paths keeps the scheme)
+            job_executor = dill.load(f)
+        saved = {key: os.environ.pop(key, None) for key in (ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR)}
+        os.environ.update({k: v for k, v in (env or {}).items() if k in saved})
+        try:
+            job_executor.run()
+        finally:
+            for key, value in saved.items():
+                os.environ.pop(key, None)
+                if value is not None:
+                    os.environ[key] = value
+        job = MagicMock()
+        job.id = f"job-{len(submitted)}"
+        job.url = f"https://huggingface.co/jobs/{job.id}"
+        return job
+
+    def fake_inspect_job(*, job_id, **kwargs):
+        job = MagicMock()
+        job.status.stage = "COMPLETED"
+        return job
+
+    return fake_run_uv_job, fake_inspect_job, submitted
+
+
+def _fake_list_jobs(*jobs):
+    """A ``list_jobs`` that always returns these Jobs (built per iteration, never a late-bound loop var)."""
+    return lambda **kwargs: list(jobs)
+
+
+def _fake_job(labels: dict, stage: str):
+    job = MagicMock()
+    job.id = "existing-coordinator"
+    job.labels = labels
+    job.status.stage = stage
+    return job
+
+
 class TestJobsExecutor(unittest.TestCase):
     def test_local_logging_dir_rejected(self):
         """A local logging_dir cannot be shared with remote Jobs, so it must raise."""
@@ -136,7 +203,7 @@ class TestJobsExecutor(unittest.TestCase):
                 patch("huggingface_hub.run_uv_job", fake_run),
                 patch("huggingface_hub.inspect_job", fake_inspect),
             ):
-                executor.run()
+                executor.launch_job()
 
             self.assertEqual(len(launched), math.ceil(tasks / tasks_per_job))
             file_list = ["executor.json", "stats.json"] + [
@@ -244,7 +311,7 @@ class TestJobsExecutor(unittest.TestCase):
             return fake_run(script, env=env, **kwargs)
 
         with patch("huggingface_hub.run_uv_job", recording_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(seen["VLLM_ATTENTION_BACKEND"], "FLASHINFER")
         self.assertEqual(seen["PYTHONUNBUFFERED"], "0")  # user value wins over the executor default
@@ -269,7 +336,7 @@ class TestJobsExecutor(unittest.TestCase):
             return fake_run(script, env=env, **kwargs)
 
         with patch("huggingface_hub.run_uv_job", recording_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(seen[ARRAY_INDEX_ENV_VAR], "0")  # executor's value, not the injected "7"
 
@@ -292,7 +359,7 @@ class TestJobsExecutor(unittest.TestCase):
         )
         fake_run, fake_inspect, launched = _make_fake_jobs(executor)
         with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(len(launched), 2)  # the scrubbed pickle must still run fine worker-side
         with log_dir.open("executor.pik", "rb") as f:
@@ -319,7 +386,7 @@ class TestJobsExecutor(unittest.TestCase):
         )
         fake_run, fake_inspect, _ = _make_fake_jobs(executor)
         with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
         self.assertTrue(log_dir.isfile("stats.json"))
 
     def test_rerun_merges_stats_if_missing(self):
@@ -334,13 +401,13 @@ class TestJobsExecutor(unittest.TestCase):
         first = build()
         fr, fi, _ = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         log_dir.rm("stats.json")  # simulate a coordinator killed after the last rank but before the merge
 
         second = build()
         fr2, fi2, launched = _make_fake_jobs(second)
         with patch("huggingface_hub.run_uv_job", fr2), patch("huggingface_hub.inspect_job", fi2):
-            second.run()
+            second.launch_job()
         self.assertEqual(len(launched), 0)
         self.assertTrue(log_dir.isfile("stats.json"))
 
@@ -361,13 +428,13 @@ class TestJobsExecutor(unittest.TestCase):
         first = build()
         fr, fi, launched_first = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         self.assertEqual(len(launched_first), 4)
 
         second = build()
         fr2, fi2, launched_second = _make_fake_jobs(second)
         with patch("huggingface_hub.run_uv_job", fr2), patch("huggingface_hub.inspect_job", fi2):
-            second.run()
+            second.launch_job()
         self.assertEqual(len(launched_second), 0)
 
     def test_failed_jobs_resubmitted_up_to_max_retries(self):
@@ -408,7 +475,7 @@ class TestJobsExecutor(unittest.TestCase):
             return job
 
         with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(attempts, {"0": 1, "1": 2, "2": 2})  # one resubmit each for 1 and 2, then give up on 2
         self.assertTrue(log_dir.isfile("completions/00000"))
@@ -423,7 +490,7 @@ class TestJobsExecutor(unittest.TestCase):
         first = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t", poll_interval=0)
         fr, fi, _ = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         self.assertTrue(log_dir.isfile("stats.json"))
         log_dir.rm("stats.json")
 
@@ -448,7 +515,7 @@ class TestJobsExecutor(unittest.TestCase):
             return job
 
         with patch("huggingface_hub.run_uv_job", failing_run), patch("huggingface_hub.inspect_job", error_inspect):
-            second.run()
+            second.launch_job()
         # run 1's completion markers would mask run 2's failures — the merge must not run at all
         self.assertFalse(log_dir.isfile("stats.json"))
 
@@ -464,7 +531,7 @@ class TestJobsExecutor(unittest.TestCase):
         )
         fr, fi, launched = _make_depends_fake()
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            child.run()
+            child.launch_job()
         self.assertEqual(len(launched), 4)  # 2 parent + 2 child array indices
         for log_dir in (parent_dir, child_dir):
             self.assertEqual(len(log_dir.list_files("completions")), 2)
@@ -492,7 +559,164 @@ class TestJobsExecutor(unittest.TestCase):
 
         with patch("huggingface_hub.run_uv_job", failing_run), patch("huggingface_hub.inspect_job", error_inspect):
             with self.assertRaises(RuntimeError):
-                child.run()
+                child.launch_job()
+
+    def test_run_submits_one_coordinator_job_and_returns(self):
+        """`run()` submits one coordinator Job and returns without running anything in this process."""
+        log_dir = get_datafolder("memory://jobs-coordinator/submits")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=3,
+            workers=2,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            secrets={"MY_SECRET": "sekritvalue"},
+            env={"MY_SETTING": "my_value"},
+            coordinator_flavor="cpu-upgrade",
+            coordinator_timeout="9d",
+            poll_interval=0,
+        )
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.list_jobs", lambda **kw: []):
+            executor.run()
+
+        self.assertEqual(len(submitted), 1)
+        coordinator = submitted[0]
+        self.assertEqual(coordinator["flavor"], "cpu-upgrade")
+        self.assertEqual(coordinator["timeout"], "9d")
+        self.assertEqual(coordinator["labels"]["datatrove_role"], "coordinator")
+        self.assertEqual(coordinator["labels"]["datatrove_job_name"], executor.job_name)
+        # the coordinator must not look like a worker: no rank addressing, and its own role marker
+        self.assertNotIn(ARRAY_INDEX_ENV_VAR, coordinator["env"])
+        self.assertEqual(coordinator["env"][COORDINATOR_ENV_VAR], "1")
+        # ... but it needs the env/secrets the Jobs get, to submit them and to reach the logging_dir
+        self.assertEqual(coordinator["env"]["MY_SETTING"], "my_value")
+        self.assertEqual(coordinator["secrets"]["HF_TOKEN"], "hf_faketoken")
+        self.assertEqual(coordinator["secrets"]["MY_SECRET"], "sekritvalue")
+        self.assertEqual(coordinator["script_args"], [log_dir.resolve_paths("executor.pik")])
+
+        # it must be able to rehydrate the executor, and the pickle must hold no credentials
+        with log_dir.open("executor.pik", "rb") as f:
+            pickled = dill.load(f)
+        self.assertIsNone(pickled.token)
+        self.assertIsNone(pickled.secrets)
+
+        # fire-and-forget: nothing was launched or merged locally, not even ranks_to_run.json
+        self.assertFalse(log_dir.isfile("stats.json"))
+        self.assertFalse(log_dir.isfile("ranks_to_run.json"))
+        self.assertFalse(any(log_dir.isfile(f"completions/{rank:05d}") for rank in range(3)))
+
+    def test_launch_job_supervises_locally_without_a_coordinator_job(self):
+        """`launch_job()` is how to opt out: the pool runs in this process, and no Job is a coordinator.
+
+        The fake worker demands ``DATATROVE_JOB_ARRAY_INDEX``, so it would raise on any coordinator Job.
+        """
+        log_dir = get_datafolder("memory://jobs-coordinator/local-supervisor")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="hf_faketoken", poll_interval=0
+        )
+        fake_run, fake_inspect, launched = _make_fake_jobs(executor)
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.launch_job()
+
+        self.assertEqual(len(launched), 2)
+        self.assertEqual(len(log_dir.list_files("completions")), 2)
+        self.assertTrue(log_dir.isfile("stats.json"))
+
+    def test_coordinator_job_supervises_the_pool(self):
+        """The coordinator Job — not the local process — launches the workers and merges the stats."""
+        log_dir = get_datafolder("memory://jobs-coordinator/inside")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=3,
+            tasks_per_job=2,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            poll_interval=0,
+        )
+        fake_run, fake_inspect, submitted = _make_coordinator_fakes()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", lambda **kw: []),
+        ):
+            executor.run()
+
+        self.assertEqual(len(submitted), 1 + math.ceil(3 / 2))  # one coordinator, then 2 worker Jobs
+        # exactly one coordinator generation: inside the Job the executor launches, it does not re-spawn
+        self.assertEqual(sum(COORDINATOR_ENV_VAR in env for env in submitted), 1)
+        self.assertEqual(sum(ARRAY_INDEX_ENV_VAR in env for env in submitted), 2)
+        self.assertEqual(len(log_dir.list_files("completions")), 3)
+        self.assertTrue(log_dir.isfile("stats.json"))  # merged by the coordinator
+        self.assertIsNone(os.environ.get(COORDINATOR_ENV_VAR))  # the fake left this process alone
+        self.assertTrue(executor._launched)
+
+    def test_run_does_not_launch_a_second_coordinator(self):
+        """A live coordinator for the same run makes a relaunch a no-op; a finished one doesn't."""
+        log_dir = get_datafolder("memory://jobs-coordinator/twice")
+
+        def build():
+            return JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t")
+
+        for stage, expected_submissions in (("RUNNING", 0), ("COMPLETED", 1)):
+            executor = build()
+            live = _fake_job(executor._coordinator_labels, stage)
+            fake_run, submitted = _make_record_only_fake()
+            with (
+                patch("huggingface_hub.run_uv_job", fake_run),
+                patch("huggingface_hub.list_jobs", _fake_list_jobs(live)),
+            ):
+                executor.run()
+            self.assertEqual(len(submitted), expected_submissions, f"{stage} coordinator must not be doubled")
+
+        # a coordinator under another logging_dir is another run, so it must not block this one
+        executor = build()
+        other = _fake_job({**executor._coordinator_labels, "datatrove_logging_dir": "0" * 12}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(other)),
+        ):
+            executor.run()
+        self.assertEqual(len(submitted), 1)
+
+    def test_dependent_run_submits_the_whole_chain_but_a_small_pickle(self):
+        """Calling `run()` on the last stage alone still starts every stage, each waiting on the previous."""
+        parent_dir = get_datafolder("memory://jobs-coordinator/chain-parent")
+        child_dir = get_datafolder("memory://jobs-coordinator/chain-child")
+        parent = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=parent_dir, token="t", job_name="parent"
+        )
+        child = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=2,
+            logging_dir=child_dir,
+            token="t",
+            job_name="child",
+            depends=parent,
+        )
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.list_jobs", lambda **kw: []):
+            child.run()
+
+        # the dependency has no launcher of its own to wait on, so run() submits it too, upstream first
+        self.assertEqual([job["labels"]["datatrove_job_name"] for job in submitted], ["parent", "child"])
+        self.assertFalse(parent_dir.isfile("ranks_to_run.json"))  # submitted, but nothing runs from here
+        self.assertFalse(child_dir.isfile("ranks_to_run.json"))
+
+        with child_dir.open("executor.pik", "rb") as f:
+            pickled = dill.load(f)
+        self.assertIsNotNone(pickled.depends)
+        self.assertTrue(pickled.depends._launched)  # -> launch_job() waits for completions/ only
+        self.assertEqual(pickled.depends.depends, None)
+        self.assertEqual(pickled.depends.pipeline, [])  # the parent's pipeline stays out of the pickle
+        self.assertEqual(len(parent.pipeline), 1)  # the live parent object was not mutated
+
+    def test_env_coordinator_key_rejected(self):
+        """The coordinator role variable is reserved, like the array-index one."""
+        log_dir = get_datafolder("memory://jobs-coordinator/env-reserved")
+        with self.assertRaises(ValueError):
+            JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, env={COORDINATOR_ENV_VAR: "1"})
 
 
 if __name__ == "__main__":
