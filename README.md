@@ -276,7 +276,7 @@ executor.run()
 </details>
 
 ### JobsPipelineExecutor
-**Experimental — may change or be removed without notice.** Runs pipelines on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/en/guides/jobs): same coordination model as Slurm, but each block of tasks runs in a cloud Job. See the [`JobsPipelineExecutor` docstring](src/datatrove/executor/jobs.py) and the `*_jobs.py` [examples](examples) for usage.
+**Experimental — may change or be removed without notice.** Runs pipelines on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/en/guides/jobs): same coordination model as Slurm, but a coordinator and each block of tasks runs in a cloud Job. See the [`JobsPipelineExecutor` docstring](src/datatrove/executor/jobs.py) and the `*_jobs.py` [examples](examples) for usage.
 
 ## Logging
 For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder structure would be created:

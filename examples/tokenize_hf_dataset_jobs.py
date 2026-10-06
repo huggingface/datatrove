@@ -78,7 +78,7 @@ if __name__ == "__main__":
         flavor=args.flavor,
         dependencies=DEPENDENCIES,
         timeout="2h",
-        depends=tokenize,  # <-- launches + waits for all tokenization tasks, then merges
+        depends=tokenize,  # <-- tokenize is launched by its own coordinator; this one waits for it, then merges
     )
 
     merge.run()
