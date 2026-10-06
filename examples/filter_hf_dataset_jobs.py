@@ -7,9 +7,9 @@ This file contains code to:
 3 - Push the filtered dataset back to the hub.
 
 ...running on Hugging Face Jobs. It is the `JobsPipelineExecutor` twin of `filter_hf_dataset.py`
-(which uses Slurm) — the pipeline is identical; only the executor changes. Your machine just
-orchestrates: the filtering runs across a pool of Jobs that coordinate through a shared, *remote*
-`logging_dir`.
+(which uses Slurm) — the pipeline is identical; only the executor changes. `run()` submits a small
+coordinator Job and returns; the filtering then runs across a pool of Jobs that coordinate through a
+shared, *remote* `logging_dir`. Follow it with `hf jobs logs -f <job id>`.
 
 Differences from the Slurm version (see comments inline):
 - `logging_dir` MUST be remote (hf:// or s3://) — the launcher and the Jobs are different machines.
