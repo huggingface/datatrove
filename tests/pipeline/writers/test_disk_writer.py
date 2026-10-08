@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from httpx import Request, Response
 from huggingface_hub.utils import HfHubHTTPError
@@ -340,8 +340,11 @@ class TestDiskWriterRetries(unittest.TestCase):
         writer = object.__new__(HuggingFaceDatasetWriter)
         writer.output_mg = SimpleNamespace(get_open_files=lambda: {})
         writer.operations = []
+        writer._pending_uploads = {}
         writer.dataset = "org/repo"
         writer.revision = None
+        writer.cleanup = True
+        writer._local_working_tmpdir = SimpleNamespace(cleanup=Mock())
 
         response = Response(
             status_code=503,
@@ -367,3 +370,4 @@ class TestDiskWriterRetries(unittest.TestCase):
             writer.close()
 
         self.assertEqual(mock_create_commit.call_count, 2)
+        writer._local_working_tmpdir.cleanup.assert_called_once()
