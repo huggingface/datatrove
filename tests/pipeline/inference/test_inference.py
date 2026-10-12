@@ -965,6 +965,105 @@ def test_checkpoint_recovery_and_completeness():
                 assert "usage" in result, f"Rollout result missing 'usage' field for doc {doc['id']}"
 
 
+DUPLICATE_IDS = ["a", "b", "a", "c", "d", "e", "f", "g"]
+
+
+def make_duplicate_id_documents():
+    return [Document(text=f"doc {i}", id=doc_id) for i, doc_id in enumerate(DUPLICATE_IDS)]
+
+
+def make_duplicate_id_runner(tmp_path, rollout_fn, max_concurrent_documents=1, records_per_chunk=4):
+    config = InferenceConfig(
+        server_type="dummy",
+        model_name_or_path="test-model",
+        model_max_context=8192,
+        metric_interval=120,
+        rollouts_per_document=1,
+        max_concurrent_generations=max_concurrent_documents,
+        max_concurrent_documents=max_concurrent_documents,
+    )
+    return InferenceRunner(
+        rollout_fn=rollout_fn,
+        config=config,
+        records_per_chunk=records_per_chunk,
+        checkpoints_local_dir=str(tmp_path / "checkpoints"),
+        output_writer=JsonlWriter(
+            str(tmp_path / "output"),
+            output_filename="${rank}_chunk_${chunk_index}.jsonl",
+            compression=None,
+        ),
+    )
+
+
+def assert_complete_duplicate_id_output(tmp_path, records_per_chunk=4):
+    final_docs, final_files = read_output_files(tmp_path / "output")
+    assert sorted(doc["text"] for doc in final_docs) == sorted(doc.text for doc in make_duplicate_id_documents())
+    assert len(final_files) == 2
+    for output_file in final_files:
+        with open(output_file, "r") as f:
+            assert len([line for line in f if line.strip()]) == records_per_chunk
+    for doc in final_docs:
+        assert "__checkpoint_record_idx" not in doc["metadata"]
+        assert "__checkpoint_record_idx" not in doc
+
+
+class DelayedFailureRollout(ControlledRollout):
+    """Fails at `fail_at_ids` only after a delay, so that concurrently running documents are checkpointed first."""
+
+    async def __call__(self, document, generate):
+        if document.id in self.fail_at_ids:
+            await asyncio.sleep(0.5)
+        return await super().__call__(document, generate)
+
+
+@pytest.mark.parametrize("max_concurrent_documents", [1, 4])
+def test_checkpoint_recovery_with_duplicate_ids(tmp_path, max_concurrent_documents):
+    """Resuming must not truncate a completed chunk when an unfinished chunk contains duplicate ids."""
+    # the first run checkpoints a, b, a (and possibly later documents) and then fails on c
+    failing_rollout = DelayedFailureRollout(fail_at_ids={"c"})
+    failing_runner = make_duplicate_id_runner(tmp_path, failing_rollout, max_concurrent_documents)
+    with pytest.raises(InferenceError):
+        asyncio.run(failing_runner.run_async(make_duplicate_id_documents(), rank=0))
+
+    resumed_runner = make_duplicate_id_runner(tmp_path, ControlledRollout(), max_concurrent_documents)
+    asyncio.run(resumed_runner.run_async(make_duplicate_id_documents(), rank=0))
+
+    assert_complete_duplicate_id_output(tmp_path)
+
+
+def test_checkpoint_recovery_with_duplicate_ids_legacy_checkpoint(tmp_path):
+    """Checkpoints written without record positions are matched by id, counting duplicates."""
+    rank_checkpoints = tmp_path / "checkpoints" / "00000"
+    rank_checkpoints.mkdir(parents=True)
+    with (rank_checkpoints / "chunk_00000.jsonl").open("w") as f:
+        for doc in make_duplicate_id_documents()[:3]:
+            doc.metadata["rollout_results"] = [{"text": "cached"}]
+            f.write(json.dumps(dataclasses.asdict(doc)) + "\n")
+
+    runner = make_duplicate_id_runner(tmp_path, ControlledRollout())
+    asyncio.run(runner.run_async(make_duplicate_id_documents(), rank=0))
+
+    assert_complete_duplicate_id_output(tmp_path)
+
+
+def test_write_document_refuses_to_overflow_chunk(tmp_path):
+    checkpoint_manager = CheckpointManager(checkpoints_local_dir=str(tmp_path / "checkpoints"), records_per_chunk=1)
+    output_writer = JsonlWriter(
+        str(tmp_path / "output"), output_filename="${rank}_chunk_${chunk_index}.jsonl", compression=None
+    )
+
+    async def write_twice(output_writer_context):
+        await checkpoint_manager.write_document(Document(text="first", id="a"), 0, 0, output_writer_context)
+        await checkpoint_manager.write_document(Document(text="second", id="a"), 0, 0, output_writer_context)
+
+    with output_writer as output_writer_context:
+        with pytest.raises(RuntimeError, match="records_per_chunk=1"):
+            asyncio.run(write_twice(output_writer_context))
+
+    with (tmp_path / "output" / "00000_chunk_0.jsonl").open("r") as f:
+        assert [json.loads(line)["text"] for line in f] == ["first"]
+
+
 def test_complete_pipeline_with_various_scenarios():
     """
     Test complete pipeline execution matching the original bug scenario:
