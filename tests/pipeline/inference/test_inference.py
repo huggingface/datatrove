@@ -15,7 +15,7 @@ import pytest
 
 from datatrove.data import Document
 from datatrove.executor.local import LocalPipelineExecutor
-from datatrove.pipeline.inference.checkpointing import CheckpointManager
+from datatrove.pipeline.inference.checkpointing import CheckpointManager, ChunkAlreadyCompleteError
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
@@ -1058,11 +1058,26 @@ def test_write_document_refuses_to_overflow_chunk(tmp_path):
         await checkpoint_manager.write_document(Document(text="second", id="a"), 0, 0, output_writer_context)
 
     with output_writer as output_writer_context:
-        with pytest.raises(RuntimeError, match="records_per_chunk=1"):
+        with pytest.raises(ChunkAlreadyCompleteError, match="records_per_chunk=1"):
             asyncio.run(write_twice(output_writer_context))
 
     with (tmp_path / "output" / "00000_chunk_0.jsonl").open("r") as f:
         assert [json.loads(line)["text"] for line in f] == ["first"]
+
+
+def test_save_document_propagates_complete_chunk_error(tmp_path):
+    """Writing to a complete chunk must fail the task instead of being logged as a failed document."""
+    runner = make_duplicate_id_runner(tmp_path, ControlledRollout(), records_per_chunk=1)
+
+    async def save_twice(output_writer_context):
+        await runner._save_document(Document(text="first", id="a"), output_writer_context, 0, 0, record_idx=0)
+        await runner._save_document(Document(text="second", id="a"), output_writer_context, 0, 0, record_idx=1)
+
+    with runner.output_writer as output_writer_context:
+        with pytest.raises(ChunkAlreadyCompleteError):
+            asyncio.run(save_twice(output_writer_context))
+
+    assert "failed_documents" not in runner.stats.stats
 
 
 def test_complete_pipeline_with_various_scenarios():

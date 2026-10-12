@@ -21,7 +21,7 @@ from loguru import logger
 
 from datatrove.data import Document
 from datatrove.pipeline.base import PipelineStep
-from datatrove.pipeline.inference.checkpointing import CheckpointManager, RequestCache
+from datatrove.pipeline.inference.checkpointing import CheckpointManager, ChunkAlreadyCompleteError, RequestCache
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.servers import (
     CustomServer,
@@ -415,6 +415,9 @@ class InferenceRunner(PipelineStep):
                 document, rank, chunk_index, output_writer_context, record_idx=record_idx
             )
 
+        except ChunkAlreadyCompleteError:
+            # checkpoint accounting is broken, continuing could lose or overwrite outputs
+            raise
         except Exception as e:
             logger.warning(f"Failed to save document: {e}")
             self.stat_update("failed_documents", value=1, unit="document")

@@ -206,6 +206,10 @@ class RequestCache:
 CHECKPOINT_RECORD_IDX_KEY = "__checkpoint_record_idx"
 
 
+class ChunkAlreadyCompleteError(RuntimeError):
+    """Raised when writing a document to a chunk whose output file was already closed."""
+
+
 @dataclasses.dataclass
 class ProcessedRecords:
     """
@@ -280,7 +284,7 @@ class CheckpointManager:
         async with self.file_locks[chunk_index]:
             if chunk_index <= self.last_chunk_index or self.per_chunk_counts[chunk_index] >= self.records_per_chunk:
                 # the output file for this chunk was already closed, writing would reopen and overwrite it
-                raise RuntimeError(
+                raise ChunkAlreadyCompleteError(
                     f"Chunk {chunk_index} of rank {rank} is already complete "
                     f"(records_per_chunk={self.records_per_chunk}). Refusing to write document {document.id}."
                 )
