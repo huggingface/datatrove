@@ -394,6 +394,7 @@ class InferenceRunner(PipelineStep):
         rank: int,
         chunk_index: int,
         count_processed_stat: bool = True,
+        record_idx: int | None = None,
     ):
         """
         Save processed document to results queue.
@@ -404,12 +405,15 @@ class InferenceRunner(PipelineStep):
             rank: Process rank identifier
             chunk_index: Chunk index to save the document to
             count_processed_stat: Whether to increment the documents_processed metric
+            record_idx: Position of the document in the input, used to resume from checkpoints
         """
         try:
             if count_processed_stat:
                 self.stat_update("documents_processed", value=1, unit="document")
 
-            await self.checkpoint_manager.write_document(document, rank, chunk_index, output_writer_context)
+            await self.checkpoint_manager.write_document(
+                document, rank, chunk_index, output_writer_context, record_idx=record_idx
+            )
 
         except Exception as e:
             logger.warning(f"Failed to save document: {e}")
@@ -478,6 +482,7 @@ class InferenceRunner(PipelineStep):
         output_writer_context: DiskWriter,
         server: InferenceServer,
         semaphore: asyncio.Semaphore,
+        record_idx: int | None = None,
     ) -> None:
         """
         Process a single document through the inference pipeline.
@@ -490,6 +495,7 @@ class InferenceRunner(PipelineStep):
             output_writer_context: Output writer context for saving documents
             server: Inference server to use
             semaphore: Semaphore for controlling concurrent requests
+            record_idx: Position of the document in the input, used to resume from checkpoints
         """
         try:
             request_counters = [0] * self.config.rollouts_per_document
@@ -523,7 +529,7 @@ class InferenceRunner(PipelineStep):
             if len(doc.metadata[self.metadata_key]) == 0:
                 doc.metadata["__no_rollouts_remove"] = True
 
-            await self._save_document(doc, output_writer_context, rank, chunk_index)
+            await self._save_document(doc, output_writer_context, rank, chunk_index, record_idx=record_idx)
             await self.request_cache.mark_document_complete(doc.id)
         except InferenceError as e:
             if self.skip_bad_requests and self._is_bad_request_error(e):
@@ -540,6 +546,7 @@ class InferenceRunner(PipelineStep):
                     rank,
                     chunk_index,
                     count_processed_stat=False,
+                    record_idx=record_idx,
                 )
                 await self.request_cache.mark_document_complete(doc.id)
                 return
@@ -600,12 +607,12 @@ class InferenceRunner(PipelineStep):
                         rollout_fn: RolloutFunction = partial(self.rollout_fn, **shared_context_data)
 
                         # this will also upload locally cached documents to the output writer
-                        documents_to_skip, processed_ids = await self.checkpoint_manager.parse_existing_checkpoints(
+                        documents_to_skip, processed = await self.checkpoint_manager.parse_existing_checkpoints(
                             rank, output_writer_context
                         )
                         if documents_to_skip > 0:
                             logger.info(
-                                f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed_ids)} already processed documents"
+                                f"Resuming from previous checkpoint. Will skip {documents_to_skip + len(processed)} already processed documents"
                             )
 
                         # process remaining documents
@@ -623,8 +630,7 @@ class InferenceRunner(PipelineStep):
                                 )
 
                             # skip already processed documents from chunks in progress
-                            if record.id in processed_ids:
-                                processed_ids.remove(record.id)
+                            if processed.consume(record_idx, record.id):
                                 continue
 
                             # Throttle by task pool size
@@ -643,6 +649,7 @@ class InferenceRunner(PipelineStep):
                                     output_writer_context,
                                     inference_server,
                                     semaphore,
+                                    record_idx=record_idx,
                                 )
                             )
                             tasks_pool.add(task)

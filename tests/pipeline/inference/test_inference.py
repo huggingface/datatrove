@@ -5,6 +5,7 @@ import socket
 import tempfile
 import threading
 import unittest
+from collections import Counter
 from contextlib import contextmanager
 from functools import partial
 from http.server import HTTPServer
@@ -749,12 +750,13 @@ def test_parse_existing_checkpoints_skips_replay_for_existing_full_chunk(tmp_pat
     )
 
     with output_writer as output_writer_context:
-        documents_to_skip, processed_ids = asyncio.run(
+        documents_to_skip, processed_records = asyncio.run(
             checkpoint_manager.parse_existing_checkpoints(rank=0, output_writer_context=output_writer_context)
         )
 
     assert documents_to_skip == records_per_chunk
-    assert processed_ids == {"0", "1", "2"}
+    assert processed_records.record_idxs == set()
+    assert processed_records.legacy_ids == Counter({"0": 1, "1": 1, "2": 1})
 
     with existing_full_chunk_output.open("r") as f:
         existing_chunk_lines = [line for line in f if line.strip()]
@@ -812,20 +814,19 @@ def test_parse_existing_checkpoints_skips_chunks_before_last_chunk(tmp_path, mon
     monkeypatch.setattr(JsonlReader, "read_file", tracking_read_file)
 
     with output_writer as output_writer_context:
-        documents_to_skip, processed_ids = asyncio.run(
+        documents_to_skip, processed_records = asyncio.run(
             checkpoint_manager.parse_existing_checkpoints(rank=0, output_writer_context=output_writer_context)
         )
 
     assert documents_to_skip == records_per_chunk
-    assert processed_ids == {"2"}
+    assert processed_records.legacy_ids == Counter({"2": 1})
     assert read_file_calls == ["00000/chunk_00001.jsonl"]
 
     docs_after_resume = []
     for index, document in enumerate([Document(text=f"d{i}", id=str(i)) for i in range(5)]):
         if index < documents_to_skip:
             continue
-        if document.id in processed_ids:
-            processed_ids.remove(document.id)
+        if processed_records.consume(index, document.id):
             continue
         docs_after_resume.append(document.id)
     assert docs_after_resume == ["3", "4"]
