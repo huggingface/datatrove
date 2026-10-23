@@ -1,5 +1,9 @@
 # DataTrove
 
+<p align="center">
+  <b>English</b> · <a href="https://github.com/huggingface/datatrove/blob/main/README.zh.md">简体中文</a>
+</p>
+
 DataTrove is a library to process, filter and deduplicate text data at a very large scale. It provides a set of prebuilt commonly used processing blocks with a framework to easily add custom functionality.
 
 DataTrove processing pipelines are platform-agnostic, running out of the box locally or on a slurm cluster. Its (relatively) low memory usage and multiple step design makes it ideal for large workloads, such as to process an LLM's training data.
