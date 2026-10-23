@@ -244,16 +244,23 @@ executor2.run() # this will actually launch executor1, as it is a dependency, so
 </details>
 
 ### RayPipelineExecutor
-This executor will launch a pipeline on a ray cluster, using ray tasks for parallel execution.
+This executor launches a pipeline on an already-running Ray cluster (e.g. started via `ray.init()`).
+- **Single-node** (default): each rank runs as one native Ray task — no actors, no placement groups, no process pools.
+- **Multi-node** (`nodes_per_task` > 1): each job runs as a gang of one actor per node behind a `STRICT_SPREAD` placement group (node 0 writes stats/completion markers). If the cluster cannot provide enough distinct nodes, the job fails with a bounded error after a 300 s readiness deadline instead of hanging.
+- **Failure semantics**: ranks run fail-slow (a failing rank does not cancel the other ranks of its job). Retries are bounded: at most 3 resubmissions per job, and only for Ray-side infrastructure failures — application errors are never retried. If any job ultimately fails, `run()` raises a `RuntimeError` naming the ranks, attempts, failure category and original error (a deliberate change from the old warn-only behavior).
 Options:
-- `tasks` total number of tasks to run.
-- `workers` how many tasks to run simultaneously. If `-1`, no limit. Ray will run `workers` tasks at a time. (default: `-1`)
+- `tasks` total number of tasks (ranks) to run.
+- `workers` maximum number of jobs in flight. Each job batches `tasks_per_job` ranks, so up to `workers` × `tasks_per_job` ranks run at the same time. If `-1`, no limit. (default: `-1`)
+- `tasks_per_job` number of ranks per scheduling/retry job (default: `1`)
+- `time` per-job execution deadline in seconds (monotonic clock). Timed-out jobs are cancelled and retried within the retry budget. (default: `None`)
 - `depends` another RayPipelineExecutor instance, which will be a dependency of this pipeline (current pipeline will only start executing after the depended on pipeline successfully completes)
 <details>
   <summary>Other options</summary>
 
+- `nodes_per_task` if > 1, run each job as a multi-node gang of node actors (see above) instead of one Ray task per rank (default: `1`)
 - `cpus_per_task` how many cpus to give each task (default: `1`)
 - `mem_per_cpu_gb` memory per cpu, in GB (default: 2)
+- `gpus_per_task` how many gpus to give each task (default: `0`)
 - `ray_remote_kwargs` Additional kwargs to pass to the ray.remote decorator
 </details>
 <details>

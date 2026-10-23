@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
+import json
+import os
 import shutil
 import tempfile
+import time
 import unittest
-from concurrent.futures import wait
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import ray
 from ray.util.placement_group import placement_group_table
 from ray.util.state import list_actors, list_tasks
 
-from datatrove.executor.ray import (
-    RayPipelineExecutor,
-    RayTaskManager,
-    TimeoutManager,
-)
+from datatrove.executor.ray import PG_READY_TIMEOUT_S, RankWorker, RayPipelineExecutor, run_rank_task
 from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
 
-port = 5555
-endpoint_uri = f"http://127.0.0.1:{port}/"
+RUNNING_STATES = ("PENDING_ARG", "PENDING_NODE_ASSIGNMENT", "SUBMITTED_TO_WORKER", "RECEIVED_BY_WORKER", "RUNNING")
 
 
 class TestRayExecutor(unittest.TestCase):
@@ -113,10 +110,9 @@ class TestRayExecutor(unittest.TestCase):
             # Two calls because of two tasks
             self.assertEqual(sorted(f.read().strip().splitlines()), ["called 0", "called 1"])
 
-    def test_placement_group_creation(self):
-        """Test that placement groups are created when nodes_per_task > 1"""
-        from datatrove.executor.ray import RayTaskManager
-
+    def test_placement_group_creation_bounded_failure(self):
+        """On a 1-node cluster, nodes_per_task=2 with STRICT_SPREAD can never be satisfied: the run must fail
+        bounded and informatively (no hang), leaving no placement group or actor behind."""
         log_dir = get_datafolder(f"{self.tmp_dir}/test_placement_group")
 
         class DummyStep(PipelineStep):
@@ -131,242 +127,215 @@ class TestRayExecutor(unittest.TestCase):
             nodes_per_task=2,
         )
 
-        timeout_manager = TimeoutManager()
-        task_manager = RayTaskManager(nodes_per_task=2, timeout_manager=timeout_manager)
-        with task_manager:
-            executor_ref = ray.put(executor)
-            remote_options = {"num_cpus": 1, "num_gpus": 0, "memory": 100 * 1024 * 1024}
+        with patch("datatrove.executor.ray.PG_READY_TIMEOUT_S", 3):
+            with self.assertRaisesRegex(RuntimeError, "STRICT_SPREAD"):
+                executor.run()
 
-            # Submit a task - this should create a placement group
-            pg_task_future = task_manager.submit_task(executor_ref, [0], remote_options)
+        self.assertEqual(len(list_actors()), 0, "No gang actor should have been created")
+        for info in placement_group_table().values():
+            self.assertEqual(info["state"], "REMOVED", "The unsatisfiable placement group must be removed")
 
-            # Wait for the thread pool executor to finish the async submission
-            max_wait = 10
-
-            finished, unfinished = task_manager.wait([pg_task_future], timeout=max_wait)
-            self.assertEqual(len(finished), 1, "Should have 1 finished task")
-
-            ray.get(finished[0])
-            tables = placement_group_table()
-            self.assertEqual(len(tables), 1, "Should have 1 placement group")
-            group0 = list(tables.values())[0]
-            # Check that we have 2 bundles
-            self.assertEqual(len(group0["bundles"]), 2, "Placement group should have 2 bundles")
-
-            # Check each bundle has the expected resources
-            for bundle in group0["bundles"].values():
-                self.assertEqual(bundle["CPU"], 1.0)
-                self.assertEqual(bundle["memory"], float(100 * 1024 * 1024))
-
-    def test_rank_resubmission_on_retriable_error(self):
-        """Test that ranks are resubmitted when tasks fail with retriable errors"""
-        from ray.exceptions import WorkerCrashedError
-
-        log_dir = get_datafolder(f"{self.tmp_dir}/test_resubmission")
+    def test_unschedulable_resources_fail_before_submit(self):
+        """Per-task resources the cluster cannot satisfy would leave rank tasks PENDING forever: the run must fail
+        pre-submit with an informative error naming the job, and no rank task may be submitted."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/resource_guard")
 
         class DummyStep(PipelineStep):
             def run(self, data, rank=None, world_size=None):
                 yield {"text": "test"}
 
         executor = RayPipelineExecutor(
-            pipeline=[DummyStep()],
-            tasks=1,
-            workers=1,
-            logging_dir=log_dir,
-            nodes_per_task=1,
+            pipeline=[DummyStep()], tasks=2, workers=2, logging_dir=log_dir, cpus_per_task=4
         )
 
-        timeout_manager = TimeoutManager()
-        task_manager = RayTaskManager(nodes_per_task=1, timeout_manager=timeout_manager)
+        with patch("ray.available_resources", return_value={"CPU": 2, "GPU": 0.0, "memory": 4 * 1024**3}):
+            with self.assertRaisesRegex(
+                RuntimeError, r"ranks \[0\].*refusing to submit work that can never be scheduled"
+            ):
+                executor.run()
 
-        with task_manager:
-            executor_ref = ray.put(executor)
-            remote_options = {"num_cpus": 1, "num_gpus": 0, "memory": 100 * 1024 * 1024}
+        self.assertEqual([t for t in list_tasks() if t.name == "run_rank_task"], [], "no rank task may be submitted")
+        self.assertFalse(log_dir.isfile("completions/00000"), "no rank may have run")
 
-            # Create a real task by submitting one, then get the actual ObjectRef
-            pg_task_future = task_manager.submit_task(executor_ref, [0], remote_options)
-            wait([pg_task_future])
-
-            # Get tasks from the future result
-            tasks = pg_task_future.result()
-
-            real_task = tasks[0]
-            mock_group = task_manager.task_to_group[real_task]
-
-            # Simulate retriable error by patching ray.get
-            with patch("ray.get", side_effect=WorkerCrashedError("Worker crashed")):
-                success, ranks_to_resubmit = task_manager.task_done(real_task)
-
-                self.assertFalse(success, "Task should not be marked as successful")
-                self.assertEqual(ranks_to_resubmit, [0], "Should return ranks to resubmit")
-                self.assertTrue(mock_group.has_retriable_error, "Group should be marked with retriable error")
-
-    def test_no_resubmission_on_non_retriable_error(self):
-        """Test that ranks are NOT resubmitted when tasks fail with non-retriable errors"""
-        log_dir = get_datafolder(f"{self.tmp_dir}/test_no_resubmission")
+    def test_in_flight_reservations_keep_queued_jobs(self):
+        """This executor's own in-flight tasks drain ray.available_resources() to 0; queued jobs must still be submitted
+        (the pre-submit check credits the executor's outstanding reservations instead of destroying legitimate work)."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/in_flight_credit")
 
         class DummyStep(PipelineStep):
             def run(self, data, rank=None, world_size=None):
                 yield {"text": "test"}
 
-        executor = RayPipelineExecutor(
-            pipeline=[DummyStep()],
-            tasks=1,
-            workers=1,
-            logging_dir=log_dir,
-            nodes_per_task=1,
-        )
+        checks = {"n": 0}
 
-        timeout_manager = TimeoutManager()
-        task_manager = RayTaskManager(nodes_per_task=1, timeout_manager=timeout_manager)
+        def draining_available_resources():
+            # first pre-submit check sees 2 free CPUs; afterwards our own submitted tasks have claimed everything
+            checks["n"] += 1
+            if checks["n"] == 1:
+                return {"CPU": 2, "GPU": 0.0, "memory": 4 * 1024**3}
+            return {"CPU": 0, "GPU": 0.0, "memory": 0}
 
-        with task_manager:
-            executor_ref = ray.put(executor)
-            remote_options = {"num_cpus": 1, "num_gpus": 0, "memory": 2 * 1024 * 1024 * 1024}
+        executor = RayPipelineExecutor(pipeline=[DummyStep()], tasks=3, workers=-1, logging_dir=log_dir)
 
-            # Create a real task by submitting one, then get the actual ObjectRef
-            pg_task_future = task_manager.submit_task(executor_ref, [0], remote_options)
-            wait([pg_task_future])
+        # with 2 identical tasks in flight, the third identical job must not fail pre-submit
+        with patch("ray.available_resources", side_effect=draining_available_resources):
+            executor.run()
 
-            # Get tasks from the future result
-            tasks = pg_task_future.result()
-            real_task = tasks[0]
-            mock_group = task_manager.task_to_group[real_task]
+        self.assertGreaterEqual(checks["n"], 3, "all three jobs must have gone through the pre-submit check")
+        for rank in range(3):
+            self.assertTrue(log_dir.isfile(f"completions/{rank:05d}"), f"rank {rank} must have been submitted and run")
 
-            # Simulate non-retriable error (ValueError)
-            with patch("ray.get", side_effect=ValueError("Application error")):
-                success, ranks_to_resubmit = task_manager.task_done(real_task)
+    def test_single_node_fs_layout_and_stats_merge(self):
+        """All ranks complete and the logging_dir layout (completions/logs/stats + merged stats.json) is correct."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/layout")
 
-                self.assertFalse(success, "Task should not be marked as successful")
-                self.assertIsNone(ranks_to_resubmit, "Should NOT return ranks to resubmit for non-retriable error")
-                self.assertFalse(mock_group.has_retriable_error, "Group should NOT be marked with retriable error")
+        class DummyStep(PipelineStep):
+            name = "DummyStep"
+            type = "Test"
 
-    def test_cleanup(self):
-        """Test that placement groups and tasks are cleaned up correctly"""
-        log_dir = get_datafolder(f"{self.tmp_dir}/test_cleanup")
+            def run(self, data, rank=None, world_size=None):
+                for i in range(2):
+                    yield {"text": f"{rank}-{i}"}
+
+        executor = RayPipelineExecutor(pipeline=[DummyStep()], tasks=2, workers=2, logging_dir=log_dir)
+        executor.run()
+
+        for rank in range(2):
+            self.assertTrue(log_dir.isfile(f"completions/{rank:05d}"))
+            self.assertTrue(log_dir.isfile(f"logs/task_{rank:05d}.log"))
+            self.assertTrue(log_dir.isfile(f"stats/{rank:05d}.json"))
+        self.assertTrue(log_dir.isfile("stats.json"))
+        with log_dir.open("stats.json", "r") as f:
+            merged = json.load(f)
+        self.assertEqual(len(merged), 1)  # one stat: the DummyStep, aggregated over both ranks
+        self.assertIn("DummyStep", merged[0]["name"])
+
+    def test_workers_one_runs_sequentially(self):
+        """workers=1 must run ranks one at a time, in submission order."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/sequential")
+        marker = f"{self.tmp_dir}/marker.txt"
+
+        class MarkerStep(PipelineStep):
+            def run(self, data, rank=None, world_size=None):
+                with open(marker, "a") as f:
+                    f.write(f"start {rank}\n")
+                time.sleep(1.0)
+                with open(marker, "a") as f:
+                    f.write(f"end {rank}\n")
+                yield {"text": "test"}
+
+        executor = RayPipelineExecutor(pipeline=[MarkerStep()], tasks=2, workers=1, logging_dir=log_dir)
+        executor.run()
+
+        with open(marker, "r") as f:
+            self.assertEqual(f.read().splitlines(), ["start 0", "end 0", "start 1", "end 1"])
+
+    def test_application_error_raises_but_siblings_complete(self):
+        """An application error must surface as a RuntimeError, while sibling ranks still complete (fail-slow)."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/app_error")
+
+        class FlakyStep(PipelineStep):
+            def run(self, data, rank=None, world_size=None):
+                if rank == 1:
+                    raise RuntimeError("boom")
+                yield {"text": "test"}
+
+        executor = RayPipelineExecutor(pipeline=[FlakyStep()], tasks=3, workers=3, logging_dir=log_dir)
+
+        with self.assertRaisesRegex(RuntimeError, "boom"):
+            executor.run()
+
+        self.assertTrue(log_dir.isfile("completions/00000"))
+        self.assertTrue(log_dir.isfile("completions/00002"))
+        self.assertFalse(log_dir.isfile("completions/00001"))
+
+    def test_timeout_cancels_bounded(self):
+        """A rank exceeding `time` is cancelled and retried within budget, then fails the run without a marker."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/timeout")
+
+        class SlowStep(PipelineStep):
+            def run(self, data, rank=None, world_size=None):
+                time.sleep(10)
+                yield {"text": "test"}
+
+        executor = RayPipelineExecutor(pipeline=[SlowStep()], tasks=1, workers=1, logging_dir=log_dir, time=2)
+
+        start = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, "time limit"):
+            executor.run()
+        self.assertLess(time.monotonic() - start, PG_READY_TIMEOUT_S)
+
+        self.assertFalse(log_dir.isfile("completions/00000"), "A timed-out rank must not count as done")
+
+    def test_keyboard_interrupt_propagates_and_cancels(self):
+        """KeyboardInterrupt on the driver propagates after cleanup and leaves no task running."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/abort")
+
+        class SlowStep(PipelineStep):
+            def run(self, data, rank=None, world_size=None):
+                time.sleep(30)
+                yield {"text": "test"}
+
+        executor = RayPipelineExecutor(pipeline=[SlowStep()], tasks=2, workers=2, logging_dir=log_dir)
+
+        real_wait = ray.wait
+        calls = {"n": 0}
+
+        def interrupt_first_wait(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise KeyboardInterrupt
+            return real_wait(*args, **kwargs)
+
+        with patch("ray.wait", new=interrupt_first_wait):
+            with self.assertRaises(KeyboardInterrupt):
+                executor.run()
+
+        # nothing may still be running after the cleanup
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            states = [t.state for t in list_tasks() if t.name == "run_rank_task"]
+            if states and all(state not in RUNNING_STATES for state in states):
+                break
+            time.sleep(0.5)
+        for task in list_tasks():
+            if task.name == "run_rank_task":
+                self.assertNotIn(task.state, RUNNING_STATES, f"Task {task.task_id} was not cancelled")
+
+    def test_no_placement_groups_or_actors_single_node(self):
+        """nodes_per_task=1 must use only native Ray tasks: no placement groups, no actors."""
+        log_dir = get_datafolder(f"{self.tmp_dir}/native")
 
         class DummyStep(PipelineStep):
             def run(self, data, rank=None, world_size=None):
-                import time
-
-                time.sleep(30.0)
                 yield {"text": "test"}
 
-        executor = RayPipelineExecutor(
-            pipeline=[DummyStep()],
-            tasks=1,
-            workers=1,
-            logging_dir=log_dir,
-            nodes_per_task=1,
-        )
+        executor = RayPipelineExecutor(pipeline=[DummyStep()], tasks=2, workers=2, logging_dir=log_dir)
+        executor.run()
 
-        timeout_manager = TimeoutManager()
-        task_manager = RayTaskManager(nodes_per_task=1, timeout_manager=timeout_manager)
+        self.assertEqual(placement_group_table(), {})
+        self.assertEqual(len(list_actors()), 0)
+        # ray's state API is eventually consistent: give it a moment to register the finished tasks
+        names = set()
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and names != {"run_rank_task"}:
+            names = {t.name for t in list_tasks()}
+            time.sleep(0.5)
+        self.assertEqual(names, {"run_rank_task"})
 
-        with task_manager:
-            executor_ref = ray.put(executor)
-            remote_options = {"num_cpus": 1, "num_gpus": 0, "memory": 2 * 1024 * 1024 * 1024}
-
-            # Submit a task
-            pg_task_future = task_manager.submit_task(executor_ref, [0], remote_options)
-
-            # Wait for task to be created - wait for the future to complete
-            import time
-
-            wait([pg_task_future])
-
-        # Now go over ray tasks and check that all pg are done and no tasks or actors are left running
-        time.sleep(1.0)
-
-        # Check that placement groups are removed
-        tables = placement_group_table()
-        for pg_id, pg_info in tables.items():
-            state = pg_info.get("state")
+    def test_log_first_local_rank_mapping(self):
+        """log_first=True keeps rank 0 on console (0-based); log_first=False shifts local ranks to 1-based."""
+        executor = RayPipelineExecutor(pipeline=[], tasks=2, logging_dir=get_datafolder(f"{self.tmp_dir}/logfirst"))
+        for log_first, first_local_rank in ((False, 1), (True, 0)):
+            executor.log_first = log_first
+            with patch.object(executor, "_run_for_rank") as run_mock, patch.dict(os.environ):
+                run_rank_task(executor, 0, 0)
+                RankWorker().run_for_rank(executor, [0, 1], ["1.2.3.4"], 0)
             self.assertEqual(
-                state, "REMOVED", f"Placement group {pg_id} should be REMOVED after cleanup, but is {state}"
+                [call.args[1] for call in run_mock.call_args_list],
+                [first_local_rank, first_local_rank, first_local_rank + 1],
             )
 
-        for task in list_tasks():
-            if task.name == "RankWorker.run_for_rank":
-                self.assertEqual(task.state, "FAILED", "Task should be failed after cleanup")
 
-        # Check that all actors are dead
-        for actor in list_actors():
-            self.assertEqual(actor.state, "DEAD", "Actor should be dead after cleanup")
-
-    def test_timeout_manager(self):
-        """Test that TimeoutManager correctly tracks and identifies timed out tasks"""
-        timeout_manager = TimeoutManager(timeout_seconds=1)
-
-        mock_task1 = MagicMock()
-        mock_task2 = MagicMock()
-
-        # Add tasks
-        timeout_manager.add_task(mock_task1)
-        timeout_manager.add_task(mock_task2)
-
-        # Check immediately - should have no timeouts
-        timed_out = timeout_manager.check_timeouts()
-        self.assertEqual(len(timed_out), 0, "No tasks should be timed out immediately")
-
-        # Wait for timeout
-        import time
-
-        time.sleep(1.1)
-
-        # Check again - should have timeouts
-        timed_out = timeout_manager.check_timeouts()
-        self.assertGreaterEqual(len(timed_out), 2, "Both tasks should be timed out")
-
-        # Remove a task
-        timeout_manager.remove_task(mock_task1)
-        timed_out = timeout_manager.check_timeouts()
-        self.assertIn(mock_task2, timed_out, "Remaining task should still be timed out")
-        self.assertNotIn(mock_task1, timed_out, "Removed task should not be in timed out list")
-
-    def test_max_resubmissions(self):
-        """Test that ranks are not resubmitted beyond max_resubmits limit"""
-        from ray.exceptions import WorkerCrashedError
-
-        log_dir = get_datafolder(f"{self.tmp_dir}/test_max_resubmissions")
-
-        class DummyStep(PipelineStep):
-            def run(self, data, rank=None, world_size=None):
-                yield {"text": "test"}
-
-        executor = RayPipelineExecutor(
-            pipeline=[DummyStep()],
-            tasks=1,
-            workers=1,
-            logging_dir=log_dir,
-            nodes_per_task=1,
-        )
-
-        timeout_manager = TimeoutManager()
-        task_manager = RayTaskManager(nodes_per_task=1, timeout_manager=timeout_manager)
-
-        with task_manager:
-            executor_ref = ray.put(executor)
-            remote_options = {"num_cpus": 1, "num_gpus": 0, "memory": 2 * 1024 * 1024 * 1024}
-
-            # Create a real task by submitting one, then get the actual ObjectRef
-            pg_task_future = task_manager.submit_task(executor_ref, [0], remote_options)
-
-            wait([pg_task_future])
-
-            if not pg_task_future.done():
-                self.skipTest("Could not create placement group task in time")
-
-            # Get tasks from the future result
-            tasks = pg_task_future.result()
-            if not tasks:
-                self.skipTest("No tasks were created")
-
-            real_task = tasks[0]
-            # Simulate retriable error
-            with patch("ray.get", side_effect=WorkerCrashedError("Worker crashed")):
-                # First failure - should allow resubmission
-                success, ranks_to_resubmit = task_manager.task_done(real_task)
-                # This test verifies the logic exists in the code
-                # The actual max_resubmits check happens in the run() method
-                self.assertIsNotNone(ranks_to_resubmit, "First failure should allow resubmission")
+if __name__ == "__main__":
+    unittest.main()
