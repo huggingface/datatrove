@@ -1,7 +1,9 @@
 import unittest
+from unittest import mock
 
 from datatrove.data import Document
 from datatrove.pipeline.filters import (
+    FastTextClassifierFilter,
     GopherQualityFilter,
     GopherRepetitionFilter,
     LambdaFilter,
@@ -154,6 +156,39 @@ class TestSamplerFilter(unittest.TestCase):
         results1 = [sampler1.filter(d) for d in docs]
         results2 = [sampler2.filter(d) for d in docs]
         assert results1 == results2
+
+
+@require_fasttext
+class TestFastTextClassifierFilter(unittest.TestCase):
+    class FakeModel:
+        labels = ["__label__good", "__label__bad"]
+
+        def __init__(self, model_path: str):
+            pass
+
+        def predict(self, text: str, k: int = -1) -> tuple[tuple[str, ...], list[float]]:
+            return ("__label__good", "__label__bad"), [0.9, 0.1]
+
+    def setUp(self):
+        download_patcher = mock.patch(
+            "datatrove.pipeline.filters.fasttext_filter.cached_asset_path_or_download", return_value="model.bin"
+        )
+        model_patcher = mock.patch("fasttext.FastText._FastText", self.FakeModel)
+        for patcher in (download_patcher, model_patcher):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_annotates_without_keep_or_remove_labels(self):
+        fasttext_filter = FastTextClassifierFilter("model.bin")
+        doc = get_doc("the cat sat on the mat")
+        assert fasttext_filter.filter(doc) is True
+        assert doc.metadata["__label__good"] == 0.9
+        assert doc.metadata["__label__bad"] == 0.1
+
+    def test_rejects_unknown_label(self):
+        fasttext_filter = FastTextClassifierFilter("model.bin", remove_labels=("ugly", 0.5))
+        with self.assertRaises(ValueError):
+            fasttext_filter.filter(get_doc("the cat sat on the mat"))
 
 
 @require_nltk

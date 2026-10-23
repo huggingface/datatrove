@@ -73,7 +73,7 @@ class FastTextClassifierFilter(BaseFilter):
             self._model = _FastText(model_file)
             # check label values
             available_labels = [x.removeprefix("__label__") for x in self._model.labels]
-            for label, _ in self.keep_labels or [] + self.remove_labels or []:
+            for label, _ in (self.keep_labels or []) + (self.remove_labels or []):
                 if label not in available_labels:
                     raise ValueError(
                         f"Label '{label}' passed as keep_labels or remove_labels is not available in this "
