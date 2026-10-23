@@ -7,17 +7,16 @@ Hugging Face org members and docs typo or broken-link fixes are exempt.
 
 Closes #
 
-## How did you hit this?
+## Why this change
 
-<!-- The pipeline, data and scale where the problem showed up.
-If you found it by reading the code or with an automated analysis, say so. -->
+<!-- What problem does it solve, and why this approach rather than another? -->
 
-## What changed
+## Are you affected by it?
 
-## How it was tested
+<!-- Do you hit this in your own pipelines? Say where: the pipeline, data and scale.
+If you found it by reading the code or with an automated analysis and are not affected, say so. -->
 
-## AI use
+## How did you check it?
 
-- [ ] None
-- [ ] AI-assisted: I wrote or reviewed every change and can explain it
-- [ ] Mostly AI-generated
+<!-- Did you read the whole diff yourself? What did you run, and on what data?
+Include the commands and their output. -->

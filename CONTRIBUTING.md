@@ -63,8 +63,8 @@ post it yourself. Issues opened by agents on their own, or filed in bulk across 
 ## Using AI tools
 
 You are welcome to use AI tools. You are accountable for the result: you have read the diff, run the tests, can
-explain why the change is correct, and will reply to review comments. Say in the PR how you used AI, and keep the
-diff as small as the fix allows.
+explain why the change is correct, and will reply to review comments. In the PR, say why the change is needed,
+whether you are affected by it, and how you checked it. Keep the diff as small as the fix allows.
 
 If you use a coding agent, run it from the repository root so it picks up [AGENTS.md](AGENTS.md).
 
