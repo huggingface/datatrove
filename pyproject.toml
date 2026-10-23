@@ -84,7 +84,7 @@ multilingual = [
 inference = [
   "datatrove[io]",
   "aiofiles",
-  "httpx",
+  "aiohttp>=3.14.4",
   "aiosqlite",
   "vllm>=0.10.0",
   "sglang",
@@ -111,6 +111,7 @@ testing = [
   "datatrove[decont]",
   # Flask doesn't have correct dependencies on werkzeug, causing issues, thus we pin flask 3.1 (which currently works) to avoid it
   "flask>=3.1.0",
+  "httpx", # tests/pipeline/writers/test_disk_writer.py builds httpx responses
   "hypothesis",
   "pytest",
   "pytest-rerunfailures",

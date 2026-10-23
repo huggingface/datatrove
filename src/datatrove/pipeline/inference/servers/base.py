@@ -14,61 +14,15 @@ from datatrove.pipeline.inference.types import ServerError
 
 
 if TYPE_CHECKING:
+    import aiohttp
+
     from datatrove.pipeline.inference.run_inference import InferenceConfig
 
 
-# --------------------------------------------------------------------------- #
-# Low-level, dependency-free HTTP POST helper (kept from the original file)
-# --------------------------------------------------------------------------- #
-async def _raw_post(url: str, json_data: dict) -> tuple[int, bytes]:
-    """
-    Very small HTTP/1.1 POST helper using the std-lib socket machinery.
-
-    Args:
-        url: The target URL for the POST request
-        json_data: Dictionary to be sent as JSON payload
-
-    Returns:
-        Tuple of (status_code, response_body)
-    """
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    host, port = parsed.hostname, parsed.port or 80
-    path = parsed.path or "/"
-
-    reader: asyncio.StreamReader
-    writer: asyncio.StreamWriter
-
-    reader, writer = await asyncio.open_connection(host, port)
-    try:
-        payload = json.dumps(json_data).encode()
-        request = (
-            f"POST {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"Content-Type: application/json\r\n"
-            f"Content-Length: {len(payload)}\r\n"
-            f"Connection: close\r\n\r\n"
-        ).encode()
-        writer.write(request + payload)
-        await writer.drain()
-
-        # Status line
-        status_parts = (await reader.readline()).decode().split(" ", 2)
-        status_code = int(status_parts[1]) if len(status_parts) >= 2 else 500
-
-        # Headers (ignored – we rely on Content-Length only)
-        while True:
-            line = await reader.readline()
-            if line in (b"\r\n", b"\n", b""):
-                break
-
-        # Body
-        body = await reader.read()  # connection closes -> EOF
-        return status_code, body
-    finally:
-        writer.close()
-        await writer.wait_closed()
+# Keep idle connections for less time than the server does (vLLM closes them after 5s by default),
+# so we don't send a request on a connection the server has just closed.
+HTTP_KEEPALIVE_TIMEOUT_SEC = 4.0
+HTTP_CONNECT_TIMEOUT_SEC = 30.0
 
 
 def _find_available_port(rank: int = 0) -> int:
@@ -141,7 +95,7 @@ class InferenceServer(ABC):
         _is_master: Whether this is the master node in a distributed setup.
     """
 
-    _requires_dependencies = ["httpx"]
+    _requires_dependencies = ["aiohttp"]
 
     def __init__(self, config: "InferenceConfig", rank: int):
         """
@@ -171,6 +125,8 @@ class InferenceServer(ABC):
         self._is_master = is_master_node()
         self._rank = rank
         self._node_rank = get_node_rank()
+        # Shared HTTP session, created lazily inside the running event loop
+        self._http_session: "aiohttp.ClientSession | None" = None
 
     # --------------------------------------------------------------------------- #
     # Logging helper methods
@@ -296,6 +252,38 @@ class InferenceServer(ABC):
         """Get the base URL for making requests. Defaults to localhost with port."""
         return f"http://localhost:{self._port}"
 
+    def _get_http_session(self) -> "aiohttp.ClientSession":
+        """
+        Get the shared HTTP session, creating it on first use.
+
+        One pooled session is shared by all requests to this server. The connection
+        limit matches `max_concurrent_generations`, and `request_timeout` bounds each
+        request (None means no limit, for long generations).
+
+        Returns:
+            The aiohttp ClientSession for this server.
+        """
+        import aiohttp
+
+        if self._http_session is None or self._http_session.closed:
+            connector = aiohttp.TCPConnector(
+                limit=self.config.max_concurrent_generations,
+                keepalive_timeout=HTTP_KEEPALIVE_TIMEOUT_SEC,
+            )
+            self._http_session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=aiohttp.ClientTimeout(
+                    total=self.config.request_timeout, sock_connect=HTTP_CONNECT_TIMEOUT_SEC
+                ),
+            )
+        return self._http_session
+
+    async def _close_http_session(self) -> None:
+        """Close the shared HTTP session, if any."""
+        if self._http_session is not None:
+            await self._http_session.close()
+            self._http_session = None
+
     async def is_ready(self) -> bool:
         """
         Check if the server is ready to accept requests.
@@ -307,13 +295,12 @@ class InferenceServer(ABC):
         Returns:
             True if the server is ready and responding, False otherwise.
         """
-        import httpx
+        import aiohttp
 
         url = f"{self.get_base_url()}/v1/models"
         try:
-            async with httpx.AsyncClient() as session:
-                response = await session.get(url, timeout=5.0)
-                return response.status_code == 200
+            async with self._get_http_session().get(url, timeout=aiohttp.ClientTimeout(total=5.0)) as response:
+                return response.status == 200
         except Exception:
             return False
 
@@ -482,6 +469,8 @@ class InferenceServer(ABC):
                 pass
             self._server_monitoring_task = None
 
+        await self._close_http_session()
+
     # --------------------------------------------------------------------------- #
     # Internal/private methods
     # --------------------------------------------------------------------------- #
@@ -581,8 +570,15 @@ class InferenceServer(ABC):
         else:
             endpoint = "/v1/completions"
 
+        import aiohttp
+
         url = f"{self.get_base_url()}{endpoint}"
-        status, body = await _raw_post(url, json_data=payload)
+        try:
+            async with self._get_http_session().post(url, json=payload) as response:
+                status, body = response.status, await response.read()
+        except aiohttp.ClientConnectionError as e:
+            # A dropped or refused connection: raise it as a ConnectionError so the caller retries it
+            raise ConnectionError(f"{type(e).__name__}: {e}") from e
 
         if status == 400:
             raise InferenceError(None, f"Got BadRequestError from server: {body.decode()}", payload=payload)
