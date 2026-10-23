@@ -15,14 +15,13 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 keywords = ["data", "machine", "learning", "processing"]
-requires-python = ">=3.10.0"
+requires-python = ">=3.11"
 dependencies = [
   "dill>=0.3.0",
   "fsspec>=2023.12.2",

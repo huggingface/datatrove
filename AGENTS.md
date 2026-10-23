@@ -6,7 +6,7 @@ See [README.md](README.md) for detailed documentation on terminology, pipeline b
 
 ## Python Environment
 
-- **Python Version:** 3.10+
+- **Python Version:** 3.11+
 - **Package Manager:** `uv` for dependency management
 - **Virtual Environment:** `.venv/` (created via `uv venv`)
 

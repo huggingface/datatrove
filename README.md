@@ -48,7 +48,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
 
 ## Installation
 
-Requires Python 3.10+.
+Requires Python 3.11+.
 
 ```bash
 uv sync
