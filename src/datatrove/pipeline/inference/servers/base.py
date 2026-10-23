@@ -266,23 +266,29 @@ class InferenceServer(ABC):
         import aiohttp
 
         if self._http_session is None or self._http_session.closed:
+            from urllib.parse import urlparse
+
             connector = aiohttp.TCPConnector(
                 limit=self.config.max_concurrent_generations,
                 keepalive_timeout=HTTP_KEEPALIVE_TIMEOUT_SEC,
             )
+            # Honour HTTP(S)_PROXY / NO_PROXY for remote endpoints, as httpx did, but never proxy a local server
+            is_local = urlparse(self.get_base_url()).hostname in ("localhost", "127.0.0.1", "::1")
             self._http_session = aiohttp.ClientSession(
                 connector=connector,
                 timeout=aiohttp.ClientTimeout(
                     total=self.config.request_timeout, sock_connect=HTTP_CONNECT_TIMEOUT_SEC
                 ),
+                trust_env=not is_local,
             )
         return self._http_session
 
     async def _close_http_session(self) -> None:
         """Close the shared HTTP session, if any."""
-        if self._http_session is not None:
-            await self._http_session.close()
-            self._http_session = None
+        # Detach first, so a call to _get_http_session during close starts a new session instead of losing it
+        session, self._http_session = self._http_session, None
+        if session is not None:
+            await session.close()
 
     async def is_ready(self) -> bool:
         """
@@ -447,29 +453,31 @@ class InferenceServer(ABC):
         the server process, and cancels the monitoring task. This method is
         idempotent and safe to call multiple times.
         """
-        # Reset the future for next start attempt, only if the server were previously ready.
-        if self._server_ready.done() and self._server_ready.exception() is None:
-            self._server_ready = asyncio.Future()
+        try:
+            # Reset the future for next start attempt, only if the server were previously ready.
+            if self._server_ready.done() and self._server_ready.exception() is None:
+                self._server_ready = asyncio.Future()
 
-        if self._server_process:
-            try:
-                self._server_process.terminate()
-                await asyncio.wait_for(self._server_process.wait(), timeout=10.0)
-            except asyncio.TimeoutError:
-                self._server_process.kill()
-            except ProcessLookupError:
-                pass
-            self._server_process = None
+            if self._server_process:
+                try:
+                    self._server_process.terminate()
+                    await asyncio.wait_for(self._server_process.wait(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    self._server_process.kill()
+                except ProcessLookupError:
+                    pass
+                self._server_process = None
 
-        if self._server_monitoring_task:
-            try:
-                self._server_monitoring_task.cancel()
-                await asyncio.wait_for(self._server_monitoring_task, timeout=10.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
-            self._server_monitoring_task = None
-
-        await self._close_http_session()
+            if self._server_monitoring_task:
+                try:
+                    self._server_monitoring_task.cancel()
+                    await asyncio.wait_for(self._server_monitoring_task, timeout=10.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    pass
+                self._server_monitoring_task = None
+        finally:
+            # Close the session even if the steps above fail or are cancelled
+            await self._close_http_session()
 
     # --------------------------------------------------------------------------- #
     # Internal/private methods
@@ -576,8 +584,9 @@ class InferenceServer(ABC):
         try:
             async with self._get_http_session().post(url, json=payload) as response:
                 status, body = response.status, await response.read()
-        except aiohttp.ClientConnectionError as e:
-            # A dropped or refused connection: raise it as a ConnectionError so the caller retries it
+        except (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError) as e:
+            # A dropped or refused connection, or a response body cut short:
+            # raise it as a ConnectionError so the caller retries it
             raise ConnectionError(f"{type(e).__name__}: {e}") from e
 
         if status == 400:
