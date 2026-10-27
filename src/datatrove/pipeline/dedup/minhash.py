@@ -501,6 +501,18 @@ class MinhashDedupCluster(PipelineStep):
     """Minhash Deduplication: Third Pipeline Step
 
     Cluster the documents using the previously found duplicate pairs. If A-B and B-C are duplicate pairs, then we will have the A-B-C cluster. Only one document per cluster will be kept after filtering
+
+    Which document is kept: clusters are built with union-find (union by size), and
+    ``MinhashDedupFilter`` keeps only the root of each cluster. When two sets merge, the root of the
+    larger set becomes the root; on equal sizes, the root of the first document in the ``.dups`` pair
+    wins, so the result depends on the order in which pairs are processed. No quality ranking or
+    source preference is applied. Every document connected to an index match
+    (``MinhashDedupBuckets(index_folder=...)``) is removed; ``ignore_index_matches=True`` skips
+    index-match pairs.
+
+    Quality filters applied after ``MinhashDedupFilter`` can remove the kept document even when the
+    discarded copies would have passed, so the cluster loses every copy. Applying those filters
+    before signature generation, as in ``examples/fineweb.py``, avoids this.
     """
 
     type = "🫂 - DEDUP"
