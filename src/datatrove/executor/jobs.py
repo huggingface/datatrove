@@ -97,6 +97,8 @@ class JobsPipelineExecutor(PipelineExecutor):
         dependencies: pip requirements installed in each Job's ``uv`` environment (passed
             as ``uv run --with``). Must include datatrove and anything your pipeline steps
             import (e.g. ``["datatrove[io]", "datasets"]``). Defaults to ``["datatrove[io]"]``.
+            A coordinator Job installs those of every stage of its ``depends`` chain merged, since it
+            must import all of them to load the pickled chain.
             The Job needs datatrove>=0.10.0, the release that introduced this executor:
             with an older one it dies at unpickle time (the class doesn't exist in its env).
         timeout: per-Job timeout, as seconds (int) or a string like ``"2h"`` / ``"30m"``.
@@ -375,8 +377,11 @@ class JobsPipelineExecutor(PipelineExecutor):
         free to exit. Rerunning the script stays idempotent, and a coordinator that dies leaves every
         completed rank untouched (rerun the script, or call :meth:`launch_job`).
 
-        It installs the same ``dependencies``/``image`` as the workers, so a heavy image (a vLLM one,
-        for instance) gets pulled onto the coordinator too — worth keeping those light.
+        It installs the ``dependencies`` of every stage of the chain merged, because unpickling the
+        chain imports each stage's pipeline classes — a coordinator light enough for the last stage
+        alone would fail to load the pickle of a stage needing ``vllm`` or ``spacy``. A heavy image is
+        still pulled onto the coordinator, as it runs on this stage's ``image``: two stages asking for
+        different images cannot both be served, which is warned about.
 
         Returns:
             The Job id, or ``None`` when a coordinator for this run is already live.
@@ -395,6 +400,14 @@ class JobsPipelineExecutor(PipelineExecutor):
                 "can read/write the logging_dir."
             )
         secrets = {"HF_TOKEN": token, **self._chain_secrets()}  # raises on a clash, before any side effect
+        for attribute in ("image", "python"):
+            wanted = {getattr(stage, attribute) for stage in self._chain() if getattr(stage, attribute)}
+            if len(wanted) > 1:
+                logger.warning(
+                    f"The stages of this chain ask for different {attribute} values ({sorted(wanted)}), but "
+                    f"the coordinator runs on this stage's {getattr(self, attribute)!r}. Give it dependencies "
+                    f"that can import every stage, or run the stages with separate `run()` calls."
+                )
         if self._coordinator_already_live(token):
             self._launched = True
             return None
@@ -403,7 +416,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         job = run_uv_job(
             launch_pickled_pipeline.__file__,  # same entrypoint as a worker: the env decides the role
             script_args=[self.logging_dir.resolve_paths("executor.pik")],
-            dependencies=self.dependencies,
+            dependencies=self._coordinator_dependencies,
             python=self.python,
             image=self.image,
             env={
@@ -471,6 +484,14 @@ class JobsPipelineExecutor(PipelineExecutor):
             stage.secrets = {key: os.environ[key] for key in keys if key in os.environ} or None
 
     @property
+    def _coordinator_dependencies(self) -> list[str]:
+        """The requirements of every stage of the chain, merged, so the coordinator can load them all."""
+        merged: list[str] = []
+        for stage in self._chain():
+            merged += [requirement for requirement in stage.dependencies if requirement not in merged]
+        return merged
+
+    @property
     def _run_id(self) -> str:
         """Short hash identifying the run this stage belongs to.
 
@@ -484,9 +505,11 @@ class JobsPipelineExecutor(PipelineExecutor):
     def _run_labels(self) -> dict[str, str]:
         """Labels every Job of this stage carries, identifying the run it belongs to."""
         return {
+            # user labels come first: the reserved keys below must survive them, or a relaunch could be
+            # talked into labelling itself as another run and start a second coordinator
+            **(self.labels or {}),
             "datatrove_job_name": self.job_name,
             "datatrove_logging_dir": self._run_id,
-            **(self.labels or {}),
         }
 
     def _coordinator_already_live(self, token: str) -> bool:

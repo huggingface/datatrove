@@ -239,11 +239,16 @@ def _make_chain_hub():
     roles = (ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR)
     secret_names = {"HF_TOKEN"}  # every secret any Job got: a Job must not see another Job's
 
-    def fake_run_uv_job(script, *, script_args=None, env=None, secrets=None, labels=None, **kwargs):
+    def fake_run_uv_job(script, *, script_args=None, env=None, secrets=None, labels=None, dependencies=None, **kwargs):
         job_id = f"job-{len(jobs)}"
         with fsspec.open(script_args[0], "rb") as f:
             raw = f.read()
-        record = {"role": "coordinator" if COORDINATOR_ENV_VAR in env else "worker", "labels": labels, "pik": raw}
+        record = {
+            "role": "coordinator" if COORDINATOR_ENV_VAR in env else "worker",
+            "labels": labels,
+            "pik": raw,
+            "dependencies": dependencies,
+        }
         jobs[job_id] = record
         secret_names.update(secrets or {})
         saved = {key: os.environ.pop(key, None) for key in {*roles, *secret_names}}
@@ -922,6 +927,44 @@ class TestJobsExecutor(unittest.TestCase):
         run_ids = {stage._run_id for stage in (a, b, c)}
         self.assertTrue(all(set(call["labels"]) == {"datatrove_logging_dir"} for call in asked))
         self.assertEqual({call["labels"]["datatrove_logging_dir"] for call in asked}, run_ids)
+
+    def test_coordinator_installs_the_dependencies_of_every_stage(self):
+        """Loading the chain's pickle imports every stage, so a light coordinator cannot stay light."""
+        a, b, c = _three_stage_chain("dependencies")
+        a.dependencies = ["datatrove[io]", "vllm"]
+        b.dependencies = ["datatrove[io]", "spacy"]
+        hub = _make_chain_hub()
+        _run_with_hub(c, hub)
+        _, _, jobs = hub
+
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["dependencies"], ["datatrove[io]", "spacy", "vllm"])
+        worker_a = next(
+            job for job in jobs.values() if job["role"] == "worker" and job["labels"]["datatrove_job_name"] == "A"
+        )
+        self.assertEqual(worker_a["dependencies"], ["datatrove[io]", "vllm"])  # workers keep their own
+
+    def test_user_labels_cannot_override_the_run_identity(self):
+        """The live check reads these labels, so a user label must not be able to forge another run."""
+        log_dir = get_datafolder("memory://jobs-coordinator/label-clash")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=1,
+            logging_dir=log_dir,
+            token="t",
+            labels={"datatrove_logging_dir": "0" * 12, "team": "nlp"},
+        )
+        self.assertEqual(executor._run_labels["datatrove_logging_dir"], executor._run_id)
+        self.assertEqual(executor._run_labels["team"], "nlp")
+
+        live = _fake_job({**executor._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live)),
+        ):
+            executor.run()
+        self.assertEqual(len(submitted), 0)
 
     def test_one_coordinator_runs_the_whole_chain(self):
         """`run()` on the last stage submits one coordinator, which runs each stage after the previous one."""
