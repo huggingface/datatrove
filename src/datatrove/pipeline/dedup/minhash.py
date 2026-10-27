@@ -501,6 +501,20 @@ class MinhashDedupCluster(PipelineStep):
     """Minhash Deduplication: Third Pipeline Step
 
     Cluster the documents using the previously found duplicate pairs. If A-B and B-C are duplicate pairs, then we will have the A-B-C cluster. Only one document per cluster will be kept after filtering
+
+    Must run as a single task. Writes the following files to `output_folder`, one set per task of the first
+    (signature) stage, named `{rank:06d}.<extension>`. Each file is a flat array of little-endian uint32 values:
+
+    - `.remove`: the positions of the documents to drop, i.e. all documents of a cluster except the one that is
+      kept. A task with no documents to drop gets no `.remove` file.
+    - `.clusters` (only if `save_cluster_id=True`): `(position, cluster id)` pairs for every document of that task
+      that belongs to a cluster of 2 or more documents, including the document that is kept.
+    - `.sizes` (only if `save_cluster_size=True`): `(position, cluster size)` pairs for the same documents.
+
+    "Position" is the 0-based index of the document in the input stream of its task, not its `id`. A file only
+    lists the documents of its own task, so a cluster whose documents are spread over several tasks appears in
+    several files. Cluster ids are shared across files: to rebuild the full clusters, read all the `.clusters`
+    files and group by cluster id. Documents without duplicates are not listed in `.clusters` or `.sizes`.
     """
 
     type = "🫂 - DEDUP"
