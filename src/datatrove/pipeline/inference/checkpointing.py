@@ -203,6 +203,40 @@ class RequestCache:
         self._doc_ids_in_cache.discard(doc_id)
 
 
+CHECKPOINT_RECORD_IDX_KEY = "__checkpoint_record_idx"
+
+
+class ChunkAlreadyCompleteError(RuntimeError):
+    """Raised when writing a document to a chunk whose output file was already closed."""
+
+
+@dataclasses.dataclass
+class ProcessedRecords:
+    """
+    Records from unfinished chunks that were already processed in a previous run.
+    Records are matched by their position in the input. Checkpoints written by older versions do not store the
+    position, so their records are matched by id, counting duplicates.
+    """
+
+    record_idxs: set[int] = dataclasses.field(default_factory=set)
+    legacy_ids: Counter = dataclasses.field(default_factory=Counter)
+
+    def __len__(self) -> int:
+        return len(self.record_idxs) + sum(self.legacy_ids.values())
+
+    def consume(self, record_idx: int, doc_id: str) -> bool:
+        """
+        Returns True (and forgets the record) if the record at `record_idx` was already processed.
+        """
+        if record_idx in self.record_idxs:
+            self.record_idxs.remove(record_idx)
+            return True
+        if self.legacy_ids[doc_id] > 0:
+            self.legacy_ids[doc_id] -= 1
+            return True
+        return False
+
+
 class CheckpointManager:
     def __init__(
         self,
@@ -232,14 +266,28 @@ class CheckpointManager:
         self.new_completed_chunks = set()
         self.last_chunk_index = -1
 
-    async def write_document(self, document: Document, rank: int, chunk_index: int, output_writer_context: DiskWriter):
+    async def write_document(
+        self,
+        document: Document,
+        rank: int,
+        chunk_index: int,
+        output_writer_context: DiskWriter,
+        record_idx: int | None = None,
+    ):
         """
         Write a document to the checkpoint and main output writer. Potentially closes the main file if the chunk is complete.
+        `record_idx` is the position of the document in the input, stored in the checkpoint to resume by position.
         """
         import aiofiles
 
         should_update_last_chunk_index = False
         async with self.file_locks[chunk_index]:
+            if chunk_index <= self.last_chunk_index or self.per_chunk_counts[chunk_index] >= self.records_per_chunk:
+                # the output file for this chunk was already closed, writing would reopen and overwrite it
+                raise ChunkAlreadyCompleteError(
+                    f"Chunk {chunk_index} of rank {rank} is already complete "
+                    f"(records_per_chunk={self.records_per_chunk}). Refusing to write document {document.id}."
+                )
             # write to main output writer
             if "__no_rollouts_remove" not in document.metadata:
                 output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
@@ -253,8 +301,11 @@ class CheckpointManager:
                     os.makedirs(save_dir, exist_ok=True)
                 if not os.path.exists(save_path):
                     logger.info(f"Creating checkpoint file {save_path}")
+                checkpoint_record = dataclasses.asdict(document)
+                if record_idx is not None:
+                    checkpoint_record[CHECKPOINT_RECORD_IDX_KEY] = record_idx
                 async with aiofiles.open(save_path, "ab") as f:
-                    await f.write(orjson.dumps(dataclasses.asdict(document), option=orjson.OPT_APPEND_NEWLINE))
+                    await f.write(orjson.dumps(checkpoint_record, option=orjson.OPT_APPEND_NEWLINE))
                 # see if we have to close the file
                 if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
                     # we gotta close the main file
@@ -267,16 +318,18 @@ class CheckpointManager:
         if should_update_last_chunk_index:
             await self.update_last_chunk_index(rank)
 
-    async def parse_existing_checkpoints(self, rank: int, output_writer_context: DiskWriter) -> tuple[int, set[str]]:
+    async def parse_existing_checkpoints(
+        self, rank: int, output_writer_context: DiskWriter
+    ) -> tuple[int, ProcessedRecords]:
         """
         Load all checkpoints for a given rank and write them to the output writer.
         Returns:
         - documents to skip: number of documents from completed chunks that were already finished
-        - set of ids of documents that were already processed in the unfinished chunks
+        - records that were already processed in the unfinished chunks
         """
-        all_ids = set()
+        processed = ProcessedRecords()
         if not self.checkpoints_local_dir:
-            return 0, all_ids
+            return 0, processed
 
         should_update_last_chunk_index = False
 
@@ -308,9 +361,14 @@ class CheckpointManager:
                 # not strictly needed but just to be safe for the future
                 async with self.file_locks[chunk_index]:
                     for document in reader.read_file(filename):
+                        # extra top-level keys are read into metadata, remove ours before writing the output
+                        record_idx = document.metadata.pop(CHECKPOINT_RECORD_IDX_KEY, None)
                         if "__no_rollouts_remove" not in document.metadata:
                             output_writer_context.write(document, rank=rank, chunk_index=chunk_index)
-                        all_ids.add(document.id)
+                        if record_idx is not None:
+                            processed.record_idxs.add(record_idx)
+                        else:
+                            processed.legacy_ids[document.id] += 1
                         self.per_chunk_counts[chunk_index] += 1
                         if self.per_chunk_counts[chunk_index] == self.records_per_chunk:
                             # close the file
@@ -323,7 +381,7 @@ class CheckpointManager:
         # can not be within the chunk lock
         if should_update_last_chunk_index:
             await self.update_last_chunk_index(rank)
-        return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
+        return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, processed
 
     async def cleanup_last_chunk(self, rank: int, chunk_index: int):
         import shutil
