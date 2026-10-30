@@ -354,6 +354,8 @@ The core abstraction is a **rollout function**—a plain async callable that rec
 
 Set `rollouts_per_document` to automatically run the same rollout multiple times per sample; the runner collects successful outputs under `document.metadata["rollout_results"]`.
 
+The `InferenceResult` returned by `generate(...)` includes `model`, the configured `model_name_or_path` used for the request. Returning this result directly from a rollout includes the model in the saved rollout result; custom result dictionaries can include it with `"model": result.model`. Request caching preserves this field. Older cached results without model information use an empty string.
+
 #### Ready-to-use generation script
 
 For a ready-to-use script for synthetic data generation at scale (supporting models from 1B to 1T parameters, local/SLURM execution, and multi-node setups), see [`generate_data.py`](examples/inference/generate_data.py). This script handles prompt-based generation with configurable system prompts and templates.

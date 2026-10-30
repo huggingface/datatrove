@@ -304,6 +304,7 @@ def test_cached_request_defaults_missing_reasoning(tmp_path):
 
         assert result.text == "cached answer"
         assert result.reasoning == ""
+        assert result.model == ""
         assert server.payloads == []
 
         await runner.request_cache.close(delete_file=True)

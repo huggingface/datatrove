@@ -297,6 +297,7 @@ class InferenceRunner(PipelineStep):
                         finish_reason=choice["finish_reason"],
                         usage=usage,
                         reasoning=reasoning,
+                        model=self.config.model_name_or_path,
                     )
                 except (ConnectionError, OSError, asyncio.TimeoutError) as e:
                     # This means the server is dead likely, let's try again just to be sure
@@ -358,6 +359,7 @@ class InferenceRunner(PipelineStep):
                     finish_reason=cached_result["finish_reason"],
                     usage=cached_result["usage"],
                     reasoning=cached_result.get("reasoning", ""),
+                    model=cached_result.get("model", ""),
                 )
 
         try:
@@ -382,6 +384,7 @@ class InferenceRunner(PipelineStep):
                 "finish_reason": result.finish_reason,
                 "usage": result.usage,
                 "reasoning": result.reasoning,
+                "model": result.model,
             },
             payload_hash=payload_hash,
         )
