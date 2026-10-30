@@ -201,6 +201,16 @@ class TestC4QualityFilter(unittest.TestCase):
         assert result is False
         assert reason == "too_few_sentences"
 
+    def test_a_line_padded_by_citations_is_not_kept(self):
+        c4 = C4QualityFilter(min_num_sentences=-1)
+        padded = get_doc("Go [1] [2].\nCats sit here today.")
+        assert c4.filter(padded) is True
+        assert padded.text == "Cats sit here today."
+
+        kept = get_doc("Cats sit here [1].")
+        assert c4.filter(kept) is True
+        assert kept.text == "Cats sit here ."
+
     def test_removes_policy_lines_from_text(self):
         c4 = C4QualityFilter(min_num_sentences=-1, min_words_per_line=-1)
         d = get_doc("This site uses cookies for tracking.\nAnother valid line here today.")

@@ -99,9 +99,10 @@ class C4QualityFilter(BaseFilter):
             if self.max_word_length != -1 and any(len(word) > self.max_word_length for word in words):
                 self.stat_update("line-filter-too_long_word")
                 continue
-            # remove citation
+            # remove citation, then count words on what is left
             if self.remove_citations:
                 line = CITATION_REGEX.sub("", line)
+                words = line.split()
             # end punctuation
             if self.filter_no_terminal_punct and (not line.endswith(END_PUNCTUATION) or line.endswith(ELLIPSIS)):
                 self.stat_update("line-filter-no_terminal_punc")
