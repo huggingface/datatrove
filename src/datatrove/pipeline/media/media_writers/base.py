@@ -50,22 +50,24 @@ class BaseMediaWriter(PipelineStep, ABC):
 
     def _get_output_filename(self, media: Media, rank: int | str = 0, **kwargs) -> str:
         """
-            Get the output path for a given document, based on any possible tag replacement.
+            Get the output path for a given media item, based on any possible tag replacement.
             Example filename with `rank` tag: "${rank}.zstd"
             Tags replaced:
             - `rank`: rank of the current worker. Important as to avoid multiple workers writing to the same file
-            - `id`: the document's id
-            - metadata: any metadata field can be replaced directly
-            - kwargs: any additional kwargs passed to this function
+            - `id`: the media's id
+            - metadata: media metadata fields, with `id` and `rank` reserved for the values above
+            - kwargs: explicit tag values, overriding metadata and reserved tags
         Args:
-            document: the document for which the output path should be determined
+            media: the media item for which the output path should be determined
             rank: the rank of the current worker
             **kwargs: any additional tags to replace in the filename
 
-        Returns: the final replaced path for this document
+        Returns: the final replaced path for this media item
 
         """
-        return self.output_filename.substitute({"rank": str(rank).zfill(5), **kwargs})
+        return self.output_filename.substitute(
+            {**media.metadata, "id": media.id, "rank": str(rank).zfill(5), **kwargs}
+        )
 
     @abstractmethod
     def _write(self, media: Media, file_handler: IO, filename: str) -> tuple[str, int, int]:
