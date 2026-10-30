@@ -81,6 +81,14 @@ class GopherQualityFilter(BaseFilter):
         if self.max_doc_words and n_non_symbol_words_words > self.max_doc_words:
             return False, "gopher_long_doc"
 
+        # Empty documents: with min/max word checks enabled the guards above
+        # already reject them as short/long; only when length checks are
+        # disabled does an empty doc reach the ratio checks below, where
+        # `text.count("#") / n_words` divides by zero (and np.mean([]) yields
+        # NaN). Reject it explicitly instead of crashing.
+        if n_words == 0:
+            return False, "empty"
+
         # mean word length is outside the range of 3 to 10 characters
         avg_n_words = np.mean([len(w) for w in non_symbol_words])
         if self.min_avg_word_length and avg_n_words < self.min_avg_word_length:
