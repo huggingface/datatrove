@@ -139,6 +139,36 @@ class TestFilters(unittest.TestCase):
             else:
                 self.check_filter(url_filter, doc, result)
 
+    @require_tldextract
+    def test_url_case_insensitive(self):
+        url_filter = URLFilter(
+            extra_domains=("BLOCKED.com",),
+            banned_words=("porn",),
+            soft_banned_words=("bitch", "slut"),
+            banned_subwords=("escort",),
+            soft_word_threshold=2,
+            use_integrated_lists=False,
+        )
+
+        test_cases = (
+            ("https://example.com/Porn/video.html", "hard_blacklisted"),
+            ("https://example.com/Bitch-Slut-Blog.html", "soft_blacklisted"),
+            ("https://example.com/ESCORT-service.html", "blacklisted_subword"),
+            ("https://BLOCKED.COM/some-page.html", "domain"),
+            ("https://blocked.com/some-page.html", "domain"),
+            ("https://example.com/clean-page.html", True),
+        )
+
+        for url, expected in test_cases:
+            with self.subTest(url=url):
+                doc = get_doc(TEXT_LF_1, url)
+                result = url_filter.filter(doc)
+
+                if expected is True:
+                    self.assertTrue(result)
+                else:
+                    self.assertEqual(result, (False, expected))
+
 
 class TestSamplerFilter(unittest.TestCase):
     def test_rate_controls_keep_ratio(self):
