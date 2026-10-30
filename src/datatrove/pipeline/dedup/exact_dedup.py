@@ -33,7 +33,7 @@ class ExactDedupConfig:
         content_getter: Callable[[Document], bytes | str] Function for getting the content of a document.
         document_priority: Callable[[Document], int] Function for determining the priority of a document.
             Only the document with the highest priority will be preserved, out of duplicates.
-            The document priority must be in range [1, 65535]
+            The document priority must be in range [0, 65535]
     """
 
     content_getter: Callable[[Document], bytes | str]
@@ -69,7 +69,7 @@ def get_sig_dtype(config: HashConfig) -> np.dtype:
 class ExactDedupSignature(PipelineStep):
     """ExactDedup: First pipeline step
         Creates a signature for content in each document. Each HashSig has n hash, the priority the doc id. Before saving
-        them the hashes are sorted based on (hash, -priority, doc_id).
+        them the hashes are sorted based on (hash, priority descending, doc_id).
 
     Args:
         output_folder: folder where signatures are saved
@@ -103,16 +103,14 @@ class ExactDedupSignature(PipelineStep):
         sig_dtype = get_sig_dtype(self.config.hash_config)
         priority_max = np.iinfo(sig_dtype["priority"]).max
 
-        # 0 will stay as is, so we can't use 0 as a priority
-        assert all(sig[1] >= 1 and sig[1] <= priority_max for sig in signatures), (
-            f"priority must be between 1 and {priority_max}"
-        )
+        if not all(0 <= sig[1] <= priority_max for sig in signatures):
+            raise ValueError(f"priority must be between 0 and {priority_max}")
         signatures = np.array(signatures, dtype=sig_dtype)
 
         # Ensure that the highest priority is always first
-        signatures["priority"] = -signatures["priority"]
+        signatures["priority"] = priority_max - signatures["priority"]
         signatures.sort(axis=0)
-        signatures["priority"] = -signatures["priority"]
+        signatures["priority"] = priority_max - signatures["priority"]
 
         # Same code as in sentence_dedup
         hashes_per_worker = self.config.hash_config.max // self.finder_workers
