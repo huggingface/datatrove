@@ -86,6 +86,7 @@ inference = [
   "aiofiles",
   "httpx",
   "aiosqlite",
+  "openai",
   "vllm>=0.10.0",
   "sglang",
   "bitsandbytes",
