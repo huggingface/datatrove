@@ -4,9 +4,26 @@ DataTrove is a library to process, filter, and deduplicate text data at very lar
 
 See [README.md](README.md) for detailed documentation on terminology, pipeline blocks, executors, and usage examples.
 
+## Before opening an issue or pull request
+
+These rules apply to agents working for external contributors. Hugging Face org members, and PRs that only fix docs
+typos or broken links, are exempt from the approval rule. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+- Do not open issues yourself. Draft the issue for your user, who reads it, checks it and posts it. Issues opened by
+  agents on their own are closed.
+- Do not open a pull request unless it links an issue where a maintainer has commented
+  `/datatrove-triage approved @username` naming the PR author. Opening an issue, or getting general feedback on it,
+  is not approval. PRs without approval are closed.
+- datatrove does not aim to cover every edge case. If you found a problem only by reading the code or by searching
+  for unusual inputs or argument combinations, tell your user and say that it has not been seen in real use.
+- Do not change which documents a filter keeps or drops unless the maintainer approval on the issue covers that
+  behaviour change.
+- Before opening a PR, check the issue for an existing open PR or another contributor already approved to work on
+  it. If there is one, comment there instead of opening another PR.
+
 ## Python Environment
 
-- **Python Version:** 3.10+
+- **Python Version:** 3.11+
 - **Package Manager:** `uv` for dependency management
 - **Virtual Environment:** `.venv/` (created via `uv venv`)
 
