@@ -38,6 +38,23 @@ def _fake_create_commit(*_args, operations, **_kwargs):
 
 
 @require_pyarrow
+def test_default_local_working_dir() -> None:
+    """Without local_working_dir, files are staged in a temporary directory."""
+    with (
+        patch("datatrove.pipeline.writers.huggingface.create_repo"),
+        patch("datatrove.pipeline.writers.huggingface.preupload_lfs_files"),
+        patch("datatrove.pipeline.writers.huggingface.create_commit") as mock_create_commit,
+    ):
+        writer = HuggingFaceDatasetWriter(dataset="org/my-dataset", cleanup=False)
+        with writer:
+            writer.write(_make_docs(1)[0], rank=0)
+    operations = mock_create_commit.call_args.kwargs["operations"]
+    assert len(operations) == 1
+    assert operations[0].path_in_repo.endswith("00000.parquet")
+    assert [doc.text for doc in ParquetReader(writer.local_working_dir.path)()] == ["hello 0"]
+
+
+@require_pyarrow
 class TestHuggingFaceDatasetWriterReuse(unittest.TestCase):
     """Regression test for reusing one writer instance across multiple ranks.
 
