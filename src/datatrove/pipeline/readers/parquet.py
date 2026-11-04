@@ -11,8 +11,8 @@ class ParquetReader(BaseDiskReader):
     Args:
         data_folder: a str, tuple or DataFolder object representing a path/filesystem
         paths_file: optionally provide a file with one path per line (without the `data_folder` prefix) to read.
-        limit: limit the number of documents to read. Useful for debugging
-        skip: skip the first n rows
+        limit: maximum number of documents to read per task (with N tasks, up to N * limit in total). Useful for debugging
+        skip: number of documents to skip at the start of each task's input. Both count only documents with text
         batch_size: the batch size to use (default: 1000)
         read_metadata: if True, will read the metadata (default: True)
         file_progress: show progress bar for files

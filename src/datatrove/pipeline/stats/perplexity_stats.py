@@ -1,5 +1,3 @@
-from typing import get_args
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
 from datatrove.pipeline.stats.base import BaseStats
@@ -25,7 +23,7 @@ class CCNetPerplexityStats(BaseStats):
         model_dataset: str,
         language: str = Languages.english,
         histogram_round_digits: int = 3,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
         super().__init__(output_folder, groups_to_compute, histogram_round_digits, top_k_config)

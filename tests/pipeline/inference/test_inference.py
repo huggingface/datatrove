@@ -882,7 +882,7 @@ def test_checkpoint_recovery_and_completeness():
         # Run first pass - should fail due to rollout exception
         try:
             failing_runner.run(make_documents(), rank=0, world_size=1)
-            assert False, "Expected pipeline to fail, but it completed successfully"
+            assert False, "Expected pipeline to fail, but it completed successfully"  # noqa: B011  # TODO: the except below also catches this assert
         except Exception as e:
             # Pipeline should fail when query_builder raises exceptions
             print(f"Pipeline failed as expected: {e}")

@@ -65,6 +65,11 @@ class TestFilters(unittest.TestCase):
         doc = get_doc("I am a solo traveller " * 4 + TEXT_LF_1)
         self.check_filter(gopher_repetition, doc, "duplicated_5_n_grams")
 
+    def test_gopher_repetition_rejects_empty_doc(self):
+        # previously raised ZeroDivisionError (char_duplicates / len(text)) instead of dropping the doc
+        gopher_repetition = GopherRepetitionFilter()
+        self.check_filter(gopher_repetition, get_doc(""), "empty")
+
     def test_gopher_quality(self):
         gopher_quality = GopherQualityFilter(min_doc_words=10, max_doc_words=1000)
         self.check_filter(gopher_quality, get_doc("I am too small..."), "gopher_short_doc")

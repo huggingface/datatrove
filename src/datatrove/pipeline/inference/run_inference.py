@@ -320,7 +320,7 @@ class InferenceRunner(PipelineStep):
                     self.queue_sizes.change_queues({"running_requests": -1})
                     self.metrics.add_metrics(failed_requests=1, requests=1)
                     self.stat_update("failed_requests", value=1, unit="request")
-                    raise InferenceError(None, str(e), payload=payload)
+                    raise InferenceError(None, str(e), payload=payload) from e
 
             self.queue_sizes.change_queues({"running_requests": -1})
             self.metrics.add_metrics(failed_requests=1, requests=1)
@@ -548,7 +548,7 @@ class InferenceRunner(PipelineStep):
             raise
         except Exception as e:
             # let's propagate it
-            raise InferenceError(doc, e)
+            raise InferenceError(doc, e) from e
 
     # --------------------------------------------------------------------- #
     # Async processing

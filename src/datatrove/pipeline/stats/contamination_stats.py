@@ -1,8 +1,6 @@
-from typing import get_args
-
 from datatrove.data import Document
 from datatrove.io import DataFolderLike
-from datatrove.pipeline.stats.base import BaseStats
+from datatrove.pipeline.stats.base import BaseStats, _safe_divide
 from datatrove.pipeline.stats.config import DEFAULT_TOP_K_CONFIG, GROUP, TopKConfig
 from datatrove.utils.text import TextNormConfig, simplify_text
 from datatrove.utils.typeshelper import Languages
@@ -26,9 +24,9 @@ class WordsContaminationStats(BaseStats):
         self,
         output_folder: DataFolderLike,
         words: list[str],
-        norm_config: TextNormConfig = TextNormConfig(),
+        norm_config: TextNormConfig = TextNormConfig(),  # noqa: B008  # TODO: mutable config shared by all instances
         language: str = Languages.english,
-        groups_to_compute: list[GROUP] = list(get_args(GROUP)),
+        groups_to_compute: list[GROUP] | None = None,
         histogram_round_digits: int = 3,
         top_k_config: TopKConfig = DEFAULT_TOP_K_CONFIG,
     ) -> None:
@@ -45,6 +43,7 @@ class WordsContaminationStats(BaseStats):
 
         doc_words = word_tokenizer.word_tokenize(simplify_text(doc.text, self.norm_config))
         return {
-            f"words_contamination_{self.words[0]}": sum([1 for word in doc_words if word in self.words])
-            / len(doc_words)
+            f"words_contamination_{self.words[0]}": _safe_divide(
+                sum([1 for word in doc_words if word in self.words]), len(doc_words)
+            )
         }

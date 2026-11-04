@@ -137,7 +137,7 @@ class TestTokenization(unittest.TestCase):
             document_tokenizer_unshuff(worker_data, rank=worker, world_size=WORKERS)
         eos_tokens_per_worker = []
         unshuffled_output_folder = get_datafolder(TOKENS_DIR_UNSHUF)
-        for worker, index_file in zip(range(WORKERS), unshuffled_output_folder.list_files(glob_pattern="*.ds.index")):
+        for _worker, index_file in zip(range(WORKERS), unshuffled_output_folder.list_files(glob_pattern="*.ds.index")):
             doc_ends = load_doc_ends(unshuffled_output_folder.open(index_file, "rb"))
             valid_chunks = doc_ends[-1] // chunk_size
             eos_tokens_per_worker.append(len([doc_end for doc_end in doc_ends if doc_end < valid_chunks * chunk_size]))

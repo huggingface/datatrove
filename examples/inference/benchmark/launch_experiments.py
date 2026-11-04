@@ -506,13 +506,13 @@ def main(
 
     except KeyboardInterrupt:
         logger.info("\nExperiment interrupted by user")
-        raise typer.Exit(code=130)
+        raise typer.Exit(code=130) from None
     except typer.Exit as e:
         # Re-raise Typer's own Exit without printing an error message
         raise e
     except Exception as e:
         logger.error(f"Error: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":
