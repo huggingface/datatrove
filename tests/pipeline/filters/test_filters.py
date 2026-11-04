@@ -185,6 +185,10 @@ class TestFastTextClassifierFilter(unittest.TestCase):
         assert doc.metadata["__label__good"] == 0.9
         assert doc.metadata["__label__bad"] == 0.1
 
+    def test_accepts_labels_as_tuple_of_tuples(self):
+        fasttext_filter = FastTextClassifierFilter("model.bin", keep_labels=(("good", 0.5), ("bad", 0.5)))
+        assert fasttext_filter.filter(get_doc("the cat sat on the mat")) is True
+
     def test_rejects_unknown_label(self):
         fasttext_filter = FastTextClassifierFilter("model.bin", remove_labels=("ugly", 0.5))
         with self.assertRaises(ValueError):
