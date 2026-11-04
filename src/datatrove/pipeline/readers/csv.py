@@ -67,7 +67,8 @@ class CsvReader(BaseDiskReader):
         self.empty_warning = False
 
     def read_file(self, filepath: str):
-        with self.data_folder.open(filepath, "r", compression=self.compression) as f:
+        # newline="" lets the csv module handle line endings, so "\r" and "\r\n" inside quoted fields are kept
+        with self.data_folder.open(filepath, "r", compression=self.compression, newline="") as f:
             csv_reader = csv.DictReader(f)
             for di, d in enumerate(csv_reader):
                 with self.track_time():
