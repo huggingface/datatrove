@@ -14,6 +14,7 @@ def get_env_bool(name, default=None):
 
 DATATROVE_COLORIZE_LOGS = get_env_bool("DATATROVE_COLORIZE_LOGS")
 DATATROVE_COLORIZE_LOG_FILES = get_env_bool("DATATROVE_COLORIZE_LOG_FILES", False)
+DATATROVE_LOG_LEVEL = os.environ.get("DATATROVE_LOG_LEVEL", "INFO").upper()
 
 
 def get_timestamp() -> str:
@@ -64,7 +65,7 @@ def add_task_logger(
     logger.add(
         sys.stderr,
         colorize=DATATROVE_COLORIZE_LOGS,
-        level="INFO" if local_rank == 0 else "ERROR",
+        level=DATATROVE_LOG_LEVEL if local_rank == 0 else "ERROR",
         format=format_string,
     )
     logger.add(
@@ -92,7 +93,7 @@ def close_task_logger(logfile):
 
 def setup_default_logger():
     logger.remove()
-    logger.add(sys.stderr, colorize=DATATROVE_COLORIZE_LOGS)
+    logger.add(sys.stderr, colorize=DATATROVE_COLORIZE_LOGS, level=DATATROVE_LOG_LEVEL)
 
 
 def log_pipeline(pipeline):
