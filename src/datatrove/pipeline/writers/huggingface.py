@@ -46,7 +46,9 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         Args:
             dataset: A namespace (user or an organization) and a repo name separated by a `/`.
             private: whether to set the repo to private if it has to be created
-            local_working_dir: where to save files before they are uploaded
+            local_working_dir: where to save files before they are uploaded. Must be local. If omitted, a
+                temporary directory is used. It is deleted when the writer is garbage-collected in the process
+                that created it; copies of the writer share the same path
             output_filename: the filename to use when saving data, including extension. Can contain placeholders such as `${rank}` or metadata tags `${tag}`
             compression: if any compression scheme should be used. By default, "infer" - will be guessed from the filename
             adapter: a custom function to "adapt" the Document format to the desired output format
@@ -58,8 +60,10 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         """
         self.dataset = dataset
         self.private = private
+        # Hold the TemporaryDirectory so it survives until ``self`` is garbage-collected.
+        self._local_working_tmpdir = tempfile.TemporaryDirectory() if local_working_dir is None else None
         self.local_working_dir = get_datafolder(
-            local_working_dir if local_working_dir else tempfile.TemporaryDirectory()
+            local_working_dir if local_working_dir is not None else self._local_working_tmpdir.name
         )
         self.cleanup = cleanup
         if not self.local_working_dir.is_local():
@@ -69,7 +73,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                 "You should now use xet for uploads.\nSee https://hf.co/docs/huggingface_hub/en/guides/download#faster-downloads\nexport HF_HUB_ENABLE_HF_TRANSFER=0"
             )
         super().__init__(
-            output_folder=local_working_dir,
+            output_folder=self.local_working_dir,
             output_filename=output_filename,
             compression=compression,
             adapter=adapter,
