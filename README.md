@@ -48,7 +48,7 @@ Local, remote and other file systems are supported through [fsspec](https://file
 
 ## Installation
 
-Requires Python 3.10+.
+Requires Python 3.11+.
 
 ```bash
 uv sync
@@ -679,6 +679,8 @@ pipeline = [
 
 You could also inherit from [`BaseExtractor`](src/datatrove/pipeline/extractors/base.py), [`BaseFilter`](src/datatrove/pipeline/filters/base_filter.py), [`BaseReader`/`BaseDiskReader`](src/datatrove/pipeline/readers/base.py), or [`DiskWriter`](src/datatrove/pipeline/writers/disk_base.py).
 ## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request: pull requests from external contributors need an issue where a maintainer has approved them to do the work.
 
 ```bash
 git clone git@github.com:huggingface/datatrove.git && cd datatrove
