@@ -431,6 +431,7 @@ class ExactDedupBuildIndex(PipelineStep):
         data_folder: data folder to get signature files.
         output_folder: folder where index is saved
         index_name: name of the index
+        config: the same ExactDedupConfig as the other exact dedup stages, so the index uses the same hashes
     """
 
     type = "🫂 - DEDUP"
@@ -441,7 +442,7 @@ class ExactDedupBuildIndex(PipelineStep):
         data_folder: DataFolderLike,
         output_folder: DataFolderLike,
         index_name: str,
-        config: ExactDedupConfig | None = None,
+        config: ExactDedupConfig,
         lines_to_buffer: int = 5,
     ):
         super().__init__()
@@ -449,7 +450,7 @@ class ExactDedupBuildIndex(PipelineStep):
         self.output_folder = get_datafolder(output_folder)
         self.index_name = index_name
         self.lines_to_buffer = lines_to_buffer
-        self.config = config or ExactDedupConfig()
+        self.config = config
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1):
         assert world_size == 1, "ExactDedupBuildIndex can only run on a single worker."
