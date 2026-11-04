@@ -2,6 +2,7 @@ import random
 import socket
 import ssl
 import time
+from collections.abc import Sequence
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from threading import local
 from time import sleep
@@ -21,7 +22,7 @@ class HTTPFetchReader(PipelineStep):
 
     def __init__(
         self,
-        retry_codes: list[int] = [403, 408, 429, 500, 502, 503, 504],
+        retry_codes: Sequence[int] = (403, 408, 429, 500, 502, 503, 504),
         timeout: tuple[int, int] = (60, 600),
         workers: int = 10,
         retry_delay: int = 2,
@@ -278,7 +279,7 @@ class HTTPFetchReader(PipelineStep):
                 )
             except dns.resolver.LifetimeTimeout:
                 return original_getaddrinfo(host, port, family, type, proto, flags)
-            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+            except dns.resolver.NoAnswer:
                 pass
 
             try:
@@ -290,7 +291,7 @@ class HTTPFetchReader(PipelineStep):
                 )
             except dns.resolver.LifetimeTimeout:
                 return original_getaddrinfo(host, port, family, type, proto, flags)
-            except (dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+            except dns.resolver.NoAnswer:
                 pass
 
             if len(addresses) == 0:

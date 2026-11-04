@@ -89,9 +89,7 @@ def check_dataset(
         else [None] * len(token_inputs)
     )
     read_count = 0
-    for filei, (file_doc_ends, file_token_inputs, file_loss_inputs) in enumerate(
-        zip(doc_ends, token_inputs, loss_inputs)
-    ):
+    for file_doc_ends, file_token_inputs, _file_loss_inputs in zip(doc_ends, token_inputs, loss_inputs):
         for doci, tokens in tqdm(enumerate(file_token_inputs), total=len(file_doc_ends)):
             read_count += len(tokens)
             last_token = struct.unpack("<H", tokens[-2:])[0]

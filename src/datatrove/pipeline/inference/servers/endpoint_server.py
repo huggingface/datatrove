@@ -136,7 +136,7 @@ class EndpointServer(InferenceServer):
         except (AuthenticationError, BadRequestError, NotFoundError, PermissionDeniedError) as e:
             # Non-retryable errors: wrap in InferenceError immediately
             # These won't succeed on retry, so fail fast
-            raise InferenceError(None, str(e), payload=payload)
+            raise InferenceError(None, str(e), payload=payload) from e
         except APIConnectionError as e:
             # Retryable: convert to ConnectionError so retry logic handles it
             raise ConnectionError(str(e)) from e
@@ -148,4 +148,4 @@ class EndpointServer(InferenceServer):
             raise ConnectionError(str(e)) from e
         except Exception as e:
             # For other exceptions, wrap in InferenceError
-            raise InferenceError(None, str(e), payload=payload)
+            raise InferenceError(None, str(e), payload=payload) from e

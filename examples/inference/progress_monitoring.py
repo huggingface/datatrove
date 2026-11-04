@@ -62,7 +62,7 @@ def check_hf_auth() -> None:
             if role != "write":
                 raise ValueError("Token is not a write token. Set HF_TOKEN to a write token.")
     except Exception as e:
-        raise ValueError(f"Not logged in to HuggingFace: {e}. Set HF_TOKEN environment variable.")
+        raise ValueError(f"Not logged in to HuggingFace: {e}. Set HF_TOKEN environment variable.") from e
 
 
 def resolve_repo_id(output_dataset_name: str) -> str:

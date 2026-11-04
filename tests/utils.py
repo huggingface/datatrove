@@ -1,5 +1,6 @@
 import itertools
 import unittest
+from collections.abc import Sequence
 from functools import wraps
 from typing import get_args, get_type_hints
 
@@ -7,13 +8,14 @@ from datatrove.utils.hashing import HashConfig
 
 
 def use_hash_configs(
-    precision: list[int] = list(get_args(get_type_hints(HashConfig)["precision"])), hash_fc: list[str] = ["xxhash"]
+    precision: Sequence[int] = get_args(get_type_hints(HashConfig)["precision"]),
+    hash_fc: Sequence[str] = ("xxhash",),
 ):
     """
     Decorator which runs the wrapped test function, with hash config of all combinations of given precision and hash_fc
     Args:
-        precision (list[int]): List of precision values to use. Defaults to all possible values.
-        hash_fc (list[str]): List of hash functions to use. Defaults to ["xxhash"].
+        precision (Sequence[int]): Precision values to use. Defaults to all possible values.
+        hash_fc (Sequence[str]): Hash functions to use. Defaults to ("xxhash",).
     """
 
     def wrapper(f):
@@ -140,4 +142,12 @@ def require_lighteval(test_case):
         import lighteval  # noqa: F401
     except ImportError:
         test_case = unittest.skip("test requires lighteval")(test_case)
+    return test_case
+
+
+def require_pandas(test_case):
+    try:
+        import pandas  # noqa: F401
+    except ImportError:
+        test_case = unittest.skip("test requires pandas")(test_case)
     return test_case

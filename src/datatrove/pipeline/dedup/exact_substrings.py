@@ -190,7 +190,7 @@ class ESRangeRemover(PipelineStepWithTokenizer):
 
         dup_ranges = dup_ranges.split("\n")
         i = 0
-        for i, x in enumerate(dup_ranges):
+        for i, x in enumerate(dup_ranges):  # noqa: B007  # i is read after the loop
             if x == "out":
                 break
 
