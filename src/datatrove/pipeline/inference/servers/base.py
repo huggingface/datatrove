@@ -582,7 +582,8 @@ class InferenceServer(ABC):
             endpoint = "/v1/completions"
 
         url = f"{self.get_base_url()}{endpoint}"
-        status, body = await _raw_post(url, json_data=payload)
+        # raises asyncio.TimeoutError, which _send_request retries like other connection errors
+        status, body = await asyncio.wait_for(_raw_post(url, json_data=payload), timeout=self.config.request_timeout)
 
         if status == 400:
             raise InferenceError(None, f"Got BadRequestError from server: {body.decode()}", payload=payload)
