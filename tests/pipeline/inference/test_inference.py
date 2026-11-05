@@ -2,12 +2,14 @@ import asyncio
 import dataclasses
 import json
 import socket
+import sys
 import tempfile
 import threading
+import types
 import unittest
 from contextlib import contextmanager
 from functools import partial
-from http.server import HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -18,6 +20,7 @@ from datatrove.pipeline.inference.checkpointing import CheckpointManager
 from datatrove.pipeline.inference.metrics import MetricsKeeper, QueueSizesKeeper
 from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceRunner
 from datatrove.pipeline.inference.servers.dummy_server import DummyHandler, DummyServer
+from datatrove.pipeline.inference.servers.endpoint_server import EndpointServer
 from datatrove.pipeline.inference.types import InferenceError, ServerError
 from datatrove.pipeline.readers.jsonl import JsonlReader
 from datatrove.pipeline.writers import JsonlWriter
@@ -1401,6 +1404,174 @@ def test_endpoint_server(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+OPENAI_ERROR_NAMES = (
+    "APIConnectionError",
+    "APITimeoutError",
+    "AuthenticationError",
+    "BadRequestError",
+    "InternalServerError",
+    "NotFoundError",
+    "PermissionDeniedError",
+    "RateLimitError",
+)
+
+
+def install_fake_openai(monkeypatch):
+    """Stand-in for the `openai` package (not installed in CI) exposing the exceptions EndpointServer handles."""
+    fake_openai = types.ModuleType("openai")
+    for name in OPENAI_ERROR_NAMES:
+        setattr(fake_openai, name, type(name, (Exception,), {}))
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    return fake_openai
+
+
+class FakeOpenAIClient:
+    """Fake AsyncOpenAI client: chat completions return or raise `outcomes` in order and record the model sent."""
+
+    def __init__(self, outcomes):
+        self.outcomes = list(outcomes)
+        self.models = []
+        self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=self._create))
+
+    async def _create(self, model, **kwargs):
+        self.models.append(model)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+FAKE_CHAT_RESPONSE = types.SimpleNamespace(
+    choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="hi"), finish_reason="stop")],
+    usage=types.SimpleNamespace(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+)
+
+
+def send_endpoint_request(tmp_path, monkeypatch, client, payload):
+    """Run InferenceRunner._send_request against an EndpointServer that uses `client`, without retry backoff."""
+    original_sleep = asyncio.sleep
+
+    async def no_backoff(delay, *args, **kwargs):
+        await original_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", no_backoff)
+    config = InferenceConfig(
+        server_type="endpoint",
+        model_name_or_path="test-model",
+        endpoint_url="http://localhost:1",
+        metric_interval=120,
+        rollouts_per_document=1,
+    )
+    runner = InferenceRunner(
+        rollout_fn=ControlledRollout(),
+        config=config,
+        output_writer=JsonlWriter(str(tmp_path / "output"), output_filename="${rank}.jsonl", compression=None),
+    )
+
+    async def send():
+        server = EndpointServer(config, rank=0)
+        # pretend the endpoint is remote and already reachable
+        server.client = client
+        server._server_ready.set_result(True)
+        return await runner._send_request(server, payload, asyncio.Semaphore(1))
+
+    return runner, asyncio.run(send())
+
+
+def test_endpoint_server_keeps_model_on_retry(tmp_path, monkeypatch):
+    fake_openai = install_fake_openai(monkeypatch)
+    client = FakeOpenAIClient([fake_openai.InternalServerError("Error code: 500"), FAKE_CHAT_RESPONSE])
+    payload = {"messages": [{"role": "user", "content": "hello"}]}
+
+    _, result = send_endpoint_request(tmp_path, monkeypatch, client, payload)
+
+    assert result.text == "hi"
+    assert client.models == ["test-model", "test-model"]
+    assert payload["model"] == "test-model", "the caller's payload must not be modified"
+
+
+def test_endpoint_server_bad_request_is_detected(tmp_path, monkeypatch):
+    fake_openai = install_fake_openai(monkeypatch)
+    client = FakeOpenAIClient([fake_openai.BadRequestError("Error code: 400 - context length exceeded")])
+
+    with pytest.raises(InferenceError) as exc_info:
+        send_endpoint_request(tmp_path, monkeypatch, client, {"messages": []})
+
+    assert InferenceRunner._is_bad_request_error(exc_info.value)
+    assert "context length exceeded" in str(exc_info.value)
+    assert exc_info.value.payload["model"] == "test-model"
+
+
+@pytest.mark.parametrize("error_name", ["AuthenticationError", "NotFoundError", "PermissionDeniedError"])
+def test_endpoint_server_other_client_errors_are_not_bad_requests(tmp_path, monkeypatch, error_name):
+    """These would fail for every document, so skip_bad_requests must not skip them."""
+    fake_openai = install_fake_openai(monkeypatch)
+    client = FakeOpenAIClient([getattr(fake_openai, error_name)("Error code: 401")])
+
+    with pytest.raises(InferenceError) as exc_info:
+        send_endpoint_request(tmp_path, monkeypatch, client, {"messages": []})
+
+    assert not InferenceRunner._is_bad_request_error(exc_info.value)
+
+
+class OpenAICompatibleHandler(BaseHTTPRequestHandler):
+    """Chat completions endpoint that answers with the queued status codes (200 once the queue is empty)."""
+
+    statuses: list[int] = []
+    models: list[str] = []
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        type(self).models.append(body.get("model"))
+        status = type(self).statuses.pop(0) if type(self).statuses else 200
+        if status == 200:
+            response = {
+                "id": "chatcmpl-1",
+                "object": "chat.completion",
+                "created": 0,
+                "model": body.get("model"),
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        else:
+            response = {"error": {"message": "context length exceeded", "type": "invalid_request_error"}}
+        data = json.dumps(response).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.mark.parametrize("statuses", [[500], [400]])
+def test_endpoint_server_with_openai_client(tmp_path, monkeypatch, statuses):
+    """Same behaviour with the real openai client against an OpenAI-compatible HTTP server."""
+    openai = pytest.importorskip("openai")
+    OpenAICompatibleHandler.statuses = list(statuses)
+    OpenAICompatibleHandler.models = []
+    http_server = HTTPServer(("127.0.0.1", 0), OpenAICompatibleHandler)
+    threading.Thread(target=http_server.serve_forever, daemon=True).start()
+    # max_retries=0: let datatrove's own retry handle the 500 instead of the client's
+    client = openai.AsyncOpenAI(
+        api_key="test", base_url=f"http://127.0.0.1:{http_server.server_port}/v1", max_retries=0
+    )
+    try:
+        if statuses == [500]:
+            _, result = send_endpoint_request(tmp_path, monkeypatch, client, {"messages": []})
+            assert result.text == "hi"
+            assert OpenAICompatibleHandler.models == ["test-model", "test-model"]
+        else:
+            with pytest.raises(InferenceError) as exc_info:
+                send_endpoint_request(tmp_path, monkeypatch, client, {"messages": []})
+            assert InferenceRunner._is_bad_request_error(exc_info.value)
+    finally:
+        http_server.shutdown()
+        http_server.server_close()
 
 
 def test_simple_startup_and_cleanup():
