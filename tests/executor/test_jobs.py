@@ -1206,6 +1206,38 @@ class TestJobsExecutor(unittest.TestCase):
         coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
         self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
 
+    def test_hub_error_while_waiting_keeps_waiting(self):
+        """A failed listing during the wait for another coordinator's stage means "keep polling", not ERROR."""
+        a, b, c = _three_stage_chain("wait-hub-error")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        state = {"waits": 0}
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+
+        def list_jobs(**kwargs):
+            if not jobs:
+                return _fake_list_jobs(live_a)(**kwargs)  # B is launched while A's coordinator runs
+            if state["waits"] == 0:
+                raise ConnectionError("Hub blip")  # B's coordinator cannot check on A once
+            return []  # then A is done
+
+        def sleep(seconds):
+            if seconds >= 60:
+                state["waits"] += 1
+                for rank in range(a.world_size):  # A's coordinator finishes during the wait
+                    a.mark_rank_as_completed(rank)
+
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", list_jobs),
+            patch("time.sleep", sleep),
+        ):
+            b.run()
+        self.assertEqual(state["waits"], 1)
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+
     def test_run_on_dependency_fail_applies_to_a_dependency_run_elsewhere(self):
         a, b, c = _three_stage_chain("owner-gone-continue", run_on_dependency_fail=True)
         live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")

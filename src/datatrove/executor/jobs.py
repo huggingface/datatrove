@@ -652,8 +652,18 @@ class JobsPipelineExecutor(PipelineExecutor):
         return False
 
     def _dependency_is_live(self, token: str) -> bool:
-        """Whether any Job still works on ``depends``: a coordinator that runs it, or one of its workers."""
-        found = self._find_live_jobs(token, stages=[self.depends])[self.depends._run_id]
+        """Whether any Job still works on ``depends``: a coordinator that runs it, or one of its workers.
+
+        Called while waiting, where the safe answer to a failed listing is "still live": keep polling (the
+        wait is bounded by ``coordinator_timeout``) rather than end a long wait on one Hub error.
+        """
+        try:
+            found = self._find_live_jobs(token, stages=[self.depends])[self.depends._run_id]
+        except RuntimeError as e:
+            logger.warning(
+                f"Could not check whether '{self.depends.job_name}' is still running ({e.__cause__!r}); waiting."
+            )
+            return True
         return bool(found["coordinator"] or found["worker"])
 
     def _find_live_jobs(self, token: str, stages: list | None = None) -> dict[str, dict[str, list[str]]]:
