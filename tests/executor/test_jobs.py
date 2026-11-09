@@ -336,6 +336,11 @@ class TestJobsExecutor(unittest.TestCase):
         fs = fsspec.filesystem("memory")
         if fs.exists("/jobs-chain-probe"):
             fs.rm("/jobs-chain-probe", recursive=True)
+        # launch_job() checks the Hub for live Jobs of the run first: never reach the real Hub from a test.
+        # Tests that need live Jobs patch list_jobs themselves, which takes precedence.
+        no_live_jobs = patch("huggingface_hub.list_jobs", lambda **kwargs: [])
+        no_live_jobs.start()
+        self.addCleanup(no_live_jobs.stop)
 
     def test_local_logging_dir_rejected(self):
         """A local logging_dir cannot be shared with remote Jobs, so it must raise."""
@@ -925,8 +930,13 @@ class TestJobsExecutor(unittest.TestCase):
         _run_with_hub(c, hub, list_jobs=_fake_list_jobs(record=asked))
 
         run_ids = {stage._run_id for stage in (a, b, c)}
-        self.assertTrue(all(set(call["labels"]) == {"datatrove_logging_dir"} for call in asked))
-        self.assertEqual({call["labels"]["datatrove_logging_dir"] for call in asked}, run_ids)
+        self.assertTrue(all(len(call["labels"]) == 1 for call in asked))
+        by_dir = {
+            call["labels"]["datatrove_logging_dir"] for call in asked if "datatrove_logging_dir" in call["labels"]
+        }
+        by_owner = {next(iter(call["labels"])) for call in asked if "datatrove_logging_dir" not in call["labels"]}
+        self.assertEqual(by_dir, run_ids)
+        self.assertEqual(by_owner, {f"datatrove_owns_{run_id}" for run_id in run_ids})
 
     def test_coordinator_installs_the_dependencies_of_every_stage(self):
         """Loading the chain's pickle imports every stage, so a light coordinator cannot stay light."""
@@ -1049,6 +1059,213 @@ class TestJobsExecutor(unittest.TestCase):
         a.pipeline[0].fail = False  # the user fixes stage A and reruns the same script objects
         _run_with_hub(c, _make_chain_hub())
         self.assertEqual(sorted(_probes()), ["A-0", "A-1", "B-0", "B-1", "C-0"])
+
+    def test_chain_coordinator_is_labelled_with_every_stage_it_runs(self):
+        """A launcher of any stage of the chain must be able to see that a coordinator already runs it."""
+        a, b, c = _three_stage_chain("owns-labels")
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run):
+            c.run()
+        labels = submitted[0]["labels"]
+        self.assertEqual(
+            {key for key in labels if key.startswith("datatrove_owns_")},
+            {f"datatrove_owns_{stage._run_id}" for stage in (a, b, c)},
+        )
+
+    def test_run_on_each_stage_in_turn_runs_the_later_stage(self):
+        """`a.run(); b.run()`, as with Slurm: B is launched and waits for A's coordinator, not dropped."""
+        a, b, c = _three_stage_chain("per-stage")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live_a)),
+        ):
+            self.assertIsNotNone(b.run())
+        self.assertEqual(len(submitted), 1)
+        owned = {key for key in submitted[0]["labels"] if key.startswith("datatrove_owns_")}
+        self.assertEqual(owned, {f"datatrove_owns_{b._run_id}"})  # A is left to its own coordinator
+        self.assertTrue(a._launched)
+
+    def test_upstream_stage_run_by_a_chain_coordinator_is_not_launched_again(self):
+        """`c.run()` then `a.run()`: C's coordinator runs A, so launching A again would run its ranks twice."""
+        a, b, c = _three_stage_chain("upstream-relaunch")
+        owns_a = {**c._run_labels, "datatrove_role": "coordinator", f"datatrove_owns_{a._run_id}": "1"}
+        live_c = _fake_job(owns_a, "QUEUED")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live_c)),
+        ):
+            self.assertIsNone(a.run())
+        self.assertEqual(len(submitted), 0)
+
+    def test_launch_job_refuses_while_a_coordinator_is_live(self):
+        """launch_job() would rewrite executor.pik and ranks_to_run.json under the live coordinator's workers."""
+        a, b, c = _three_stage_chain("launch-job-live")
+        live_c = _fake_job({**c._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live_c)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "already running"):
+                c.launch_job()
+        self.assertEqual(jobs, {})
+
+    def test_failed_upstream_run_is_restarted_by_the_next_stage(self):
+        """`a.run()` fails, then `b.run()` on the same objects: B's coordinator relaunches A, it doesn't wait."""
+        a, b, c = _three_stage_chain("failed-upstream", fail_a=True)
+        _run_with_hub(a, _make_chain_hub())
+        self.assertTrue(a._launched)  # this process launched A once
+        a.pipeline[0].fail = False  # the user fixes A and reruns the next stage
+        hub = _make_chain_hub()
+        _run_with_hub(b, hub)
+        coordinator = next(job for job in hub[2].values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+        self.assertEqual(coordinator["labels"].get(f"datatrove_owns_{a._run_id}"), "1")  # B's coordinator runs A
+        self.assertFalse(dill.loads(coordinator["pik"]).depends._launched)
+        self.assertEqual(sorted(_probes()), ["A-0", "A-1", "B-0", "B-1"])
+
+    def test_dependency_whose_coordinator_dies_fails_fast(self):
+        """B waits for A's coordinator; once nothing of A is live with A incomplete, B fails instead of idling."""
+        a, b, c = _three_stage_chain("owner-gone")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        jobs = hub[2]
+
+        def list_jobs(**kwargs):
+            # A's coordinator is live when B is launched, and gone before B's coordinator first checks on it
+            return _fake_list_jobs(live_a)(**kwargs) if not jobs else []
+
+        _run_with_hub(b, hub, list_jobs=list_jobs)
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "ERROR")
+        self.assertIn("no Job of it is live", coordinator["error"])
+        self.assertEqual([job for job in jobs.values() if job["role"] == "worker"], [])  # A was not taken over
+
+        hub = _make_chain_hub()
+        _run_with_hub(b, hub)  # the rerun sees nothing live, so it launches A and then B
+        self.assertEqual(sorted(_probes()), ["A-0", "A-1", "B-0", "B-1"])
+
+    def test_dependency_that_finished_while_checking_is_not_relaunched(self):
+        """A owner that finishes between the completion check and the liveness check is not a failure."""
+        a, b, c = _three_stage_chain("owner-finished")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        jobs = hub[2]
+
+        def list_jobs(**kwargs):
+            if not jobs:  # B is being launched: A's coordinator is live
+                return _fake_list_jobs(live_a)(**kwargs)
+            # B's coordinator checks on A: A's coordinator has just finished, writing its markers
+            for rank in range(a.world_size):
+                a.mark_rank_as_completed(rank)
+            return []
+
+        _run_with_hub(b, hub, list_jobs=list_jobs)
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+        workers = [job for job in jobs.values() if job["role"] == "worker"]
+        self.assertTrue(all(job["labels"]["datatrove_job_name"] == "B" for job in workers))  # A not relaunched
+
+    def test_dependency_run_elsewhere_is_trusted_only_once_it_is_done(self):
+        """A rerun of A keeps its old markers, so B must wait until nothing of A is live, not just for markers."""
+        a, b, c = _three_stage_chain("rerun-elsewhere")
+        _run_with_hub(a, _make_chain_hub())  # A completed once: its markers are in place
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        state = {"a_live": True, "waits": 0}
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+
+        def list_jobs(**kwargs):
+            return _fake_list_jobs(live_a)(**kwargs) if state["a_live"] else []
+
+        def sleep(seconds):
+            if seconds >= 60:  # B's coordinator waits for A: A's rerun finishes now
+                b_workers = [
+                    job
+                    for job in jobs.values()
+                    if job["role"] == "worker" and job["labels"]["datatrove_job_name"] == "B"
+                ]
+                state["b_workers_while_a_live"] = len(b_workers)
+                state["waits"] += 1
+                state["a_live"] = False
+
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", list_jobs),
+            patch("time.sleep", sleep),
+        ):
+            b.run()
+        self.assertEqual(state["waits"], 1)
+        self.assertEqual(state["b_workers_while_a_live"], 0)  # B did not start on A's old markers
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+
+    def test_run_on_dependency_fail_applies_to_a_dependency_run_elsewhere(self):
+        a, b, c = _three_stage_chain("owner-gone-continue", run_on_dependency_fail=True)
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        jobs = hub[2]
+        _run_with_hub(b, hub, list_jobs=lambda **kwargs: _fake_list_jobs(live_a)(**kwargs) if not jobs else [])
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+        self.assertEqual(sorted(_probes()), ["B-0", "B-1"])
+
+    def test_launch_job_rechecks_right_before_submitting(self):
+        """A coordinator launched for this stage while launch_job() waited stops it before it rewrites files."""
+        a, b, c = _three_stage_chain("recheck")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        calls = []
+
+        def list_jobs(**kwargs):
+            calls.append(kwargs)
+            return [] if len(calls) <= 2 else _fake_list_jobs(live_a)(**kwargs)  # 2 = the launch check of A
+
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", list_jobs),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "started while this one waited"):
+                a.launch_job()
+        self.assertEqual(jobs, {})
+
+    def test_launch_job_rejects_a_chain_with_two_python_versions(self):
+        """launch_job() pickles the chain the same way, so it applies the same check as run()."""
+        a, b, c = _three_stage_chain("two-pythons-local")
+        a.python = "3.11"
+        b.python = c.python = "3.12"
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+        with patch("huggingface_hub.run_uv_job", fake_run), self.assertRaisesRegex(ValueError, "python"):
+            c.launch_job()
+        self.assertEqual(jobs, {})
+
+    def test_chain_across_two_namespaces_is_rejected(self):
+        """The live check looks for a stage's coordinator in one namespace, so a chain must share it."""
+        a, b, c = _three_stage_chain("two-namespaces")
+        a.namespace = "other-org"
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), self.assertRaisesRegex(ValueError, "namespace"):
+            c.run()
+        self.assertEqual(submitted, [])
+
+    def test_chain_with_two_python_versions_is_rejected(self):
+        """One coordinator pickles every stage with its own interpreter; dill bytecode does not cross versions."""
+        a, b, c = _three_stage_chain("two-pythons")
+        a.python = "3.11"
+        b.python = c.python = "3.12"
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), self.assertRaisesRegex(ValueError, "python"):
+            c.run()
+        self.assertEqual(submitted, [])
 
     def test_env_coordinator_key_rejected(self):
         """The coordinator role variable is reserved, like the array-index one."""
