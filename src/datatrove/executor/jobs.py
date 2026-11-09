@@ -283,6 +283,12 @@ class JobsPipelineExecutor(PipelineExecutor):
                 self._merge_stats()  # a previous coordinator may have died after the last rank completed
             return
 
+        # this launch rewrites per-rank stats, so the merged summary is out of date until its final merge: drop it
+        # now, so a supervisor that dies before merging leaves stats.json missing (rebuilt on the next run, above)
+        # instead of describing an earlier run
+        if self.logging_dir.isfile("stats.json"):
+            self.logging_dir.rm("stats.json")
+
         # pickle ourselves; each Job rehydrates this via `launch_pickled_pipeline` and calls run()
         executor = deepcopy(self)
         # never persist credentials into the (shared) logging_dir: the Jobs get HF_TOKEN and any user

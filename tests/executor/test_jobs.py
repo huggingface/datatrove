@@ -344,6 +344,45 @@ class TestJobsExecutor(unittest.TestCase):
         self.assertEqual(len(launched), 0)
         self.assertTrue(log_dir.isfile("stats.json"))
 
+    def test_recompute_interrupted_before_its_merge_does_not_keep_old_stats(self):
+        """A skip_completed=False recompute that dies before merging must not leave the earlier stats.json."""
+        log_dir = get_datafolder("memory://jobs-test/stats-stale")
+
+        def build(**kwargs):
+            return JobsPipelineExecutor(
+                pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="hf_faketoken", poll_interval=0, **kwargs
+            )
+
+        def emitted_totals():
+            with log_dir.open("stats.json", "r") as f:
+                return _stat_totals(json.load(f), "emitted")
+
+        first = build()
+        fr, fi, _ = _make_fake_jobs(first)
+        with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
+            first.run()
+        self.assertIn(2 * EMITTED_PER_RANK, emitted_totals())
+
+        # recompute with different output; its supervisor dies between the last rank and the merge
+        recompute = build(skip_completed=False)
+        fr2, fi2, launched = _make_fake_jobs(recompute)
+        with (
+            patch("huggingface_hub.run_uv_job", fr2),
+            patch("huggingface_hub.inspect_job", fi2),
+            patch(f"{__name__}.EMITTED_PER_RANK", EMITTED_PER_RANK + 1),
+            patch.object(JobsPipelineExecutor, "_merge_stats", lambda self: None),
+        ):
+            recompute.run()
+        self.assertEqual(len(launched), 2)
+        self.assertFalse(log_dir.isfile("stats.json"))  # not the first run's summary
+
+        resume = build()
+        fr3, fi3, relaunched = _make_fake_jobs(resume)
+        with patch("huggingface_hub.run_uv_job", fr3), patch("huggingface_hub.inspect_job", fi3):
+            resume.run()
+        self.assertEqual(len(relaunched), 0)
+        self.assertIn(2 * (EMITTED_PER_RANK + 1), emitted_totals())  # the recompute's stats
+
     def test_resume_skips_completed_ranks(self):
         """A second run over an already-completed logging_dir launches no Jobs (idempotent resume)."""
         log_dir = get_datafolder("memory://jobs-test/resume")
