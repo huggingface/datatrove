@@ -91,9 +91,15 @@ class PipelineStepWithTokenizer(PipelineStep, ABC):
         if self.post_processor:
             tokenizer.post_processor = self.post_processor
         elif self.eos_token:
+            eos_token_id = tokenizer.token_to_id(self.eos_token)
+            if eos_token_id is None:
+                raise ValueError(
+                    f"eos_token {self.eos_token!r} is not in the vocabulary of tokenizer "
+                    f"{self.tokenizer_name_or_path!r}. Pass an eos_token that exists in this tokenizer."
+                )
             tokenizer.post_processor = TemplateProcessing(
                 single="$A <EOS>",
-                special_tokens=[("<EOS>", tokenizer.token_to_id(self.eos_token))],
+                special_tokens=[("<EOS>", eos_token_id)],
                 pair=None,
             )
         return tokenizer
