@@ -7,9 +7,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from threading import local
 from time import sleep
 
-import requests
 from loguru import logger
-from urllib3.exceptions import InsecureRequestWarning
 
 from datatrove.data import Document, DocumentsPipeline, Media
 from datatrove.pipeline.base import PipelineStep
@@ -19,6 +17,7 @@ from datatrove.utils._import_utils import is_dnspython_available
 class HTTPFetchReader(PipelineStep):
     type = "📖 - READER"
     name = "🌐 HTTP Fetch Reader"
+    _requires_dependencies = ["requests"]
 
     def __init__(
         self,
@@ -124,6 +123,8 @@ class HTTPFetchReader(PipelineStep):
         return True
 
     def fetch_media(self, media: Media) -> tuple[bytes | None, dict | None]:
+        import requests
+
         url = media.url
         last_status_code = None
         last_reason = None
@@ -313,6 +314,8 @@ class HTTPFetchReader(PipelineStep):
 
         # disable warnings
         import warnings
+
+        from urllib3.exceptions import InsecureRequestWarning
 
         warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 
