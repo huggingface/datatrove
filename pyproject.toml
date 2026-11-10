@@ -25,7 +25,7 @@ requires-python = ">=3.11"
 dependencies = [
   "dill>=0.3.0",
   "fsspec>=2023.12.2",
-  "huggingface-hub>=1.6.0", # use the v1 client line by default; >=1.6.0 for HfFileSystemResolvedBucketPath (bucket writes)
+  "huggingface-hub>=2.0.0", # use the v2 client line; >=1.6.0 for HfFileSystemResolvedBucketPath (bucket writes), >=2.0.0 for list_jobs label filtering + pagination (what the JobsPipelineExecutor run check relies on)
   "humanize",
   "loguru>=0.7.0",
   "multiprocess",
