@@ -61,7 +61,7 @@ class URLFilter(BaseFilter):
 
         super().__init__(exclusion_writer)
         self.soft_word_threshold = soft_word_threshold
-        self.block_listed_domains = parse_list(extra_domains, do_normalize=False) if extra_domains else set()
+        self.block_listed_domains = {domain.strip().lower() for domain in extra_domains} if extra_domains else set()
         self.block_listed_url = parse_list(extra_urls, do_normalize=False) if extra_urls else set()
         self.banned_words = parse_list(banned_words) if banned_words else set()
         self.banned_subwords = parse_list(banned_subwords) if banned_subwords else set()
@@ -108,16 +108,16 @@ class URLFilter(BaseFilter):
         assert url, "Document does not have url in its metadata"
         url_info = self.tldextractor(url)
 
-        if url_info.registered_domain in self.block_listed_domains:
+        if url_info.registered_domain.lower() in self.block_listed_domains:
             return False, "domain"
 
-        if url_info.fqdn in self.block_listed_domains:
+        if url_info.fqdn.lower() in self.block_listed_domains:
             return False, "subdomain"
 
         if url in self.block_listed_url:
             return False, "url"
 
-        url_words = set(normalizer.split(url))
+        url_words = set(normalizer.split(url.lower()))
         if any(word in url_words for word in self.banned_words):
             return False, "hard_blacklisted"
 
