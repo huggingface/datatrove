@@ -333,16 +333,20 @@ class JobsPipelineExecutor(PipelineExecutor):
                         break
                     # launch_job() blocks, so the dependency has finished; any ranks still incomplete have
                     # failed (retries exhausted). Don't wait forever.
+                    outcome = (
+                        f"{len(incomplete)}/{self.depends.world_size} tasks still incomplete"
+                        if incomplete
+                        else "a failed rank, though the completion markers left by an earlier run are all there"
+                    )
                     if self.run_on_dependency_fail:
                         logger.warning(
-                            f"Dependency '{self.depends.job_name}' finished with {len(incomplete)} failed "
-                            f"task(s); continuing anyway (run_on_dependency_fail=True)."
+                            f"Dependency '{self.depends.job_name}' finished with {outcome}; continuing anyway "
+                            f"(run_on_dependency_fail=True)."
                         )
                         break
                     raise RuntimeError(
-                        f"Dependency job '{self.depends.job_name}' finished with {len(incomplete)}/"
-                        f"{self.depends.world_size} tasks still incomplete. Rerun to resume, raise max_retries, "
-                        f"or set run_on_dependency_fail=True to continue anyway."
+                        f"Dependency job '{self.depends.job_name}' finished with {outcome}. Rerun to resume, "
+                        f"raise max_retries, or set run_on_dependency_fail=True to continue anyway."
                     )
                 # launched by another coordinator. Its completion markers can predate the attempt it runs now
                 # (a rerun with skip_completed=False keeps them), so trust them only once nothing of it is live.

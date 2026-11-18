@@ -1034,6 +1034,8 @@ class TestJobsExecutor(unittest.TestCase):
 
         coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
         self.assertEqual(coordinator["stage"], "ERROR")
+        # the markers say nothing is missing, so say what really stopped the chain
+        self.assertIn("a failed rank", coordinator["error"])
 
     def test_failed_dependency_fails_the_coordinator(self):
         """A stage with failed tasks stops the chain and the coordinator Job ends as ERROR, without waiting."""
