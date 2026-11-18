@@ -5,6 +5,7 @@ from datatrove.utils.word_tokenizers import (
     WhitespaceTokenizer,
     load_tokenizer_assignments,
     load_word_tokenizer,
+    simple_span_tokenize,
 )
 
 
@@ -56,6 +57,24 @@ class TestWordTokenizers(unittest.TestCase):
             assert (tokenizer.language == "ur" or isinstance(tokenizer, TibetanTokenizer)) or all(spans_match_sents), (
                 f"'{language}' tokenizer spans don't match with sentences"
             )
+
+    def test_simple_span_tokenize_non_verbatim_sentences(self):
+        # urduhack rejoins words with one space (and before 1.0 appends "۔"); indic-nlp-library rejoins merged sentences
+        cases = [
+            (
+                "یہ پہلا جملہ\nہے۔  یہ دوسرا\t\tجملہ ہے۔ آخر",
+                ["یہ پہلا جملہ ہے۔", "یہ دوسرا جملہ ہے۔"],
+                [(0, 16), (18, 36)],
+            ),
+            ("یہ پہلا جملہ ہے اب دوسرا جملہ ہے ۔", ["یہ پہلا جملہ ہے۔", "اب دوسرا جملہ ہے۔"], [(0, 15), (16, 34)]),
+            (
+                "राम यहाँ है. डॉ.शर्मा भी यहाँ हैं. वह अच्छे हैं.",
+                ["राम यहाँ है. डॉ. शर्मा भी यहाँ हैं.", "वह अच्छे हैं."],
+                [(0, 34), (35, 48)],
+            ),
+        ]
+        for text, sents, spans in cases:
+            self.assertEqual(list(simple_span_tokenize(text, sents)), spans)
 
     def test_english_tokenizer(self):
         en_tokenizer = load_word_tokenizer("en")

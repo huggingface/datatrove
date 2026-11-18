@@ -20,12 +20,48 @@ def simple_span_tokenize(text: str, sents: list[str]) -> Iterator[tuple[int, int
     if len(sents) == 1:
         yield 0, len(text)
         return
+    try:
+        spans = _verbatim_spans(text, sents)
+    except ValueError:
+        spans = _whitespace_insensitive_spans(text, sents)
+    yield from spans
+
+
+def _verbatim_spans(text: str, sents: list[str]) -> list[tuple[int, int]]:
+    spans = []
     start_index = 0
     for sent in sents:
         start_char = text.index(sent, start_index)
         end_char = start_char + len(sent)
         start_index = end_char
-        yield start_char, end_char
+        spans.append((start_char, end_char))
+    return spans
+
+
+def _whitespace_insensitive_spans(text: str, sents: list[str]) -> list[tuple[int, int]]:
+    """Match sentences ignoring whitespace, and a trailing "۔" missing from `text`.
+
+    urduhack rejoins words with single spaces (and before 1.0 appends "۔"); indic-nlp-library joins the sentences it
+    merges around abbreviations with a space.
+    """
+    offsets = [i for i, char in enumerate(text) if not char.isspace()]
+    squeezed = "".join(text[i] for i in offsets)
+    spans = []
+    start_index = 0
+    for sent in sents:
+        target = "".join(sent.split())
+        if not target:
+            # zero-width span where the previous one ended, as the verbatim search gives for ""
+            spans.append((spans[-1][1] if spans else 0,) * 2)
+            continue
+        body = target.removesuffix("۔") or target
+        start = squeezed.index(body, start_index)
+        end = start + len(body)
+        if body != target and squeezed.startswith("۔", end):
+            end += 1
+        spans.append((offsets[start], offsets[end - 1] + 1))
+        start_index = end
+    return spans
 
 
 # https://github.com/explosion/spaCy/issues/13207
