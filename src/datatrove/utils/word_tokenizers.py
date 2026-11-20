@@ -457,8 +457,8 @@ def load_tokenizer_assignments() -> dict[str, Callable[[], WordTokenizer]]:
                 row["script"],
                 row["type"],
                 row["tok_code"],
-                row["default_script"],
-                row["default_code_1"],
+                row["default_script"].strip() == "TRUE",
+                row["default_code_1"].strip() == "TRUE",
             )
 
             if not tok_class_name:
