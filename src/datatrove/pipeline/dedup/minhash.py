@@ -488,7 +488,11 @@ class MinhashDedupBuckets(PipelineStep):
                                     *v.sig,
                                 )
                             )
-                    last = v
+                    # Keep an index signature as the representative for the rest of this
+                    # band. Replacing it with the first new doc drops later new docs that
+                    # match the same historical signature when only_dedup_in_index is set.
+                    if last is None or last.sig != v.sig or not last.is_from_index():
+                        last = v
                     next_sig = next(sig_readers[v.reader_id], None)
                     if next_sig:
                         assert next_sig >= v, f"Next sig sort error. {next_sig=} < {v=}"
