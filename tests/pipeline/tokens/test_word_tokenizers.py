@@ -59,7 +59,6 @@ class TestWordTokenizers(unittest.TestCase):
             )
 
     def test_simple_span_tokenize_non_verbatim_sentences(self):
-        # urduhack rejoins words with one space (and before 1.0 appends "۔"); indic-nlp-library rejoins merged sentences
         cases = [
             (
                 "یہ پہلا جملہ\nہے۔  یہ دوسرا\t\tجملہ ہے۔ آخر",

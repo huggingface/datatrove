@@ -50,10 +50,6 @@ def _whitespace_insensitive_spans(text: str, sents: list[str]) -> list[tuple[int
     start_index = 0
     for sent in sents:
         target = "".join(sent.split())
-        if not target:
-            # zero-width span where the previous one ended, as the verbatim search gives for ""
-            spans.append((spans[-1][1] if spans else 0,) * 2)
-            continue
         body = target.removesuffix("۔") or target
         start = squeezed.index(body, start_index)
         end = start + len(body)
