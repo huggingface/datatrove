@@ -59,6 +59,8 @@ class InferenceConfig:
         max_concurrent_generations: Maximum number of generation requests to have in flight at once.
         max_concurrent_documents: Maximum number of documents to process concurrently.
             Defaults to max_concurrent_generations // rollouts_per_document when not provided.
+        request_timeout: Timeout in seconds for each request to the inference server, for all server types. A timed
+            out request is retried like a connection error. None (default) means no timeout.
         model_kwargs: Additional keyword arguments passed to model initialization.
         server_log_folder: Optional directory for server logs. Creates one log per rank when set.
         master_port: Port of the master node used for distributed settings. (default: 9810)
