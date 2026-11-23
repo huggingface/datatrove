@@ -565,7 +565,7 @@ class JobsPipelineExecutor(PipelineExecutor):
     def _dump_coordinator_pickle(self):
         """Write ``executor.pik`` for the coordinator Job: the whole ``depends`` chain, without credentials.
 
-        The coordinator runs :meth:`launch_job`, which launches and waits on each upstream stage in
+        The coordinator runs :meth:`_supervise`, which launches and waits on each upstream stage in
         order, exactly as a local :meth:`launch_job` does. Secret *names* are kept so the coordinator can
         read the values back from its own environment (they reach it as Job secrets).
         """
