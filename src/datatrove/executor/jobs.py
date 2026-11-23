@@ -430,7 +430,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         return True
 
     def _launch_coordinator_job(self) -> str | None:
-        """Submit the one Job that runs :meth:`launch_job` remotely, then return (fire-and-forget).
+        """Submit the one Job that supervises the run remotely, then return (fire-and-forget).
 
         The coordinator Job rehydrates this executor exactly like a worker does, but without
         ``DATATROVE_JOB_ARRAY_INDEX`` it takes the launcher path — so the ``workers`` throttle, the
