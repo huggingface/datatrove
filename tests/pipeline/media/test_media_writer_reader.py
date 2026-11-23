@@ -18,6 +18,68 @@ class TestMediaWriterReader(unittest.TestCase):
         self.tmp_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
+    def test_binary_zstd_writer_reader_filename_tags(self) -> None:
+        """Round-trip media stored using its own ID and metadata in the filename."""
+        media = [
+            Media(
+                id="image1",
+                type=MediaType.IMAGE,
+                url="https://example.com/image.jpg",
+                media_bytes=b"image data\x00\xff",
+                metadata={"collection": "images"},
+            ),
+            Media(
+                id="video1",
+                type=MediaType.VIDEO,
+                url="https://example.com/video.mp4",
+                media_bytes=b"video data\x00\xff",
+                metadata={"collection": "videos"},
+            ),
+        ]
+        doc = Document(text="Mixed media", id="doc1", media=media, metadata={"collection": "documents"})
+        expected_bytes = [item.media_bytes for item in media]
+        writer = ZstdWriter(
+            output_folder=self.tmp_dir,
+            output_filename="${collection}/${rank}/${id}.bin.zst",
+            max_file_size=-1,
+        )
+
+        written_docs = list(writer.run(iter([doc]), rank=7))
+        self.assertEqual([item.path for item in media], ["images/00007/image1.bin.zst", "videos/00007/video1.bin.zst"])
+        for item in media:
+            self.assertEqual(item.offset, 0)
+            self.assertGreater(item.length, 0)
+            item.media_bytes = None
+
+        reader = ZstdReader(data_folder=self.tmp_dir, workers=2, preserve_order=True)
+        read_docs = list(reader.run(iter(written_docs)))
+        self.assertEqual(len(read_docs), 1)
+        self.assertEqual([item.media_bytes for item in read_docs[0].media], expected_bytes)
+
+    def test_media_filename_explicit_tags_override_metadata(self) -> None:
+        """Keep explicit filename arguments higher priority than media metadata."""
+        media = Media(id="image1", type=MediaType.IMAGE, url="", metadata={"collection": "images"})
+        with ZstdWriter(output_folder=self.tmp_dir, output_filename="${collection}/${rank}/${id}.bin.zst") as writer:
+            self.assertEqual(
+                writer._get_output_filename(media, rank=7, collection="override", id="custom"),
+                "override/00007/custom.bin.zst",
+            )
+        self.assertEqual(media.metadata, {"collection": "images"})
+        self.assertEqual(media.id, "image1")
+
+    def test_media_filename_reserved_tags(self) -> None:
+        """Media metadata must not replace the media ID or worker rank."""
+        media = Media(id="image1", type=MediaType.IMAGE, url="", metadata={"id": "other", "rank": "other"})
+        with ZstdWriter(output_folder=self.tmp_dir, output_filename="${rank}/${id}.bin.zst") as writer:
+            self.assertEqual(writer._get_output_filename(media, rank=7), "00007/image1.bin.zst")
+
+    def test_media_filename_unknown_tag(self) -> None:
+        """Continue rejecting filename tags absent from media and explicit arguments."""
+        media = Media(id="image1", type=MediaType.IMAGE, url="")
+        with ZstdWriter(output_folder=self.tmp_dir, output_filename="${missing}.bin.zst") as writer:
+            with self.assertRaises(KeyError):
+                writer._get_output_filename(media)
+
     def test_binary_zstd_writer_reader_cycle(self):
         """Test writing and reading media with BinaryZstdWriter and ZstdThreadedReader"""
         # Create test documents with media
