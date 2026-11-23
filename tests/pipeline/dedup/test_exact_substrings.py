@@ -2,14 +2,17 @@ import copy
 import shutil
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 import pytest
 
 from datatrove.data import Document
 from datatrove.pipeline.dedup.exact_substrings import (
+    SEPARATOR_BYTES,
     ESDatasetToSequence,
     ESMergeSequences,
     ESRangeRemover,
+    prepare_doc,
     read_bytes,
     sequence_reader,
 )
@@ -179,9 +182,81 @@ class TestExactSubstr(unittest.TestCase):
         self.tmp_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp_dir)
 
+    def _make_normalizing_tokenizer(self) -> str:
+        from tokenizers import Tokenizer
+        from tokenizers.models import WordLevel
+        from tokenizers.normalizers import NFC
+        from tokenizers.pre_tokenizers import WhitespaceSplit
+
+        tokenizer = Tokenizer(WordLevel({"[UNK]": 0, "ũkent": 1, "same": 2, "😊": 3, "ũ": 4}, unk_token="[UNK]"))
+        tokenizer.normalizer = NFC()
+        tokenizer.pre_tokenizer = WhitespaceSplit()
+        tokenizer_path = f"{self.tmp_dir}/normalizing-tokenizer.json"
+        tokenizer.save(tokenizer_path)
+        return tokenizer_path
+
+    def _remove_token_ranges(self, text: str, token_ranges: list[tuple[int, int]]) -> str:
+        tokenizer_path = self._make_normalizing_tokenizer()
+        data = [Document(text=text, id="0")]
+        dataset_to_sequence = ESDatasetToSequence(
+            output_folder=self.tmp_dir,
+            tokenizer_name_or_path=tokenizer_path,
+        )
+        merge_sequence = ESMergeSequences(data_folder=self.tmp_dir, tasks_stage_1=1)
+        dedup_reader = ESRangeRemover(
+            sequence_folder=self.tmp_dir,
+            tokenizer_name_or_path=tokenizer_path,
+            min_doc_words=0,
+        )
+        dedup_reader.word_tokenizer = Mock(word_tokenize=lambda value: value.split())
+
+        with merge_sequence.data_folder.open("test" + ExtensionHelperES.stage_3_bytes_ranges, "w") as f:
+            byte_ranges = [
+                f"{SEPARATOR_BYTES + token_a * 2} {SEPARATOR_BYTES + token_b * 2}" for token_a, token_b in token_ranges
+            ]
+            f.write("out\n" + "\n".join(byte_ranges) + "\n")
+
+        dataset_to_sequence(data=data)
+        merge_sequence(data=[])
+        return list(dedup_reader(data=data))[0].text
+
     def match_doc(self, sequence, size, reader, docs):
         for i, doc_text in enumerate(sequence_reader(sequence, size)):
             self.assertEqual(docs[i].text, reader.tokenizer.decode(read_bytes(doc_text)))
+
+    def test_normalized_unicode_is_removed_from_original_text(self):
+        text = "u\u0303kent u\u0303kent"
+
+        self.assertEqual(self._remove_token_ranges(text, [(0, 1)]), " u\u0303kent")
+
+    def test_normalized_unicode_removes_trailing_combining_mark(self):
+        text = "u\u0303 u\u0303"
+
+        self.assertEqual(self._remove_token_ranges(text, [(0, 1)]), " u\u0303")
+
+    def test_normalized_unicode_without_duplicate_range_is_kept(self):
+        tokenizer_path = self._make_normalizing_tokenizer()
+        dedup_reader = ESRangeRemover(
+            sequence_folder=self.tmp_dir,
+            tokenizer_name_or_path=tokenizer_path,
+            min_doc_words=0,
+        )
+        dedup_reader.word_tokenizer = Mock(word_tokenize=lambda value: value.split())
+        doc = Document(text="u\u0303kent", id="0")
+        doc_content = prepare_doc(dedup_reader.tokenizer, doc.text, rank=0, doc_id=0)
+        dedup_reader.dup_ranges = [(len(doc_content) + SEPARATOR_BYTES, len(doc_content) + SEPARATOR_BYTES + 2)]
+
+        self.assertTrue(dedup_reader.remove_duplicate(doc, doc_content))
+        self.assertEqual(doc.text, "u\u0303kent")
+
+    def test_only_detected_occurrence_is_removed(self):
+        self.assertEqual(self._remove_token_ranges("same same", [(0, 1)]), " same")
+
+    def test_multibyte_character_offsets_are_applied_to_original_text(self):
+        self.assertEqual(self._remove_token_ranges("😊 same", [(0, 1)]), " same")
+
+    def test_overlapping_ranges_are_removed_once(self):
+        self.assertEqual(self._remove_token_ranges("same same same", [(0, 2), (1, 3)]), "")
 
     @pytest.mark.flaky(reruns=3, reruns_delay=2)
     def test_signature_1_worker(self):
