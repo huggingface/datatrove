@@ -89,6 +89,35 @@ def test_truncated_response_body_raises_connection_error():
     asyncio.run(run())
 
 
+def test_redirect_is_not_followed():
+    """A 3xx response is an error status, as with the previous client. The redirect target must not be requested."""
+    requests = 0
+
+    async def redirect(reader, writer):
+        nonlocal requests
+        await _read_request(reader)
+        requests += 1
+        writer.write(b"HTTP/1.1 302 Found\r\nLocation: /elsewhere\r\nContent-Length: 0\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    async def run():
+        from datatrove.pipeline.inference.run_inference import InferenceError
+
+        server, port = await _start_socket_server(redirect)
+        client = _LocalServer(_config(), port)
+        try:
+            with pytest.raises(InferenceError, match="302"):
+                await client._make_request({"messages": []})
+            assert not await client.is_ready()
+            assert requests == 2, "a redirect was followed"
+        finally:
+            await client.server_cleanup()
+            server.close()
+
+    asyncio.run(run())
+
+
 def test_request_timeout_is_applied():
     """A server that accepts the request but never answers must not hang the request."""
 

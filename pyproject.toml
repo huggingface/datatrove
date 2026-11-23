@@ -84,6 +84,8 @@ multilingual = [
 inference = [
   "datatrove[io]",
   "aiofiles",
+  # 3.14.4 fixes two client bugs that matter for a pooled session (a cancelled request could leave its connection
+  # in the pool, and a complete Content-Length body could raise ClientPayloadError). Current vLLM has the same floor.
   "aiohttp>=3.14.4",
   "aiosqlite",
   "vllm>=0.10.0",

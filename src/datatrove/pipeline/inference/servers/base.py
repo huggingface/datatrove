@@ -305,7 +305,9 @@ class InferenceServer(ABC):
 
         url = f"{self.get_base_url()}/v1/models"
         try:
-            async with self._get_http_session().get(url, timeout=aiohttp.ClientTimeout(total=5.0)) as response:
+            async with self._get_http_session().get(
+                url, timeout=aiohttp.ClientTimeout(total=5.0), allow_redirects=False
+            ) as response:
                 return response.status == 200
         except Exception:
             return False
@@ -582,7 +584,8 @@ class InferenceServer(ABC):
 
         url = f"{self.get_base_url()}{endpoint}"
         try:
-            async with self._get_http_session().post(url, json=payload) as response:
+            # Redirects are not followed: a 3xx is reported as an error status, as before
+            async with self._get_http_session().post(url, json=payload, allow_redirects=False) as response:
                 status, body = response.status, await response.read()
         except (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError) as e:
             # A dropped or refused connection, or a response body cut short:
