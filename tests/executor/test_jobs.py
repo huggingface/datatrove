@@ -2,11 +2,12 @@ import json
 import math
 import os
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import dill
 
-from datatrove.executor.jobs import ARRAY_INDEX_ENV_VAR, JobsPipelineExecutor
+from datatrove.executor.jobs import ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR, JobsPipelineExecutor
 from datatrove.io import get_datafolder
 from datatrove.pipeline.base import PipelineStep
 
@@ -112,7 +113,248 @@ def _make_depends_fake():
     return fake_run_uv_job, fake_inspect_job, launched
 
 
+def _make_record_only_fake():
+    """A ``run_uv_job`` that records submissions and does no work — the coordinator never runs.
+
+    ``list_jobs`` must be patched alongside it, or the running-coordinator check would hit the Hub.
+    """
+    submitted: list[dict] = []
+
+    def fake_run_uv_job(script, *, script_args=None, env=None, **kwargs):
+        job = MagicMock()
+        job.id = f"job-{len(submitted)}"
+        job.url = f"https://huggingface.co/jobs/{job.id}"
+        submitted.append({"script": script, "script_args": script_args, "env": env, **kwargs})
+        return job
+
+    return fake_run_uv_job, submitted
+
+
+def _make_coordinator_fakes():
+    """``run_uv_job`` that plays the part of the Hub, coordinator Job and worker Job alike.
+
+    Each call rehydrates the pickle the way ``launch_pickled_pipeline`` does inside a real Job and runs
+    it in a process env holding only the role variable it was submitted with, so the coordinator
+    submission recurses into the launcher while a worker submission runs its ranks.
+    """
+    import fsspec
+
+    submitted: list[dict] = []
+
+    def fake_run_uv_job(script, *, script_args=None, env=None, secrets=None, **kwargs):
+        submitted.append(env or {})
+        with fsspec.open(script_args[0], "rb") as f:  # the pik path (resolve_paths keeps the scheme)
+            job_executor = dill.load(f)
+        # a real Job sees its role variable and its secrets as env vars, and nothing from the launcher
+        keys = {ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR, "HF_TOKEN", *(secrets or {})}
+        saved = {key: os.environ.pop(key, None) for key in keys}
+        os.environ.update({k: v for k, v in (env or {}).items() if k in (ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR)})
+        os.environ.update(secrets or {})
+        try:
+            job_executor.run()
+        finally:
+            for key, value in saved.items():
+                os.environ.pop(key, None)
+                if value is not None:
+                    os.environ[key] = value
+        job = MagicMock()
+        job.id = f"job-{len(submitted)}"
+        job.url = f"https://huggingface.co/jobs/{job.id}"
+        return job
+
+    def fake_inspect_job(*, job_id, **kwargs):
+        job = MagicMock()
+        job.status.stage = "COMPLETED"
+        return job
+
+    return fake_run_uv_job, fake_inspect_job, submitted
+
+
+def _fake_list_jobs(*jobs, record: list | None = None):
+    """A ``list_jobs`` that returns these Jobs, keeping those carrying all the labels asked for.
+
+    Mirrors how the Hub filters server-side (built per iteration, never a late-bound loop var). ``record``
+    collects the kwargs of every call, so a test can check what was asked for.
+    """
+
+    def fake(labels=None, **kwargs):
+        if record is not None:
+            record.append({"labels": labels, **kwargs})
+        return [job for job in jobs if not labels or all((job.labels or {}).get(k) == v for k, v in labels.items())]
+
+    return fake
+
+
+def _fake_job(labels: dict, stage: str):
+    job = MagicMock()
+    job.id = "existing-coordinator"
+    job.labels = labels
+    job.status.stage = stage
+    return job
+
+
+class _ProbeBlock(PipelineStep):
+    """Records, per rank, which secret it saw and when it ran; can be told to fail."""
+
+    name = "probe"
+    type = "test"
+
+    def __init__(self, stage: str, fail: bool = False):
+        super().__init__()
+        self.stage = stage
+        self.fail = fail
+
+    def run(self, data, rank=None, world_size=None):
+        import fsspec
+
+        if self.fail:
+            raise RuntimeError(f"stage {self.stage} failed")
+        fs = fsspec.filesystem("memory")
+        order = len(fs.glob("/jobs-chain-probe/*.json"))  # the fake Hub runs Jobs one at a time
+        seen = {"secret": os.environ.get(f"SECRET_{self.stage}"), "order": order}
+        with fsspec.open(f"memory://jobs-chain-probe/{self.stage}-{rank}.json", "w") as f:
+            json.dump(seen, f)
+        yield 1
+
+
+def _probes():
+    import fsspec
+
+    fs = fsspec.filesystem("memory")
+    found = {}
+    for path in fs.glob("/jobs-chain-probe/*.json"):
+        with fs.open(path, "r") as f:
+            found[path.rsplit("/", 1)[-1].removesuffix(".json")] = json.load(f)
+    return found
+
+
+def _make_chain_hub():
+    """A fake Hub for ``depends=`` chains: runs each Job in-process and records how it ended.
+
+    Like a real Job, each one sees only its role variable and its secrets in its environment, and the
+    pickle is read the moment the Job is submitted.
+    """
+    import fsspec
+
+    jobs: dict[str, dict] = {}
+    roles = (ARRAY_INDEX_ENV_VAR, COORDINATOR_ENV_VAR)
+    secret_names = {"HF_TOKEN"}  # every secret any Job got: a Job must not see another Job's
+
+    def fake_run_uv_job(script, *, script_args=None, env=None, secrets=None, labels=None, dependencies=None, **kwargs):
+        job_id = f"job-{len(jobs)}"
+        with fsspec.open(script_args[0], "rb") as f:
+            raw = f.read()
+        record = {
+            "role": "coordinator" if COORDINATOR_ENV_VAR in env else "worker",
+            "labels": labels,
+            "pik": raw,
+            "dependencies": dependencies,
+            "hf_token_secret": (secrets or {}).get("HF_TOKEN"),
+        }
+        jobs[job_id] = record
+        secret_names.update(secrets or {})
+        saved = {key: os.environ.pop(key, None) for key in {*roles, *secret_names}}
+        os.environ.update({k: v for k, v in env.items() if k in roles})
+        os.environ.update(secrets or {})
+        try:
+            dill.loads(raw).run()
+            record["stage"] = "COMPLETED"
+        except Exception as e:
+            record["stage"], record["error"] = "ERROR", str(e)
+        finally:
+            for key, value in saved.items():
+                os.environ.pop(key, None)
+                if value is not None:
+                    os.environ[key] = value
+        job = MagicMock()
+        job.id, job.url = job_id, f"https://huggingface.co/jobs/{job_id}"
+        return job
+
+    def fake_inspect_job(*, job_id, **kwargs):
+        job = MagicMock()
+        job.status.stage = jobs[job_id]["stage"]
+        return job
+
+    return fake_run_uv_job, fake_inspect_job, jobs
+
+
+def _three_stage_chain(name: str, fail_a: bool = False, **b_kwargs):
+    """A -> B -> C, each stage with its own secret."""
+    common = {"token": "hf_chaintoken", "poll_interval": 0, "max_retries": 0}
+    a = JobsPipelineExecutor(
+        pipeline=[_ProbeBlock("A", fail=fail_a)],
+        tasks=2,
+        logging_dir=f"memory://jobs-chain/{name}/a",
+        job_name="A",
+        secrets={"SECRET_A": "value-a"},
+        **common,
+    )
+    b = JobsPipelineExecutor(
+        pipeline=[_ProbeBlock("B")],
+        tasks=2,
+        logging_dir=f"memory://jobs-chain/{name}/b",
+        job_name="B",
+        secrets={"SECRET_B": "value-b"},
+        depends=a,
+        **common,
+        **b_kwargs,
+    )
+    c = JobsPipelineExecutor(
+        pipeline=[_ProbeBlock("C")],
+        tasks=1,
+        logging_dir=f"memory://jobs-chain/{name}/c",
+        job_name="C",
+        depends=b,
+        **common,
+    )
+    return a, b, c
+
+
+def _no_dependency_wait(seconds):
+    """Polling sleeps are fine; the minutes-long wait for another launcher's dependency is the bug.
+
+    ``launch_job`` sleeps ``2 * 60`` s per check while it waits on a dependency it did not launch; in a
+    single-coordinator chain that wait means the chain is stuck, so the test fails instead of hanging.
+    """
+    if seconds >= 60:
+        raise TimeoutError("would wait for a dependency forever")
+
+
+@contextmanager
+def _no_local_login():
+    """No saved login and no ambient ``HF_TOKEN``: only the ``HF_TOKEN`` a Job receives as a secret is found."""
+    with (
+        patch.dict(os.environ),
+        patch("huggingface_hub.get_token", lambda: os.environ.get("HF_TOKEN")),
+    ):
+        os.environ.pop("HF_TOKEN", None)
+        yield
+
+
+def _run_with_hub(executor, hub, live_jobs=(), list_jobs=None):
+    fake_run, fake_inspect, _ = hub
+    with (
+        patch("huggingface_hub.run_uv_job", fake_run),
+        patch("huggingface_hub.inspect_job", fake_inspect),
+        patch("huggingface_hub.list_jobs", _fake_list_jobs(*live_jobs) if list_jobs is None else list_jobs),
+        patch("time.sleep", _no_dependency_wait),
+    ):
+        executor.run()
+
+
 class TestJobsExecutor(unittest.TestCase):
+    def setUp(self):
+        import fsspec
+
+        fs = fsspec.filesystem("memory")
+        if fs.exists("/jobs-chain-probe"):
+            fs.rm("/jobs-chain-probe", recursive=True)
+        # launch_job() checks the Hub for live Jobs of the run first: never reach the real Hub from a test.
+        # Tests that need live Jobs patch list_jobs themselves, which takes precedence.
+        no_live_jobs = patch("huggingface_hub.list_jobs", lambda **kwargs: [])
+        no_live_jobs.start()
+        self.addCleanup(no_live_jobs.stop)
+
     def test_local_logging_dir_rejected(self):
         """A local logging_dir cannot be shared with remote Jobs, so it must raise."""
         with self.assertRaises(ValueError):
@@ -136,7 +378,7 @@ class TestJobsExecutor(unittest.TestCase):
                 patch("huggingface_hub.run_uv_job", fake_run),
                 patch("huggingface_hub.inspect_job", fake_inspect),
             ):
-                executor.run()
+                executor.launch_job()
 
             self.assertEqual(len(launched), math.ceil(tasks / tasks_per_job))
             file_list = ["executor.json", "stats.json"] + [
@@ -244,7 +486,7 @@ class TestJobsExecutor(unittest.TestCase):
             return fake_run(script, env=env, **kwargs)
 
         with patch("huggingface_hub.run_uv_job", recording_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(seen["VLLM_ATTENTION_BACKEND"], "FLASHINFER")
         self.assertEqual(seen["PYTHONUNBUFFERED"], "0")  # user value wins over the executor default
@@ -269,7 +511,7 @@ class TestJobsExecutor(unittest.TestCase):
             return fake_run(script, env=env, **kwargs)
 
         with patch("huggingface_hub.run_uv_job", recording_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(seen[ARRAY_INDEX_ENV_VAR], "0")  # executor's value, not the injected "7"
 
@@ -292,7 +534,7 @@ class TestJobsExecutor(unittest.TestCase):
         )
         fake_run, fake_inspect, launched = _make_fake_jobs(executor)
         with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(len(launched), 2)  # the scrubbed pickle must still run fine worker-side
         with log_dir.open("executor.pik", "rb") as f:
@@ -319,7 +561,7 @@ class TestJobsExecutor(unittest.TestCase):
         )
         fake_run, fake_inspect, _ = _make_fake_jobs(executor)
         with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
         self.assertTrue(log_dir.isfile("stats.json"))
 
     def test_rerun_merges_stats_if_missing(self):
@@ -334,13 +576,13 @@ class TestJobsExecutor(unittest.TestCase):
         first = build()
         fr, fi, _ = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         log_dir.rm("stats.json")  # simulate a coordinator killed after the last rank but before the merge
 
         second = build()
         fr2, fi2, launched = _make_fake_jobs(second)
         with patch("huggingface_hub.run_uv_job", fr2), patch("huggingface_hub.inspect_job", fi2):
-            second.run()
+            second.launch_job()
         self.assertEqual(len(launched), 0)
         self.assertTrue(log_dir.isfile("stats.json"))
 
@@ -361,13 +603,13 @@ class TestJobsExecutor(unittest.TestCase):
         first = build()
         fr, fi, launched_first = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         self.assertEqual(len(launched_first), 4)
 
         second = build()
         fr2, fi2, launched_second = _make_fake_jobs(second)
         with patch("huggingface_hub.run_uv_job", fr2), patch("huggingface_hub.inspect_job", fi2):
-            second.run()
+            second.launch_job()
         self.assertEqual(len(launched_second), 0)
 
     def test_failed_jobs_resubmitted_up_to_max_retries(self):
@@ -408,7 +650,7 @@ class TestJobsExecutor(unittest.TestCase):
             return job
 
         with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
-            executor.run()
+            executor.launch_job()
 
         self.assertEqual(attempts, {"0": 1, "1": 2, "2": 2})  # one resubmit each for 1 and 2, then give up on 2
         self.assertTrue(log_dir.isfile("completions/00000"))
@@ -423,7 +665,7 @@ class TestJobsExecutor(unittest.TestCase):
         first = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t", poll_interval=0)
         fr, fi, _ = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         self.assertTrue(log_dir.isfile("stats.json"))
         log_dir.rm("stats.json")
 
@@ -448,7 +690,7 @@ class TestJobsExecutor(unittest.TestCase):
             return job
 
         with patch("huggingface_hub.run_uv_job", failing_run), patch("huggingface_hub.inspect_job", error_inspect):
-            second.run()
+            second.launch_job()
         # run 1's completion markers would mask run 2's failures — the merge must not run at all
         self.assertFalse(log_dir.isfile("stats.json"))
 
@@ -464,7 +706,7 @@ class TestJobsExecutor(unittest.TestCase):
         )
         fr, fi, launched = _make_depends_fake()
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            child.run()
+            child.launch_job()
         self.assertEqual(len(launched), 4)  # 2 parent + 2 child array indices
         for log_dir in (parent_dir, child_dir):
             self.assertEqual(len(log_dir.list_files("completions")), 2)
@@ -492,7 +734,667 @@ class TestJobsExecutor(unittest.TestCase):
 
         with patch("huggingface_hub.run_uv_job", failing_run), patch("huggingface_hub.inspect_job", error_inspect):
             with self.assertRaises(RuntimeError):
-                child.run()
+                child.launch_job()
+
+    def test_run_submits_one_coordinator_job_and_returns(self):
+        """`run()` submits one coordinator Job and returns without running anything in this process."""
+        log_dir = get_datafolder("memory://jobs-coordinator/submits")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=3,
+            workers=2,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            secrets={"MY_SECRET": "sekritvalue"},
+            env={"MY_SETTING": "my_value"},
+            coordinator_flavor="cpu-upgrade",
+            coordinator_timeout="9d",
+            poll_interval=0,
+        )
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.list_jobs", lambda **kw: []):
+            executor.run()
+
+        self.assertEqual(len(submitted), 1)
+        coordinator = submitted[0]
+        self.assertEqual(coordinator["flavor"], "cpu-upgrade")
+        self.assertEqual(coordinator["timeout"], "9d")
+        self.assertEqual(coordinator["labels"]["datatrove_role"], "coordinator")
+        self.assertEqual(coordinator["labels"]["datatrove_job_name"], executor.job_name)
+        # the coordinator must not look like a worker: no rank addressing, and its own role marker
+        self.assertNotIn(ARRAY_INDEX_ENV_VAR, coordinator["env"])
+        self.assertEqual(coordinator["env"][COORDINATOR_ENV_VAR], "1")
+        # ... but it needs the env/secrets the Jobs get, to submit them and to reach the logging_dir
+        self.assertEqual(coordinator["env"]["MY_SETTING"], "my_value")
+        self.assertEqual(coordinator["secrets"]["HF_TOKEN"], "hf_faketoken")
+        self.assertEqual(coordinator["secrets"]["MY_SECRET"], "sekritvalue")
+        self.assertEqual(coordinator["script_args"], [log_dir.resolve_paths("executor.pik")])
+
+        # it must be able to rehydrate the executor, and the pickle must hold no credentials
+        with log_dir.open("executor.pik", "rb") as f:
+            pickled = dill.load(f)
+        self.assertIsNone(pickled.token)
+        self.assertIsNone(pickled.secrets)
+
+        # fire-and-forget: nothing was launched or merged locally, not even ranks_to_run.json
+        self.assertFalse(log_dir.isfile("stats.json"))
+        self.assertFalse(log_dir.isfile("ranks_to_run.json"))
+        self.assertFalse(any(log_dir.isfile(f"completions/{rank:05d}") for rank in range(3)))
+
+    def test_launch_job_supervises_locally_without_a_coordinator_job(self):
+        """`launch_job()` is how to opt out: the pool runs in this process, and no Job is a coordinator.
+
+        The fake worker demands ``DATATROVE_JOB_ARRAY_INDEX``, so it would raise on any coordinator Job.
+        """
+        log_dir = get_datafolder("memory://jobs-coordinator/local-supervisor")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="hf_faketoken", poll_interval=0
+        )
+        fake_run, fake_inspect, launched = _make_fake_jobs(executor)
+        with patch("huggingface_hub.run_uv_job", fake_run), patch("huggingface_hub.inspect_job", fake_inspect):
+            executor.launch_job()
+
+        self.assertEqual(len(launched), 2)
+        self.assertEqual(len(log_dir.list_files("completions")), 2)
+        self.assertTrue(log_dir.isfile("stats.json"))
+
+    def test_coordinator_job_supervises_the_pool(self):
+        """The coordinator Job — not the local process — launches the workers and merges the stats."""
+        log_dir = get_datafolder("memory://jobs-coordinator/inside")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=3,
+            tasks_per_job=2,
+            logging_dir=log_dir,
+            token="hf_faketoken",
+            poll_interval=0,
+        )
+        fake_run, fake_inspect, submitted = _make_coordinator_fakes()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", lambda **kw: []),
+        ):
+            executor.run()
+
+        self.assertEqual(len(submitted), 1 + math.ceil(3 / 2))  # one coordinator, then 2 worker Jobs
+        # exactly one coordinator generation: inside the Job the executor launches, it does not re-spawn
+        self.assertEqual(sum(COORDINATOR_ENV_VAR in env for env in submitted), 1)
+        self.assertEqual(sum(ARRAY_INDEX_ENV_VAR in env for env in submitted), 2)
+        self.assertEqual(len(log_dir.list_files("completions")), 3)
+        self.assertTrue(log_dir.isfile("stats.json"))  # merged by the coordinator
+        self.assertIsNone(os.environ.get(COORDINATOR_ENV_VAR))  # the fake left this process alone
+        self.assertTrue(executor._launched)
+
+    def test_run_does_not_launch_a_second_coordinator(self):
+        """A live coordinator for the same run makes a relaunch a no-op; a finished one doesn't."""
+        log_dir = get_datafolder("memory://jobs-coordinator/twice")
+
+        def build():
+            return JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t")
+
+        for stage, expected_submissions in (("RUNNING", 0), ("COMPLETED", 1)):
+            executor = build()
+            live = _fake_job({**executor._run_labels, "datatrove_role": "coordinator"}, stage)
+            fake_run, submitted = _make_record_only_fake()
+            with (
+                patch("huggingface_hub.run_uv_job", fake_run),
+                patch("huggingface_hub.list_jobs", _fake_list_jobs(live)),
+            ):
+                executor.run()
+            self.assertEqual(len(submitted), expected_submissions, f"{stage} coordinator must not be doubled")
+
+        # a coordinator under another logging_dir is another run, so it must not block this one
+        executor = build()
+        other = _fake_job({**executor._run_labels, "datatrove_logging_dir": "0" * 12}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(other)),
+        ):
+            executor.run()
+        self.assertEqual(len(submitted), 1)
+
+    def test_relaunch_hint_matches_what_a_relaunch_needs(self):
+        """Cancelling the coordinator alone is not enough: its live workers make the relaunch raise."""
+        from datatrove.utils.logging import logger
+
+        log_dir = get_datafolder("memory://jobs-coordinator/relaunch-hint")
+        executor = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t")
+        coordinator = _fake_job({**executor._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        worker = _fake_job(executor._run_labels, "RUNNING")
+        worker.id = "existing-worker"
+        fake_run, submitted = _make_record_only_fake()
+
+        messages: list[str] = []
+        sink = logger.add(lambda message: messages.append(str(message)), level="WARNING")
+        self.addCleanup(logger.remove, sink)
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(coordinator, worker)),
+        ):
+            self.assertIsNone(executor.run())
+            with self.assertRaisesRegex(RuntimeError, "worker Jobs"):
+                executor.launch_job()
+        hint = next(message for message in messages if "already runs" in message)
+        # `hf jobs cancel` takes one Job id, so the hint lists the ids rather than one command for all
+        self.assertIn("`hf jobs cancel <job id>` each: existing-coordinator, existing-worker", hint)
+
+        # what the hint guards against: with the coordinator gone and the worker left, a relaunch raises
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(worker)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "still live"):
+                executor.run()
+        self.assertEqual(submitted, [])
+
+    def test_renamed_job_does_not_escape_the_running_check(self):
+        """The run is identified by its logging_dir, so renaming it cannot launch a second coordinator."""
+        log_dir = get_datafolder("memory://jobs-coordinator/renamed")
+        first = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, token="t")
+        renamed = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, token="t", job_name="something_else"
+        )
+        live = _fake_job({**first._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live)),
+        ):
+            renamed.run()
+        self.assertEqual(len(submitted), 0)
+
+    def test_leftover_workers_block_a_new_launch(self):
+        """Workers of an earlier launch read the rank map this launch rewrites, so they must go first."""
+        log_dir = get_datafolder("memory://jobs-coordinator/leftover")
+        executor = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t")
+        live = _fake_job({**executor._run_labels, "datatrove_role": "worker", "datatrove_array_index": "0"}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live)),
+            self.assertRaisesRegex(RuntimeError, "still live") as caught,
+        ):
+            executor.run()
+        self.assertIn("existing-coordinator", str(caught.exception))
+        self.assertEqual(len(submitted), 0)
+        self.assertFalse(log_dir.isfile("executor.pik"))  # refused before overwriting the previous launch's pickle
+
+    def test_live_worker_of_an_upstream_stage_blocks_the_chain(self):
+        """Every stage of the chain is checked, not just the one :meth:`run` was called on."""
+        a, b, c = _three_stage_chain("upstream-live")
+        live = _fake_job({**a._run_labels, "datatrove_role": "worker"}, "QUEUED")
+        hub = _make_chain_hub()
+        with self.assertRaisesRegex(RuntimeError, "still live"):
+            _run_with_hub(c, hub, live_jobs=[live])
+        self.assertEqual(len(hub[2]), 0)
+
+    def test_unlistable_jobs_do_not_launch_anything(self):
+        """Without the live-Jobs check a launch could double-run ranks, so a Hub error stops it."""
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=1, logging_dir="memory://jobs-coordinator/unlistable", token="t"
+        )
+
+        def unavailable(**kwargs):
+            raise ConnectionError("hub unavailable")
+            yield  # pragma: no cover -- makes this a generator, so the error surfaces mid-iteration
+
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", unavailable),
+            self.assertRaisesRegex(RuntimeError, "Could not list Jobs") as caught,
+        ):
+            executor.run()
+        self.assertIsInstance(caught.exception.__cause__, ConnectionError)
+        self.assertEqual(len(submitted), 0)
+
+    def test_run_returns_the_coordinator_job_id(self):
+        """The id is the one thing worth holding on to: it is what `hf jobs logs -f` takes."""
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()], tasks=1, logging_dir="memory://jobs-coordinator/job-id", token="t"
+        )
+        job_ids = []
+
+        def fake_run_uv_job(script, **kwargs):
+            job = MagicMock()
+            job.id, job.url = f"job-{len(job_ids)}", "https://huggingface.co/jobs/unused"
+            job_ids.append(job.id)
+            return job
+
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run_uv_job),
+            patch("huggingface_hub.list_jobs", lambda **kw: []),
+        ):
+            self.assertEqual(executor.run(), "job-0")
+
+    def test_the_live_check_filters_by_label_server_side(self):
+        """Each stage is looked up by its own run id, so the check is one small labelled request per stage."""
+        a, b, c = _three_stage_chain("label-filter")
+        hub = _make_chain_hub()
+        asked: list[dict] = []
+        _run_with_hub(c, hub, list_jobs=_fake_list_jobs(record=asked))
+
+        run_ids = {stage._run_id for stage in (a, b, c)}
+        self.assertTrue(all(len(call["labels"]) == 1 for call in asked))
+        by_dir = {
+            call["labels"]["datatrove_logging_dir"] for call in asked if "datatrove_logging_dir" in call["labels"]
+        }
+        by_owner = {next(iter(call["labels"])) for call in asked if "datatrove_logging_dir" not in call["labels"]}
+        self.assertEqual(by_dir, run_ids)
+        self.assertEqual(by_owner, {f"datatrove_owns_{run_id}" for run_id in run_ids})
+
+    def test_coordinator_installs_the_dependencies_of_every_stage(self):
+        """Loading the chain's pickle imports every stage, so a light coordinator cannot stay light."""
+        a, b, c = _three_stage_chain("dependencies")
+        a.dependencies = ["datatrove[io]", "vllm"]
+        b.dependencies = ["datatrove[io]", "spacy"]
+        hub = _make_chain_hub()
+        _run_with_hub(c, hub)
+        _, _, jobs = hub
+
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["dependencies"], ["datatrove[io]", "spacy", "vllm"])
+        worker_a = next(
+            job for job in jobs.values() if job["role"] == "worker" and job["labels"]["datatrove_job_name"] == "A"
+        )
+        self.assertEqual(worker_a["dependencies"], ["datatrove[io]", "vllm"])  # workers keep their own
+
+    def test_user_labels_cannot_override_the_run_identity(self):
+        """The live check reads these labels, so a user label must not be able to forge another run."""
+        log_dir = get_datafolder("memory://jobs-coordinator/label-clash")
+        executor = JobsPipelineExecutor(
+            pipeline=[_EmitBlock()],
+            tasks=1,
+            logging_dir=log_dir,
+            token="t",
+            labels={"datatrove_logging_dir": "0" * 12, "team": "nlp"},
+        )
+        self.assertEqual(executor._run_labels["datatrove_logging_dir"], executor._run_id)
+        self.assertEqual(executor._run_labels["team"], "nlp")
+
+        live = _fake_job({**executor._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live)),
+        ):
+            executor.run()
+        self.assertEqual(len(submitted), 0)
+
+    def test_one_coordinator_runs_the_whole_chain(self):
+        """`run()` on the last stage submits one coordinator, which runs each stage after the previous one."""
+        a, b, c = _three_stage_chain("in-order")
+        hub = _make_chain_hub()
+        _run_with_hub(c, hub)
+        _, _, jobs = hub
+
+        coordinators = [job for job in jobs.values() if job["role"] == "coordinator"]
+        self.assertEqual([job["labels"]["datatrove_job_name"] for job in coordinators], ["C"])
+        self.assertEqual(coordinators[0]["stage"], "COMPLETED")
+        probes = _probes()
+        self.assertEqual(sorted(probes), ["A-0", "A-1", "B-0", "B-1", "C-0"])
+        # every rank of a stage ran before any rank of the next one
+        order = sorted(probes, key=lambda probe: probes[probe]["order"])
+        self.assertEqual([probe[0] for probe in order], ["A", "A", "B", "B", "C"])
+        for stage in (a, b, c):
+            self.assertTrue(stage.logging_dir.isfile("stats.json"))
+
+    def test_chain_secrets_reach_each_stage_and_no_pickle(self):
+        """Each stage's workers get that stage's secrets; no pickle any Job reads holds a credential."""
+        a, b, c = _three_stage_chain("secrets")
+        hub = _make_chain_hub()
+        _run_with_hub(c, hub)
+        _, _, jobs = hub
+
+        probes = _probes()
+        self.assertEqual({probes[f"A-{r}"]["secret"] for r in (0, 1)}, {"value-a"})
+        self.assertEqual({probes[f"B-{r}"]["secret"] for r in (0, 1)}, {"value-b"})
+        for job in jobs.values():
+            for credential in (b"hf_chaintoken", b"value-a", b"value-b"):
+                self.assertNotIn(credential, job["pik"])
+
+    def test_chain_rejects_one_secret_name_with_two_values(self):
+        """The coordinator receives every stage's secrets as env vars, so a name cannot carry two values."""
+        a, b, c = _three_stage_chain("secret-clash")
+        b.secrets = {"SECRET_A": "another-value"}
+        with self.assertRaises(ValueError):
+            _run_with_hub(c, _make_chain_hub())
+
+    def test_chain_rejects_two_tokens(self):
+        """Each stage would otherwise run with whichever token the coordinator got."""
+        a, b, c = _three_stage_chain("token-clash")
+        a.token = "hf_othertoken"
+        with self.assertRaises(ValueError):
+            _run_with_hub(c, _make_chain_hub())
+
+    def test_chain_rejects_an_explicit_token_mixed_with_the_default_login(self):
+        """A stage without token= uses the saved login, which is a second token if another stage passes one."""
+        for explicit_stage in ("a", "c"):
+            a, b, c = _three_stage_chain(f"token-mix-{explicit_stage}")
+            for name, stage in (("a", a), ("b", b), ("c", c)):
+                stage.token = "hf_chaintoken" if name == explicit_stage else None
+            hub = _make_chain_hub()
+            with patch("huggingface_hub.get_token", lambda: "hf_logintoken"):
+                with self.assertRaisesRegex(ValueError, "different Hugging Face tokens"):
+                    _run_with_hub(c, hub)
+            self.assertEqual(hub[2], {}, "nothing may be submitted")
+
+    def test_chain_accepts_an_explicit_token_equal_to_the_default_login(self):
+        """Passing the login token to one stage only is the same token everywhere, so the chain runs."""
+        a, b, c = _three_stage_chain("token-same")
+        a.token = b.token = None
+        hub = _make_chain_hub()
+        with patch("huggingface_hub.get_token", lambda: "hf_chaintoken"):
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+
+    def test_chain_accepts_a_token_passed_as_an_hf_token_secret(self):
+        """An ``HF_TOKEN`` secret overrides a stage's token=, so it is what the chain is compared on."""
+        a, b, c = _three_stage_chain("token-secret")
+        a.token = "hf_overridden"
+        a.secrets = {"SECRET_A": "value-a", "HF_TOKEN": "hf_chaintoken"}
+        hub = _make_chain_hub()
+        with _no_local_login():
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+        self.assertEqual({job["hf_token_secret"] for job in hub[2].values()}, {"hf_chaintoken"})
+
+    def test_chain_accepts_a_token_on_the_launched_stage_only_without_a_login(self):
+        """A stage with no token= and no local login has no second token: it uses the coordinator's."""
+        a, b, c = _three_stage_chain("token-last-only")
+        a.token = b.token = None
+        hub = _make_chain_hub()
+        with _no_local_login():
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+        self.assertEqual({job["hf_token_secret"] for job in hub[2].values()}, {"hf_chaintoken"})
+
+    def test_failed_rerun_is_not_hidden_by_old_markers(self):
+        """A dependency rerun that fails stops the chain, even with completion markers from an earlier run."""
+        a, b, c = _three_stage_chain("stale-markers")
+        _run_with_hub(c, _make_chain_hub())
+        a.skip_completed = False  # recompute A: its old completions/ markers stay in place
+        a.pipeline[0].fail = True
+        hub = _make_chain_hub()
+        _run_with_hub(c, hub)
+        _, _, jobs = hub
+
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "ERROR")
+        # the markers say nothing is missing, so say what really stopped the chain
+        self.assertIn("a failed rank", coordinator["error"])
+
+    def test_failed_dependency_fails_the_coordinator(self):
+        """A stage with failed tasks stops the chain and the coordinator Job ends as ERROR, without waiting."""
+        a, b, c = _three_stage_chain("fails", fail_a=True)
+        hub = _make_chain_hub()
+        _run_with_hub(c, hub)
+        _, _, jobs = hub
+
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "ERROR")
+        self.assertIn("'A'", coordinator["error"])
+        self.assertEqual(_probes(), {})  # neither B nor C ran
+
+    def test_run_on_dependency_fail_continues_the_chain(self):
+        a, b, c = _three_stage_chain("continues", fail_a=True, run_on_dependency_fail=True)
+        _run_with_hub(c, _make_chain_hub())
+        self.assertIn("B-0", _probes())
+
+    def test_rerun_after_a_failure_restarts_the_failed_stage(self):
+        """Rerunning the same objects resumes from the failed stage instead of waiting on it."""
+        a, b, c = _three_stage_chain("rerun", fail_a=True)
+        _run_with_hub(c, _make_chain_hub())
+        a.pipeline[0].fail = False  # the user fixes stage A and reruns the same script objects
+        _run_with_hub(c, _make_chain_hub())
+        self.assertEqual(sorted(_probes()), ["A-0", "A-1", "B-0", "B-1", "C-0"])
+
+    def test_chain_coordinator_is_labelled_with_every_stage_it_runs(self):
+        """A launcher of any stage of the chain must be able to see that a coordinator already runs it."""
+        a, b, c = _three_stage_chain("owns-labels")
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run):
+            c.run()
+        labels = submitted[0]["labels"]
+        self.assertEqual(
+            {key for key in labels if key.startswith("datatrove_owns_")},
+            {f"datatrove_owns_{stage._run_id}" for stage in (a, b, c)},
+        )
+
+    def test_run_on_each_stage_in_turn_runs_the_later_stage(self):
+        """`a.run(); b.run()`, as with Slurm: B is launched and waits for A's coordinator, not dropped."""
+        a, b, c = _three_stage_chain("per-stage")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live_a)),
+        ):
+            self.assertIsNotNone(b.run())
+        self.assertEqual(len(submitted), 1)
+        owned = {key for key in submitted[0]["labels"] if key.startswith("datatrove_owns_")}
+        self.assertEqual(owned, {f"datatrove_owns_{b._run_id}"})  # A is left to its own coordinator
+        self.assertTrue(a._launched)
+
+    def test_upstream_stage_run_by_a_chain_coordinator_is_not_launched_again(self):
+        """`c.run()` then `a.run()`: C's coordinator runs A, so launching A again would run its ranks twice."""
+        a, b, c = _three_stage_chain("upstream-relaunch")
+        owns_a = {**c._run_labels, "datatrove_role": "coordinator", f"datatrove_owns_{a._run_id}": "1"}
+        live_c = _fake_job(owns_a, "QUEUED")
+        fake_run, submitted = _make_record_only_fake()
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live_c)),
+        ):
+            self.assertIsNone(a.run())
+        self.assertEqual(len(submitted), 0)
+
+    def test_launch_job_refuses_while_a_coordinator_is_live(self):
+        """launch_job() would rewrite executor.pik and ranks_to_run.json under the live coordinator's workers."""
+        a, b, c = _three_stage_chain("launch-job-live")
+        live_c = _fake_job({**c._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(live_c)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "already running"):
+                c.launch_job()
+        self.assertEqual(jobs, {})
+
+    def test_failed_upstream_run_is_restarted_by_the_next_stage(self):
+        """`a.run()` fails, then `b.run()` on the same objects: B's coordinator relaunches A, it doesn't wait."""
+        a, b, c = _three_stage_chain("failed-upstream", fail_a=True)
+        _run_with_hub(a, _make_chain_hub())
+        self.assertTrue(a._launched)  # this process launched A once
+        a.pipeline[0].fail = False  # the user fixes A and reruns the next stage
+        hub = _make_chain_hub()
+        _run_with_hub(b, hub)
+        coordinator = next(job for job in hub[2].values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+        self.assertEqual(coordinator["labels"].get(f"datatrove_owns_{a._run_id}"), "1")  # B's coordinator runs A
+        self.assertFalse(dill.loads(coordinator["pik"]).depends._launched)
+        self.assertEqual(sorted(_probes()), ["A-0", "A-1", "B-0", "B-1"])
+
+    def test_dependency_whose_coordinator_dies_fails_fast(self):
+        """B waits for A's coordinator; once nothing of A is live with A incomplete, B fails instead of idling."""
+        a, b, c = _three_stage_chain("owner-gone")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        jobs = hub[2]
+
+        def list_jobs(**kwargs):
+            # A's coordinator is live when B is launched, and gone before B's coordinator first checks on it
+            return _fake_list_jobs(live_a)(**kwargs) if not jobs else []
+
+        _run_with_hub(b, hub, list_jobs=list_jobs)
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "ERROR")
+        self.assertIn("no Job of it is live", coordinator["error"])
+        self.assertEqual([job for job in jobs.values() if job["role"] == "worker"], [])  # A was not taken over
+
+        hub = _make_chain_hub()
+        _run_with_hub(b, hub)  # the rerun sees nothing live, so it launches A and then B
+        self.assertEqual(sorted(_probes()), ["A-0", "A-1", "B-0", "B-1"])
+
+    def test_dependency_that_finished_while_checking_is_not_relaunched(self):
+        """A owner that finishes between the completion check and the liveness check is not a failure."""
+        a, b, c = _three_stage_chain("owner-finished")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        jobs = hub[2]
+
+        def list_jobs(**kwargs):
+            if not jobs:  # B is being launched: A's coordinator is live
+                return _fake_list_jobs(live_a)(**kwargs)
+            # B's coordinator checks on A: A's coordinator has just finished, writing its markers
+            for rank in range(a.world_size):
+                a.mark_rank_as_completed(rank)
+            return []
+
+        _run_with_hub(b, hub, list_jobs=list_jobs)
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+        workers = [job for job in jobs.values() if job["role"] == "worker"]
+        self.assertTrue(all(job["labels"]["datatrove_job_name"] == "B" for job in workers))  # A not relaunched
+
+    def test_dependency_run_elsewhere_is_trusted_only_once_it_is_done(self):
+        """A rerun of A keeps its old markers, so B must wait until nothing of A is live, not just for markers."""
+        a, b, c = _three_stage_chain("rerun-elsewhere")
+        _run_with_hub(a, _make_chain_hub())  # A completed once: its markers are in place
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        state = {"a_live": True, "waits": 0}
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+
+        def list_jobs(**kwargs):
+            return _fake_list_jobs(live_a)(**kwargs) if state["a_live"] else []
+
+        def sleep(seconds):
+            if seconds >= 60:  # B's coordinator waits for A: A's rerun finishes now
+                b_workers = [
+                    job
+                    for job in jobs.values()
+                    if job["role"] == "worker" and job["labels"]["datatrove_job_name"] == "B"
+                ]
+                state["b_workers_while_a_live"] = len(b_workers)
+                state["waits"] += 1
+                state["a_live"] = False
+
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", list_jobs),
+            patch("time.sleep", sleep),
+        ):
+            b.run()
+        self.assertEqual(state["waits"], 1)
+        self.assertEqual(state["b_workers_while_a_live"], 0)  # B did not start on A's old markers
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+
+    def test_hub_error_while_waiting_keeps_waiting(self):
+        """A failed listing during the wait for another coordinator's stage means "keep polling", not ERROR."""
+        a, b, c = _three_stage_chain("wait-hub-error")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        state = {"waits": 0}
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+
+        def list_jobs(**kwargs):
+            if not jobs:
+                return _fake_list_jobs(live_a)(**kwargs)  # B is launched while A's coordinator runs
+            if state["waits"] == 0:
+                raise ConnectionError("Hub blip")  # B's coordinator cannot check on A once
+            return []  # then A is done
+
+        def sleep(seconds):
+            if seconds >= 60:
+                state["waits"] += 1
+                for rank in range(a.world_size):  # A's coordinator finishes during the wait
+                    a.mark_rank_as_completed(rank)
+
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", list_jobs),
+            patch("time.sleep", sleep),
+        ):
+            b.run()
+        self.assertEqual(state["waits"], 1)
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+
+    def test_run_on_dependency_fail_applies_to_a_dependency_run_elsewhere(self):
+        a, b, c = _three_stage_chain("owner-gone-continue", run_on_dependency_fail=True)
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        hub = _make_chain_hub()
+        jobs = hub[2]
+        _run_with_hub(b, hub, list_jobs=lambda **kwargs: _fake_list_jobs(live_a)(**kwargs) if not jobs else [])
+        coordinator = next(job for job in jobs.values() if job["role"] == "coordinator")
+        self.assertEqual(coordinator["stage"], "COMPLETED", coordinator.get("error"))
+        self.assertEqual(sorted(_probes()), ["B-0", "B-1"])
+
+    def test_launch_job_rechecks_right_before_submitting(self):
+        """A coordinator launched for this stage while launch_job() waited stops it before it rewrites files."""
+        a, b, c = _three_stage_chain("recheck")
+        live_a = _fake_job({**a._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        calls = []
+
+        def list_jobs(**kwargs):
+            calls.append(kwargs)
+            return [] if len(calls) <= 2 else _fake_list_jobs(live_a)(**kwargs)  # 2 = the launch check of A
+
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.inspect_job", fake_inspect),
+            patch("huggingface_hub.list_jobs", list_jobs),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "started while this one waited"):
+                a.launch_job()
+        self.assertEqual(jobs, {})
+
+    def test_launch_job_rejects_a_chain_with_two_python_versions(self):
+        """launch_job() pickles the chain the same way, so it applies the same check as run()."""
+        a, b, c = _three_stage_chain("two-pythons-local")
+        a.python = "3.11"
+        b.python = c.python = "3.12"
+        hub = _make_chain_hub()
+        fake_run, fake_inspect, jobs = hub
+        with patch("huggingface_hub.run_uv_job", fake_run), self.assertRaisesRegex(ValueError, "python"):
+            c.launch_job()
+        self.assertEqual(jobs, {})
+
+    def test_chain_across_two_namespaces_is_rejected(self):
+        """The live check looks for a stage's coordinator in one namespace, so a chain must share it."""
+        a, b, c = _three_stage_chain("two-namespaces")
+        a.namespace = "other-org"
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), self.assertRaisesRegex(ValueError, "namespace"):
+            c.run()
+        self.assertEqual(submitted, [])
+
+    def test_chain_with_two_python_versions_is_rejected(self):
+        """One coordinator pickles every stage with its own interpreter; dill bytecode does not cross versions."""
+        a, b, c = _three_stage_chain("two-pythons")
+        a.python = "3.11"
+        b.python = c.python = "3.12"
+        fake_run, submitted = _make_record_only_fake()
+        with patch("huggingface_hub.run_uv_job", fake_run), self.assertRaisesRegex(ValueError, "python"):
+            c.run()
+        self.assertEqual(submitted, [])
+
+    def test_env_coordinator_key_rejected(self):
+        """The coordinator role variable is reserved, like the array-index one."""
+        log_dir = get_datafolder("memory://jobs-coordinator/env-reserved")
+        with self.assertRaises(ValueError):
+            JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=1, logging_dir=log_dir, env={COORDINATOR_ENV_VAR: "1"})
 
 
 if __name__ == "__main__":

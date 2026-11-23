@@ -93,7 +93,7 @@ class SentenceDedupSignature(PipelineStep):
             logger.warning(f"Remember to also set the name of tasks of the finder block to {finder_workers=}!")
         self.finder_workers = finder_workers
         self.config = config or SentDedupConfig()
-        self.hash_fc = create_hash_func(config.hash_config)
+        self.hash_fc = create_hash_func(self.config.hash_config)
         self.language = language
         self.tokenizer = load_word_tokenizer(language)
 

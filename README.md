@@ -276,7 +276,7 @@ executor.run()
 </details>
 
 ### JobsPipelineExecutor
-**Experimental — may change or be removed without notice.** Runs pipelines on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/en/guides/jobs): same coordination model as Slurm, but each block of tasks runs in a cloud Job. See the [`JobsPipelineExecutor` docstring](src/datatrove/executor/jobs.py) and the `*_jobs.py` [examples](examples) for usage.
+**Experimental — may change or be removed without notice.** Runs pipelines on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/en/guides/jobs): same coordination model as Slurm, but a coordinator and each block of tasks runs in a cloud Job. See the [`JobsPipelineExecutor` docstring](src/datatrove/executor/jobs.py) and the `*_jobs.py` [examples](examples) for usage.
 
 ## Logging
 For a pipeline with `logging_dir` **mylogspath/exp1**, the following folder structure would be created:
@@ -679,6 +679,8 @@ pipeline = [
 
 You could also inherit from [`BaseExtractor`](src/datatrove/pipeline/extractors/base.py), [`BaseFilter`](src/datatrove/pipeline/filters/base_filter.py), [`BaseReader`/`BaseDiskReader`](src/datatrove/pipeline/readers/base.py), or [`DiskWriter`](src/datatrove/pipeline/writers/disk_base.py).
 ## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request: pull requests from external contributors need an issue where a maintainer has approved them to do the work.
 
 ```bash
 git clone git@github.com:huggingface/datatrove.git && cd datatrove
