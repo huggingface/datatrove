@@ -249,6 +249,7 @@ def _make_chain_hub():
             "labels": labels,
             "pik": raw,
             "dependencies": dependencies,
+            "token": (secrets or {}).get("HF_TOKEN"),
         }
         jobs[job_id] = record
         secret_names.update(secrets or {})
@@ -876,7 +877,8 @@ class TestJobsExecutor(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "worker Jobs"):
                 executor.launch_job()
         hint = next(message for message in messages if "already runs" in message)
-        self.assertIn("hf jobs cancel existing-coordinator existing-worker", hint)
+        # `hf jobs cancel` takes one Job id, so the hint lists the ids rather than one command for all
+        self.assertIn("`hf jobs cancel <job id>` each: existing-coordinator, existing-worker", hint)
 
         # what the hint guards against: with the coordinator gone and the worker left, a relaunch raises
         with (
@@ -1089,14 +1091,15 @@ class TestJobsExecutor(unittest.TestCase):
         self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
 
     def test_chain_accepts_a_token_passed_as_an_hf_token_secret(self):
-        """An ``HF_TOKEN`` secret overrides the token, so that stage needs no token= and no saved login."""
+        """An ``HF_TOKEN`` secret overrides a stage's token=, so it is what the chain is compared on."""
         a, b, c = _three_stage_chain("token-secret")
-        a.token = None
+        a.token = "hf_overridden"
         a.secrets = {"SECRET_A": "value-a", "HF_TOKEN": "hf_chaintoken"}
         hub = _make_chain_hub()
         with _no_local_login():
             _run_with_hub(c, hub)
         self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+        self.assertEqual({job["token"] for job in hub[2].values()}, {"hf_chaintoken"})
 
     def test_chain_accepts_a_token_on_the_launched_stage_only_without_a_login(self):
         """A stage with no token= and no local login has no second token: it uses the coordinator's."""
@@ -1106,6 +1109,7 @@ class TestJobsExecutor(unittest.TestCase):
         with _no_local_login():
             _run_with_hub(c, hub)
         self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+        self.assertEqual({job["token"] for job in hub[2].values()}, {"hf_chaintoken"})
 
     def test_failed_rerun_is_not_hidden_by_old_markers(self):
         """A dependency rerun that fails stops the chain, even with completion markers from an earlier run."""

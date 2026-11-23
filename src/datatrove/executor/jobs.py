@@ -109,7 +109,7 @@ class JobsPipelineExecutor(PipelineExecutor):
             import (e.g. ``["datatrove[io]", "datasets"]``). Defaults to ``["datatrove[io]"]``.
             A coordinator Job installs those of every stage of its ``depends`` chain merged, since it
             must import all of them to load the pickled chain.
-            The coordinator Job needs a datatrove that has it, as the one you launch from does.
+            The coordinator Job needs a datatrove release that has the coordinator Job.
             A release older than this executor dies at unpickle time (the class doesn't exist in its
             env). One that has the executor but not the coordinator Job still supervises, but it
             ignores ``DATATROVE_JOB_COORDINATOR``: the workers get no ``secrets``, and failed ranks
@@ -556,7 +556,8 @@ class JobsPipelineExecutor(PipelineExecutor):
         """Secrets of every stage, so the coordinator can hand each stage its own.
 
         They all reach the coordinator as env vars, so one name cannot carry two values — including
-        ``HF_TOKEN``: every stage of a chain must use the same token. A stage without ``token=`` uses
+        ``HF_TOKEN``: every stage of a chain must use the same token. An ``HF_TOKEN`` secret is a
+        stage's token if it has one, else ``token=``. A stage without either uses
         the local login (the ``HF_TOKEN`` env var or ``hf auth login``), which counts as its token
         here: inside the coordinator it would otherwise pick up whichever explicit token another stage
         passed. A stage with neither has no token of its own and uses the coordinator's.
@@ -574,7 +575,7 @@ class JobsPipelineExecutor(PipelineExecutor):
                     if key == "HF_TOKEN":
                         raise ValueError(
                             "The stages of this depends= chain use different Hugging Face tokens (token=, an "
-                            "HF_TOKEN secret, or else the local login), but one coordinator runs them all. "
+                            "HF_TOKEN secret, or else the local login), but a coordinator Job has only one. "
                             "Use the same token for every stage."
                         )
                     raise ValueError(f"Secret {key!r} has different values in two stages of the depends= chain.")
@@ -653,9 +654,9 @@ class JobsPipelineExecutor(PipelineExecutor):
                     logger.warning(
                         f"A coordinator Job already runs '{self.job_name}' ({', '.join(found['coordinator'])}); "
                         f"not launching a second one, as two would run the same ranks. To relaunch, cancel it "
-                        f"and its live worker Jobs (a relaunch refuses to start while they are live): "
-                        f"`hf jobs cancel {' '.join(found['coordinator'] + found['worker'])}`, plus the workers "
-                        f"of any upstream stage it is running (`hf jobs ps`)."
+                        f"and its live worker Jobs (a relaunch refuses to start while they are live), one "
+                        f"`hf jobs cancel <job id>` each: {', '.join(found['coordinator'] + found['worker'])}, "
+                        f"plus the workers of any upstream stage it is running (`hf jobs ps`)."
                     )
                     return True
                 logger.info(
@@ -667,9 +668,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             if found["worker"]:
                 raise RuntimeError(
                     f"{len(found['worker'])} Job(s) of an earlier launch of '{stage.job_name}' are still live "
-                    f"({', '.join(found['worker'])}). Wait for them, or cancel them with `hf jobs cancel "
-                    f"{' '.join(found['worker'])}` — ranks they already completed are skipped by the next "
-                    f"launch anyway."
+                    f"({', '.join(found['worker'])}). Wait for them, or cancel each with `hf jobs cancel "
+                    f"<job id>` — ranks they already completed are skipped by the next launch anyway."
                 )
             if stage is not self:
                 stage._launched = False
