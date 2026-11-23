@@ -114,10 +114,15 @@ class ExtractorSandbox:
         if platform.system() == "Linux":
             self.set_oom_score_adj(1000)
 
-        if isinstance(self.warmup_text, tuple):
-            extract_fn(*self.warmup_text)  # "warmup"
-        else:
-            extract_fn(self.warmup_text)  # "warmup"
+        try:
+            if isinstance(self.warmup_text, tuple):
+                extract_fn(*self.warmup_text)  # "warmup"
+            else:
+                extract_fn(self.warmup_text)  # "warmup"
+        except Exception:
+            # Warmup only needs to import extractor code. The default empty document can
+            # legitimately fail (e.g. readability Unparseable: Document is empty).
+            pass
         conn.send(None)  # ready
         while True:
             try:
