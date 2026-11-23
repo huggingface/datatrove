@@ -331,7 +331,7 @@ class JobsPipelineExecutor(PipelineExecutor):
                 if depends_launched_here:
                     if not incomplete and depends_succeeded:
                         break
-                    # launch_job() blocks, so the dependency has finished; any ranks still incomplete have
+                    # _supervise() blocks, so the dependency has finished; any ranks still incomplete have
                     # failed (retries exhausted). Don't wait forever.
                     outcome = (
                         f"{len(incomplete)}/{self.depends.world_size} tasks still incomplete"
