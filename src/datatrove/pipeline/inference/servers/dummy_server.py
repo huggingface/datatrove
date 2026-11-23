@@ -101,14 +101,12 @@ class DummyServer(InferenceServer):
 
     async def start_server(self) -> None:
         """Start the dummy HTTP server in a separate thread."""
+        # Bind before returning, so monitor_health never sees http_server unset and exits early
+        self.http_server = HTTPServer(("localhost", self._port), DummyHandler)
+        logger.info(f"Dummy server started on port {self._port}")
 
-        def run_server():
-            self.http_server = HTTPServer(("localhost", self._port), DummyHandler)
-            logger.info(f"Dummy server started on port {self._port}")
-            self.http_server.serve_forever()
-
-        # Run the server in a separate thread
-        server_thread = threading.Thread(target=run_server, daemon=True)
+        # Serve from a separate thread
+        server_thread = threading.Thread(target=self.http_server.serve_forever, daemon=True)
         server_thread.start()
 
     def kill_server(self):
