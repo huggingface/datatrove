@@ -2,6 +2,7 @@ import json
 import math
 import os
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import dill
@@ -316,6 +317,17 @@ def _no_dependency_wait(seconds):
     """
     if seconds >= 60:
         raise TimeoutError("would wait for a dependency forever")
+
+
+@contextmanager
+def _no_local_login():
+    """No saved login and no ambient ``HF_TOKEN``: only the ``HF_TOKEN`` a Job receives as a secret is found."""
+    with (
+        patch.dict(os.environ),
+        patch("huggingface_hub.get_token", lambda: os.environ.get("HF_TOKEN")),
+    ):
+        os.environ.pop("HF_TOKEN", None)
+        yield
 
 
 def _run_with_hub(executor, hub, live_jobs=(), list_jobs=None):
@@ -1063,7 +1075,7 @@ class TestJobsExecutor(unittest.TestCase):
                 stage.token = "hf_chaintoken" if name == explicit_stage else None
             hub = _make_chain_hub()
             with patch("huggingface_hub.get_token", lambda: "hf_logintoken"):
-                with self.assertRaisesRegex(ValueError, "HF_TOKEN"):
+                with self.assertRaisesRegex(ValueError, "different Hugging Face tokens"):
                     _run_with_hub(c, hub)
             self.assertEqual(hub[2], {}, "nothing may be submitted")
 
@@ -1082,8 +1094,16 @@ class TestJobsExecutor(unittest.TestCase):
         a.token = None
         a.secrets = {"SECRET_A": "value-a", "HF_TOKEN": "hf_chaintoken"}
         hub = _make_chain_hub()
-        # no saved login: like the real get_token, only the HF_TOKEN a Job receives as a secret is found
-        with patch("huggingface_hub.get_token", lambda: os.environ.get("HF_TOKEN")):
+        with _no_local_login():
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+
+    def test_chain_accepts_a_token_on_the_launched_stage_only_without_a_login(self):
+        """A stage with no token= and no local login has no second token: it uses the coordinator's."""
+        a, b, c = _three_stage_chain("token-last-only")
+        a.token = b.token = None
+        hub = _make_chain_hub()
+        with _no_local_login():
             _run_with_hub(c, hub)
         self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
 

@@ -109,7 +109,7 @@ class JobsPipelineExecutor(PipelineExecutor):
             import (e.g. ``["datatrove[io]", "datasets"]``). Defaults to ``["datatrove[io]"]``.
             A coordinator Job installs those of every stage of its ``depends`` chain merged, since it
             must import all of them to load the pickled chain.
-            The Jobs need a datatrove that has the coordinator Job, as the one you launch from does.
+            The coordinator Job needs a datatrove that has it, as the one you launch from does.
             A release older than this executor dies at unpickle time (the class doesn't exist in its
             env). One that has the executor but not the coordinator Job still supervises, but it
             ignores ``DATATROVE_JOB_COORDINATOR``: the workers get no ``secrets``, and failed ranks
@@ -557,24 +557,27 @@ class JobsPipelineExecutor(PipelineExecutor):
 
         They all reach the coordinator as env vars, so one name cannot carry two values — including
         ``HF_TOKEN``: every stage of a chain must use the same token. A stage without ``token=`` uses
-        the saved login, which counts as its token here: inside the coordinator it would otherwise
-        pick up whichever explicit token another stage passed.
+        the local login (the ``HF_TOKEN`` env var or ``hf auth login``), which counts as its token
+        here: inside the coordinator it would otherwise pick up whichever explicit token another stage
+        passed. A stage with neither has no token of its own and uses the coordinator's.
         """
+        from huggingface_hub import get_token
+
         secrets: dict[str, str] = {}
         for stage in self._chain():
             stage_secrets = dict(stage.secrets or {})
-            if "HF_TOKEN" not in stage_secrets:  # an HF_TOKEN secret overrides the token, so it needs none
-                stage_secrets["HF_TOKEN"] = stage._resolve_token()
+            token = stage.token or get_token()
+            if token and "HF_TOKEN" not in stage_secrets:  # an HF_TOKEN secret overrides the token
+                stage_secrets["HF_TOKEN"] = token
             for key, value in stage_secrets.items():
                 if secrets.setdefault(key, value) != value:
-                    raise ValueError(
-                        f"Secret {key!r} has different values in two stages of the depends= chain"
-                        + (
-                            " (a stage without token= uses the saved login). Use the same token for every stage."
-                            if key == "HF_TOKEN"
-                            else "."
+                    if key == "HF_TOKEN":
+                        raise ValueError(
+                            "The stages of this depends= chain use different Hugging Face tokens (token=, an "
+                            "HF_TOKEN secret, or else the local login), but one coordinator runs them all. "
+                            "Use the same token for every stage."
                         )
-                    )
+                    raise ValueError(f"Secret {key!r} has different values in two stages of the depends= chain.")
         return secrets
 
     def _dump_coordinator_pickle(self):
