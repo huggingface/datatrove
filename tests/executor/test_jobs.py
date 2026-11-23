@@ -2,6 +2,7 @@ import json
 import math
 import os
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import dill
@@ -248,6 +249,7 @@ def _make_chain_hub():
             "labels": labels,
             "pik": raw,
             "dependencies": dependencies,
+            "hf_token_secret": (secrets or {}).get("HF_TOKEN"),
         }
         jobs[job_id] = record
         secret_names.update(secrets or {})
@@ -316,6 +318,17 @@ def _no_dependency_wait(seconds):
     """
     if seconds >= 60:
         raise TimeoutError("would wait for a dependency forever")
+
+
+@contextmanager
+def _no_local_login():
+    """No saved login and no ambient ``HF_TOKEN``: only the ``HF_TOKEN`` a Job receives as a secret is found."""
+    with (
+        patch.dict(os.environ),
+        patch("huggingface_hub.get_token", lambda: os.environ.get("HF_TOKEN")),
+    ):
+        os.environ.pop("HF_TOKEN", None)
+        yield
 
 
 def _run_with_hub(executor, hub, live_jobs=(), list_jobs=None):
@@ -842,6 +855,40 @@ class TestJobsExecutor(unittest.TestCase):
             executor.run()
         self.assertEqual(len(submitted), 1)
 
+    def test_relaunch_hint_matches_what_a_relaunch_needs(self):
+        """Cancelling the coordinator alone is not enough: its live workers make the relaunch raise."""
+        from datatrove.utils.logging import logger
+
+        log_dir = get_datafolder("memory://jobs-coordinator/relaunch-hint")
+        executor = JobsPipelineExecutor(pipeline=[_EmitBlock()], tasks=2, logging_dir=log_dir, token="t")
+        coordinator = _fake_job({**executor._run_labels, "datatrove_role": "coordinator"}, "RUNNING")
+        worker = _fake_job(executor._run_labels, "RUNNING")
+        worker.id = "existing-worker"
+        fake_run, submitted = _make_record_only_fake()
+
+        messages: list[str] = []
+        sink = logger.add(lambda message: messages.append(str(message)), level="WARNING")
+        self.addCleanup(logger.remove, sink)
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(coordinator, worker)),
+        ):
+            self.assertIsNone(executor.run())
+            with self.assertRaisesRegex(RuntimeError, "worker Jobs"):
+                executor.launch_job()
+        hint = next(message for message in messages if "already runs" in message)
+        # `hf jobs cancel` takes one Job id, so the hint lists the ids rather than one command for all
+        self.assertIn("`hf jobs cancel <job id>` each: existing-coordinator, existing-worker", hint)
+
+        # what the hint guards against: with the coordinator gone and the worker left, a relaunch raises
+        with (
+            patch("huggingface_hub.run_uv_job", fake_run),
+            patch("huggingface_hub.list_jobs", _fake_list_jobs(worker)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "still live"):
+                executor.run()
+        self.assertEqual(submitted, [])
+
     def test_renamed_job_does_not_escape_the_running_check(self):
         """The run is identified by its logging_dir, so renaming it cannot launch a second coordinator."""
         log_dir = get_datafolder("memory://jobs-coordinator/renamed")
@@ -1021,6 +1068,48 @@ class TestJobsExecutor(unittest.TestCase):
         a.token = "hf_othertoken"
         with self.assertRaises(ValueError):
             _run_with_hub(c, _make_chain_hub())
+
+    def test_chain_rejects_an_explicit_token_mixed_with_the_default_login(self):
+        """A stage without token= uses the saved login, which is a second token if another stage passes one."""
+        for explicit_stage in ("a", "c"):
+            a, b, c = _three_stage_chain(f"token-mix-{explicit_stage}")
+            for name, stage in (("a", a), ("b", b), ("c", c)):
+                stage.token = "hf_chaintoken" if name == explicit_stage else None
+            hub = _make_chain_hub()
+            with patch("huggingface_hub.get_token", lambda: "hf_logintoken"):
+                with self.assertRaisesRegex(ValueError, "different Hugging Face tokens"):
+                    _run_with_hub(c, hub)
+            self.assertEqual(hub[2], {}, "nothing may be submitted")
+
+    def test_chain_accepts_an_explicit_token_equal_to_the_default_login(self):
+        """Passing the login token to one stage only is the same token everywhere, so the chain runs."""
+        a, b, c = _three_stage_chain("token-same")
+        a.token = b.token = None
+        hub = _make_chain_hub()
+        with patch("huggingface_hub.get_token", lambda: "hf_chaintoken"):
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+
+    def test_chain_accepts_a_token_passed_as_an_hf_token_secret(self):
+        """An ``HF_TOKEN`` secret overrides a stage's token=, so it is what the chain is compared on."""
+        a, b, c = _three_stage_chain("token-secret")
+        a.token = "hf_overridden"
+        a.secrets = {"SECRET_A": "value-a", "HF_TOKEN": "hf_chaintoken"}
+        hub = _make_chain_hub()
+        with _no_local_login():
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+        self.assertEqual({job["hf_token_secret"] for job in hub[2].values()}, {"hf_chaintoken"})
+
+    def test_chain_accepts_a_token_on_the_launched_stage_only_without_a_login(self):
+        """A stage with no token= and no local login has no second token: it uses the coordinator's."""
+        a, b, c = _three_stage_chain("token-last-only")
+        a.token = b.token = None
+        hub = _make_chain_hub()
+        with _no_local_login():
+            _run_with_hub(c, hub)
+        self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
+        self.assertEqual({job["hf_token_secret"] for job in hub[2].values()}, {"hf_chaintoken"})
 
     def test_failed_rerun_is_not_hidden_by_old_markers(self):
         """A dependency rerun that fails stops the chain, even with completion markers from an earlier run."""

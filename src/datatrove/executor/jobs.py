@@ -47,9 +47,10 @@ class JobsPipelineExecutor(PipelineExecutor):
     :class:`~datatrove.executor.slurm.SlurmPipelineExecutor` but launching Jobs with
     ``huggingface_hub.run_uv_job`` instead of calling ``sbatch``.
 
-    Like the Slurm executor, :meth:`run` is two-phase: when it detects it is running
-    *inside* a launched Job (the ``DATATROVE_JOB_ARRAY_INDEX`` env var is set) it runs its
-    assigned block of ranks; otherwise it launches the Jobs. All coordination happens
+    :meth:`run` is three-phase: when it detects it is running *inside* a launched worker Job
+    (the ``DATATROVE_JOB_ARRAY_INDEX`` env var is set) it runs its assigned block of ranks;
+    inside the coordinator Job (``DATATROVE_JOB_COORDINATOR`` set) it launches and supervises
+    the worker Jobs; otherwise it submits that coordinator Job and returns. All coordination happens
     through the shared fsspec ``logging_dir`` (``executor.pik``, ``ranks_to_run.json``,
     ``completions/``, ``stats/``), so it MUST point to a *remote* folder that both the
     launching machine and the Jobs can read/write (e.g. ``hf://buckets/<user>/<bucket>/...``
@@ -108,8 +109,11 @@ class JobsPipelineExecutor(PipelineExecutor):
             import (e.g. ``["datatrove[io]", "datasets"]``). Defaults to ``["datatrove[io]"]``.
             A coordinator Job installs those of every stage of its ``depends`` chain merged, since it
             must import all of them to load the pickled chain.
-            The Job needs datatrove>=0.10.0, the release that introduced this executor:
-            with an older one it dies at unpickle time (the class doesn't exist in its env).
+            The coordinator Job needs a datatrove release that has the coordinator Job.
+            A release older than this executor dies at unpickle time (the class doesn't exist in its
+            env). One that has the executor but not the coordinator Job still supervises, but it
+            ignores ``DATATROVE_JOB_COORDINATOR``: the workers get no ``secrets``, and failed ranks
+            of the last stage leave the coordinator Job COMPLETED instead of ERROR.
         timeout: per-Job timeout, as seconds (int) or a string like ``"2h"`` / ``"30m"``.
         tasks_per_job: how many datatrove tasks each Job runs. Reduces the number of Jobs
             launched (default 1).
@@ -297,7 +301,7 @@ class JobsPipelineExecutor(PipelineExecutor):
         if COORDINATOR_ENV_VAR not in os.environ and self._coordinator_already_live(self._resolve_token()):
             raise RuntimeError(
                 f"A coordinator Job is already running '{self.job_name}'. Follow it with `hf jobs logs -f "
-                f"<job id>`, or cancel it to supervise from here."
+                f"<job id>`, or cancel it and its live worker Jobs to supervise from here."
             )
         return self._supervise()
 
@@ -552,13 +556,28 @@ class JobsPipelineExecutor(PipelineExecutor):
         """Secrets of every stage, so the coordinator can hand each stage its own.
 
         They all reach the coordinator as env vars, so one name cannot carry two values — including
-        ``HF_TOKEN``: every stage of a chain must use the same token.
+        ``HF_TOKEN``: every stage of a chain must use the same token. A stage's token is its
+        ``HF_TOKEN`` secret if it has one, else ``token=``, else the local login (the ``HF_TOKEN`` env
+        var or ``hf auth login``). The login counts here: inside the coordinator, a stage that relies
+        on it would otherwise pick up whichever explicit token another stage passed. A stage with none
+        of the three has no token of its own and uses the coordinator's.
         """
+        from huggingface_hub import get_token
+
         secrets: dict[str, str] = {}
         for stage in self._chain():
-            stage_secrets = {**({"HF_TOKEN": stage.token} if stage.token else {}), **(stage.secrets or {})}
+            stage_secrets = dict(stage.secrets or {})
+            token = stage.token or get_token()
+            if token and "HF_TOKEN" not in stage_secrets:  # an HF_TOKEN secret overrides the token
+                stage_secrets["HF_TOKEN"] = token
             for key, value in stage_secrets.items():
                 if secrets.setdefault(key, value) != value:
+                    if key == "HF_TOKEN":
+                        raise ValueError(
+                            "The stages of this depends= chain use different Hugging Face tokens (token=, an "
+                            "HF_TOKEN secret, or else the local login), but a coordinator Job has only one. "
+                            "Use the same token for every stage."
+                        )
                     raise ValueError(f"Secret {key!r} has different values in two stages of the depends= chain.")
         return secrets
 
@@ -634,8 +653,10 @@ class JobsPipelineExecutor(PipelineExecutor):
                 if stage is self:
                     logger.warning(
                         f"A coordinator Job already runs '{self.job_name}' ({', '.join(found['coordinator'])}); "
-                        f"not launching a second one, as two would run the same ranks. Cancel it with "
-                        f"`hf jobs cancel {found['coordinator'][0]}` to relaunch."
+                        f"not launching a second one, as two would run the same ranks. To relaunch, cancel it "
+                        f"and its live worker Jobs (a relaunch refuses to start while they are live), one "
+                        f"`hf jobs cancel <job id>` each: {', '.join(found['coordinator'] + found['worker'])}, "
+                        f"plus the workers of any upstream stage it is running (`hf jobs ps`)."
                     )
                     return True
                 logger.info(
@@ -647,9 +668,8 @@ class JobsPipelineExecutor(PipelineExecutor):
             if found["worker"]:
                 raise RuntimeError(
                     f"{len(found['worker'])} Job(s) of an earlier launch of '{stage.job_name}' are still live "
-                    f"({', '.join(found['worker'])}). Wait for them, or cancel them with `hf jobs cancel "
-                    f"{' '.join(found['worker'])}` — ranks they already completed are skipped by the next "
-                    f"launch anyway."
+                    f"({', '.join(found['worker'])}). Wait for them, or cancel each with `hf jobs cancel "
+                    f"<job id>` — ranks they already completed are skipped by the next launch anyway."
                 )
             if stage is not self:
                 stage._launched = False
