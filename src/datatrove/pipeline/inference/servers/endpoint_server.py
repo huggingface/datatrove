@@ -92,17 +92,19 @@ class EndpointServer(InferenceServer):
 
         from datatrove.pipeline.inference.run_inference import InferenceError
 
-        # Extract model (required parameter for OpenAI client) and remove from payload
-        model = payload.pop("model")
+        # The OpenAI client takes model as a separate argument. Don't pop it from `payload`: the same dict is reused
+        # when the request is retried.
+        request_params = {key: value for key, value in payload.items() if key != "model"}
+        model = payload["model"]
 
         try:
             if self.config.use_chat:
-                response = await self.client.chat.completions.create(model=model, **payload)
+                response = await self.client.chat.completions.create(model=model, **request_params)
                 message = response.choices[0].message
                 text = message.content or ""
                 finish_reason = response.choices[0].finish_reason
             else:
-                response = await self.client.completions.create(model=model, **payload)
+                response = await self.client.completions.create(model=model, **request_params)
                 text = response.choices[0].text or ""
                 finish_reason = response.choices[0].finish_reason
 
@@ -133,7 +135,10 @@ class EndpointServer(InferenceServer):
                     ],
                     "usage": usage,
                 }
-        except (AuthenticationError, BadRequestError, NotFoundError, PermissionDeniedError) as e:
+        except BadRequestError as e:
+            # Non-retryable. Use the same message as the base server so skip_bad_requests recognizes it
+            raise InferenceError(None, f"Got BadRequestError from server: {e}", payload=payload) from e
+        except (AuthenticationError, NotFoundError, PermissionDeniedError) as e:
             # Non-retryable errors: wrap in InferenceError immediately
             # These won't succeed on retry, so fail fast
             raise InferenceError(None, str(e), payload=payload) from e
