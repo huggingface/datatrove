@@ -89,15 +89,15 @@ class ParquetWriter(DiskWriter):
             self._writers.pop(filename).close()
         super().close_file(filename)
 
-    def _write_batch(self, filename):
+    def _write_batch(self, filename: str) -> None:
+        """Flush buffered documents, allowing Arrow to retain chunked columns."""
         if not self._batches[filename]:
             return
         import pyarrow as pa
 
-        # prepare batch
-        batch = pa.RecordBatch.from_pylist(self._batches.pop(filename), schema=self.schema)
-        # write batch
-        self._writers[filename].write_batch(batch)
+        # Tables retain chunked columns when a string buffer exceeds Arrow's array capacity.
+        table = pa.Table.from_pylist(self._batches.pop(filename), schema=self.schema)
+        self._writers[filename].write_table(table)
 
     def _write(self, document: dict, file_handler: IO, filename: str):
         import pyarrow as pa
