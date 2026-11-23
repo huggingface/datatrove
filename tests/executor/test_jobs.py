@@ -249,7 +249,7 @@ def _make_chain_hub():
             "labels": labels,
             "pik": raw,
             "dependencies": dependencies,
-            "token": (secrets or {}).get("HF_TOKEN"),
+            "hf_token_secret": (secrets or {}).get("HF_TOKEN"),
         }
         jobs[job_id] = record
         secret_names.update(secrets or {})
@@ -1099,7 +1099,7 @@ class TestJobsExecutor(unittest.TestCase):
         with _no_local_login():
             _run_with_hub(c, hub)
         self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
-        self.assertEqual({job["token"] for job in hub[2].values()}, {"hf_chaintoken"})
+        self.assertEqual({job["hf_token_secret"] for job in hub[2].values()}, {"hf_chaintoken"})
 
     def test_chain_accepts_a_token_on_the_launched_stage_only_without_a_login(self):
         """A stage with no token= and no local login has no second token: it uses the coordinator's."""
@@ -1109,7 +1109,7 @@ class TestJobsExecutor(unittest.TestCase):
         with _no_local_login():
             _run_with_hub(c, hub)
         self.assertEqual(set(_probes()), {"A-0", "A-1", "B-0", "B-1", "C-0"})
-        self.assertEqual({job["token"] for job in hub[2].values()}, {"hf_chaintoken"})
+        self.assertEqual({job["hf_token_secret"] for job in hub[2].values()}, {"hf_chaintoken"})
 
     def test_failed_rerun_is_not_hidden_by_old_markers(self):
         """A dependency rerun that fails stops the chain, even with completion markers from an earlier run."""

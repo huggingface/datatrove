@@ -556,11 +556,11 @@ class JobsPipelineExecutor(PipelineExecutor):
         """Secrets of every stage, so the coordinator can hand each stage its own.
 
         They all reach the coordinator as env vars, so one name cannot carry two values — including
-        ``HF_TOKEN``: every stage of a chain must use the same token. An ``HF_TOKEN`` secret is a
-        stage's token if it has one, else ``token=``. A stage without either uses
-        the local login (the ``HF_TOKEN`` env var or ``hf auth login``), which counts as its token
-        here: inside the coordinator it would otherwise pick up whichever explicit token another stage
-        passed. A stage with neither has no token of its own and uses the coordinator's.
+        ``HF_TOKEN``: every stage of a chain must use the same token. A stage's token is its
+        ``HF_TOKEN`` secret if it has one, else ``token=``, else the local login (the ``HF_TOKEN`` env
+        var or ``hf auth login``). The login counts here: inside the coordinator, a stage that relies
+        on it would otherwise pick up whichever explicit token another stage passed. A stage with none
+        of the three has no token of its own and uses the coordinator's.
         """
         from huggingface_hub import get_token
 
