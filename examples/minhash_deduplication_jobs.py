@@ -6,6 +6,9 @@ Note: `JobsPipelineExecutor` is experimental and may change, break, or be remove
 
   stage1 signatures -> stage2 buckets (depends=1) -> stage3 cluster (depends=2) -> stage4 filter (depends=3)
 
+Running `stage4.run()` at the bottom submits ONE coordinator Job, which runs all four stages in order
+and returns immediately — `hf jobs logs -f <job id>` to watch. Nothing here needs to stay online.
+
 Notes specific to running this multi-stage dedup on Jobs (see `filter_hf_dataset_jobs.py` for the
 general Slurm->Jobs comparison):
 - `MINHASH_BASE_PATH` and the logs must be a shared REMOTE path that all four stages read/write.
