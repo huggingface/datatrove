@@ -602,7 +602,7 @@ class TestJobsExecutor(unittest.TestCase):
         first = build()
         fr, fi, _ = _make_fake_jobs(first)
         with patch("huggingface_hub.run_uv_job", fr), patch("huggingface_hub.inspect_job", fi):
-            first.run()
+            first.launch_job()
         self.assertIn(2 * EMITTED_PER_RANK, emitted_totals())
 
         # recompute with different output; its supervisor dies between the last rank and the merge
@@ -614,14 +614,14 @@ class TestJobsExecutor(unittest.TestCase):
             patch(f"{__name__}.EMITTED_PER_RANK", EMITTED_PER_RANK + 1),
             patch.object(JobsPipelineExecutor, "_merge_stats", lambda self: None),
         ):
-            recompute.run()
+            recompute.launch_job()
         self.assertEqual(len(launched), 2)
         self.assertFalse(log_dir.isfile("stats.json"))  # not the first run's summary
 
         resume = build()
         fr3, fi3, relaunched = _make_fake_jobs(resume)
         with patch("huggingface_hub.run_uv_job", fr3), patch("huggingface_hub.inspect_job", fi3):
-            resume.run()
+            resume.launch_job()
         self.assertEqual(len(relaunched), 0)
         self.assertIn(2 * (EMITTED_PER_RANK + 1), emitted_totals())  # the recompute's stats
 
