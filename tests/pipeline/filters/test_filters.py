@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -12,7 +14,7 @@ from datatrove.pipeline.filters import (
     UnigramLogProbFilter,
     URLFilter,
 )
-from datatrove.pipeline.filters.c4_filters import C4ParagraphFilter, C4QualityFilter
+from datatrove.pipeline.filters.c4_filters import C4BadWordsFilter, C4ParagraphFilter, C4QualityFilter
 from datatrove.pipeline.filters.fineweb_quality_filter import FineWebQualityFilter
 from datatrove.pipeline.filters.sampler_filter import SamplerFilter
 
@@ -257,6 +259,47 @@ class TestC4ParagraphFilter(unittest.TestCase):
         result, reason = C4ParagraphFilter().filter(get_doc("short\nshort\nshort"))
         assert result is False
         assert "paragraphs" in reason
+
+
+class TestC4BadWordsFilter(unittest.TestCase):
+    # subset of the pinned Spanish badwords list: entries keep their original casing ("Asesinato", "Cabrón")
+    BADWORDS_FIXTURE = "Asesinato\nCaca\nCabrón\nasno\n"
+
+    def setUp(self):
+        with tempfile.NamedTemporaryFile("w", suffix="_es", delete=False) as f:
+            f.write(self.BADWORDS_FIXTURE)
+            self.badwords_path = f.name
+        self.addCleanup(os.remove, self.badwords_path)
+        # badwords lists are loaded lazily on the first filter() call
+        patcher = mock.patch(
+            "datatrove.pipeline.filters.c4_filters.cached_asset_path_or_download", return_value=self.badwords_path
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def get_doc_with_language(self, text: str) -> Document:
+        return Document(text=text, id="0", metadata={"language": "es"})
+
+    def test_uppercase_entries_match_lowercased_text(self):
+        # the document text is lowercased before matching, so list entries with uppercase
+        # characters would never match if they were not lowercased at load time
+        badwords_filter = C4BadWordsFilter()
+        for text in ("Esto es asesinato hoy.", "no toques eso, es caca", "eres un cabrón"):
+            assert badwords_filter.filter(self.get_doc_with_language(text)) == (
+                False,
+                "document_removed_with_badwords",
+            )
+
+    def test_lowercase_entry_still_matches(self):
+        badwords_filter = C4BadWordsFilter()
+        assert badwords_filter.filter(self.get_doc_with_language("Esto es un asno hoy.")) == (
+            False,
+            "document_removed_with_badwords",
+        )
+
+    def test_keeps_clean_text(self):
+        badwords_filter = C4BadWordsFilter()
+        assert badwords_filter.filter(self.get_doc_with_language("Esto es una casa bonita hoy.")) is True
 
 
 @require_nltk
