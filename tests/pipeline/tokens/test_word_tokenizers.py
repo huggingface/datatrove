@@ -1,6 +1,7 @@
 import unittest
 
 from datatrove.utils.word_tokenizers import (
+    SpaCyTokenizer,
     TibetanTokenizer,
     WhitespaceTokenizer,
     load_tokenizer_assignments,
@@ -56,6 +57,12 @@ class TestWordTokenizers(unittest.TestCase):
             assert (tokenizer.language == "ur" or isinstance(tokenizer, TibetanTokenizer)) or all(spans_match_sents), (
                 f"'{language}' tokenizer spans don't match with sentences"
             )
+
+    def test_spacy_tokenizer_is_alpha_is_stable(self):
+        # spaCy used to raise on "IS_ALPHA" after its first memory_zone, and it was then deleted from the text
+        tokenizer = SpaCyTokenizer("en")
+        for _ in range(3):
+            self.assertIn("IS_ALPHA", tokenizer.word_tokenize("The flag IS_ALPHA marks letters."))
 
     def test_english_tokenizer(self):
         en_tokenizer = load_word_tokenizer("en")
