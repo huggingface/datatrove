@@ -249,9 +249,9 @@ class C4BadWordsFilter(BaseFilter):
                 subfolder="c4_badwords",
             )
             badwords: set[str] = set()
-            # load from file
+            # load from file (lowercased: the document text is lowercased before matching)
             with open(local_path, "rt") as f:
-                badwords.update(line.strip() for line in f)
+                badwords.update(line.strip().lower() for line in f)
             for allowlist in _BADWORDS_ALLOWLIST.values():
                 badwords -= allowlist
 
